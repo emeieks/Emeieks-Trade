@@ -422,6 +422,8 @@ function GlobalStyle() {
       ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
       ::-webkit-scrollbar-thumb:hover { background: ${C.borderLight}; }
       input::placeholder, textarea::placeholder { color: ${C.textMuted}; }
+      input, textarea, select { color: ${C.text} !important; background: ${C.card} !important; -webkit-text-fill-color: ${C.text} !important; }
+      input::-webkit-input-placeholder { color: ${C.textMuted} !important; -webkit-text-fill-color: ${C.textMuted} !important; }
       input, textarea, select, button { font-family: ${FONT.base}; }
       input:focus, textarea:focus, select:focus { outline: none; border-color: ${C.purple} !important; box-shadow: 0 0 0 3px ${C.purpleDim}; }
       button:focus-visible { outline: 2px solid ${C.purple}; outline-offset: 2px; }
@@ -611,6 +613,39 @@ function TagBadge({ name, size = "md", onRemove }) {
   );
 }
 
+/* Logo Emeieks Trade — SVG fidèle au logo original */
+function EmeieksLogo({ size = 36 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+      <defs>
+        <linearGradient id="logoGradE" x1="20" y1="15" x2="55" y2="75" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#E8E8F0"/>
+          <stop offset="100%" stopColor="#A0A0C0"/>
+        </linearGradient>
+        <linearGradient id="logoGradArrow" x1="35" y1="70" x2="80" y2="20" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#4A3BB5"/>
+          <stop offset="100%" stopColor="#7B6CF6"/>
+        </linearGradient>
+      </defs>
+      {/* Lettre E */}
+      <path d="M18 15 L18 75 L50 75 L50 65 L30 65 L30 50 L46 50 L46 41 L30 41 L30 25 L50 25 L50 15 Z" fill="url(#logoGradE)"/>
+      {/* Flèche diagonale montante */}
+      <line x1="38" y1="72" x2="78" y2="22" stroke="url(#logoGradArrow)" strokeWidth="5.5" strokeLinecap="round"/>
+      <polygon points="78,22 68,24 76,32" fill="#7B6CF6"/>
+      {/* Chandeliers */}
+      <rect x="58" y="48" width="5" height="18" rx="1" fill="#5B4DD4" opacity="0.85"/>
+      <line x1="60.5" y1="44" x2="60.5" y2="48" stroke="#5B4DD4" strokeWidth="1.5"/>
+      <line x1="60.5" y1="66" x2="60.5" y2="70" stroke="#5B4DD4" strokeWidth="1.5"/>
+      <rect x="67" y="42" width="5" height="22" rx="1" fill="#6B5AE8" opacity="0.9"/>
+      <line x1="69.5" y1="38" x2="69.5" y2="42" stroke="#6B5AE8" strokeWidth="1.5"/>
+      <line x1="69.5" y1="64" x2="69.5" y2="68" stroke="#6B5AE8" strokeWidth="1.5"/>
+      <rect x="76" y="36" width="5" height="26" rx="1" fill="#7B6CF6"/>
+      <line x1="78.5" y1="32" x2="78.5" y2="36" stroke="#7B6CF6" strokeWidth="1.5"/>
+      <line x1="78.5" y1="62" x2="78.5" y2="66" stroke="#7B6CF6" strokeWidth="1.5"/>
+    </svg>
+  );
+}
+
 function DirBadge({ direction, size = "sm" }) {
   const isLong = direction === "long";
   const sz = size === "lg" ? { fontSize: 13, padding: "3px 9px", borderRadius: 5 } : { fontSize: 11, padding: "2px 6px", borderRadius: 4 };
@@ -699,7 +734,9 @@ function EmptyState({ icon: Icon, title, text, action }) {
   );
 }
 
-const inputStyle = { background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "8px 11px", color: C.text, fontSize: 13, width: "100%" };
+const getInputStyle = () => ({ background: C.card, border: `1px solid ${C.border}`, borderRadius: 7, padding: "8px 11px", color: C.text, fontSize: 13, width: "100%", WebkitTextFillColor: C.text });
+// Alias pour compatibilité avec le code existant qui utilise inputStyle directement
+let inputStyle = getInputStyle();
 
 const btn = {
   primary: { background: C.purple, color: "#fff", border: "none", borderRadius: 7, padding: "9px 15px", fontWeight: 600, fontSize: 12.5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 },
@@ -735,6 +772,7 @@ const NAV_ITEMS = [
   { id: "calculator", label: "Calculatrice", icon: Calculator },
   { id: "stats", label: "Statistiques", icon: BarChart3 },
   { id: "coach", label: "IA Coach", icon: Brain },
+  { id: "settings", label: "Réglages", icon: Settings },
 ];
 
 function Sidebar({ view, setView, onNewTrade }) {
@@ -742,31 +780,10 @@ function Sidebar({ view, setView, onNewTrade }) {
     <>
       <aside className="desktop-only sidebar-full" style={S.aside}>
         <div style={S.brand}>
-          {/* Logo Emieks Trade Axe Bourse — chandelier + graphique */}
-          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-            <rect width="36" height="36" rx="9" fill="url(#brandGrad)" />
-            {/* Chandelier haussier (vert) */}
-            <rect x="8" y="14" width="4" height="10" rx="1" fill="#2DD4BF"/>
-            <line x1="10" y1="11" x2="10" y2="14" stroke="#2DD4BF" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="10" y1="24" x2="10" y2="27" stroke="#2DD4BF" strokeWidth="1.5" strokeLinecap="round"/>
-            {/* Chandelier baissier (rouge) */}
-            <rect x="16" y="10" width="4" height="8" rx="1" fill="#F87171"/>
-            <line x1="18" y1="7" x2="18" y2="10" stroke="#F87171" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="18" y1="18" x2="18" y2="22" stroke="#F87171" strokeWidth="1.5" strokeLinecap="round"/>
-            {/* Chandelier haussier (vert) */}
-            <rect x="24" y="16" width="4" height="7" rx="1" fill="#2DD4BF"/>
-            <line x1="26" y1="13" x2="26" y2="16" stroke="#2DD4BF" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="26" y1="23" x2="26" y2="26" stroke="#2DD4BF" strokeWidth="1.5" strokeLinecap="round"/>
-            <defs>
-              <linearGradient id="brandGrad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#8B7CF6"/>
-                <stop offset="100%" stopColor="#5B3FE0"/>
-              </linearGradient>
-            </defs>
-          </svg>
+          <EmeieksLogo size={38} />
           <div className="brand-text">
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.sidebarText, letterSpacing: -0.3, lineHeight: 1.1 }}>Emieks</div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: C.sidebarTextDim, letterSpacing: 0.3 }}>Trade Axe Bourse</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.sidebarText, letterSpacing: -0.3, lineHeight: 1.1 }}>Emeieks</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.sidebarTextDim, letterSpacing: 0.3 }}>Trade</div>
           </div>
         </div>
 
@@ -803,7 +820,7 @@ function Sidebar({ view, setView, onNewTrade }) {
       </aside>
 
       <nav className="mobile-only" style={S.mobileNav}>
-        {NAV_ITEMS.slice(0, 2).map((it) => {
+        {NAV_ITEMS.slice(0, 3).map((it) => {
           const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
           const Icon = it.icon;
           return (
@@ -816,7 +833,7 @@ function Sidebar({ view, setView, onNewTrade }) {
         <button onClick={onNewTrade} style={S.mobileNavItem}>
           <div style={S.mobileFab}><Plus size={17} strokeWidth={2.6} color="#fff" /></div>
         </button>
-        {NAV_ITEMS.slice(2).map((it) => {
+        {NAV_ITEMS.slice(3).map((it) => {
           const active = view === it.id;
           const Icon = it.icon;
           return (
@@ -852,20 +869,36 @@ const S = {
    TOP BAR — sélecteur de période façon TradeZella
    ============================================================================ */
 
-function TopBar({ title, onSettings, isDark, onToggleTheme }) {
+function TopBar({ title, onSettings, isDark, onToggleTheme, onCalendar }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${C.sidebarBorder}`, background: C.sidebar, gap: 8, minWidth: 0 }}>
       <span style={{ fontSize: 13, fontWeight: 600, color: C.sidebarText, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <button className="desktop-only" style={{ ...btn.ghost, fontSize: 12, padding: "7px 10px", background: C.sidebarHover, color: C.sidebarTextDim, borderColor: C.sidebarBorder }}>
-          <CalendarIcon size={13} /> 01 juin – 19 juin 2026 <ChevronDown size={13} />
-        </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
         <button className="desktop-only" style={{ ...btn.ghost, fontSize: 12, padding: "7px 10px", background: C.sidebarHover, color: C.sidebarTextDim, borderColor: C.sidebarBorder }}>Tous les comptes <ChevronDown size={13} /></button>
-        <button onClick={onToggleTheme} style={{ ...btn.icon, background: C.sidebarHover, color: C.sidebarTextDim, borderColor: C.sidebarBorder }} title={isDark ? "Mode clair" : "Mode sombre"}>
-          <span style={{ fontSize: 15 }}>{isDark ? "☀️" : "🌙"}</span>
+
+        {/* Calendrier */}
+        <button onClick={onCalendar} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="Calendrier">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
         </button>
-        <button onClick={onSettings} style={{ ...btn.icon, background: C.sidebarHover, color: C.sidebarTextDim, borderColor: C.sidebarBorder }} title="Paramètres">
-          <Settings size={17} strokeWidth={1.8} />
+
+        {/* Thème clair/sombre */}
+        <button onClick={onToggleTheme} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title={isDark ? "Mode clair" : "Mode sombre"}>
+          {isDark ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          )}
+        </button>
+
+        {/* Paramètres */}
+        <button onClick={onSettings} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="Paramètres">
+          <Settings size={16} strokeWidth={1.8} color={C.sidebarTextDim} />
         </button>
       </div>
     </div>
@@ -1216,8 +1249,25 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [openMonths, setOpenMonths] = useState(() => {
+    // Ouvre le mois courant par défaut
+    const now = new Date("2026-06-19");
+    return new Set([`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`]);
+  });
 
   const setupOptions = useMemo(() => [...new Set(trades.map((t) => t.setup).filter(Boolean))], [trades]);
+
+  // Grouper les trades par mois
+  const byMonth = useMemo(() => {
+    const map = {};
+    trades.forEach((t) => {
+      const d = new Date(t.entryTime);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(t);
+    });
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [trades]);
 
   const filtered = useMemo(() => {
     return trades.filter((t) => {
@@ -1236,6 +1286,18 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
   }, [trades, filterPair, filterSetup, filterSession, filterTag, filterResult, dateFrom, dateTo, search]);
 
   const activeFilterCount = [filterPair !== "all", filterSetup !== "all", filterSession !== "all", filterTag !== "all", filterResult !== "all", dateFrom, dateTo].filter(Boolean).length;
+
+  const toggleMonth = (key) => {
+    setOpenMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  // Vérifie si des filtres actifs sont présents — si oui affiche la liste plate, sinon affiche par mois
+  const hasActiveFilters = activeFilterCount > 0 || search || filterTag !== "all";
 
   return (
     <div className="fade-in">
@@ -1315,6 +1377,82 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
         <div style={{ color: C.textMuted, fontSize: 13, padding: "40px 0", textAlign: "center" }}>Aucun trade ne correspond à ces filtres.</div>
       ) : (
         <>
+          {/* Blocs mois accordéon — visibles seulement sans filtre actif */}
+          {!hasActiveFilters && byMonth.map(([monthKey, monthTrades]) => {
+            const isOpen = openMonths.has(monthKey);
+            const [year, month] = monthKey.split("-");
+            const monthLabel = new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+            const monthPnl = monthTrades.reduce((s, t) => s + (t.resultUsd || 0), 0);
+            const monthR = monthTrades.reduce((s, t) => s + (t.resultR || 0), 0);
+            const wins = monthTrades.filter(t => t.resultR > 0).length;
+            return (
+              <div key={monthKey} style={{ marginBottom: 10 }}>
+                {/* En-tête du mois — cliquable */}
+                <button onClick={() => toggleMonth(monthKey)} style={{
+                  width: "100%", border: `1.5px solid ${isOpen ? C.purple : C.border}`,
+                  background: isOpen ? C.purpleDim : C.card, borderRadius: isOpen ? "10px 10px 0 0" : 10,
+                  padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 18 }}>{isOpen ? "▼" : "▶"}</span>
+                    <div style={{ textAlign: "left" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textTransform: "capitalize" }}>{monthLabel}</div>
+                      <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>{monthTrades.length} trades · {wins}W/{monthTrades.length - wins}L</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: monthR >= 0 ? C.teal : C.red }}>
+                      {monthR >= 0 ? "+" : ""}{monthR.toFixed(2)}R
+                    </div>
+                    <div className="tnum" style={{ fontSize: 13, fontWeight: 600, color: monthPnl >= 0 ? C.teal : C.red, marginTop: 2 }}>
+                      {fmtUsdSigned(monthPnl)}
+                    </div>
+                  </div>
+                </button>
+
+                {/* Contenu du mois — cartes des trades */}
+                {isOpen && (
+                  <div style={{ border: `1.5px solid ${C.purple}`, borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
+                    <Card style={{ overflow: "hidden" }} className="desktop-only">
+                      <div className="table-scroll">
+                        <div style={{ display: "grid", gridTemplateColumns: "56px 90px 70px 60px 130px 90px 70px 60px 90px 1fr", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, minWidth: 800 }}>
+                          <div>Img</div><div>Date</div><div>Paire</div><div>Dir.</div><div>Setup</div><div>Résultat $</div><div>R</div><div>W/L</div><div>Session</div><div>Tags</div>
+                        </div>
+                        {monthTrades.map((t) => (
+                          <div key={t.id} className="row-hover" onClick={() => onOpen(t.id)} style={{ display: "grid", gridTemplateColumns: "56px 90px 70px 60px 130px 90px 70px 60px 90px 1fr", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, alignItems: "center", cursor: "pointer", fontSize: 12.5, minWidth: 800 }}>
+                            <div style={{ width: 40, height: 28, borderRadius: 4, overflow: "hidden", background: C.bg, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {t.screenshotBefore ? <img src={t.screenshotBefore} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <ImageOff size={12} color={C.textMuted} />}
+                            </div>
+                            <div style={{ color: C.textSecondary, fontSize: 11.5 }}>{fmtDate(t.entryTime)}</div>
+                            <div style={{ fontWeight: 700 }}>{t.pair}</div>
+                            <div><DirBadge direction={t.direction} /></div>
+                            <div style={{ color: C.textSecondary, fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.setup || (t.tags || [])[0] || "—"}</div>
+                            <div className="tnum" style={{ fontWeight: 700, color: (t.resultUsd || 0) >= 0 ? C.teal : C.red }}>{fmtUsdSigned(t.resultUsd)}</div>
+                            <div className="tnum" style={{ color: C.textSecondary, fontWeight: 600 }}>{fmtR(t.resultR)}</div>
+                            <div><ResultBadge resultR={t.resultR} status={t.status} size="sm" onStatusChange={(s, r) => onStatusChange(t.id, s, r)} /></div>
+                            <div style={{ fontSize: 11, color: C.textMuted }}>{getSession(t.entryTime)}</div>
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", overflow: "hidden" }}>
+                              {(t.tags || []).slice(0, 2).map((tag) => <TagBadge key={tag} name={tag} size="sm" />)}
+                              {(t.tags || []).length > 2 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{t.tags.length - 2}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                    <div className="mobile-only" style={{ display: "flex", flexDirection: "column" }}>
+                      {monthTrades.map((t) => (
+                        <MobileTradeCard key={t.id} t={t} onOpen={onOpen} onStatusChange={onStatusChange} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Vue plate quand filtres actifs */}
+          {hasActiveFilters && (
+          <>
           <Card style={{ overflow: "hidden" }} className="desktop-only">
             <div className="table-scroll">
             <div style={{ display: "grid", gridTemplateColumns: "56px 90px 70px 60px 130px 90px 70px 60px 90px 1fr 56px", padding: "10px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, minWidth: 860 }}>
@@ -1349,59 +1487,65 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
 
           <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {filtered.map((t) => (
-              <Card key={t.id} style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ height: 3, background: t.status === "open" ? C.purple : t.resultR > 0 ? C.teal : t.status === "breakeven" ? C.textMuted : C.red }} />
-                <div style={{ padding: "12px 14px", cursor: "pointer" }} onClick={() => onOpen(t.id)}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <span style={{ fontWeight: 800, fontSize: 15 }}>{t.pair}</span>
-                      <DirBadge direction={t.direction} />
-                      {t.screenshotBefore && (
-                        <button onClick={(e) => { e.stopPropagation(); window.open(t.screenshotBefore); }} style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", fontSize: 13 }}>📷</button>
-                      )}
-                    </div>
-                    <span className="tnum" style={{ fontWeight: 800, fontSize: 15, color: t.status === "open" ? C.textSecondary : (t.resultUsd || 0) >= 0 ? C.teal : C.red }}>
-                      {t.status === "open" ? "En cours" : fmtUsdSigned(t.resultUsd)}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: t.tags?.length > 0 ? 8 : 0 }}>{fmtDate(t.entryTime)} · {t.setup || (t.tags || [])[0] || "—"}</div>
-                  {t.tags?.length > 0 && (
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {t.tags.slice(0, 3).map((tag) => <TagBadge key={tag} name={tag} size="sm" />)}
-                    </div>
-                  )}
-                </div>
-                {/* Boutons Win/Loss bien visibles en bas de chaque carte */}
-                <div style={{ display: "flex", borderTop: `1px solid ${C.border}` }}>
-                  {[
-                    { v: "win", label: "✅ Gagné", color: C.teal, bg: C.tealDim, rSign: 1 },
-                    { v: "loss", label: "❌ Perdu", color: C.red, bg: C.redDim, rSign: -1 },
-                    { v: "breakeven", label: "➖ BE", color: C.textMuted, bg: "rgba(170,178,197,0.12)", rSign: 0 },
-                    { v: "open", label: "🔓 Ouvert", color: C.purpleBright, bg: C.purpleDim, rSign: null },
-                  ].map((opt, i, arr) => {
-                    const isActive = (opt.v === "win" && t.resultR > 0 && t.status !== "open") ||
-                                     (opt.v === "loss" && (t.resultR || 0) <= 0 && t.status !== "open" && t.status !== "breakeven") ||
-                                     (opt.v === "breakeven" && t.status === "breakeven") ||
-                                     (opt.v === "open" && t.status === "open");
-                    const newR = opt.rSign === null ? t.resultR : opt.rSign === 0 ? 0 : opt.rSign * Math.abs(t.resultR || 1);
-                    return (
-                      <button key={opt.v} onClick={(e) => { e.stopPropagation(); onStatusChange(t.id, opt.v, newR); }} style={{
-                        flex: 1, padding: "10px 2px", background: isActive ? opt.bg : "transparent",
-                        border: "none", borderRight: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
-                        color: isActive ? opt.color : C.textMuted, fontSize: 11, fontWeight: isActive ? 700 : 500, cursor: "pointer",
-                        transition: "background 0.12s ease",
-                      }}>
-                        {opt.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
+              <MobileTradeCard key={t.id} t={t} onOpen={onOpen} onStatusChange={onStatusChange} />
             ))}
           </div>
+          </>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+function MobileTradeCard({ t, onOpen, onStatusChange }) {
+  return (
+    <Card style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ height: 3, background: t.status === "open" ? C.purple : t.resultR > 0 ? C.teal : t.status === "breakeven" ? C.textMuted : C.red }} />
+      <div style={{ padding: "12px 14px", cursor: "pointer" }} onClick={() => onOpen(t.id)}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{t.pair}</span>
+            <DirBadge direction={t.direction} />
+            {t.screenshotBefore && (
+              <button onClick={(e) => { e.stopPropagation(); window.open(t.screenshotBefore); }} style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", fontSize: 13 }}>📷</button>
+            )}
+          </div>
+          <span className="tnum" style={{ fontWeight: 800, fontSize: 15, color: t.status === "open" ? C.textSecondary : (t.resultUsd || 0) >= 0 ? C.teal : C.red }}>
+            {t.status === "open" ? "En cours" : fmtUsdSigned(t.resultUsd)}
+          </span>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: t.tags?.length > 0 ? 8 : 0 }}>{fmtDate(t.entryTime)} · {t.setup || (t.tags || [])[0] || "—"}</div>
+        {t.tags?.length > 0 && (
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {t.tags.slice(0, 3).map((tag) => <TagBadge key={tag} name={tag} size="sm" />)}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", borderTop: `1px solid ${C.border}` }}>
+        {[
+          { v: "win", label: "✅ Gagné", color: C.teal, bg: C.tealDim, rSign: 1 },
+          { v: "loss", label: "❌ Perdu", color: C.red, bg: C.redDim, rSign: -1 },
+          { v: "breakeven", label: "➖ BE", color: C.textMuted, bg: "rgba(170,178,197,0.12)", rSign: 0 },
+          { v: "open", label: "🔓 Ouvert", color: C.purpleBright, bg: C.purpleDim, rSign: null },
+        ].map((opt, i, arr) => {
+          const isActive = (opt.v === "win" && t.resultR > 0 && t.status !== "open") ||
+                           (opt.v === "loss" && (t.resultR || 0) <= 0 && t.status !== "open" && t.status !== "breakeven") ||
+                           (opt.v === "breakeven" && t.status === "breakeven") ||
+                           (opt.v === "open" && t.status === "open");
+          const newR = opt.rSign === null ? t.resultR : opt.rSign === 0 ? 0 : opt.rSign * Math.abs(t.resultR || 1);
+          return (
+            <button key={opt.v} onClick={(e) => { e.stopPropagation(); onStatusChange(t.id, opt.v, newR); }} style={{
+              flex: 1, padding: "10px 2px", background: isActive ? opt.bg : "transparent",
+              border: "none", borderRight: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
+              color: isActive ? opt.color : C.textMuted, fontSize: 11, fontWeight: isActive ? 700 : 500, cursor: "pointer",
+            }}>
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -2073,77 +2217,91 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
       <BackLink onClick={onCancel}>Annuler</BackLink>
       <PageHeader title={isEdit ? "Modifier le trade" : "Nouveau trade"} />
 
-      {/* Smart Capture */}
-      {!isEdit && (
-        <Card style={{ padding: 16, marginBottom: 14, borderColor: "rgba(139,124,246,0.25)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
-            <Sparkles size={14} color={C.purpleBright} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Smart Trade Capture</span>
-          </div>
-          <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 12 }}>Uploade ton screenshot TradingView, le formulaire se remplit automatiquement.</div>
-          <SmartCaptureBox value={screenshotBefore} onChange={setScreenshotBefore} onExtracted={handleExtracted} />
-        </Card>
-      )}
-
-      {/* Identification — statut OUVERT par défaut, sans setup principal, avec tags */}
+      {/* Identification — nouvelle structure demandée */}
       <Card style={{ padding: 16, marginBottom: 14 }}>
         <CardLabel>Identification</CardLabel>
         <div className="form-grid-2" style={{ marginTop: 12 }}>
+
+          <Field label="Date et heure">
+            <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={inputStyle} />
+          </Field>
+
           <Field label="Paire">
             <select value={pair} onChange={(e) => setPair(e.target.value)} style={inputStyle}>
               {(appSettings?.pairs || PAIRS).map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </Field>
+
+          <Field label="Compte">
+            <select value={appSettings?.broker || "ICMarkets"} onChange={() => {}} style={inputStyle}>
+              {(appSettings?.brokers || ["ICMarkets"]).map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </Field>
+
           <Field label="Direction">
             <div style={{ display: "flex", gap: 6 }}>
               <ToggleBtn active={direction === "long"} onClick={() => setDirection("long")} color={C.teal}>Long</ToggleBtn>
               <ToggleBtn active={direction === "short"} onClick={() => setDirection("short")} color={C.red}>Short</ToggleBtn>
             </div>
           </Field>
-          <Field label="Date et heure d'entrée">
-            <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={inputStyle} />
+
+          <Field label="Session">
+            <select value={tags.find(t => ["London Session","New York Session","Asia Session","Hors session"].includes(t)) || ""} onChange={(e) => {
+              const sessions = ["London Session","New York Session","Asia Session","Hors session"];
+              setTags(prev => [...prev.filter(t => !sessions.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
+            }} style={inputStyle}>
+              <option value="">— Sélectionner —</option>
+              <option value="Hors session">Hors session</option>
+              <option value="London Session">Session London</option>
+              <option value="New York Session">Session New York</option>
+              <option value="Asia Session">Session Asia</option>
+            </select>
           </Field>
+
+          <Field label="Type de trade">
+            <select value={tags.find(t => ["Swing","Day Trading","Scalping"].includes(t)) || ""} onChange={(e) => {
+              const types = ["Swing","Day Trading","Scalping"];
+              setTags(prev => [...prev.filter(t => !types.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
+            }} style={inputStyle}>
+              <option value="">— Sélectionner —</option>
+              <option value="Swing">Swing</option>
+              <option value="Day Trading">Day Trading</option>
+              <option value="Scalping">Scalping</option>
+            </select>
+          </Field>
+
+          <Field label="Timeframe">
+            <select value={tags.find(t => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t)) || ""} onChange={(e) => {
+              const tfs = ["M1","M5","M15","M30","H1","H4","D1","W1"];
+              setTags(prev => [...prev.filter(t => !tfs.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
+            }} style={inputStyle}>
+              <option value="">— Sélectionner —</option>
+              {["M1","M5","M15","M30","H1","H4","D1","W1"].map(tf => <option key={tf} value={tf}>{tf}</option>)}
+            </select>
+          </Field>
+
           <Field label="Résultat du trade">
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={() => setStatus("open")} style={{
-                flex: "1 1 80px", padding: "10px 8px", borderRadius: 8, border: `2px solid ${status === "open" ? C.purple : C.border}`,
-                background: status === "open" ? C.purpleDim : "transparent", color: status === "open" ? C.purpleBright : C.textMuted,
-                fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-              }}>
-                <span style={{ fontSize: 18 }}>🔓</span>
-                <span>Ouvert</span>
-              </button>
-              <button onClick={() => setStatus("win")} style={{
-                flex: "1 1 80px", padding: "10px 8px", borderRadius: 8, border: `2px solid ${status === "win" ? C.teal : C.border}`,
-                background: status === "win" ? C.tealDim : "transparent", color: status === "win" ? C.teal : C.textMuted,
-                fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-              }}>
-                <span style={{ fontSize: 18 }}>✅</span>
-                <span>Gagné</span>
-              </button>
-              <button onClick={() => setStatus("loss")} style={{
-                flex: "1 1 80px", padding: "10px 8px", borderRadius: 8, border: `2px solid ${status === "loss" ? C.red : C.border}`,
-                background: status === "loss" ? C.redDim : "transparent", color: status === "loss" ? C.red : C.textMuted,
-                fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-              }}>
-                <span style={{ fontSize: 18 }}>❌</span>
-                <span>Perdu</span>
-              </button>
-              <button onClick={() => setStatus("breakeven")} style={{
-                flex: "1 1 80px", padding: "10px 8px", borderRadius: 8, border: `2px solid ${status === "breakeven" ? C.textSecondary : C.border}`,
-                background: status === "breakeven" ? "rgba(170,178,197,0.12)" : "transparent", color: status === "breakeven" ? C.textSecondary : C.textMuted,
-                fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-              }}>
-                <span style={{ fontSize: 18 }}>➖</span>
-                <span>Breakeven</span>
-              </button>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[
+                { v: "open", label: "🔓 Ouvert", color: C.purple },
+                { v: "win", label: "✅ Gagné", color: C.teal },
+                { v: "loss", label: "❌ Perdu", color: C.red },
+                { v: "breakeven", label: "➖ BE", color: C.textSecondary },
+              ].map(opt => (
+                <button key={opt.v} onClick={() => setStatus(opt.v)} style={{
+                  flex: "1 1 70px", padding: "8px 6px", borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                  border: `2px solid ${status === opt.v ? opt.color : C.border}`,
+                  background: status === opt.v ? `${opt.color}1A` : "transparent",
+                  color: status === opt.v ? opt.color : C.textMuted,
+                }}>{opt.label}</button>
+              ))}
             </div>
           </Field>
         </div>
 
-        {/* Tags PD Arrays + custom — directement dans Identification */}
+        {/* Tags PD Arrays */}
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>Tags (setup, PD Arrays)</div>
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>PD Arrays</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {allSetupTags.map((t) => {
               const active = tags.includes(t.name);
@@ -3609,50 +3767,86 @@ function CalcResult({ label, value, color, highlight }) {
   );
 }
 
-function OnboardingScreen({ onDone, onUseMock }) {
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: FONT.base }}>
-      <div style={{ maxWidth: 480, width: "100%", textAlign: "center" }}>
-        <svg width="72" height="72" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ margin: "0 auto 20px", display: "block" }}>
-          <rect width="36" height="36" rx="9" fill="url(#obGrad)" />
-          <rect x="8" y="14" width="4" height="10" rx="1" fill="#2DD4BF"/>
-          <line x1="10" y1="11" x2="10" y2="14" stroke="#2DD4BF" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="10" y1="24" x2="10" y2="27" stroke="#2DD4BF" strokeWidth="1.5" strokeLinecap="round"/>
-          <rect x="16" y="10" width="4" height="8" rx="1" fill="#F87171"/>
-          <line x1="18" y1="7" x2="18" y2="10" stroke="#F87171" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="18" y1="18" x2="18" y2="22" stroke="#F87171" strokeWidth="1.5" strokeLinecap="round"/>
-          <rect x="24" y="16" width="4" height="7" rx="1" fill="#2DD4BF"/>
-          <line x1="26" y1="13" x2="26" y2="16" stroke="#2DD4BF" strokeWidth="1.5" strokeLinecap="round"/>
-          <line x1="26" y1="23" x2="26" y2="26" stroke="#2DD4BF" strokeWidth="1.5" strokeLinecap="round"/>
-          <defs><linearGradient id="obGrad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse"><stop offset="0%" stopColor="#8B7CF6"/><stop offset="100%" stopColor="#5B3FE0"/></linearGradient></defs>
-        </svg>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, margin: "0 0 10px" }}>Bienvenue sur Edge</h1>
-        <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.6, margin: "0 0 32px" }}>Ton journal de trading Forex avec IA Coach intégré, Smart Trade Capture et analyse psychologique.</p>
+const CORRECT_PIN = "1234"; // PIN par défaut — changeable dans les settings
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 32 }}>
-          {[
-            { icon: "📸", title: "Smart Trade Capture", desc: "Upload un screenshot TradingView → l'IA remplit le formulaire automatiquement" },
-            { icon: "🤖", title: "IA Coach personnalisé", desc: "Analyse tes patterns sur toute ta période et identifie tes erreurs récurrentes" },
-            { icon: "📊", title: "Statistiques ICT complètes", desc: "Win rate par PD Array, profit par session, heatmap calendrier et plus" },
-          ].map((f) => (
-            <div key={f.title} style={{ padding: "14px 16px", background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, textAlign: "left", display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 22, flexShrink: 0 }}>{f.icon}</span>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>{f.title}</div>
-                <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.5 }}>{f.desc}</div>
-              </div>
-            </div>
+function PinScreen({ onUnlock, inline = false }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const handleDigit = (d) => {
+    if (pin.length >= 4) return;
+    const next = pin + d;
+    setPin(next);
+    setError(false);
+    if (next.length === 4) {
+      const saved = (() => { try { return localStorage.getItem("app_pin") || CORRECT_PIN; } catch { return CORRECT_PIN; } })();
+      if (next === saved) {
+        try { localStorage.setItem("pin_unlocked", "1"); } catch {}
+        onUnlock();
+      } else {
+        setShake(true);
+        setError(true);
+        setTimeout(() => { setPin(""); setShake(false); }, 600);
+      }
+    }
+  };
+
+  const handleDelete = () => setPin((p) => p.slice(0, -1));
+
+  const digits = ["1","2","3","4","5","6","7","8","9","","0","⌫"];
+
+  if (inline) {
+    return (
+      <div style={{ textAlign: "center" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 20, animation: shake ? "pinShake 0.4s ease" : "none" }}>
+          {[0,1,2,3].map((i) => (
+            <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${error ? C.red : C.purple}`, background: pin.length > i ? (error ? C.red : C.purple) : "transparent", transition: "all 0.15s ease" }} />
           ))}
         </div>
-
-        <button onClick={onDone} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: "13px 20px", fontSize: 14, marginBottom: 10 }}>
-          Commencer avec mes trades
-        </button>
-        <button onClick={onUseMock} style={{ ...btn.ghost, width: "100%", justifyContent: "center", padding: "11px 20px", fontSize: 13 }}>
-          Explorer avec les données de démonstration
-        </button>
-        <p style={{ fontSize: 11, color: C.textMuted, marginTop: 16 }}>Les données restent sur ton appareil tant que Supabase n'est pas configuré.</p>
+        {error && <div style={{ fontSize: 12, color: C.red, marginBottom: 12 }}>Code incorrect</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+          {digits.map((d, i) => (
+            <button key={i} onClick={() => d === "⌫" ? handleDelete() : d !== "" ? handleDigit(d) : null}
+              style={{ height: 50, borderRadius: 10, border: `1px solid ${C.sidebarBorder}`, background: d === "" ? "transparent" : "rgba(255,255,255,0.06)", color: d === "⌫" ? C.sidebarTextDim : C.sidebarText, fontSize: d === "⌫" ? 18 : 20, fontWeight: 600, cursor: d === "" ? "default" : "pointer" }}
+            >{d}</button>
+          ))}
+        </div>
+        <style>{`@keyframes pinShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-8px)} 80%{transform:translateX(8px)} }`}</style>
       </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.sidebar, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT.base }}>
+      <div style={{ textAlign: "center", width: 280 }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+          <EmeieksLogo size={72} />
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: C.sidebarText, marginBottom: 4, letterSpacing: 1 }}>EMEIEKS TRADE</div>
+        <div style={{ fontSize: 13, color: C.sidebarTextDim, marginBottom: 32 }}>Entrez votre code PIN</div>
+
+        {/* Points PIN */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 32, animation: shake ? "pinShake 0.4s ease" : "none" }}>
+          {[0,1,2,3].map((i) => (
+            <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${error ? C.red : C.purple}`, background: pin.length > i ? (error ? C.red : C.purple) : "transparent", transition: "all 0.15s ease" }} />
+          ))}
+        </div>
+        {error && <div style={{ fontSize: 12, color: C.red, marginBottom: 16, marginTop: -20 }}>Code incorrect</div>}
+
+        {/* Clavier */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {digits.map((d, i) => (
+            <button key={i} onClick={() => d === "⌫" ? handleDelete() : d !== "" ? handleDigit(d) : null}
+              style={{ height: 60, borderRadius: 12, border: `1px solid ${C.sidebarBorder}`, background: d === "" ? "transparent" : "rgba(255,255,255,0.06)", color: d === "⌫" ? C.sidebarTextDim : C.sidebarText, fontSize: d === "⌫" ? 20 : 22, fontWeight: 600, cursor: d === "" ? "default" : "pointer", transition: "background 0.1s" }}
+              onMouseDown={(e) => e.currentTarget.style.background = d !== "" ? "rgba(255,255,255,0.12)" : "transparent"}
+              onMouseUp={(e) => e.currentTarget.style.background = d !== "" ? "rgba(255,255,255,0.06)" : "transparent"}
+            >{d}</button>
+          ))}
+        </div>
+        <div style={{ marginTop: 24, fontSize: 11, color: C.sidebarTextDim }}>PIN par défaut : 1234</div>
+      </div>
+      <style>{`@keyframes pinShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-8px)} 80%{transform:translateX(8px)} }`}</style>
     </div>
   );
 }
@@ -3748,9 +3942,20 @@ function dbToSettings(r) {
 
 export default function TradingJournalApp() {
   const [view, setView] = useState("dashboard");
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    try { return !localStorage.getItem("onboarding_done"); } catch { return true; }
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return localStorage.getItem("pin_unlocked") === "1"; } catch { return false; }
   });
+
+  // PIN demandé uniquement quand on essaie d'ouvrir le formulaire d'ajout
+  const openNewTrade = () => {
+    if (!unlocked) {
+      setPinTarget("newTrade");
+      return;
+    }
+    setEditingTrade(null);
+    setView("tradeForm");
+  };
+  const [pinTarget, setPinTarget] = useState(null);
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState(null);
@@ -3829,7 +4034,6 @@ export default function TradingJournalApp() {
     }
   };
 
-  const openNewTrade = () => { setEditingTrade(null); setView("tradeForm"); };
   const openEditTrade = (trade) => { setEditingTrade(trade); setView("tradeForm"); };
   const openTradeDetail = (id) => { setActiveTradeId(id); setView("tradeDetail"); };
   const setupOptions = useMemo(() => [...new Set(trades.map((t) => t.setup).filter(Boolean))], [trades]);
@@ -3905,33 +4109,34 @@ export default function TradingJournalApp() {
     } catch (e) { console.error("Erreur statut:", e); }
   };
 
-  const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Paramètres" };
-
-  if (showOnboarding) {
-    return (
-      <>
-        <GlobalStyle />
-        <OnboardingScreen
-          onDone={() => {
-            try { localStorage.setItem("onboarding_done", "1"); } catch {}
-            setShowOnboarding(false);
-          }}
-          onUseMock={() => {
-            try { localStorage.setItem("onboarding_done", "1"); } catch {}
-            setShowOnboarding(false);
-            setTrades(MOCK_TRADES);
-          }}
-        />
-      </>
-    );
-  }
+  const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column" }}>
-        <TopBar title={titles[view]} onSettings={() => setView("settings")} isDark={isDark} onToggleTheme={toggleTheme} />
+        <TopBar title={titles[view]} onSettings={() => setView("settings")} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} />
+
+        {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
+        {pinTarget && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ background: C.sidebar, borderRadius: 16, padding: 32, width: 300, textAlign: "center", boxShadow: "0 24px 60px rgba(0,0,0,0.4)" }}>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                <EmeieksLogo size={56} />
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.sidebarText, marginBottom: 4 }}>Code PIN requis</div>
+              <div style={{ fontSize: 12, color: C.sidebarTextDim, marginBottom: 24 }}>Pour ajouter un trade</div>
+              <PinScreen onUnlock={() => {
+                setUnlocked(true);
+                try { localStorage.setItem("pin_unlocked", "1"); } catch {}
+                setPinTarget(null);
+                if (pinTarget === "newTrade") { setEditingTrade(null); setView("tradeForm"); }
+              }} inline />
+              <button onClick={() => setPinTarget(null)} style={{ marginTop: 16, background: "none", border: "none", color: C.sidebarTextDim, fontSize: 12, cursor: "pointer" }}>Annuler</button>
+            </div>
+          </div>
+        )}
 
         {/* Bannière erreur connexion */}
         {dbError && (
@@ -3960,6 +4165,7 @@ export default function TradingJournalApp() {
               {view === "calculator" && <ForexCalculator />}
               {view === "coach" && <AiCoach trades={trades} />}
               {view === "settings" && <SettingsPage settings={appSettings} setSettings={saveSettings} />}
+              {view === "calendar" && <TradingCalendar trades={trades} onSelectDay={() => {}} />}
             </div>
           )}
         </main>
