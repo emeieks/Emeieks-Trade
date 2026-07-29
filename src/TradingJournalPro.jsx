@@ -422,6 +422,24 @@ function GlobalStyle() {
       ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
       ::-webkit-scrollbar-thumb:hover { background: ${C.borderLight}; }
       input::placeholder, textarea::placeholder { color: ${C.textMuted}; }
+      input[type="datetime-local"],
+      input[type="date"],
+      input[type="time"] {
+        max-width: 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+        display: block !important;
+        position: static !important;
+        transform: none !important;
+      }
+      input[type="datetime-local"]::-webkit-date-and-time-value {
+        text-align: left;
+        min-width: 0;
+      }
+      input, textarea, select { max-width: 100%; box-sizing: border-box; }
       input, textarea, select { color: ${C.text} !important; background: ${C.card} !important; -webkit-text-fill-color: ${C.text} !important; }
       input::-webkit-input-placeholder { color: ${C.textMuted} !important; -webkit-text-fill-color: ${C.textMuted} !important; }
       input, textarea, select, button { font-family: ${FONT.base}; }
@@ -734,7 +752,22 @@ function EmptyState({ icon: Icon, title, text, action }) {
   );
 }
 
-const getInputStyle = () => ({ background: C.card, border: `1px solid ${C.border}`, borderRadius: 7, padding: "8px 11px", color: C.text, fontSize: 13, width: "100%", WebkitTextFillColor: C.text });
+const getInputStyle = () => ({
+  background: C.card,
+  border: `1px solid ${C.border}`,
+  borderRadius: 7,
+  padding: "8px 11px",
+  color: C.text,
+  fontSize: 13,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  display: "block",
+  WebkitTextFillColor: C.text,
+  WebkitAppearance: "none",
+  appearance: "none",
+});
 // Alias pour compatibilité avec le code existant qui utilise inputStyle directement
 let inputStyle = getInputStyle();
 
@@ -767,12 +800,10 @@ function BackLink({ onClick, children }) {
    ============================================================================ */
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
-  { id: "trades", label: "Trade Log", icon: NotebookPen },
-  { id: "calculator", label: "Calculatrice", icon: Calculator },
-  { id: "stats", label: "Statistiques", icon: BarChart3 },
-  { id: "coach", label: "IA Coach", icon: Brain },
-  { id: "settings", label: "Réglages", icon: Settings },
+  { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid },
+  { id: "trades", label: "Trade Log", short: "Trades", icon: NotebookPen },
+  { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3 },
+  { id: "settings", label: "Réglages", short: "Réglages", icon: Settings },
 ];
 
 function Sidebar({ view, setView, onNewTrade }) {
@@ -820,26 +851,42 @@ function Sidebar({ view, setView, onNewTrade }) {
       </aside>
 
       <nav className="mobile-only" style={S.mobileNav}>
-        {NAV_ITEMS.slice(0, 3).map((it) => {
+        {NAV_ITEMS.slice(0, 2).map((it) => {
           const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
-          const Icon = it.icon;
           return (
-            <button key={it.id} onClick={() => setView(it.id)} style={{ ...S.mobileNavItem, color: active ? "#C4BAFB" : C.sidebarTextDim }}>
-              <Icon size={19} strokeWidth={1.8} />
-              <span style={{ fontSize: 9.5 }}>{it.label}</span>
+            <button key={it.id} onClick={() => setView(it.id)} style={{ ...S.mobileNavItem, color: active ? "#9D8FFF" : "rgba(255,255,255,0.4)" }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32 }}>
+                {active && <div style={{ position: "absolute", inset: -3, borderRadius: 10, background: "rgba(157,143,255,0.14)" }} />}
+                {it.id === "dashboard" ? (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ position: "relative" }}>
+                    <path d="M3 9.5L12 3L21 9.5V20C21 20.55 20.55 21 20 21H15V15H9V21H4C3.45 21 3 20.55 3 20V9.5Z"
+                      fill={active ? "rgba(157,143,255,0.2)" : "transparent"}
+                      stroke={active ? "#9D8FFF" : "rgba(255,255,255,0.4)"}
+                      strokeWidth={active ? "2" : "1.7"}
+                      strokeLinejoin="round" strokeLinecap="round"/>
+                  </svg>
+                ) : React.createElement(it.icon, { size: 22, strokeWidth: active ? 2 : 1.7, style: { position: "relative" } })}
+              </div>
+              <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400, letterSpacing: 0.1, marginTop: 1 }}>{it.short}</span>
             </button>
           );
         })}
-        <button onClick={onNewTrade} style={S.mobileNavItem}>
-          <div style={S.mobileFab}><Plus size={17} strokeWidth={2.6} color="#fff" /></div>
+
+        {/* Bouton + central */}
+        <button onClick={onNewTrade} style={{ ...S.mobileNavItem, marginTop: -10 }}>
+          <div style={S.mobileFab}><Plus size={24} strokeWidth={2.2} color="#fff" /></div>
+          <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", fontWeight: 400, marginTop: 1 }}>Ajouter</span>
         </button>
-        {NAV_ITEMS.slice(3).map((it) => {
+
+        {NAV_ITEMS.slice(2).map((it) => {
           const active = view === it.id;
-          const Icon = it.icon;
           return (
-            <button key={it.id} onClick={() => setView(it.id)} style={{ ...S.mobileNavItem, color: active ? "#C4BAFB" : C.sidebarTextDim }}>
-              <Icon size={19} strokeWidth={1.8} />
-              <span style={{ fontSize: 9.5 }}>{it.label}</span>
+            <button key={it.id} onClick={() => setView(it.id)} style={{ ...S.mobileNavItem, color: active ? "#9D8FFF" : "rgba(255,255,255,0.4)" }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32 }}>
+                {active && <div style={{ position: "absolute", inset: -3, borderRadius: 10, background: "rgba(157,143,255,0.14)" }} />}
+                {React.createElement(it.icon, { size: 22, strokeWidth: active ? 2 : 1.7, style: { position: "relative" } })}
+              </div>
+              <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400, letterSpacing: 0.1, marginTop: 1 }}>{it.short}</span>
             </button>
           );
         })}
@@ -860,16 +907,35 @@ const S = {
   newTradeBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, background: C.purple, color: "#fff", border: "none", borderRadius: 8, padding: "10px 12px", fontWeight: 600, fontSize: 13, cursor: "pointer", boxShadow: `0 2px 8px rgba(139,124,246,0.3)` },
   navItem: { display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", borderRadius: 7, border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left" },
   footer: { marginTop: "auto", paddingTop: 14, borderTop: `1px solid ${C.sidebarBorder}` },
-  mobileNav: { position: "fixed", bottom: 0, left: 0, right: 0, background: C.sidebar, borderTop: `1px solid ${C.sidebarBorder}`, display: "flex", justifyContent: "space-around", alignItems: "flex-end", padding: "10px 4px 20px", zIndex: 100 },
-  mobileNavItem: { background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", padding: "3px 8px", paddingBottom: 2 },
-  mobileFab: { width: 54, height: 54, borderRadius: "50%", background: C.purple, display: "flex", alignItems: "center", justifyContent: "center", marginTop: -32, marginBottom: 4, boxShadow: `0 4px 18px rgba(139,124,246,0.55)`, border: `3px solid ${C.sidebar}` },
+  mobileNav: {
+    position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
+    display: "flex", justifyContent: "space-around", alignItems: "center",
+    height: 62,
+    paddingBottom: "env(safe-area-inset-bottom, 0px)",
+    background: C.sidebar,
+    borderTop: `1px solid ${C.sidebarBorder}`,
+    boxShadow: "0 -4px 24px rgba(0,0,0,0.25)",
+  },
+  mobileNavItem: {
+    background: "none", border: "none",
+    display: "flex", flexDirection: "column", alignItems: "center",
+    gap: 4, cursor: "pointer", padding: "0 2px", minWidth: 48,
+  },
+  mobileFab: {
+    width: 46, height: 46, borderRadius: "50%",
+    background: `linear-gradient(135deg, ${C.purple}, #5B3FE0)`,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    marginTop: -18,
+    boxShadow: "0 2px 12px rgba(139,124,246,0.35)",
+    border: "2px solid rgba(255,255,255,0.12)",
+  },
 };
 
 /* ============================================================================
    TOP BAR — sélecteur de période façon TradeZella
    ============================================================================ */
 
-function TopBar({ title, onSettings, isDark, onToggleTheme, onCalendar }) {
+function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${C.sidebarBorder}`, background: C.sidebar, gap: 8, minWidth: 0 }}>
       <span style={{ fontSize: 13, fontWeight: 600, color: C.sidebarText, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
@@ -896,9 +962,9 @@ function TopBar({ title, onSettings, isDark, onToggleTheme, onCalendar }) {
           )}
         </button>
 
-        {/* Paramètres */}
-        <button onClick={onSettings} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="Paramètres">
-          <Settings size={16} strokeWidth={1.8} color={C.sidebarTextDim} />
+        {/* IA Coach */}
+        <button onClick={onCoach} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="IA Coach">
+          <Brain size={16} strokeWidth={1.8} color={C.sidebarTextDim} />
         </button>
       </div>
     </div>
@@ -1318,44 +1384,19 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
         </button>
       </div>
 
-      {/* Chips filtre rapide PD Array */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-        {["all", ...TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name)].map((tag) => (
-          <button key={tag} onClick={() => setFilterTag(tag === filterTag ? "all" : tag)} style={{
-            padding: "4px 10px", borderRadius: 20, fontSize: 11.5, fontWeight: 600, cursor: "pointer",
-            border: `1px solid ${filterTag === tag && tag !== "all" ? C.purple : C.border}`,
-            background: filterTag === tag && tag !== "all" ? C.purpleDim : "transparent",
-            color: filterTag === tag && tag !== "all" ? C.purpleBright : C.textSecondary,
-          }}>
-            {tag === "all" ? "Tous" : tag}
-          </button>
-        ))}
-      </div>
-
       {showFilters && (
-        <Card style={{ padding: 16, marginBottom: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+        <Card style={{ padding: 16, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 16 }}>
           <Field label="Paire">
             <select value={filterPair} onChange={(e) => setFilterPair(e.target.value)} style={inputStyle}>
               <option value="all">Toutes</option>
               {PAIRS.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </Field>
-          <Field label="Setup">
-            <select value={filterSetup} onChange={(e) => setFilterSetup(e.target.value)} style={inputStyle}>
-              <option value="all">Tous</option>
-              {setupOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </Field>
           <Field label="Session">
             <select value={filterSession} onChange={(e) => setFilterSession(e.target.value)} style={inputStyle}>
               <option value="all">Toutes</option>
               {["Asia", "London", "Overlap", "New York", "Hors session"].map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </Field>
-          <Field label="Tag">
-            <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} style={inputStyle}>
-              <option value="all">Tous</option>
-              {TAG_CATALOG.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
             </select>
           </Field>
           <Field label="Résultat">
@@ -1368,6 +1409,24 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
           </Field>
           <Field label="Du"><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={inputStyle} /></Field>
           <Field label="Au"><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={inputStyle} /></Field>
+          </div>
+
+          {/* PD Arrays chips dans Filtres */}
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+            <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Setup / PD Array</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {["all", ...TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name)].map((tag) => (
+                <button key={tag} onClick={() => setFilterTag(tag === filterTag ? "all" : tag)} style={{
+                  padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: filterTag === tag ? 700 : 400, cursor: "pointer",
+                  border: `1px solid ${filterTag === tag && tag !== "all" ? C.purple : C.border}`,
+                  background: filterTag === tag && tag !== "all" ? C.purpleDim : filterTag === tag && tag === "all" ? C.cardHover : "transparent",
+                  color: filterTag === tag && tag !== "all" ? C.purpleBright : filterTag === "all" && tag === "all" ? C.text : C.textSecondary,
+                }}>
+                  {tag === "all" ? "Tous" : tag}
+                </button>
+              ))}
+            </div>
+          </div>
         </Card>
       )}
 
@@ -2089,6 +2148,15 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
   const [screenshotBefore, setScreenshotBefore] = useState(initial?.screenshotBefore || null);
   const [screenshotAfter, setScreenshotAfter] = useState(initial?.screenshotAfter || null);
   const [extractedMeta, setExtractedMeta] = useState(null);
+  const [dxyBias, setDxyBias] = useState(initial?.dxyBias || "");
+  const [dxyScreenshotBefore, setDxyScreenshotBefore] = useState(initial?.dxyScreenshotBefore || null);
+  const [dxyScreenshotAfter, setDxyScreenshotAfter] = useState(initial?.dxyScreenshotAfter || null);
+  const [dxyTags, setDxyTags] = useState(initial?.dxyTags || []);
+  const [liquiditySweep, setLiquiditySweep] = useState(initial?.liquiditySweep || false);
+  const [mssConfirmed, setMssConfirmed] = useState(initial?.mssConfirmed || false);
+  const [tfAlignment, setTfAlignment] = useState(initial?.tfAlignment || "");
+  const [showCalcModal, setShowCalcModal] = useState(false);
+  const [calcPct, setCalcPct] = useState("1");
 
   const accountBalance = appSettings?.accountBalance || 10000;
   const sessionTags = TAG_CATALOG.filter((t) => t.category === "session");
@@ -2209,6 +2277,8 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
       resultPips: resultPips === "" ? null : Number(resultPips),
       resultR: finalResultR, resultRManual,
       status: finalStatus, notes, tags, screenshotBefore, screenshotAfter,
+      dxyBias, dxyScreenshotBefore, dxyScreenshotAfter, dxyTags,
+      liquiditySweep, mssConfirmed, tfAlignment,
     });
   };
 
@@ -2223,7 +2293,9 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
         <div className="form-grid-2" style={{ marginTop: 12 }}>
 
           <Field label="Date et heure">
-            <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={inputStyle} />
+            <div style={{ width: "100%", overflow: "hidden", minWidth: 0 }}>
+              <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={{ ...inputStyle }} />
+            </div>
           </Field>
 
           <Field label="Paire">
@@ -2276,6 +2348,13 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
               setTags(prev => [...prev.filter(t => !tfs.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
             }} style={inputStyle}>
               <option value="">— Sélectionner —</option>
+              {["M1","M5","M15","M30","H1","H4","D1","W1"].map(tf => <option key={tf} value={tf}>{tf}</option>)}
+            </select>
+          </Field>
+
+          <Field label="Timeframe alignement (optionnel)">
+            <select value={tfAlignment} onChange={(e) => setTfAlignment(e.target.value)} style={{ ...inputStyle, color: tfAlignment ? C.text : C.textMuted }}>
+              <option value="">— TF dans le même sens —</option>
               {["M1","M5","M15","M30","H1","H4","D1","W1"].map(tf => <option key={tf} value={tf}>{tf}</option>)}
             </select>
           </Field>
@@ -2342,8 +2421,88 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
 
       {/* Prix et taille — avec TP/SL colorés, exit = TP par défaut, risque % live */}
       <Card style={{ padding: 16, marginBottom: 14 }}>
-        <CardLabel>Prix et taille</CardLabel>
-        <div className="form-grid-2" style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <CardLabel>Prix et taille</CardLabel>
+          <button onClick={() => setShowCalcModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.purpleDim, border: `1px solid rgba(139,124,246,0.3)`, borderRadius: 7, padding: "6px 11px", cursor: "pointer", color: C.purpleBright, fontSize: 12, fontWeight: 600 }}>
+            <Calculator size={14} /> Calculatrice
+          </button>
+        </div>
+
+        {/* Modal calculatrice */}
+        {showCalcModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div style={{ background: C.card, borderRadius: "16px 16px 0 0", padding: "24px 20px 32px", width: "100%", maxWidth: 480, border: `1px solid ${C.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Calculatrice de position</div>
+                <button onClick={() => setShowCalcModal(false)} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer" }}><X size={18} /></button>
+              </div>
+
+              {(() => {
+                const accountBalance = appSettings?.accountBalance || 10000;
+                const pairKey = (pair.includes("JPY") ? "JPY" : pair === "XAUUSD" ? "XAU" : "USD");
+                const pipDecimal = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.1 : 0.0001;
+                const pipValuePerLot = pair === "XAUUSD" ? 10 : pair.includes("JPY") ? 6.8 : 10;
+                const riskUsdCalc = (accountBalance * Number(calcPct || 0)) / 100;
+                const numEntry = entryPrice !== "" ? Number(entryPrice) : null;
+                const numSL = stopLoss !== "" ? Number(stopLoss) : null;
+                const numTP = takeProfit !== "" ? Number(takeProfit) : null;
+                const slPips = numEntry && numSL ? Math.abs((numEntry - numSL) / pipDecimal) : null;
+                const tpPips = numEntry && numTP ? Math.abs((numTP - numEntry) / pipDecimal) : null;
+                const suggestedLot = slPips && slPips > 0 ? Math.round((riskUsdCalc / (slPips * pipValuePerLot)) * 100) / 100 : null;
+                const rratio = slPips && tpPips ? (tpPips / slPips).toFixed(2) : null;
+                const potentialGain = suggestedLot && tpPips ? (tpPips * pipValuePerLot * suggestedLot).toFixed(0) : null;
+
+                const apply = () => {
+                  if (suggestedLot !== null) setPositionSize(String(suggestedLot));
+                  if (riskUsdCalc) setRiskUsd(String(riskUsdCalc.toFixed(2)));
+                  setShowCalcModal(false);
+                };
+
+                return (
+                  <div>
+                    <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", marginBottom: 16, fontSize: 12, color: C.textMuted }}>
+                      Compte : <strong style={{ color: C.text }}>${accountBalance.toLocaleString()}</strong> · Paire : <strong style={{ color: C.text }}>{pair}</strong>
+                    </div>
+
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 6 }}>Risque (%)</div>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                        {["0.5", "1", "1.5", "2"].map(pct => (
+                          <button key={pct} onClick={() => setCalcPct(pct)} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: `2px solid ${calcPct === pct ? C.purple : C.border}`, background: calcPct === pct ? C.purpleDim : "transparent", color: calcPct === pct ? C.purpleBright : C.textSecondary, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{pct}%</button>
+                        ))}
+                      </div>
+                      <input type="number" step="0.1" value={calcPct} onChange={e => setCalcPct(e.target.value)} placeholder="% personnalisé" style={{ ...inputStyle }} />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
+                      {[
+                        { label: "Risque $", value: `$${riskUsdCalc.toFixed(0)}`, color: C.red },
+                        { label: "Taille lot", value: suggestedLot !== null ? `${suggestedLot}L` : "—", color: C.purpleBright, highlight: true },
+                        { label: "R:R", value: rratio ? `1:${rratio}` : "—", color: rratio >= 1.5 ? C.teal : C.red },
+                        { label: "SL pips", value: slPips ? slPips.toFixed(1) : "—", color: C.textSecondary },
+                        { label: "TP pips", value: tpPips ? tpPips.toFixed(1) : "—", color: C.textSecondary },
+                        { label: "Gain pot.", value: potentialGain ? `$${potentialGain}` : "—", color: C.teal },
+                      ].map(x => (
+                        <div key={x.label} style={{ padding: "10px 12px", background: x.highlight ? C.purpleDim : C.bg, borderRadius: 8, border: `1px solid ${x.highlight ? "rgba(139,124,246,0.3)" : C.border}`, textAlign: "center" }}>
+                          <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>{x.label}</div>
+                          <div className="tnum" style={{ fontSize: 15, fontWeight: 800, color: x.color }}>{x.value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {!numEntry && <div style={{ fontSize: 12, color: C.amber, marginBottom: 12, textAlign: "center" }}>⚠ Remplis Entry, SL et TP pour calculer la taille de lot</div>}
+
+                    <button onClick={apply} style={{ width: "100%", background: C.purple, border: "none", borderRadius: 10, color: "#fff", padding: "13px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                      Appliquer — {suggestedLot !== null ? `${suggestedLot} lot · $${riskUsdCalc.toFixed(0)} risque` : `$${riskUsdCalc.toFixed(0)} risque`}
+                    </button>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        <div className="form-grid-2" style={{ marginTop: 0 }}>
           <Field label="Entrée" hint="Prix d'entrée">
             <input type="number" step="any" placeholder="1.08450" value={entryPrice}
               onChange={(e) => setEntryPrice(e.target.value)}
@@ -2486,6 +2645,84 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
             )}
           </div>
           <ImageUploadBox label="Après le trade" value={screenshotAfter} onChange={setScreenshotAfter} />
+        </div>
+      </Card>
+
+      {/* DXY — corrélation */}
+      <Card style={{ padding: 16, marginBottom: 14 }}>
+        <CardLabel>DXY — Corrélation</CardLabel>
+        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2, marginBottom: 14 }}>Analyse la direction du Dollar Index pour confirmer ton biais</div>
+
+        {/* Biais DXY */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Biais DXY</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {["Bullish", "Bearish", "Neutre"].map((b) => {
+              const active = dxyBias === b;
+              const color = b === "Bullish" ? C.teal : b === "Bearish" ? C.red : C.textSecondary;
+              return (
+                <button key={b} onClick={() => setDxyBias(active ? "" : b)} style={{
+                  flex: 1, padding: "10px 8px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  border: `2px solid ${active ? color : C.border}`,
+                  background: active ? `${color}18` : "transparent",
+                  color: active ? color : C.textSecondary,
+                }}>{b}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* PD Arrays DXY */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>PD Arrays DXY</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {TAG_CATALOG.filter((t) => t.category === "setup").map((t) => {
+              const active = dxyTags.includes(t.name);
+              return (
+                <button key={t.name} onClick={() => setDxyTags(prev => active ? prev.filter(x => x !== t.name) : [...prev, t.name])} style={{
+                  padding: "5px 11px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  border: `1px solid ${active ? "#D89A2E" : C.border}`,
+                  background: active ? "rgba(216,154,46,0.12)" : "transparent",
+                  color: active ? "#D89A2E" : C.textSecondary,
+                }}>{t.name}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Screenshots DXY */}
+        <div className="form-grid-2">
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>DXY avant</div>
+            <ImageUploadBox label="Screenshot DXY avant" value={dxyScreenshotBefore} onChange={setDxyScreenshotBefore} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>DXY après</div>
+            <ImageUploadBox label="Screenshot DXY après" value={dxyScreenshotAfter} onChange={setDxyScreenshotAfter} />
+          </div>
+        </div>
+      </Card>
+
+      {/* Checklist rapide */}
+      <Card style={{ padding: 16, marginBottom: 14 }}>
+        <CardLabel>Checklist</CardLabel>
+        <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+          {[
+            { key: "sweep", label: "Sweep de liquidité", val: liquiditySweep, set: setLiquiditySweep },
+            { key: "mss", label: "MSS confirmé", val: mssConfirmed, set: setMssConfirmed },
+          ].map((item) => (
+            <button key={item.key} onClick={() => item.set(!item.val)} style={{
+              flex: 1, minWidth: 140, display: "flex", alignItems: "center", gap: 10,
+              padding: "12px 16px", borderRadius: 10, cursor: "pointer",
+              border: `2px solid ${item.val ? C.teal : C.border}`,
+              background: item.val ? C.tealDim : "transparent",
+            }}>
+              <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${item.val ? C.teal : C.border}`, background: item.val ? C.teal : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}>
+                {item.val && <CheckCircle2 size={14} color={C.sidebar} strokeWidth={2.5} />}
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: item.val ? C.teal : C.textSecondary }}>{item.label}</span>
+            </button>
+          ))}
         </div>
       </Card>
 
@@ -4116,7 +4353,7 @@ export default function TradingJournalApp() {
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column" }}>
-        <TopBar title={titles[view]} onSettings={() => setView("settings")} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} />
+        <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} />
 
         {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
         {pinTarget && (
@@ -4145,7 +4382,7 @@ export default function TradingJournalApp() {
           </div>
         )}
 
-        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "22px 26px 120px" }}>
+        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "22px 26px 100px" }}>
           {loading ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 16 }}>
               <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTopColor: C.purple, borderRadius: "50%", animation: "spinSlow 0.8s linear infinite" }} />
