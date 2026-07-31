@@ -5,7 +5,7 @@ import {
   TrendingUp, TrendingDown, Minus, Filter, ArrowUpRight, ArrowDownRight,
   Trash2, Edit3, Trophy, Clock, Save, Info, ChevronDown,
   Sparkles, CheckCircle2, AlertCircle, Brain, ImageOff, Calculator,
-  ThumbsUp, ThumbsDown, Settings, Plus as PlusIcon,
+  ThumbsUp, ThumbsDown, Settings, Plus as PlusIcon, XCircle, MinusCircle,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -19,11 +19,13 @@ import {
 const PAIRS = ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY", "AUDUSD", "USDCAD", "NZDUSD", "GBPJPY"];
 
 const TAG_CATALOG = [
-  { name: "Order Block", category: "setup" },
+  { name: "OB+", category: "setup" },
+  { name: "OB-", category: "setup" },
   { name: "Breaker Block", category: "setup" },
   { name: "Mitigation Block", category: "setup" },
   { name: "Rejection Block", category: "setup" },
-  { name: "Fair Value Gap", category: "setup" },
+  { name: "BISI", category: "setup" },   // FVG haussier
+  { name: "SIBI", category: "setup" },   // FVG baissier
   { name: "Inverse FVG", category: "setup" },
   { name: "Liquidity Void", category: "setup" },
   { name: "Balanced Price Range", category: "setup" },
@@ -51,7 +53,7 @@ function genTrades() {
   const trades = [];
   const setupTags = TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name);
   const mistakeTags = TAG_CATALOG.filter((t) => t.category === "mistake").map((t) => t.name);
-  const today = new Date("2026-06-19T12:00:00Z");
+  const today = new Date();
   let id = 1;
 
   for (let daysAgo = 110; daysAgo >= 0; daysAgo--) {
@@ -381,28 +383,43 @@ const THEMES = {
     sidebarText: "#E8EAF4", sidebarTextDim: "#8891B0",
     sidebarBorder: "rgba(255,255,255,0.08)", sidebarHover: "rgba(255,255,255,0.06)",
     card: "#FFFFFF", cardHover: "#F8F9FC",
-    border: "#E2E6F0", borderLight: "#D5DAE8",
-    text: "#1E2433", textSecondary: "#6B7390", textMuted: "#9AA1B8",
-    teal: "#16B8A0", tealDim: "rgba(22,184,160,0.10)",
-    red: "#E8554E", redDim: "rgba(232,85,78,0.10)",
-    purple: "#8B7CF6", purpleDim: "rgba(139,124,246,0.10)", purpleBright: "#7C6AE8",
+    border: "#DDE1EA", borderLight: "#C8CEDC",
+    inputBg: "#FFFFFF",
+    focusBorder: "#6B5CE7", focusShadow: "0 0 0 3px rgba(107,92,231,0.12)",
+    text: "#111318", textSecondary: "#4A5068", textMuted: "#8A91A8",
+    teal: "#0EA882", tealDim: "rgba(14,168,130,0.10)",
+    red: "#D94040", redDim: "rgba(217,64,64,0.10)",
+    purple: "#6B5CE7", purpleDim: "rgba(107,92,231,0.10)", purpleBright: "#5B4CD8",
+    amber: "#D97706", amberDim: "rgba(217,119,6,0.10)",
   },
   dark: {
     bg: "#0F1117", sidebar: "#161A25",
-    sidebarText: "#E8EAF4", sidebarTextDim: "#8891B0",
+    sidebarText: "#FFFFFF", sidebarTextDim: "#8891B0",
     sidebarBorder: "rgba(255,255,255,0.08)", sidebarHover: "rgba(255,255,255,0.06)",
     card: "#1B2130", cardHover: "#1F2636",
-    border: "#2A3142", borderLight: "#343C52",
-    text: "#F5F7FA", textSecondary: "#AAB2C5", textMuted: "#6B7388",
+    border: "#313A50", borderLight: "#46516B",
+    inputBg: "#1B2233",
+    focusBorder: "#6D5DFB", focusShadow: "0 0 0 3px rgba(109,93,251,0.14)",
+    text: "#FFFFFF", textSecondary: "#C8D0E4", textMuted: "#6B7388",
     teal: "#2DD4BF", tealDim: "rgba(45,212,191,0.12)",
-    red: "#F87171", redDim: "rgba(248,113,113,0.12)",
+    red: "#FF5370", redDim: "rgba(255,83,112,0.12)",
     purple: "#7C5CFC", purpleDim: "rgba(124,92,252,0.14)", purpleBright: "#9580FF",
+    amber: "#F59E0B", amberDim: "rgba(245,158,11,0.12)",
   },
 };
 
 // C est initialisé avec le thème clair par défaut — mis à jour dynamiquement via applyTheme()
-let C = { ...THEMES.light };
-function applyTheme(isDark) { Object.assign(C, isDark ? THEMES.dark : THEMES.light); }
+let C = { ...THEMES.dark };
+// Garantir que inputBg, focusBorder, focusShadow existent toujours
+if (!C.inputBg) C.inputBg = C.card;
+if (!C.focusBorder) C.focusBorder = C.purple;
+if (!C.focusShadow) C.focusShadow = "0 0 0 3px rgba(124,92,252,0.14)";
+function applyTheme(isDark) {
+  Object.assign(C, isDark ? THEMES.dark : THEMES.light);
+  if (!C.inputBg) C.inputBg = C.card;
+  if (!C.focusBorder) C.focusBorder = C.purple;
+  if (!C.focusShadow) C.focusShadow = "0 0 0 3px rgba(124,92,252,0.14)";
+}
 
 
 const FONT = {
@@ -410,11 +427,40 @@ const FONT = {
 };
 
 function GlobalStyle() {
+  // Nécessaire pour que env(safe-area-inset-*) fonctionne sur Safari iOS
+  React.useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (meta && !meta.content.includes("viewport-fit")) {
+      meta.content = meta.content + ", viewport-fit=cover";
+    }
+  }, []);
   return (
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
       * { box-sizing: border-box; }
-      html, body { margin: 0; max-width: 100%; overflow-x: hidden; }
+      html, body { margin: 0; max-width: 100%; overflow-x: hidden; height: 100%; }
+      #root { height: 100%; }
+      /* Fix Safari iOS : position:fixed se décale quand un input a le focus */
+      nav.mobile-nav-fixed {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        transform: translateZ(0) !important;
+        -webkit-transform: translateZ(0) !important;
+        will-change: transform;
+        z-index: 100;
+      }
+      /* Empêche le scroll du body sur iOS quand un champ est focus */
+      .scroll-container {
+        -webkit-overflow-scrolling: touch;
+        overflow-y: auto;
+      }
+      /* Support safe area iPhone (encoche + home indicator) */
+      :root { --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px); }
+      @supports (padding: env(safe-area-inset-bottom)) {
+        nav[data-mobile-nav] { padding-bottom: calc(env(safe-area-inset-bottom) + 10px) !important; }
+      }
       #root, #app { max-width: 100%; overflow-x: hidden; }
       img { max-width: 100%; }
       ::-webkit-scrollbar { width: 7px; height: 7px; }
@@ -440,7 +486,25 @@ function GlobalStyle() {
         min-width: 0;
       }
       input, textarea, select { max-width: 100%; box-sizing: border-box; }
-      input, textarea, select { color: ${C.text} !important; background: ${C.card} !important; -webkit-text-fill-color: ${C.text} !important; }
+      input, textarea, select {
+        color: ${C.text} !important;
+        background: ${C.inputBg || C.card} !important;
+        -webkit-text-fill-color: ${C.text} !important;
+        border: 1px solid ${C.border} !important;
+        border-radius: 14px !important;
+        outline: none !important;
+        transition: border-color 0.15s, box-shadow 0.15s !important;
+      }
+      input:focus, textarea:focus, select:focus {
+        border-color: ${C.focusBorder || C.purple} !important;
+        box-shadow: ${C.focusShadow || "0 0 0 3px rgba(124,92,252,0.14)"} !important;
+      }
+      input:hover:not(:focus), textarea:hover:not(:focus), select:hover:not(:focus) {
+        border-color: ${C.borderLight} !important;
+      }
+      body { color: ${C.text}; background: ${C.bg}; }
+      * { box-sizing: border-box; }
+      option { color: ${C.text}; background: ${C.inputBg}; }
       input::-webkit-input-placeholder { color: ${C.textMuted} !important; -webkit-text-fill-color: ${C.textMuted} !important; }
       input, textarea, select, button { font-family: ${FONT.base}; }
       input:focus, textarea:focus, select:focus { outline: none; border-color: ${C.purple} !important; box-shadow: 0 0 0 3px ${C.purpleDim}; }
@@ -458,7 +522,9 @@ function GlobalStyle() {
       .card-int:hover { border-color: ${C.borderLight}; }
       .nav-btn { transition: background .12s ease, color .12s ease; }
       .icon-btn { transition: background .12s ease, color .12s ease, border-color .12s ease; cursor: pointer; }
-      .tnum { font-variant-numeric: tabular-nums; }
+      .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+      /* Applique tabular-nums à toutes les valeurs $ et R */
+      [data-num] { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
       ::selection { background: ${C.purpleDim}; color: ${C.purpleBright}; }
 
       /* ============================================================
@@ -610,16 +676,21 @@ function StatTile({ label, value, valueColor, sub, delta, deltaPositive, compact
 
 function TagBadge({ name, size = "md", onRemove }) {
   const cat = TAG_CATALOG.find((t) => t.name === name)?.category || "other";
+  const tagDef = TAG_CATALOG.find((t) => t.name === name);
   const isMistake = cat === "mistake";
   const isSession = cat === "session";
-  const color = isMistake ? C.red : isSession ? C.textSecondary : C.purpleBright;
-  const bg = isMistake ? C.redDim : isSession ? "rgba(170,178,197,0.1)" : C.purpleDim;
+  const isSetup = cat === "setup";
+  // Setup = blanc sur fond sombre discret
+  const color = isMistake ? C.red : isSession ? C.textSecondary : isSetup ? C.text : C.purpleBright;
+  const bg = isMistake ? C.redDim : isSession ? "rgba(170,178,197,0.1)" : isSetup ? (C.text === "#FFFFFF" ? "rgba(240,241,245,0.08)" : "rgba(0,0,0,0.07)") : C.purpleDim;
+  const borderColor = isMistake ? `${C.red}40` : isSession ? "rgba(170,178,197,0.2)" : isSetup ? (C.text === "#FFFFFF" ? "rgba(240,241,245,0.15)" : "rgba(0,0,0,0.2)") : `${C.purpleBright}40`;
   const small = size === "sm";
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
       padding: small ? "2px 7px" : "3px 9px", borderRadius: 5,
-      background: bg, color, fontSize: small ? 10.5 : 11.5, fontWeight: 600, lineHeight: 1.6, whiteSpace: "nowrap",
+      background: bg, color, border: `1px solid ${borderColor}`,
+      fontSize: small ? 10.5 : 11.5, fontWeight: 600, lineHeight: 1.6, whiteSpace: "nowrap",
     }}>
       {name}
       {onRemove && (
@@ -671,9 +742,9 @@ function DirBadge({ direction, size = "sm" }) {
     <span style={{
       ...sz,
       fontWeight: 800, display: "inline-flex", alignItems: "center", letterSpacing: 0.5,
-      background: isLong ? C.tealDim : C.redDim,
-      color: isLong ? C.teal : C.red,
-      border: `1px solid ${isLong ? C.teal : C.red}33`,
+      background: isLong ? "rgba(45,125,210,0.15)" : "rgba(249,115,22,0.15)",
+      color: isLong ? "#2D7DD2" : "#F97316",
+      border: `1px solid ${isLong ? "#2D7DD2" : "#F97316"}33`,
     }}>
       {isLong ? "L" : "S"}
     </span>
@@ -753,10 +824,10 @@ function EmptyState({ icon: Icon, title, text, action }) {
 }
 
 const getInputStyle = () => ({
-  background: C.card,
+  background: C.inputBg || C.card,
   border: `1px solid ${C.border}`,
-  borderRadius: 7,
-  padding: "8px 11px",
+  borderRadius: 14,
+  padding: "10px 14px",
   color: C.text,
   fontSize: 13,
   width: "100%",
@@ -767,8 +838,9 @@ const getInputStyle = () => ({
   WebkitTextFillColor: C.text,
   WebkitAppearance: "none",
   appearance: "none",
+  transition: "border-color 0.15s, box-shadow 0.15s",
+  outline: "none",
 });
-// Alias pour compatibilité avec le code existant qui utilise inputStyle directement
 let inputStyle = getInputStyle();
 
 const btn = {
@@ -777,7 +849,71 @@ const btn = {
   icon: { background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, borderRadius: 7, padding: 7, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" },
 };
 
-function Field({ label, children, hint }) {
+/* Crochet SVG réutilisable */
+function CheckSVG({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="#7C5CFC" strokeWidth="1.8"/>
+      <path d="M7 12.5l3.5 3.5 6.5-7" stroke="#7C5CFC" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+/* Select avec crochet positionné à l'intérieur à droite */
+function SelectWithCheck({ value, onChange, children, style }) {
+  const hasValue = value && value !== "" && !value.startsWith("—");
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <select
+        value={value}
+        onChange={onChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          ...style,
+          paddingRight: hasValue ? 36 : undefined,
+          borderColor: focused ? (C.focusBorder) : (C.border),
+          boxShadow: focused ? (C.focusShadow) : "none",
+        }}>
+        {children}
+      </select>
+      {hasValue && (
+        <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", display: "flex", alignItems: "center" }}>
+          <CheckSVG size={16} />
+        </span>
+      )}
+    </div>
+  );
+}
+
+function InputWithCheck({ value, style, ...props }) {
+  const hasValue = value && value !== "";
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        value={value}
+        onFocus={(e) => { setFocused(true); props.onFocus && props.onFocus(e); }}
+        onBlur={(e) => { setFocused(false); props.onBlur && props.onBlur(e); }}
+        style={{
+          ...style,
+          paddingRight: hasValue ? 36 : undefined,
+          borderColor: focused ? (C.focusBorder) : (C.border),
+          boxShadow: focused ? (C.focusShadow) : "none",
+        }}
+        {...props}
+      />
+      {hasValue && (
+        <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", display: "flex", alignItems: "center" }}>
+          <CheckSVG size={16} />
+        </span>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children, hint, value }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary }}>{label}</label>
@@ -850,7 +986,7 @@ function Sidebar({ view, setView, onNewTrade }) {
         </div>
       </aside>
 
-      <nav className="mobile-only" style={S.mobileNav}>
+      <nav className="mobile-only mobile-nav-fixed" style={S.mobileNav}>
         {NAV_ITEMS.slice(0, 2).map((it) => {
           const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
           return (
@@ -908,10 +1044,10 @@ const S = {
   navItem: { display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", borderRadius: 7, border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left" },
   footer: { marginTop: "auto", paddingTop: 14, borderTop: `1px solid ${C.sidebarBorder}` },
   mobileNav: {
-    position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
-    display: "flex", justifyContent: "space-around", alignItems: "center",
-    height: 62,
-    paddingBottom: "env(safe-area-inset-bottom, 0px)",
+    bottom: 0, left: 0, right: 0, zIndex: 100,
+    display: "flex", justifyContent: "space-around", alignItems: "flex-end",
+    paddingTop: 10,
+    paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
     background: C.sidebar,
     borderTop: `1px solid ${C.sidebarBorder}`,
     boxShadow: "0 -4px 24px rgba(0,0,0,0.25)",
@@ -935,36 +1071,71 @@ const S = {
    TOP BAR — sélecteur de période façon TradeZella
    ============================================================================ */
 
-function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach }) {
+function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, activeAccountId, onSwitchAccount, onHome }) {
+  const [showAccounts, setShowAccounts] = useState(false);
+  const activeAccount = accounts?.find(a => a.id === activeAccountId) || accounts?.[0];
+
+  const typeColors = { real: C.teal, demo: C.purple, challenge: C.amber };
+  const typeLabels = { real: "Réel", demo: "Démo", challenge: "Challenge" };
+
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${C.sidebarBorder}`, background: C.sidebar, gap: 8, minWidth: 0 }}>
-      <span style={{ fontSize: 13, fontWeight: 600, color: C.sidebarText, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: `1px solid ${C.sidebarBorder}`, background: C.sidebar, gap: 8, minWidth: 0, position: "relative" }}>
+
+      {/* Logo + Emeieks Trade → cliquable accueil */}
+      <button onClick={onHome} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}>
+        <EmeieksLogo size={26} />
+        <div style={{ textAlign: "left", lineHeight: 1.1 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#FFFFFF", letterSpacing: -0.2 }}>Emeieks</div>
+          <div style={{ fontSize: 9, fontWeight: 500, color: C.sidebarTextDim, letterSpacing: 0.4, textTransform: "uppercase" }}>Trade</div>
+        </div>
+      </button>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-        <button className="desktop-only" style={{ ...btn.ghost, fontSize: 12, padding: "7px 10px", background: C.sidebarHover, color: C.sidebarTextDim, borderColor: C.sidebarBorder }}>Tous les comptes <ChevronDown size={13} /></button>
+
+        {/* Switcher de compte */}
+        {accounts && accounts.length > 0 && (
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setShowAccounts(v => !v)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, background: C.sidebarHover, border: `1px solid ${C.sidebarBorder}`, cursor: "pointer" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: typeColors[activeAccount?.type] || C.teal, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.sidebarText, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeAccount?.name}</span>
+              <ChevronDown size={11} color={C.sidebarTextDim} />
+            </button>
+            {showAccounts && (
+              <>
+                <div onClick={() => setShowAccounts(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 99, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.4)", minWidth: 200, overflow: "hidden" }}>
+                  {accounts.map((acc) => (
+                    <button key={acc.id} onClick={() => { onSwitchAccount(acc.id); setShowAccounts(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: acc.id === activeAccountId ? C.purpleDim : "none", border: "none", cursor: "pointer", borderBottom: `1px solid ${C.border}` }}>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: typeColors[acc.type] || C.teal, flexShrink: 0 }} />
+                      <div style={{ flex: 1, textAlign: "left" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted }}>{typeLabels[acc.type] || acc.type} · ${(acc.balance || 0).toLocaleString()}</div>
+                      </div>
+                      {acc.id === activeAccountId && <CheckCircle2 size={13} color={C.purple} />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Calendrier */}
         <button onClick={onCalendar} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="Calendrier">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
         </button>
 
-        {/* Thème clair/sombre */}
-        <button onClick={onToggleTheme} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title={isDark ? "Mode clair" : "Mode sombre"}>
-          {isDark ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
-          )}
+        {/* Thème */}
+        <button onClick={onToggleTheme} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
         </button>
 
         {/* IA Coach */}
         <button onClick={onCoach} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="IA Coach">
-          <Brain size={16} strokeWidth={1.8} color={C.sidebarTextDim} />
+          <Brain size={15} strokeWidth={1.8} color={C.sidebarTextDim} />
         </button>
       </div>
     </div>
@@ -997,7 +1168,7 @@ function computeStats(trades) {
   });
 
   // Profit jour / semaine / mois (référence : "aujourd'hui" = 19 juin 2026, cohérent avec les données mock)
-  const now = new Date("2026-06-19T23:59:59Z");
+  const now = new Date();
   const startOfDay = new Date(now); startOfDay.setUTCHours(0, 0, 0, 0);
   const startOfWeek = new Date(startOfDay); startOfWeek.setUTCDate(startOfDay.getUTCDate() - ((startOfDay.getUTCDay() + 6) % 7));
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -1050,7 +1221,7 @@ function Dashboard({ trades, onOpenTrade, setView }) {
     const since = new Date();
     since.setDate(since.getDate() - days);
     // Les données mock sont de 2026 — on adapte la référence
-    const ref = new Date("2026-06-19T23:59:59Z");
+    const ref = new Date();
     const cutoff = new Date(ref);
     cutoff.setDate(ref.getDate() - days);
     return trades.filter((t) => new Date(t.entryTime) >= cutoff);
@@ -1153,19 +1324,22 @@ function Dashboard({ trades, onOpenTrade, setView }) {
       <div className="dashboard-grid4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
         <Card style={{ padding: 16 }}>
           <CardLabel info>Win / Loss</CardLabel>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginTop: 8 }}>
-            <ResponsiveContainer width={100} height={100}>
+          <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 8 }}>
+            <ResponsiveContainer width={110} height={110}>
               <PieChart>
-                <Pie data={winLossData} dataKey="value" innerRadius={30} outerRadius={46} paddingAngle={3} startAngle={90} endAngle={-270}>
+                <Pie data={winLossData} dataKey="value" innerRadius={34} outerRadius={52} paddingAngle={3} startAngle={90} endAngle={-270}>
                   {winLossData.map((d, i) => <Cell key={i} fill={d.color} stroke="none" />)}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
+            {/* Texte centré adaptatif */}
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+              <span className="tnum" style={{ fontSize: stats.winRate >= 100 ? 13 : stats.winRate >= 10 ? 16 : 18, fontWeight: 800, color: C.text, lineHeight: 1 }}>
+                {fmtPct(stats.winRate)}
+              </span>
+            </div>
           </div>
-          <div style={{ textAlign: "center", marginTop: -68, marginBottom: 50, pointerEvents: "none" }}>
-            <div className="tnum" style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{fmtPct(stats.winRate)}</div>
-          </div>
-          <div style={{ display: "flex", justifyContent: "center", gap: 14, fontSize: 11 }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: 14, fontSize: 11, marginTop: 6 }}>
             <span style={{ display: "flex", alignItems: "center", gap: 4, color: C.textSecondary }}><span style={{ width: 7, height: 7, borderRadius: 2, background: C.teal }} /> {stats.wins.length}W</span>
             <span style={{ display: "flex", alignItems: "center", gap: 4, color: C.textSecondary }}><span style={{ width: 7, height: 7, borderRadius: 2, background: C.red }} /> {stats.losses.length}L</span>
           </div>
@@ -1305,23 +1479,58 @@ function exportToCsv(trades) {
   }
 }
 
-function TradesList({ trades, onOpen, onNew, onStatusChange }) {
+function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
+  // États appliqués (utilisés pour filtrer)
   const [search, setSearch] = useState("");
   const [filterPair, setFilterPair] = useState("all");
-  const [filterSetup, setFilterSetup] = useState("all");
   const [filterSession, setFilterSession] = useState("all");
-  const [filterTag, setFilterTag] = useState("all");
+  const [filterTags, setFilterTags] = useState([]);
   const [filterResult, setFilterResult] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [filterSetup, setFilterSetup] = useState("all");
+
+  // États en attente (ce que l'utilisateur saisit avant de cliquer Rechercher)
+  const [pendingSearch, setPendingSearch] = useState("");
+  const [pendingPair, setPendingPair] = useState("all");
+  const [pendingSession, setPendingSession] = useState("all");
+  const [pendingTags, setPendingTags] = useState([]);
+  const [pdOpen, setPdOpen] = useState(false);
+  const [pendingResult, setPendingResult] = useState("all");
+  const [pendingDateFrom, setPendingDateFrom] = useState("");
+  const [pendingDateTo, setPendingDateTo] = useState("");
+
   const [showFilters, setShowFilters] = useState(false);
   const [openMonths, setOpenMonths] = useState(() => {
-    // Ouvre le mois courant par défaut
-    const now = new Date("2026-06-19");
+    const now = new Date();
     return new Set([`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`]);
   });
 
+  // Appliquer les filtres
+  const applyFilters = () => {
+    setSearch(pendingSearch);
+    setFilterPair(pendingPair);
+    setFilterSession(pendingSession);
+    setFilterTags([...pendingTags]);
+    setFilterResult(pendingResult);
+    setDateFrom(pendingDateFrom);
+    setDateTo(pendingDateTo);
+    setShowFilters(false);
+  };
+
+  const resetFilters = () => {
+    setPendingSearch(""); setSearch("");
+    setPendingPair("all"); setFilterPair("all");
+    setPendingSession("all"); setFilterSession("all");
+    setPendingTags([]); setFilterTags([]);
+    setPendingResult("all"); setFilterResult("all");
+    setPendingDateFrom(""); setDateFrom("");
+    setPendingDateTo(""); setDateTo("");
+  };
+
   const setupOptions = useMemo(() => [...new Set(trades.map((t) => t.setup).filter(Boolean))], [trades]);
+  const pdSetupOptions = TAG_CATALOG.filter(t => t.category === "setup");
+  const togglePendingTag = (name) => setPendingTags(prev => prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]);
 
   // Grouper les trades par mois
   const byMonth = useMemo(() => {
@@ -1340,7 +1549,7 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
       if (filterPair !== "all" && t.pair !== filterPair) return false;
       if (filterSetup !== "all" && t.setup !== filterSetup) return false;
       if (filterSession !== "all" && getSession(t.entryTime) !== filterSession) return false;
-      if (filterTag !== "all" && !(t.tags || []).includes(filterTag)) return false;
+      if (filterTags.length > 0 && !filterTags.every(ft => (t.tags || []).includes(ft))) return false;
       if (filterResult === "win" && !(t.resultR > 0)) return false;
       if (filterResult === "loss" && !(t.resultR < 0)) return false;
       if (filterResult === "be" && t.status !== "breakeven") return false;
@@ -1349,9 +1558,9 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
       if (search && !t.pair.toLowerCase().includes(search.toLowerCase()) && !(t.notes || "").toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [trades, filterPair, filterSetup, filterSession, filterTag, filterResult, dateFrom, dateTo, search]);
+  }, [trades, filterPair, filterSetup, filterSession, filterTags, filterResult, dateFrom, dateTo, search]);
 
-  const activeFilterCount = [filterPair !== "all", filterSetup !== "all", filterSession !== "all", filterTag !== "all", filterResult !== "all", dateFrom, dateTo].filter(Boolean).length;
+  const activeFilterCount = [filterPair !== "all", filterSetup !== "all", filterSession !== "all", filterTags.length > 0, filterResult !== "all", dateFrom, dateTo].filter(Boolean).length;
 
   const toggleMonth = (key) => {
     setOpenMonths((prev) => {
@@ -1363,7 +1572,7 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
   };
 
   // Vérifie si des filtres actifs sont présents — si oui affiche la liste plate, sinon affiche par mois
-  const hasActiveFilters = activeFilterCount > 0 || search || filterTag !== "all";
+  const hasActiveFilters = activeFilterCount > 0 || search || filterTags.length > 0;
 
   return (
     <div className="fade-in">
@@ -1374,58 +1583,147 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
         </div>
       } />
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ position: "relative", flex: "1 1 200px", minWidth: 160 }}>
-          <Search size={14} color={C.textMuted} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)" }} />
-          <input placeholder="Rechercher paire ou note…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, paddingLeft: 32 }} />
+      {/* Barre de recherche + bouton Filtres */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
+        <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+          <Search size={14} color={C.textMuted} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+          <input
+            placeholder="Rechercher paire ou note…"
+            value={pendingSearch}
+            onChange={(e) => setPendingSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applyFilters()}
+            style={{ ...inputStyle, paddingLeft: 36 }}
+          />
         </div>
-        <button onClick={() => setShowFilters((v) => !v)} style={{ ...btn.ghost, color: activeFilterCount ? C.purpleBright : C.textSecondary, borderColor: activeFilterCount ? "rgba(139,124,246,0.35)" : C.border, background: activeFilterCount ? C.purpleDim : C.card }}>
-          <Filter size={14} /> Filtres {activeFilterCount > 0 && `(${activeFilterCount})`}
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          style={{ ...btn.ghost, flexShrink: 0, color: activeFilterCount ? C.purpleBright : C.textSecondary, borderColor: activeFilterCount ? "rgba(139,124,246,0.35)" : C.border, background: activeFilterCount ? C.purpleDim : (C.inputBg || C.card) }}>
+          <Filter size={14} /> Filtres {activeFilterCount > 0 && <span style={{ background: C.purple, color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 700, marginLeft: 2 }}>{activeFilterCount}</span>}
         </button>
       </div>
 
+      {/* Panneau filtres refait */}
       {showFilters && (
-        <Card style={{ padding: 16, marginBottom: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 16 }}>
-          <Field label="Paire">
-            <select value={filterPair} onChange={(e) => setFilterPair(e.target.value)} style={inputStyle}>
-              <option value="all">Toutes</option>
-              {PAIRS.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </Field>
-          <Field label="Session">
-            <select value={filterSession} onChange={(e) => setFilterSession(e.target.value)} style={inputStyle}>
-              <option value="all">Toutes</option>
-              {["Asia", "London", "Overlap", "New York", "Hors session"].map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </Field>
-          <Field label="Résultat">
-            <select value={filterResult} onChange={(e) => setFilterResult(e.target.value)} style={inputStyle}>
-              <option value="all">Tous</option>
-              <option value="win">Win</option>
-              <option value="loss">Loss</option>
-              <option value="be">Breakeven</option>
-            </select>
-          </Field>
-          <Field label="Du"><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={inputStyle} /></Field>
-          <Field label="Au"><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={inputStyle} /></Field>
+        <Card style={{ padding: 18, marginBottom: 14, borderRadius: 14 }}>
+
+          {/* Section 1 : Selects */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Field label="Paire">
+                <select value={pendingPair} onChange={(e) => setPendingPair(e.target.value)} style={inputStyle}>
+                  <option value="all">Toutes les paires</option>
+                  {PAIRS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </Field>
+              <Field label="Session">
+                <select value={pendingSession} onChange={(e) => setPendingSession(e.target.value)} style={inputStyle}>
+                  <option value="all">Toutes</option>
+                  {["London Session","New York Session","Asia Session","Hors session"].map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Field label="Résultat">
+                <select value={pendingResult} onChange={(e) => setPendingResult(e.target.value)} style={inputStyle}>
+                  <option value="all">Tous</option>
+                  <option value="win">✅ Win</option>
+                  <option value="loss">❌ Loss</option>
+                  <option value="be">➖ Breakeven</option>
+                  <option value="open">🔓 Ouvert</option>
+                </select>
+              </Field>
+              <Field label="Direction">
+                <select value={pendingPair === "long" || pendingPair === "short" ? pendingPair : "all"} onChange={(e) => {}} style={inputStyle}>
+                  <option value="all">Toutes</option>
+                  <option value="long">Long</option>
+                  <option value="short">Short</option>
+                </select>
+              </Field>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Field label="Du">
+                <input type="date" value={pendingDateFrom} onChange={(e) => setPendingDateFrom(e.target.value)} style={{ ...inputStyle, minHeight: 44, paddingTop: 11, paddingBottom: 11 }} />
+              </Field>
+              <Field label="Au">
+                <input type="date" value={pendingDateTo} onChange={(e) => setPendingDateTo(e.target.value)} style={{ ...inputStyle, minHeight: 44, paddingTop: 11, paddingBottom: 11 }} />
+              </Field>
+            </div>
           </div>
 
-          {/* PD Arrays chips dans Filtres */}
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-            <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Setup / PD Array</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-              {["all", ...TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name)].map((tag) => (
-                <button key={tag} onClick={() => setFilterTag(tag === filterTag ? "all" : tag)} style={{
-                  padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: filterTag === tag ? 700 : 400, cursor: "pointer",
-                  border: `1px solid ${filterTag === tag && tag !== "all" ? C.purple : C.border}`,
-                  background: filterTag === tag && tag !== "all" ? C.purpleDim : filterTag === tag && tag === "all" ? C.cardHover : "transparent",
-                  color: filterTag === tag && tag !== "all" ? C.purpleBright : filterTag === "all" && tag === "all" ? C.text : C.textSecondary,
-                }}>
-                  {tag === "all" ? "Tous" : tag}
-                </button>
-              ))}
+          {/* Section 2 : PD Arrays dropdown multi-sélection */}
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, marginBottom: 18 }}>
+            <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>
+              Setup / PD Array {pendingTags.length > 0 && <span style={{ background: C.purple, color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 700, marginLeft: 4 }}>{pendingTags.length}</span>}
             </div>
+            {pendingTags.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+                {pendingTags.map(tag => {
+                  const def = TAG_CATALOG.find(t => t.name === tag);
+                  const color = def?.color || C.purpleBright;
+                  return (
+                    <div key={tag} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, background: `${color}18`, border: `1px solid ${color}50`, fontSize: 12, fontWeight: 600, color }}>
+                      {tag}
+                      <button onClick={() => togglePendingTag(tag)} style={{ background: "none", border: "none", color, cursor: "pointer", padding: 0, lineHeight: 1, fontSize: 14 }}>×</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setPdOpen(v => !v)} style={{
+                width: "100%", padding: "11px 14px", borderRadius: 10,
+                border: `1px solid ${pdOpen ? (C.focusBorder || C.purple) : C.border}`,
+                background: C.inputBg || C.card, color: C.text, fontSize: 13,
+                cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
+                boxShadow: pdOpen ? (C.focusShadow || "none") : "none", transition: "all 0.15s",
+              }}>
+                <span style={{ color: pendingTags.length === 0 ? C.textMuted : C.text }}>
+                  {pendingTags.length === 0 ? "Sélectionner des PD Arrays…" : `${pendingTags.length} sélectionné${pendingTags.length > 1 ? "s" : ""}`}
+                </span>
+                <ChevronDown size={15} color={C.textMuted} style={{ transform: pdOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
+              </button>
+              {pdOpen && (
+                <>
+                  <div onClick={() => setPdOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 99,
+                    background: C.card, border: `1px solid ${C.border}`, borderRadius: 10,
+                    overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.3)", maxHeight: 280, overflowY: "auto",
+                  }}>
+                    {pdSetupOptions.map((opt, i) => {
+                      const sel = pendingTags.includes(opt.name);
+                      const color = opt.color || C.purpleBright;
+                      return (
+                        <button key={opt.name} onClick={() => togglePendingTag(opt.name)} style={{
+                          width: "100%", padding: "11px 14px", textAlign: "left",
+                          background: sel ? (opt.color ? `${opt.color}12` : C.purpleDim) : (C.inputBg || C.card),
+                          border: "none", borderBottom: i < pdSetupOptions.length - 1 ? `1px solid ${C.border}` : "none",
+                          color: sel ? color : C.text, fontSize: 13, fontWeight: sel ? 600 : 400,
+                          cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
+                        }}>
+                          <span>{opt.name}</span>
+                          {sel && <CheckCircle2 size={15} color={color} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Boutons Rechercher + Réinitialiser */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={applyFilters} style={{ ...btn.primary, flex: 1, justifyContent: "center", padding: "12px", fontSize: 14, fontWeight: 700 }}>
+              <Search size={15} /> Rechercher
+            </button>
+            {activeFilterCount > 0 && (
+              <button onClick={resetFilters} style={{ ...btn.ghost, padding: "12px 16px" }}>
+                Réinitialiser
+              </button>
+            )}
           </div>
         </Card>
       )}
@@ -1436,7 +1734,7 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
         <div style={{ color: C.textMuted, fontSize: 13, padding: "40px 0", textAlign: "center" }}>Aucun trade ne correspond à ces filtres.</div>
       ) : (
         <>
-          {/* Blocs mois accordéon — visibles seulement sans filtre actif */}
+          {/* Blocs mois accordéon */}
           {!hasActiveFilters && byMonth.map(([monthKey, monthTrades]) => {
             const isOpen = openMonths.has(monthKey);
             const [year, month] = monthKey.split("-");
@@ -1445,63 +1743,37 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
             const monthR = monthTrades.reduce((s, t) => s + (t.resultR || 0), 0);
             const wins = monthTrades.filter(t => t.resultR > 0).length;
             return (
-              <div key={monthKey} style={{ marginBottom: 10 }}>
-                {/* En-tête du mois — cliquable */}
+              <div key={monthKey} style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: `1px solid rgba(255,255,255,0.06)` }}>
                 <button onClick={() => toggleMonth(monthKey)} style={{
-                  width: "100%", border: `1.5px solid ${isOpen ? C.purple : C.border}`,
-                  background: isOpen ? C.purpleDim : C.card, borderRadius: isOpen ? "10px 10px 0 0" : 10,
-                  padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+                  width: "100%",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "none", padding: "14px 16px",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+                  borderBottom: isOpen ? `1px solid rgba(255,255,255,0.06)` : "none",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 18 }}>{isOpen ? "▼" : "▶"}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 8, color: C.textMuted, transform: isOpen ? "rotate(0)" : "rotate(-90deg)", display: "inline-block", transition: "transform 0.2s" }}>▼</span>
                     <div style={{ textAlign: "left" }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textTransform: "capitalize" }}>{monthLabel}</div>
-                      <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>{monthTrades.length} trades · {wins}W/{monthTrades.length - wins}L</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary, textTransform: "capitalize", letterSpacing: 0.2 }}>{monthLabel}</div>
+                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{monthTrades.length} trades · {wins}W/{monthTrades.length - wins}L</div>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: monthR >= 0 ? C.teal : C.red }}>
-                      {monthR >= 0 ? "+" : ""}{monthR.toFixed(2)}R
-                    </div>
-                    <div className="tnum" style={{ fontSize: 13, fontWeight: 600, color: monthPnl >= 0 ? C.teal : C.red, marginTop: 2 }}>
-                      {fmtUsdSigned(monthPnl)}
-                    </div>
+                    <div className="tnum" style={{ fontSize: 20, fontWeight: 800, color: monthR >= 0 ? C.teal : C.red, letterSpacing: -0.5 }}>{monthR >= 0 ? "+" : ""}{monthR.toFixed(1)}R</div>
+                    <div className="tnum" style={{ fontSize: 11.5, fontWeight: 600, color: monthR >= 0 ? C.teal : C.red, marginTop: 1 }}>{fmtUsdSigned(monthPnl)}</div>
                   </div>
                 </button>
 
-                {/* Contenu du mois — cartes des trades */}
                 {isOpen && (
-                  <div style={{ border: `1.5px solid ${C.purple}`, borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
-                    <Card style={{ overflow: "hidden" }} className="desktop-only">
-                      <div className="table-scroll">
-                        <div style={{ display: "grid", gridTemplateColumns: "56px 90px 70px 60px 130px 90px 70px 60px 90px 1fr", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, minWidth: 800 }}>
-                          <div>Img</div><div>Date</div><div>Paire</div><div>Dir.</div><div>Setup</div><div>Résultat $</div><div>R</div><div>W/L</div><div>Session</div><div>Tags</div>
-                        </div>
-                        {monthTrades.map((t) => (
-                          <div key={t.id} className="row-hover" onClick={() => onOpen(t.id)} style={{ display: "grid", gridTemplateColumns: "56px 90px 70px 60px 130px 90px 70px 60px 90px 1fr", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, alignItems: "center", cursor: "pointer", fontSize: 12.5, minWidth: 800 }}>
-                            <div style={{ width: 40, height: 28, borderRadius: 4, overflow: "hidden", background: C.bg, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {t.screenshotBefore ? <img src={t.screenshotBefore} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <ImageOff size={12} color={C.textMuted} />}
-                            </div>
-                            <div style={{ color: C.textSecondary, fontSize: 11.5 }}>{fmtDate(t.entryTime)}</div>
-                            <div style={{ fontWeight: 700 }}>{t.pair}</div>
-                            <div><DirBadge direction={t.direction} /></div>
-                            <div style={{ color: C.textSecondary, fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.setup || (t.tags || [])[0] || "—"}</div>
-                            <div className="tnum" style={{ fontWeight: 700, color: (t.resultUsd || 0) >= 0 ? C.teal : C.red }}>{fmtUsdSigned(t.resultUsd)}</div>
-                            <div className="tnum" style={{ color: C.textSecondary, fontWeight: 600 }}>{fmtR(t.resultR)}</div>
-                            <div><ResultBadge resultR={t.resultR} status={t.status} size="sm" onStatusChange={(s, r) => onStatusChange(t.id, s, r)} /></div>
-                            <div style={{ fontSize: 11, color: C.textMuted }}>{getSession(t.entryTime)}</div>
-                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", overflow: "hidden" }}>
-                              {(t.tags || []).slice(0, 2).map((tag) => <TagBadge key={tag} name={tag} size="sm" />)}
-                              {(t.tags || []).length > 2 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{t.tags.length - 2}</span>}
-                            </div>
-                          </div>
-                        ))}
+                  <div style={{ background: "transparent", padding: "10px 8px", display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div className="desktop-only table-scroll" style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "90px 90px 70px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
+                        <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>P&L</div><div>R</div><div>Statut</div>
                       </div>
-                    </Card>
-                    <div className="mobile-only" style={{ display: "flex", flexDirection: "column" }}>
-                      {monthTrades.map((t) => (
-                        <MobileTradeCard key={t.id} t={t} onOpen={onOpen} onStatusChange={onStatusChange} />
-                      ))}
+                      {monthTrades.map((t) => <TradeRow key={t.id} t={t} onOpen={onOpen} />)}
+                    </div>
+                    <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                      {monthTrades.map((t, i) => <MobileTradeCard key={t.id} t={t} onOpen={onOpen} isLast={i === monthTrades.length - 1} />)}
                     </div>
                   </div>
                 )}
@@ -1509,45 +1781,19 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
             );
           })}
 
-          {/* Vue plate quand filtres actifs */}
+          {/* Vue plate filtres actifs */}
           {hasActiveFilters && (
           <>
-          <Card style={{ overflow: "hidden" }} className="desktop-only">
+          <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.card }} className="desktop-only">
             <div className="table-scroll">
-            <div style={{ display: "grid", gridTemplateColumns: "56px 90px 70px 60px 130px 90px 70px 60px 90px 1fr 56px", padding: "10px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, minWidth: 860 }}>
-              <div>Img</div><div>Date</div><div>Paire</div><div>Dir.</div><div>Setup</div><div>Résultat $</div><div>R</div><div>W/L</div><div>Session</div><div>Tags</div><div>Note</div>
+            <div style={{ display: "grid", gridTemplateColumns: "90px 90px 70px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
+              <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>P&L</div><div>R</div><div>Statut</div>
             </div>
-            {filtered.map((t) => (
-              <div key={t.id} className="row-hover" onClick={() => onOpen(t.id)} style={{ display: "grid", gridTemplateColumns: "56px 90px 70px 60px 130px 90px 70px 60px 90px 1fr 56px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, alignItems: "center", cursor: "pointer", fontSize: 12.5, minWidth: 860 }}>
-                <div style={{ width: 40, height: 28, borderRadius: 4, overflow: "hidden", background: C.bg, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {t.screenshotBefore ? (
-                    <img src={t.screenshotBefore} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : (
-                    <ImageOff size={12} color={C.textMuted} />
-                  )}
-                </div>
-                <div style={{ color: C.textSecondary, fontSize: 11.5 }}>{fmtDate(t.entryTime)}</div>
-                <div style={{ fontWeight: 700 }}>{t.pair}</div>
-                <div><DirBadge direction={t.direction} /></div>
-                <div style={{ color: C.textSecondary, fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.setup}</div>
-                <div className="tnum" style={{ fontWeight: 700, color: t.resultUsd >= 0 ? C.teal : C.red }}>{fmtUsdSigned(t.resultUsd)}</div>
-                <div className="tnum" style={{ color: C.textSecondary, fontWeight: 600 }}>{fmtR(t.resultR)}</div>
-                <div><ResultBadge resultR={t.resultR} status={t.status} size="sm" /></div>
-                <div style={{ fontSize: 11, color: C.textMuted }}>{getSession(t.entryTime)}</div>
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", overflow: "hidden" }}>
-                  {(t.tags || []).slice(0, 2).map((tag) => <TagBadge key={tag} name={tag} size="sm" />)}
-                  {(t.tags || []).length > 2 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{t.tags.length - 2}</span>}
-                </div>
-                <div className="tnum" style={{ fontSize: 11.5, fontWeight: 700, color: t.reflection ? C.purpleBright : C.textMuted }}>{t.reflection ? `${t.reflection.tradeRating}/10` : "—"}</div>
-              </div>
-            ))}
+            {filtered.map((t) => <TradeRow key={t.id} t={t} onOpen={onOpen} />)}
             </div>
-          </Card>
-
-          <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {filtered.map((t) => (
-              <MobileTradeCard key={t.id} t={t} onOpen={onOpen} onStatusChange={onStatusChange} />
-            ))}
+          </div>
+          <div className="mobile-only" style={{ display: "flex", flexDirection: "column" }}>
+            {filtered.map((t, i) => <MobileTradeCard key={t.id} t={t} onOpen={onOpen} isLast={i === filtered.length - 1} />)}
           </div>
           </>
           )}
@@ -1557,57 +1803,194 @@ function TradesList({ trades, onOpen, onNew, onStatusChange }) {
   );
 }
 
-function MobileTradeCard({ t, onOpen, onStatusChange }) {
+function TradeRow({ t, onOpen }) {
+  const setupTags = (t.tags || []).filter(tag => TAG_CATALOG.find(tc => tc.name === tag && tc.category === "setup"));
+  const isWin = t.resultR > 0;
+  const cur = t.status === "open" ? "open" : t.status === "breakeven" ? "breakeven" : isWin ? "win" : "loss";
+  const statusColors = { win: C.teal, loss: C.red, breakeven: C.textSecondary, open: C.purple };
+  const statusLabels = { win: "Win", loss: "Loss", breakeven: "BE", open: "Ouvert" };
   return (
-    <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ height: 3, background: t.status === "open" ? C.purple : t.resultR > 0 ? C.teal : t.status === "breakeven" ? C.textMuted : C.red }} />
-      <div style={{ padding: "12px 14px", cursor: "pointer" }} onClick={() => onOpen(t.id)}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{t.pair}</span>
-            <DirBadge direction={t.direction} />
-            {t.screenshotBefore && (
-              <button onClick={(e) => { e.stopPropagation(); window.open(t.screenshotBefore); }} style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", fontSize: 13 }}>📷</button>
-            )}
-          </div>
-          <span className="tnum" style={{ fontWeight: 800, fontSize: 15, color: t.status === "open" ? C.textSecondary : (t.resultUsd || 0) >= 0 ? C.teal : C.red }}>
-            {t.status === "open" ? "En cours" : fmtUsdSigned(t.resultUsd)}
-          </span>
-        </div>
-        <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: t.tags?.length > 0 ? 8 : 0 }}>{fmtDate(t.entryTime)} · {t.setup || (t.tags || [])[0] || "—"}</div>
-        {t.tags?.length > 0 && (
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            {t.tags.slice(0, 3).map((tag) => <TagBadge key={tag} name={tag} size="sm" />)}
-          </div>
-        )}
+    <div className="row-hover" onClick={() => onOpen(t.id)} style={{ display: "grid", gridTemplateColumns: "100px 80px 60px 1fr 90px 70px 80px", padding: "10px 18px", borderBottom: `1px solid ${C.border}`, alignItems: "center", cursor: "pointer", fontSize: 13, minWidth: 560 }}>
+      <div style={{ fontWeight: 700 }}>{t.pair}</div>
+      <div style={{ color: C.textMuted, fontSize: 11.5 }}>{fmtDate(t.entryTime)}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: t.direction === "long" ? "#2D7DD2" : "#F97316" }}>{t.direction === "long" ? "Long" : "Short"}</div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        {setupTags.slice(0, 2).map(tag => <TagBadge key={tag} name={tag} size="sm" />)}
       </div>
-      <div style={{ display: "flex", borderTop: `1px solid ${C.border}` }}>
-        {[
-          { v: "win", label: "✅ Gagné", color: C.teal, bg: C.tealDim, rSign: 1 },
-          { v: "loss", label: "❌ Perdu", color: C.red, bg: C.redDim, rSign: -1 },
-          { v: "breakeven", label: "➖ BE", color: C.textMuted, bg: "rgba(170,178,197,0.12)", rSign: 0 },
-          { v: "open", label: "🔓 Ouvert", color: C.purpleBright, bg: C.purpleDim, rSign: null },
-        ].map((opt, i, arr) => {
-          const isActive = (opt.v === "win" && t.resultR > 0 && t.status !== "open") ||
-                           (opt.v === "loss" && (t.resultR || 0) <= 0 && t.status !== "open" && t.status !== "breakeven") ||
-                           (opt.v === "breakeven" && t.status === "breakeven") ||
-                           (opt.v === "open" && t.status === "open");
-          const newR = opt.rSign === null ? t.resultR : opt.rSign === 0 ? 0 : opt.rSign * Math.abs(t.resultR || 1);
-          return (
-            <button key={opt.v} onClick={(e) => { e.stopPropagation(); onStatusChange(t.id, opt.v, newR); }} style={{
-              flex: 1, padding: "10px 2px", background: isActive ? opt.bg : "transparent",
-              border: "none", borderRight: i < arr.length - 1 ? `1px solid ${C.border}` : "none",
-              color: isActive ? opt.color : C.textMuted, fontSize: 11, fontWeight: isActive ? 700 : 500, cursor: "pointer",
-            }}>
-              {opt.label}
-            </button>
-          );
-        })}
+      <div className="tnum" style={{ fontWeight: 700, color: t.status === "open" || t.status === "breakeven" ? C.textSecondary : isWin ? C.teal : C.red }}>{t.status === "open" || t.status === "breakeven" ? "—" : fmtUsdSigned(t.resultUsd)}</div>
+      <div className="tnum" style={{ color: C.textMuted, fontWeight: 600 }}>{fmtR(t.resultR)}</div>
+      <div>
+        <span style={{ padding: "3px 9px", borderRadius: 20, background: `${statusColors[cur]}18`, border: `1px solid ${statusColors[cur]}40`, color: statusColors[cur], fontSize: 11, fontWeight: 600 }}>
+          {statusLabels[cur]}
+        </span>
       </div>
-    </Card>
+    </div>
   );
 }
 
+function MobileTradeCard({ t, onOpen, isLast }) {
+  const setupTags = (t.tags || []).filter(tag => TAG_CATALOG.find(tc => tc.name === tag && tc.category === "setup"));
+  const tfTags = (t.tags || []).filter(tag => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(tag));
+  const isWin = t.resultR > 0;
+  const isBE = t.status === "breakeven";
+  const isOpen = t.status === "open";
+  const [pressed, setPressed] = useState(false);
+
+  const accentColor = isOpen ? "#5B9BD5" : isBE ? C.textMuted : isWin ? C.teal : C.red;
+  const pnlColor = isOpen ? "#5B9BD5" : isBE ? C.textSecondary : isWin ? C.teal : C.red;
+  const sessionTag = (t.tags || []).find(tag => ["London Session","New York Session","Asia Session","Hors session"].includes(tag));
+  const typeTag = (t.tags || []).find(tag => ["Swing","Day Trading","Scalping"].includes(tag));
+  const pnlDisplay = isOpen ? "En cours" : isBE ? "BE" : fmtUsdSigned(t.resultUsd);
+  const rDisplay = isOpen ? "" : isBE ? "0.00R" : fmtR(t.resultR);
+  const tfAlignment = t.tfAlignment;
+  const tfAlignmentSetup = t.tfAlignmentSetup;
+
+  const sessionColor = sessionTag === "London Session" ? "#4A7FBF"
+    : sessionTag === "New York Session" ? "#C0392B"
+    : sessionTag === "Asia Session" ? "#E67E22" : C.textMuted;
+
+  const sessionEmoji = sessionTag === "London Session" ? "🇬🇧"
+    : sessionTag === "New York Session" ? "🗽"
+    : sessionTag === "Asia Session" ? "🌏" : "";
+  const sessionShort = sessionTag === "London Session" ? "London"
+    : sessionTag === "New York Session" ? "New York"
+    : sessionTag === "Asia Session" ? "Asia" : sessionTag;
+
+  // Couleur des PD Arrays : gris-bleu neutre discret
+  const pdColor = C.textSecondary;
+  const pdBg = "rgba(200,208,228,0.07)";
+  const pdBorder = "rgba(200,208,228,0.15)";
+
+  const DirectionLogo = () => (
+    <div style={{
+      width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+      background: t.direction === "long" ? "rgba(45,212,191,0.08)" : "rgba(249,115,22,0.08)",
+      border: `1.5px solid ${t.direction === "long" ? "rgba(45,212,191,0.5)" : "rgba(249,115,22,0.5)"}`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      {t.direction === "long" ? (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <polyline points="3,17 9,11 13,15 21,7" stroke={C.teal} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <polyline points="16,7 21,7 21,12" stroke={C.teal} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ) : (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <polyline points="3,7 9,13 13,9 21,17" stroke="#F97316" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <polyline points="16,17 21,17 21,12" stroke="#F97316" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{ marginBottom: isLast ? 0 : 10 }}>
+      <div
+        onClick={() => onOpen(t.id)}
+        onTouchStart={() => setPressed(true)}
+        onTouchEnd={() => setPressed(false)}
+        style={{
+          background: pressed ? C.cardHover : C.card,
+          borderRadius: 12, border: `1px solid ${C.border}`,
+          cursor: "pointer", transition: "background 0.1s", overflow: "hidden",
+        }}
+      >
+        {/* Barre colorée en haut */}
+        <div style={{ height: 3, background: accentColor }} />
+
+        <div style={{ padding: "13px 14px 13px" }}>
+
+          {/* Header : logo + paire + P&L */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+              <DirectionLogo />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, lineHeight: 1.1 }}>{t.pair}</div>
+                {/* Ligne contexte : date · session · direction · type */}
+                <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                  <span style={{ color: C.text }}>{fmtDate(t.entryTime)}</span>
+                  {sessionTag && <>
+                    <span style={{ opacity: 0.4 }}>·</span>
+                    <span style={{ color: sessionColor, fontWeight: 600 }}>{sessionEmoji} {sessionShort}</span>
+                  </>}
+                  {typeTag && <>
+                    <span style={{ opacity: 0.4 }}>·</span>
+                    <span style={{ color: C.text, fontWeight: 500 }}>{typeTag}</span>
+                  </>}
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div className="tnum" style={{ fontSize: 20, fontWeight: 800, color: pnlColor, letterSpacing: -0.5, lineHeight: 1.1 }}>{pnlDisplay}</div>
+              <div className="tnum" style={{ fontSize: 12.5, fontWeight: 600, color: pnlColor, opacity: 0.8, marginTop: 2, lineHeight: 1 }}>{rDisplay}</div>
+            </div>
+          </div>
+
+          {/* Tableau prix — une seule carte avec séparateurs fins */}
+          <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: (tfTags.length > 0 || setupTags.length > 0 || tfAlignment || t.oteFib) ? 10 : 0 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr 1px 1fr 1px 1fr", background: C.inputBg }}>
+              {[
+                { label: "Entrée", value: t.entryPrice != null ? String(t.entryPrice) : null, color: C.text },
+                null, // séparateur
+                { label: "SL", value: t.stopLoss != null ? String(t.stopLoss) : null, color: C.red },
+                null,
+                { label: "TP", value: t.takeProfit != null ? String(t.takeProfit) : null, color: C.teal },
+                null,
+                { label: "Risque", value: t.riskUsd != null ? `$${Math.abs(t.riskUsd).toFixed(0)}` : null, color: C.textSecondary },
+              ].map((item, i) => {
+                if (item === null) return <div key={i} style={{ width: 1, background: C.border, alignSelf: "stretch" }} />;
+                return (
+                  <div key={item.label} style={{ padding: "8px 8px" }}>
+                    <div style={{ fontSize: 8.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{item.label}</div>
+                    <div className="tnum" style={{ fontSize: 12, fontWeight: 700, color: item.value ? item.color : C.textMuted }}>{item.value ?? "—"}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Tags hiérarchisés */}
+          {(tfTags.length > 0 || setupTags.length > 0 || tfAlignment || t.oteFib) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+
+              {/* Ligne 1 : TF trade (violet) + PD Arrays (turquoise) */}
+              {(tfTags.length > 0 || setupTags.length > 0) && (
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                  {/* TF — violet */}
+                  {tfTags.map(tf => (
+                    <span key={tf} style={{ fontSize: 11, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, border: `1px solid rgba(149,128,255,0.25)`, padding: "2px 8px", borderRadius: 5 }}>{tf}</span>
+                  ))}
+                  {/* PD Arrays — turquoise */}
+                  {setupTags.map(tag => {
+                    const def = TAG_CATALOG.find(tc => tc.name === tag);
+                    const color = def?.color || pdColor;
+                    const bg = def?.color ? `${def.color}10` : pdBg;
+                    const border = def?.color ? `${def.color}30` : pdBorder;
+                    return <span key={tag} style={{ fontSize: 11, fontWeight: 500, color, background: bg, border: `1px solid ${border}`, padding: "2px 8px", borderRadius: 5 }}>{tag}</span>;
+                  })}
+                </div>
+              )}
+
+              {/* Ligne 2 : TF supérieur (violet) + setup supérieur (turquoise) */}
+              {tfAlignment && (
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, border: `1px solid rgba(149,128,255,0.25)`, padding: "2px 8px", borderRadius: 5 }}>{tfAlignment}</span>
+                  {tfAlignmentSetup && (
+                    <span style={{ fontSize: 11, fontWeight: 500, color: pdColor, background: pdBg, border: `1px solid ${pdBorder}`, padding: "2px 8px", borderRadius: 5 }}>{tfAlignmentSetup}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Ligne 3 : OTE (turquoise fort) */}
+              {t.oteFib && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#818CF8", background: "rgba(129,140,248,0.10)", border: "1px solid rgba(129,140,248,0.25)", padding: "2px 8px", borderRadius: 5, alignSelf: "flex-start" }}>OTE {t.oteFib}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 /* ============================================================================
    TRADE DETAIL
    ============================================================================ */
@@ -1624,7 +2007,7 @@ function shareTradeCard(trade) {
 
   // Bande latérale colorée
   const isWin = (trade.resultUsd || 0) >= 0;
-  ctx.fillStyle = isWin ? "#16B8A0" : "#E8554E";
+  ctx.fillStyle = isWin ? "#2DD4BF" : "#E8554E";
   ctx.fillRect(0, 0, 5, 320);
 
   // En-tête
@@ -1638,7 +2021,7 @@ function shareTradeCard(trade) {
   ctx.fillText(`${trade.pair}  ${trade.direction === "long" ? "▲ Long" : "▼ Short"}`, 24, 88);
 
   // Résultat
-  ctx.fillStyle = isWin ? "#16B8A0" : "#E8554E";
+  ctx.fillStyle = isWin ? "#2DD4BF" : "#E8554E";
   ctx.font = "bold 28px -apple-system, sans-serif";
   const resultText = trade.resultUsd != null ? `${trade.resultUsd >= 0 ? "+" : ""}$${trade.resultUsd?.toFixed(2)}` : "—";
   ctx.fillText(resultText, 24, 136);
@@ -1688,155 +2071,453 @@ function shareTradeCard(trade) {
   });
 }
 
+function LightBox({ src, label, onClose }) {
+  if (!src) return null;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.92)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>{label} · Tap pour fermer</div>
+      <img src={src} alt={label} onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: 10, objectFit: "contain", boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }} />
+    </div>
+  );
+}
+
+function PdRuleRow({ tag, color }) {
+  const [resp, setResp] = useState(null);
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: C.inputBg || C.card, borderRadius: 10, border: `1px solid ${C.border}` }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color }}>{tag}</span>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button onClick={() => setResp(resp === "ok" ? null : "ok")} style={{
+          padding: "5px 12px", borderRadius: 6, fontSize: 11.5, fontWeight: resp === "ok" ? 700 : 400,
+          border: `1.5px solid ${resp === "ok" ? C.teal : C.border}`,
+          background: resp === "ok" ? C.tealDim : "transparent",
+          color: resp === "ok" ? C.teal : C.textMuted, cursor: "pointer",
+        }}>✅ Respecté</button>
+        <button onClick={() => setResp(resp === "no" ? null : "no")} style={{
+          padding: "5px 12px", borderRadius: 6, fontSize: 11.5, fontWeight: resp === "no" ? 700 : 400,
+          border: `1.5px solid ${resp === "no" ? C.red : C.border}`,
+          background: resp === "no" ? C.redDim : "transparent",
+          color: resp === "no" ? C.red : C.textMuted, cursor: "pointer",
+        }}>❌ Non</button>
+      </div>
+    </div>
+  );
+}
+
 function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [activeTab, setActiveTab] = useState("avant");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiError, setAiError] = useState("");
+  const [retroNote, setRetroNote] = useState(trade?.retroNote || "");
+  const [retroRating, setRetroRating] = useState(trade?.retroRating || 0);
+  const [imgZoom, setImgZoom] = useState(null); // { src, label }
 
   const runAiAnalysis = async () => {
-    setAiLoading(true);
-    setAiError("");
-    try {
-      const text = await getSingleTradeAnalysis(trade);
-      setAiAnalysis(text);
-    } catch (e) {
-      setAiError(e.message || "L'analyse a échoué.");
-    } finally {
-      setAiLoading(false);
-    }
+    setAiLoading(true); setAiError("");
+    try { setAiAnalysis(await getSingleTradeAnalysis(trade)); }
+    catch (e) { setAiError(e.message || "L'analyse a échoué."); }
+    finally { setAiLoading(false); }
   };
 
-  if (!trade) {
-    return (
-      <div className="fade-in">
-        <BackLink onClick={onBack}>Retour au journal</BackLink>
-        <EmptyState icon={NotebookPen} title="Trade introuvable" text="Ce trade a peut-être été supprimé." />
-      </div>
-    );
-  }
+  if (!trade) return (
+    <div className="fade-in">
+      <BackLink onClick={onBack}>Retour au journal</BackLink>
+      <EmptyState icon={NotebookPen} title="Trade introuvable" text="Ce trade a peut-être été supprimé." />
+    </div>
+  );
+
+  const isWin = trade.resultR > 0;
+  const isBE = trade.status === "breakeven";
+
+  const TABS = [
+    { id: "avant", label: "Avant" },
+    { id: "apres", label: "Après" },
+    { id: "retour", label: "Retour" },
+  ];
+
+  // Composant barre de score cliquable
+  const ScoreBar = ({ value, onChange, colors }) => (
+    <div style={{ display: "flex", gap: 3 }}>
+      {[1,2,3,4,5,6,7,8,9,10].map(n => {
+        const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
+        const filled = n <= value;
+        return (
+          <button key={n} onClick={() => onChange(n === value ? 0 : n)} style={{
+            flex: 1, height: 24, borderRadius: 4, border: "none", cursor: "pointer",
+            background: filled ? col : (C.inputBg || C.card),
+            opacity: filled ? 1 : 0.2, transition: "all 0.1s",
+          }} />
+        );
+      })}
+    </div>
+  );
 
   return (
-    <div className="fade-in" style={{ maxWidth: 1280 }}>
+    <div className="fade-in" style={{ maxWidth: 680 }}>
+      {imgZoom && <LightBox src={imgZoom.src} label={imgZoom.label} onClose={() => setImgZoom(null)} />}
       <BackLink onClick={onBack}>Retour au journal</BackLink>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: 10, marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: 10, marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 5, flexWrap: "wrap" }}>
             <span style={{ fontWeight: 800, fontSize: 26 }}>{trade.pair}</span>
             <DirBadge direction={trade.direction} size="lg" />
             <ResultBadge resultR={trade.resultR} status={trade.status} />
           </div>
           <div style={{ fontSize: 12, color: C.textSecondary, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <Clock size={12} /> {fmtDateTime(trade.entryTime)} · {getSession(trade.entryTime)} · {trade.setup}
+            <Clock size={12} /> {fmtDateTime(trade.entryTime)} · {getSession(trade.entryTime)}
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => onEdit(trade)} style={btn.ghost}><Edit3 size={13} /> Modifier</button>
-          <button onClick={() => shareTradeCard(trade)} style={btn.ghost}>📤 Partager</button>
-          {confirmDelete ? (
-            <button onClick={() => onDelete(trade.id)} style={{ ...btn.ghost, color: C.red, borderColor: "rgba(232,85,78,0.35)" }}>Confirmer</button>
-          ) : (
-            <button onClick={() => setConfirmDelete(true)} style={btn.icon}><Trash2 size={14} /></button>
-          )}
+          <button onClick={() => shareTradeCard(trade)} style={btn.ghost}>📤</button>
+          {confirmDelete
+            ? <button onClick={() => onDelete(trade.id)} style={{ ...btn.ghost, color: C.red, borderColor: `${C.red}50` }}>Confirmer</button>
+            : <button onClick={() => setConfirmDelete(true)} style={btn.icon}><Trash2 size={14} /></button>
+          }
         </div>
       </div>
 
-      <div className="trade-detail-layout">
-        {/* Colonne gauche — preuve visuelle + chiffres clés */}
-        <div className="trade-detail-col-left">
-          {(trade.screenshotBefore || trade.screenshotAfter) ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-              {trade.screenshotBefore && (
-                <Card style={{ padding: 6, overflow: "hidden" }}>
-                  <div style={{ fontSize: 10.5, color: C.textMuted, padding: "4px 6px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>Avant le trade</div>
-                  <img src={trade.screenshotBefore} alt="Avant" style={{ width: "100%", borderRadius: 6, display: "block" }} />
-                </Card>
-              )}
-              {trade.screenshotAfter && (
-                <Card style={{ padding: 6, overflow: "hidden" }}>
-                  <div style={{ fontSize: 10.5, color: C.textMuted, padding: "4px 6px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>Après le trade</div>
-                  <img src={trade.screenshotAfter} alt="Après" style={{ width: "100%", borderRadius: 6, display: "block" }} />
-                </Card>
-              )}
+      {/* Onglets */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 18, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.inputBg || C.card }}>
+        {TABS.map((tab, i) => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+            flex: 1, padding: "11px 8px", border: "none", borderRight: i < TABS.length - 1 ? `1px solid ${C.border}` : "none",
+            background: activeTab === tab.id ? C.purple : "transparent",
+            color: activeTab === tab.id ? "#fff" : C.textMuted,
+            fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 400,
+            cursor: "pointer", transition: "all 0.15s",
+          }}>{tab.label}</button>
+        ))}
+      </div>
+
+      {/* ─── ONGLET 1 : AVANT ─── */}
+      {activeTab === "avant" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* Screenshots côte à côte : paire gauche, DXY droite */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <Card style={{ padding: 0, overflow: "hidden" }}>
+              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>Paire — Avant</div>
+              {trade.screenshotBefore
+                ? <img src={trade.screenshotBefore} alt="Avant" onClick={() => setImgZoom({ src: trade.screenshotBefore, label: "Paire — Avant" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
+                : <div style={{ padding: "24px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucun screenshot</div>
+              }
+            </Card>
+            <Card style={{ padding: 0, overflow: "hidden" }}>
+              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>DXY — Avant</div>
+              {trade.dxyScreenshotBefore
+                ? <img src={trade.dxyScreenshotBefore} alt="DXY Avant" onClick={() => setImgZoom({ src: trade.dxyScreenshotBefore, label: "DXY — Avant" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
+                : <div style={{ padding: "24px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucun screenshot</div>
+              }
+            </Card>
+          </div>
+
+          {/* Identification setup */}
+          <Card style={{ padding: 16 }}>
+            <CardLabel>Identification</CardLabel>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+              <DetailStat label="Paire" value={trade.pair} />
+              <DetailStat label="Direction" value={trade.direction === "long" ? "Long 📈" : "Short 📉"} valueColor={trade.direction === "long" ? "#4A9EFF" : "#F97316"} />
+              <DetailStat label="Session" value={getSession(trade.entryTime) || "—"} />
+              <DetailStat label="Timeframe" value={(trade.tags || []).find(t => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t)) || "—"} />
+              {trade.tfAlignment && <DetailStat label="TF alignement" value={`${trade.tfAlignment}${trade.tfAlignmentSetup ? ` · ${trade.tfAlignmentSetup}` : ""}`} />}
+              {trade.oteFib && <DetailStat label="Zone OTE" value={`${trade.oteFib} (${trade.oteFib === "0.618" ? "Golden" : trade.oteFib === "0.79" ? "Premium" : trade.oteFib})`} valueColor={C.teal} />}
             </div>
-          ) : (
-            <Card style={{ padding: 24, marginBottom: 14, textAlign: "center", color: C.textMuted, fontSize: 12 }}>
-              Aucun screenshot pour ce trade.
+          </Card>
+
+          {/* PD Arrays + setup */}
+          {((trade.tags || []).filter(t => TAG_CATALOG.find(tc => tc.name === t && tc.category === "setup")).length > 0) && (
+            <Card style={{ padding: 16 }}>
+              <CardLabel>PD Arrays / Setup</CardLabel>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+                {(trade.tags || []).filter(t => TAG_CATALOG.find(tc => tc.name === t && tc.category === "setup")).map(tag => <TagBadge key={tag} name={tag} />)}
+              </div>
             </Card>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 14 }}>
-            <DetailStat label="Entrée" value={trade.entryPrice} />
-            <DetailStat label="Stop loss" value={trade.stopLoss ?? "—"} />
-            <DetailStat label="Take profit" value={trade.takeProfit ?? "—"} />
-            <DetailStat label="Sortie" value={trade.exitPrice ?? "—"} />
-            <DetailStat label="Taille" value={`${trade.positionSize} lot`} />
-            <DetailStat label="Risque" value={fmtUsd(trade.riskUsd)} />
-            <DetailStat label="Résultat $" value={fmtUsdSigned(trade.resultUsd)} valueColor={trade.resultUsd >= 0 ? C.teal : C.red} />
-            <DetailStat label="Résultat R" value={fmtR(trade.resultR)} valueColor={trade.resultR >= 0 ? C.teal : C.red} />
-          </div>
-
-          {trade.tags?.length > 0 && (
+          {/* DXY */}
+          {(trade.dxyBias || trade.dxyTags?.length > 0) && (
             <Card style={{ padding: 16 }}>
-              <CardLabel>Tags</CardLabel>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                {trade.tags.map((tag) => <TagBadge key={tag} name={tag} />)}
+              <CardLabel>Analyse DXY</CardLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+                {trade.dxyBias && <DetailStat label="Biais DXY" value={trade.dxyBias} />}
+                {trade.dxyTags?.length > 0 && (
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    {trade.dxyTags.map(tag => <TagBadge key={tag} name={tag} size="sm" />)}
+                  </div>
+                )}
               </div>
+            </Card>
+          )}
+
+          {/* Checklist */}
+          {(trade.liquiditySweep !== undefined || trade.mssConfirmed !== undefined) && (
+            <Card style={{ padding: 16 }}>
+              <CardLabel>Checklist</CardLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                {[
+                  { label: "Sweep de liquidité", val: trade.liquiditySweep },
+                  { label: "MSS confirmé", val: trade.mssConfirmed },
+                ].map(item => (
+                  <div key={item.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: C.bg, borderRadius: 8 }}>
+                    <span style={{ fontSize: 13, color: C.text }}>{item.label}</span>
+                    <span style={{ fontSize: 16 }}>{item.val ? "✅" : "❌"}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Niveau de confiance avant */}
+          {trade.confidenceLevel > 0 && (
+            <Card style={{ padding: 16 }}>
+              <CardLabel>Niveau de confiance avant le trade</CardLabel>
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, color: C.textSecondary }}>
+                    {trade.confidenceLevel <= 3 ? "⚠️ Faible" : trade.confidenceLevel <= 5 ? "🟡 Moyen" : trade.confidenceLevel <= 7 ? "🟢 Bon" : "🔥 Excellent"}
+                  </span>
+                  <span className="tnum" style={{ fontSize: 24, fontWeight: 800, color: trade.confidenceLevel <= 3 ? C.red : trade.confidenceLevel <= 5 ? C.amber : trade.confidenceLevel <= 7 ? C.teal : C.purpleBright }}>
+                    {trade.confidenceLevel}/10
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {[1,2,3,4,5,6,7,8,9,10].map(n => {
+                    const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
+                    return <div key={n} style={{ flex: 1, height: 8, borderRadius: 3, background: n <= trade.confidenceLevel ? col : (C.border) }} />;
+                  })}
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Notes avant */}
+          {trade.notes && (
+            <Card style={{ padding: 16 }}>
+              <CardLabel>Notes</CardLabel>
+              <p style={{ fontSize: 13, lineHeight: 1.6, margin: "10px 0 0", color: C.text, whiteSpace: "pre-wrap" }}>{trade.notes}</p>
             </Card>
           )}
         </div>
+      )}
 
-        {/* Colonne droite — simple et rapide */}
-        <div className="trade-detail-col-right">
-          <Card style={{ padding: 16, marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <CardLabel>Notes</CardLabel>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ fontSize: 11, color: C.textMuted }}>Ce trade était :</span>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => onVerdictChange(trade.id, trade.verdict === "good" ? null : "good")} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, fontSize: 17, background: trade.verdict === "good" ? C.tealDim : C.bg, border: `1.5px solid ${trade.verdict === "good" ? C.teal : C.border}`, cursor: "pointer" }}>👍</button>
-                  <button onClick={() => onVerdictChange(trade.id, trade.verdict === "bad" ? null : "bad")} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, fontSize: 17, background: trade.verdict === "bad" ? C.redDim : C.bg, border: `1.5px solid ${trade.verdict === "bad" ? C.red : C.border}`, cursor: "pointer" }}>👎</button>
+      {/* ─── ONGLET 2 : APRÈS ─── */}
+      {activeTab === "apres" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Screenshots côte à côte : paire gauche, DXY droite */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <Card style={{ padding: 0, overflow: "hidden" }}>
+              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>Paire — Après</div>
+              {trade.screenshotAfter
+                ? <img src={trade.screenshotAfter} alt="Après" onClick={() => setImgZoom({ src: trade.screenshotAfter, label: "Paire — Après" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
+                : <div style={{ padding: "24px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucun screenshot</div>
+              }
+            </Card>
+            <Card style={{ padding: 0, overflow: "hidden" }}>
+              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>DXY — Après</div>
+              {trade.dxyScreenshotAfter
+                ? <img src={trade.dxyScreenshotAfter} alt="DXY Après" onClick={() => setImgZoom({ src: trade.dxyScreenshotAfter, label: "DXY — Après" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
+                : <div style={{ padding: "24px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucun screenshot</div>
+              }
+            </Card>
+          </div>
+
+          {/* Résultat */}
+          <Card style={{ padding: 16 }}>
+            <CardLabel>Résultat</CardLabel>
+
+            {/* P&L en grand */}
+            <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 12 }}>
+              <div style={{ flex: 1, padding: "14px 12px", borderRadius: 10, background: (trade.status === "breakeven" ? "rgba(107,115,136,0.1)" : isWin ? C.tealDim : C.redDim), border: `1.5px solid ${trade.status === "breakeven" ? C.textMuted : isWin ? C.teal : C.red}40`, textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Résultat $</div>
+                <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: trade.status === "breakeven" ? C.textSecondary : isWin ? C.teal : C.red, letterSpacing: -0.5 }}>
+                  {trade.status === "breakeven" ? "BE" : fmtUsdSigned(trade.resultUsd)}
+                </div>
+              </div>
+              <div style={{ flex: 1, padding: "14px 12px", borderRadius: 10, background: (trade.status === "breakeven" ? "rgba(107,115,136,0.1)" : isWin ? C.tealDim : C.redDim), border: `1.5px solid ${trade.status === "breakeven" ? C.textMuted : isWin ? C.teal : C.red}40`, textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Résultat R</div>
+                <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: trade.status === "breakeven" ? C.textSecondary : isWin ? C.teal : C.red, letterSpacing: -0.5 }}>
+                  {trade.status === "breakeven" ? "0R" : fmtR(trade.resultR)}
                 </div>
               </div>
             </div>
-            <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0, color: C.text, whiteSpace: "pre-wrap" }}>{trade.notes || "Aucune note."}</p>
+
+            {/* Détails prix en grille */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <DetailStat label="Entrée" value={trade.entryPrice ?? "—"} />
+              <DetailStat label="Sortie" value={trade.exitPrice ?? "—"} />
+              <DetailStat label="Stop Loss" value={trade.stopLoss ?? "—"} valueColor={C.red} />
+              <DetailStat label="Take Profit" value={trade.takeProfit ?? "—"} valueColor={C.teal} />
+              <DetailStat label="Taille" value={trade.positionSize ? `${trade.positionSize} lot` : "—"} />
+              <DetailStat label="Risque $" value={trade.riskUsd ? fmtUsd(trade.riskUsd) : "—"} />
+            </div>
           </Card>
 
+          {/* Statut */}
           <Card style={{ padding: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <Brain size={14} color={C.purpleBright} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Analyse IA</span>
+            <CardLabel>Statut</CardLabel>
+            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+              {[
+                { v: "open", label: "🔓 Ouvert", color: C.purple },
+                { v: "win",  label: "✅ Gagné",  color: C.teal },
+                { v: "loss", label: "❌ Perdu",  color: C.red },
+                { v: "breakeven", label: "➖ BE", color: C.textSecondary },
+              ].map(opt => {
+                const active = trade.status === opt.v;
+                return (
+                  <div key={opt.v} style={{ flex: "1 1 80px", padding: "10px 8px", borderRadius: 9, textAlign: "center",
+                    border: `2px solid ${active ? opt.color : C.border}`,
+                    background: active ? `${opt.color}18` : "transparent",
+                    color: active ? opt.color : C.textMuted, fontSize: 12, fontWeight: active ? 700 : 400 }}>
+                    {opt.label}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+        </div>
+      )}
+
+      {/* ─── ONGLET 3 : RETOUR ─── */}
+      {activeTab === "retour" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* Score confiance avant (lecture seule) */}
+          <Card style={{ padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <CardLabel style={{ margin: 0 }}>Confiance avant le trade</CardLabel>
+              <span className="tnum" style={{ fontSize: 20, fontWeight: 800, color: (trade.confidenceLevel || 0) <= 3 ? C.red : (trade.confidenceLevel || 0) <= 5 ? C.amber : (trade.confidenceLevel || 0) <= 7 ? C.teal : C.purpleBright }}>
+                {trade.confidenceLevel ? `${trade.confidenceLevel}/10` : "—"}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 3 }}>
+              {[1,2,3,4,5,6,7,8,9,10].map(n => {
+                const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
+                const filled = n <= (trade.confidenceLevel || 0);
+                return <div key={n} style={{ flex: 1, height: 10, borderRadius: 3, background: filled ? col : (C.inputBg || C.card), border: `1px solid ${filled ? col : C.border}` }} />;
+              })}
+            </div>
+          </Card>
+
+          {/* Score qualité après */}
+          <Card style={{ padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <CardLabel style={{ margin: 0 }}>Qualité du trade (après)</CardLabel>
+              <span className="tnum" style={{ fontSize: 20, fontWeight: 800, color: retroRating <= 0 ? C.textMuted : retroRating <= 3 ? C.red : retroRating <= 5 ? C.amber : retroRating <= 7 ? C.teal : C.purpleBright }}>
+                {retroRating > 0 ? `${retroRating}/10` : "—"}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 3, marginBottom: 8 }}>
+              {[1,2,3,4,5,6,7,8,9,10].map(n => {
+                const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
+                const filled = n <= retroRating;
+                return (
+                  <button key={n} onClick={() => setRetroRating(n === retroRating ? 0 : n)} style={{
+                    flex: 1, height: 30, borderRadius: 4,
+                    border: `1.5px solid ${filled ? col : C.border}`,
+                    cursor: "pointer", background: filled ? col : (C.inputBg || C.card),
+                    transition: "all 0.1s",
+                  }} />
+                );
+              })}
+            </div>
+            <p style={{ fontSize: 11, color: C.textMuted, margin: 0 }}>
+              {retroRating === 0 ? "Évalue la qualité de l'exécution après coup." :
+               retroRating <= 3 ? "⚠️ Trade de mauvaise qualité — à analyser" :
+               retroRating <= 5 ? "🟡 Exécution correcte mais améliorable" :
+               retroRating <= 7 ? "🟢 Bonne exécution dans l'ensemble" : "🔥 Exécution parfaite — A+ setup"}
+            </p>
+          </Card>
+
+          {/* Delta */}
+          {trade.confidenceLevel > 0 && retroRating > 0 && (
+            <Card style={{ padding: 14, background: `${Math.abs(retroRating - trade.confidenceLevel) <= 1 ? C.teal : C.amber}12`, border: `1px solid ${Math.abs(retroRating - trade.confidenceLevel) <= 1 ? C.teal : C.amber}40` }}>
+              <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginBottom: 3 }}>
+                {Math.abs(retroRating - trade.confidenceLevel) <= 1 ? "✅ Bonne calibration" : retroRating > trade.confidenceLevel ? "⬆️ Meilleur que prévu" : "⬇️ Moins bon que prévu"}
               </div>
-              <button onClick={runAiAnalysis} disabled={aiLoading} style={{ ...btn.ghost, fontSize: 11.5, padding: "6px 11px", opacity: aiLoading ? 0.5 : 1 }}>
-                {aiLoading ? <span style={{ display: "inline-block", animation: "spinSlow 1.6s linear infinite" }}>⟳</span> : <Sparkles size={12} />}
-                {aiAnalysis ? "Réanalyser" : "Analyser"}
+              <div style={{ fontSize: 12, color: C.textSecondary }}>
+                Avant {trade.confidenceLevel}/10 · Après {retroRating}/10 · Écart {retroRating > trade.confidenceLevel ? "+" : ""}{retroRating - trade.confidenceLevel}
+              </div>
+            </Card>
+          )}
+
+          {/* PD Arrays — Respecté / Non respecté */}
+          {(() => {
+            const pdTags = (trade.tags || []).filter(t => TAG_CATALOG.find(tc => tc.name === t && tc.category === "setup"));
+            if (pdTags.length === 0) return null;
+            return (
+              <Card style={{ padding: 16 }}>
+                <CardLabel>Règles de setup respectées</CardLabel>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+                  {pdTags.map(tag => {
+                    const def = TAG_CATALOG.find(t => t.name === tag);
+                    const color = def?.color || C.purpleBright;
+                    return <PdRuleRow key={tag} tag={tag} color={color} />;
+                  })}
+                </div>
+              </Card>
+            );
+          })()}
+
+          {/* Rétrospective — 1 seul bloc texte */}
+          <Card style={{ padding: 16 }}>
+            <CardLabel>Rétrospective</CardLabel>
+            <textarea rows={5} placeholder="Qu'est-ce qui s'est passé ? Qu'as-tu bien fait ? Qu'aurais-tu fait différemment ? Quelles leçons tirer ?" style={{ ...inputStyle, resize: "vertical", marginTop: 10, lineHeight: 1.6 }} />
+          </Card>
+
+          {/* Verdict */}
+          <Card style={{ padding: 16 }}>
+            <CardLabel>Ce trade était</CardLabel>
+            <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+              <button onClick={() => onVerdictChange(trade.id, trade.verdict === "good" ? null : "good")} style={{
+                flex: 1, padding: "14px 12px", borderRadius: 12, fontSize: 26,
+                border: `2px solid ${trade.verdict === "good" ? C.teal : C.border}`,
+                background: trade.verdict === "good" ? C.tealDim : (C.inputBg || C.card),
+                cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+              }}>
+                👍
+                <div style={{ fontSize: 12, color: trade.verdict === "good" ? C.teal : C.textMuted, fontWeight: 600 }}>Bon trade</div>
+              </button>
+              <button onClick={() => onVerdictChange(trade.id, trade.verdict === "bad" ? null : "bad")} style={{
+                flex: 1, padding: "14px 12px", borderRadius: 12, fontSize: 26,
+                border: `2px solid ${trade.verdict === "bad" ? C.red : C.border}`,
+                background: trade.verdict === "bad" ? C.redDim : (C.inputBg || C.card),
+                cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+              }}>
+                👎
+                <div style={{ fontSize: 12, color: trade.verdict === "bad" ? C.red : C.textMuted, fontWeight: 600 }}>Mauvais trade</div>
               </button>
             </div>
-            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>Lecture croisée des données et du contexte de ce trade</div>
+          </Card>
 
-            {aiError && (
-              <div style={{ color: C.red, fontSize: 12, padding: "9px 11px", background: C.redDim, borderRadius: 7, marginBottom: 10 }}>
-                {aiError}
+          {/* Note personnelle */}
+          <Card style={{ padding: 16 }}>
+            <CardLabel>Note personnelle</CardLabel>
+            <p style={{ fontSize: 13, lineHeight: 1.6, margin: "10px 0 0", color: C.text, whiteSpace: "pre-wrap" }}>{trade.notes || "Aucune note."}</p>
+          </Card>
+
+          {/* Analyse IA */}
+          <Card style={{ padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <Brain size={14} color={C.purpleBright} />
+                <span style={{ fontSize: 13, fontWeight: 700 }}>Analyse IA</span>
               </div>
-            )}
-
-            {!aiAnalysis && !aiLoading && !aiError && (
-              <div style={{ textAlign: "center", padding: "16px 10px", color: C.textMuted, fontSize: 12 }}>
-                Clique sur "Analyser" pour une lecture IA de ce trade.
-              </div>
-            )}
-
-            {aiLoading && (
-              <div style={{ textAlign: "center", padding: "16px 10px", color: C.textSecondary, fontSize: 12 }}>
-                Analyse en cours…
-              </div>
-            )}
-
+              <button onClick={runAiAnalysis} disabled={aiLoading} style={{ ...btn.ghost, fontSize: 11.5, padding: "6px 11px", opacity: aiLoading ? 0.5 : 1 }}>
+                {aiLoading ? "⟳" : <Sparkles size={12} />} {aiAnalysis ? "Réanalyser" : "Analyser"}
+              </button>
+            </div>
+            {aiError && <div style={{ color: C.red, fontSize: 12, padding: "9px 11px", background: C.redDim, borderRadius: 7 }}>{aiError}</div>}
+            {!aiAnalysis && !aiLoading && <div style={{ textAlign: "center", padding: "16px", color: C.textMuted, fontSize: 12 }}>Clique sur "Analyser" pour une lecture IA de ce trade.</div>}
+            {aiLoading && <div style={{ textAlign: "center", padding: "16px", color: C.textSecondary, fontSize: 12 }}>Analyse en cours…</div>}
             {aiAnalysis && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {aiAnalysis.split("\n").map((l) => l.replace(/^[-•*]\s*/, "").trim()).filter(Boolean).map((line, i) => (
+              <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 8 }}>
+                {aiAnalysis.split("\n").map(l => l.replace(/^[-•*]\s*/, "").trim()).filter(Boolean).map((line, i) => (
                   <div key={i} style={{ display: "flex", gap: 8, padding: "8px 10px", background: C.bg, borderRadius: 7, border: `1px solid ${C.border}` }}>
                     <Sparkles size={12} color={C.purpleBright} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span style={{ fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>{line}</span>
@@ -1846,7 +2527,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange }) {
             )}
           </Card>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1897,21 +2578,35 @@ function SmartCaptureBox({ value, onChange, onExtracted }) {
     setResult(null);
     if (!file) return;
     if (!file.type.startsWith("image/")) { setError("Le fichier doit être une image."); return; }
-    if (file.size > 4.5 * 1024 * 1024) { setError("Image trop lourde (max ~4.5 Mo)."); return; }
+    if (file.size > 10 * 1024 * 1024) { setError("Image trop lourde (max 10 Mo)."); return; }
 
+    // Aperçu local immédiat (base64 temporaire)
     const reader = new FileReader();
     reader.onload = (e) => onChange(e.target.result);
     reader.readAsDataURL(file);
 
     setStatus("analyzing");
     try {
-      const extracted = await extractTradeFromScreenshot(file);
-      setResult(extracted);
-      setStatus("done");
-      onExtracted(extracted);
+      // Upload vers Supabase Storage en parallèle avec l'analyse IA
+      const [extracted, storageUrl] = await Promise.all([
+        extractTradeFromScreenshot(file).catch(() => null),
+        uploadToStorage(file).catch(() => null),
+      ]);
+
+      // Remplace le base64 par l'URL permanente si upload réussi
+      if (storageUrl) onChange(storageUrl);
+
+      if (extracted) {
+        setResult(extracted);
+        setStatus("done");
+        onExtracted(extracted);
+      } else {
+        setStatus("failed");
+        setError("Analyse auto échouée — champs à remplir manuellement.");
+      }
     } catch (e) {
       setStatus("failed");
-      setError(e.message || "L'analyse automatique a échoué. Tu peux remplir les champs manuellement.");
+      setError(e.message || "Erreur lors de l'upload.");
     }
   };
 
@@ -2015,7 +2710,7 @@ function SmartCaptureBox({ value, onChange, onExtracted }) {
 }
 
 const CONFIDENCE_META = {
-  high: { color: "#16B8A0", label: "Fiable" },
+  high: { color: "#2DD4BF", label: "Fiable" },
   medium: { color: "#D89A2E", label: "À vérifier" },
   low: { color: "#E8554E", label: "Incertain" },
   none: { color: "#9AA1B8", label: "Non détecté" },
@@ -2050,15 +2745,29 @@ function ExtractedChip({ label, value }) {
 function ImageUploadBox({ label, value, onChange }) {
   const fileRef = useRef(null);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
-  const handleFile = (file) => {
+  const handleFile = async (file) => {
     setError("");
     if (!file) return;
     if (!file.type.startsWith("image/")) { setError("Le fichier doit être une image."); return; }
-    if (file.size > 4.5 * 1024 * 1024) { setError("Image trop lourde (max ~4.5 Mo)."); return; }
+    if (file.size > 10 * 1024 * 1024) { setError("Image trop lourde (max 10 Mo)."); return; }
+
+    // Aperçu local immédiat
     const reader = new FileReader();
     reader.onload = (e) => onChange(e.target.result);
     reader.readAsDataURL(file);
+
+    // Upload Storage en arrière-plan
+    setUploading(true);
+    try {
+      const url = await uploadToStorage(file);
+      onChange(url); // remplace le base64 par l'URL permanente
+    } catch (e) {
+      setError("Upload échoué — photo conservée localement.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -2085,6 +2794,7 @@ function ImageUploadBox({ label, value, onChange }) {
       </div>
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files?.[0])} />
       {error && <div style={{ color: C.red, fontSize: 11, marginTop: 4 }}>{error}</div>}
+      {uploading && <div style={{ color: C.purpleBright, fontSize: 11, marginTop: 4 }}>⬆️ Upload en cours…</div>}
     </div>
   );
 }
@@ -2154,7 +2864,10 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
   const [dxyTags, setDxyTags] = useState(initial?.dxyTags || []);
   const [liquiditySweep, setLiquiditySweep] = useState(initial?.liquiditySweep || false);
   const [mssConfirmed, setMssConfirmed] = useState(initial?.mssConfirmed || false);
+  const [confidenceLevel, setConfidenceLevel] = useState(initial?.confidenceLevel || 0);
   const [tfAlignment, setTfAlignment] = useState(initial?.tfAlignment || "");
+  const [tfAlignmentSetup, setTfAlignmentSetup] = useState(initial?.tfAlignmentSetup || "");
+  const [oteFib, setOteFib] = useState(initial?.oteFib || "");
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [calcPct, setCalcPct] = useState("1");
 
@@ -2278,7 +2991,7 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
       resultR: finalResultR, resultRManual,
       status: finalStatus, notes, tags, screenshotBefore, screenshotAfter,
       dxyBias, dxyScreenshotBefore, dxyScreenshotAfter, dxyTags,
-      liquiditySweep, mssConfirmed, tfAlignment,
+      liquiditySweep, mssConfirmed, tfAlignment, tfAlignmentSetup, confidenceLevel, oteFib,
     });
   };
 
@@ -2288,7 +3001,7 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
       <PageHeader title={isEdit ? "Modifier le trade" : "Nouveau trade"} />
 
       {/* Identification — nouvelle structure demandée */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
+      <Card style={{ padding: "20px 18px", marginBottom: 14, borderRadius: 20, border: "1px solid rgba(148,163,184,0.16)" }}>
         <CardLabel>Identification</CardLabel>
         <div className="form-grid-2" style={{ marginTop: 12 }}>
 
@@ -2305,20 +3018,52 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
           </Field>
 
           <Field label="Compte">
-            <select value={appSettings?.broker || "ICMarkets"} onChange={() => {}} style={inputStyle}>
-              {(appSettings?.brokers || ["ICMarkets"]).map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <div style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.border}`, cursor: "default" }}>
+              <div style={{ width: 9, height: 9, borderRadius: "50%", background: appSettings?.activeAccountColor || C.teal, flexShrink: 0, boxShadow: `0 0 6px ${appSettings?.activeAccountColor || C.teal}60` }} />
+              <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{appSettings?.activeAccountName || "Compte principal"}</span>
+              <span style={{ fontSize: 10, color: C.textMuted, marginLeft: "auto", background: C.bg, padding: "2px 6px", borderRadius: 4 }}>auto</span>
+            </div>
           </Field>
 
-          <Field label="Direction">
-            <div style={{ display: "flex", gap: 6 }}>
-              <ToggleBtn active={direction === "long"} onClick={() => setDirection("long")} color={C.teal}>Long</ToggleBtn>
-              <ToggleBtn active={direction === "short"} onClick={() => setDirection("short")} color={C.red}>Short</ToggleBtn>
+          <Field label="Direction" value={direction}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setDirection("long")} style={{
+                flex: 1, padding: "13px 12px", borderRadius: 14,
+                border: `1.5px solid ${direction === "long" ? C.teal : C.border}`,
+                background: direction === "long" ? "rgba(45,212,191,0.08)" : C.inputBg,
+                color: direction === "long" ? C.teal : C.textMuted,
+                fontSize: 15, fontWeight: 700, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                transition: "all 0.15s",
+                boxShadow: direction === "long" ? "0 0 0 3px rgba(45,212,191,0.10)" : "none",
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <polyline points="3,17 9,11 13,15 21,7" stroke={direction === "long" ? C.teal : C.textMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <polyline points="16,7 21,7 21,12" stroke={direction === "long" ? C.teal : C.textMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Long
+              </button>
+              <button onClick={() => setDirection("short")} style={{
+                flex: 1, padding: "13px 12px", borderRadius: 14,
+                border: `1.5px solid ${direction === "short" ? "#F97316" : C.border}`,
+                background: direction === "short" ? "rgba(249,115,22,0.08)" : C.inputBg,
+                color: direction === "short" ? "#F97316" : C.textMuted,
+                fontSize: 15, fontWeight: 700, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                transition: "all 0.15s",
+                boxShadow: direction === "short" ? "0 0 0 3px rgba(249,115,22,0.10)" : "none",
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <polyline points="3,7 9,13 13,9 21,17" stroke={direction === "short" ? "#F97316" : C.textMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <polyline points="16,17 21,17 21,12" stroke={direction === "short" ? "#F97316" : C.textMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Short
+              </button>
             </div>
           </Field>
 
           <Field label="Session">
-            <select value={tags.find(t => ["London Session","New York Session","Asia Session","Hors session"].includes(t)) || ""} onChange={(e) => {
+            <SelectWithCheck value={tags.find(t => ["London Session","New York Session","Asia Session","Hors session"].includes(t)) || ""} onChange={(e) => {
               const sessions = ["London Session","New York Session","Asia Session","Hors session"];
               setTags(prev => [...prev.filter(t => !sessions.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
             }} style={inputStyle}>
@@ -2327,11 +3072,11 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
               <option value="London Session">Session London</option>
               <option value="New York Session">Session New York</option>
               <option value="Asia Session">Session Asia</option>
-            </select>
+            </SelectWithCheck>
           </Field>
 
           <Field label="Type de trade">
-            <select value={tags.find(t => ["Swing","Day Trading","Scalping"].includes(t)) || ""} onChange={(e) => {
+            <SelectWithCheck value={tags.find(t => ["Swing","Day Trading","Scalping"].includes(t)) || ""} onChange={(e) => {
               const types = ["Swing","Day Trading","Scalping"];
               setTags(prev => [...prev.filter(t => !types.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
             }} style={inputStyle}>
@@ -2339,82 +3084,111 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
               <option value="Swing">Swing</option>
               <option value="Day Trading">Day Trading</option>
               <option value="Scalping">Scalping</option>
-            </select>
+            </SelectWithCheck>
           </Field>
 
           <Field label="Timeframe">
-            <select value={tags.find(t => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t)) || ""} onChange={(e) => {
+            <SelectWithCheck value={tags.find(t => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t)) || ""} onChange={(e) => {
               const tfs = ["M1","M5","M15","M30","H1","H4","D1","W1"];
               setTags(prev => [...prev.filter(t => !tfs.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
             }} style={inputStyle}>
               <option value="">— Sélectionner —</option>
               {["M1","M5","M15","M30","H1","H4","D1","W1"].map(tf => <option key={tf} value={tf}>{tf}</option>)}
-            </select>
-          </Field>
-
-          <Field label="Timeframe alignement (optionnel)">
-            <select value={tfAlignment} onChange={(e) => setTfAlignment(e.target.value)} style={{ ...inputStyle, color: tfAlignment ? C.text : C.textMuted }}>
-              <option value="">— TF dans le même sens —</option>
-              {["M1","M5","M15","M30","H1","H4","D1","W1"].map(tf => <option key={tf} value={tf}>{tf}</option>)}
-            </select>
-          </Field>
-
-          <Field label="Résultat du trade">
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {[
-                { v: "open", label: "🔓 Ouvert", color: C.purple },
-                { v: "win", label: "✅ Gagné", color: C.teal },
-                { v: "loss", label: "❌ Perdu", color: C.red },
-                { v: "breakeven", label: "➖ BE", color: C.textSecondary },
-              ].map(opt => (
-                <button key={opt.v} onClick={() => setStatus(opt.v)} style={{
-                  flex: "1 1 70px", padding: "8px 6px", borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
-                  border: `2px solid ${status === opt.v ? opt.color : C.border}`,
-                  background: status === opt.v ? `${opt.color}1A` : "transparent",
-                  color: status === opt.v ? opt.color : C.textMuted,
-                }}>{opt.label}</button>
-              ))}
-            </div>
+            </SelectWithCheck>
           </Field>
         </div>
 
-        {/* Tags PD Arrays */}
+        {/* PD Arrays — menu déroulant multi-sélection */}
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>PD Arrays</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {allSetupTags.map((t) => {
-              const active = tags.includes(t.name);
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>
+            PD Arrays <span style={{ fontSize: 10, fontWeight: 400, textTransform: "none", color: C.textMuted }}>(multi-sélection)</span>
+          </div>
+          {/* Puces sélectionnées */}
+          {tags.filter(t => allSetupTags.some(s => s.name === t)).length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {tags.filter(t => allSetupTags.some(s => s.name === t)).map((tagName) => {
+                const tagDef = TAG_CATALOG.find(t => t.name === tagName);
+                const color = tagDef?.color || C.purpleBright;
+                const bg = tagDef?.color ? `${tagDef.color}18` : C.purpleDim;
+                return (
+                  <div key={tagName} style={{ display: "flex", alignItems: "center", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${color}50`, fontSize: 12, fontWeight: 600, color }}>
+                    <span style={{ padding: "5px 10px", background: bg }}>{tagName}</span>
+                    <button onClick={() => toggleTag(tagName)} style={{ padding: "5px 8px", background: `${color}18`, border: "none", borderLeft: `1px solid ${color}30`, cursor: "pointer", color, fontSize: 15, lineHeight: 1, display: "flex", alignItems: "center" }}>×</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* Liste cliquable */}
+          <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}` }}>
+            {allSetupTags.map((t, i) => {
+              const selected = tags.includes(t.name);
+              const color = t.color || C.purpleBright;
               return (
                 <button key={t.name} onClick={() => toggleTag(t.name)} style={{
-                  padding: "5px 11px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  border: `1px solid ${active ? C.purple : C.border}`,
-                  background: active ? C.purpleDim : "transparent",
-                  color: active ? C.purpleBright : C.textSecondary,
+                  width: "100%", textAlign: "left", padding: "11px 14px",
+                  background: selected ? (t.color ? `${t.color}12` : C.purpleDim) : (C.inputBg || C.card),
+                  border: "none", borderBottom: i < allSetupTags.length - 1 ? `1px solid ${C.border}` : "none",
+                  color: selected ? color : C.text, fontSize: 13, fontWeight: selected ? 600 : 400,
+                  cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
+                  transition: "background 0.1s",
                 }}>
-                  {t.name}
+                  <span>{t.name}</span>
+                  {selected && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="1.8"/>
+                      <path d="M7 12.5l3.5 3.5 6.5-7" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Session */}
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>Session</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {sessionTags.map((t) => {
-              const active = tags.includes(t.name);
-              return (
-                <button key={t.name} onClick={() => toggleTag(t.name)} style={{
-                  padding: "5px 11px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  border: `1px solid ${active ? "rgba(167,139,224,0.5)" : C.border}`,
-                  background: active ? "rgba(167,139,224,0.1)" : "transparent",
-                  color: active ? "#A78BE0" : C.textSecondary,
+        {/* Timeframe alignement + Setup associé */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>Timeframe alignement (optionnel)</div>
+          <div className="form-grid-2">
+            <SelectWithCheck value={tfAlignment} onChange={(e) => setTfAlignment(e.target.value)} style={{ ...inputStyle, color: tfAlignment ? C.text : C.textMuted }}>
+              <option value="">— TF dans le même sens —</option>
+              {["M1","M5","M15","M30","H1","H4","D1","W1"].map(tf => <option key={tf} value={tf}>{tf}</option>)}
+            </SelectWithCheck>
+            {tfAlignment && (
+              <SelectWithCheck value={tfAlignmentSetup} onChange={(e) => setTfAlignmentSetup(e.target.value)} style={{ ...inputStyle, color: tfAlignmentSetup ? C.text : C.textMuted }}>
+                <option value="">— Setup {tfAlignment} —</option>
+                {allSetupTags.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
+              </SelectWithCheck>
+            )}
+          </div>
+          {tfAlignment && tfAlignmentSetup && (
+            <div style={{ marginTop: 8, padding: "7px 12px", background: C.purpleDim, borderRadius: 8, fontSize: 12, color: C.purpleBright, display: "flex", alignItems: "center", gap: 6 }}>
+              ✅ <strong>{tfAlignmentSetup}</strong> confirmé en <strong>{tfAlignment}</strong>
+            </div>
+          )}
+
+          {/* Zone OTE — retracement Fibonacci */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>Zone OTE (Fibonacci)</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {["0.5", "0.618", "0.7", "0.79"].map(fib => (
+                <button key={fib} onClick={() => setOteFib(fib === oteFib ? "" : fib)} style={{
+                  flex: "1 1 60px", padding: "9px 6px", borderRadius: 8, cursor: "pointer",
+                  border: `1.5px solid ${oteFib === fib ? C.teal : C.border}`,
+                  background: oteFib === fib ? C.tealDim : (C.inputBg || C.card),
+                  color: oteFib === fib ? C.teal : C.textMuted,
+                  fontSize: 13, fontWeight: oteFib === fib ? 700 : 400,
+                  transition: "all 0.12s",
                 }}>
-                  {t.name}
+                  {fib}
                 </button>
-              );
-            })}
+              ))}
+            </div>
+            {oteFib && (
+              <div style={{ marginTop: 8, padding: "6px 12px", background: C.tealDim, borderRadius: 7, fontSize: 12, color: C.teal, display: "flex", alignItems: "center", gap: 5 }}>
+                ✅ OTE sur le niveau <strong>{oteFib}</strong> ({oteFib === "0.5" ? "50%" : oteFib === "0.618" ? "61.8% — Golden Ratio" : oteFib === "0.7" ? "70%" : "79% — Premium"})
+              </div>
+            )}
           </div>
         </div>
       </Card>
@@ -2504,27 +3278,27 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
 
         <div className="form-grid-2" style={{ marginTop: 0 }}>
           <Field label="Entrée" hint="Prix d'entrée">
-            <input type="number" step="any" placeholder="1.08450" value={entryPrice}
+            <InputWithCheck type="number" step="any" placeholder="1.08450" value={entryPrice}
               onChange={(e) => setEntryPrice(e.target.value)}
               style={{ ...inputStyle, color: C.text, fontWeight: 600 }} />
           </Field>
-          <Field label="Stop Loss" hint="">
-            <input type="number" step="any" placeholder="1.08200" value={stopLoss}
+          <Field label="Stop Loss">
+            <InputWithCheck type="number" step="any" placeholder="1.08200" value={stopLoss}
               onChange={(e) => setStopLoss(e.target.value)}
               style={{ ...inputStyle, color: C.red, fontWeight: 700 }} />
           </Field>
-          <Field label="Take Profit" hint="">
-            <input type="number" step="any" placeholder="1.09100" value={takeProfit}
+          <Field label="Take Profit">
+            <InputWithCheck type="number" step="any" placeholder="1.09100" value={takeProfit}
               onChange={(e) => setTakeProfit(e.target.value)}
               style={{ ...inputStyle, color: "#5B8DEF", fontWeight: 700 }} />
           </Field>
           <Field label="Prix de sortie" hint="= TP par défaut">
-            <input type="number" step="any" placeholder="auto = TP" value={exitPrice}
+            <InputWithCheck type="number" step="any" placeholder="auto = TP" value={exitPrice}
               onChange={(e) => { setExitPrice(e.target.value); }}
               style={{ ...inputStyle }} />
           </Field>
           <Field label="Taille de position (lots)">
-            <input type="number" step="0.01" placeholder="0.50" value={positionSize}
+            <InputWithCheck type="number" step="0.01" placeholder="0.50" value={positionSize}
               onChange={(e) => setPositionSize(e.target.value)}
               style={inputStyle} />
           </Field>
@@ -2672,19 +3446,30 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
           </div>
         </div>
 
-        {/* PD Arrays DXY */}
+        {/* PD Arrays DXY — menu déroulant */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>PD Arrays DXY</div>
+          <select value="" onChange={(e) => { if (e.target.value && !dxyTags.includes(e.target.value)) setDxyTags(prev => [...prev, e.target.value]); }} style={{ ...inputStyle, marginBottom: dxyTags.length > 0 ? 10 : 0 }}>
+            <option value="">+ Ajouter un PD Array DXY…</option>
+            {TAG_CATALOG.filter(t => t.category === "setup").map(t => (
+              <option key={t.name} value={t.name} disabled={dxyTags.includes(t.name)}>{dxyTags.includes(t.name) ? "✓ " : ""}{t.name}</option>
+            ))}
+          </select>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {TAG_CATALOG.filter((t) => t.category === "setup").map((t) => {
-              const active = dxyTags.includes(t.name);
+            {dxyTags.map(tagName => {
+              const tagDef = TAG_CATALOG.find(t => t.name === tagName);
+              const color = tagDef?.color || "#D89A2E";
               return (
-                <button key={t.name} onClick={() => setDxyTags(prev => active ? prev.filter(x => x !== t.name) : [...prev, t.name])} style={{
-                  padding: "5px 11px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  border: `1px solid ${active ? "#D89A2E" : C.border}`,
-                  background: active ? "rgba(216,154,46,0.12)" : "transparent",
-                  color: active ? "#D89A2E" : C.textSecondary,
-                }}>{t.name}</button>
+                <div key={tagName} style={{ display: "flex", alignItems: "center", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${color}50`, fontSize: 12, fontWeight: 600, color }}>
+                  <span style={{ padding: "6px 10px", background: `${color}18` }}>{tagName}</span>
+                  <span style={{ padding: "6px 8px", background: `${color}28`, borderLeft: `1px solid ${color}40`, display: "flex", alignItems: "center" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke={C.purple} strokeWidth="1.8"/>
+                      <path d="M7 12.5l3.5 3.5 6.5-7" stroke={C.purple} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </span>
+                  <button onClick={() => setDxyTags(prev => prev.filter(x => x !== tagName))} style={{ padding: "6px 8px", background: "transparent", border: "none", borderLeft: `1px solid ${color}30`, cursor: "pointer", color: C.textMuted, fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center" }}>×</button>
+                </div>
               );
             })}
           </div>
@@ -2730,6 +3515,104 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
       <Card style={{ padding: 16, marginBottom: 18 }}>
         <CardLabel>Notes personnelles</CardLabel>
         <textarea rows={4} placeholder="Contexte du marché, ce que tu as bien fait, ce à améliorer…" value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, resize: "vertical", marginTop: 10 }} />
+      </Card>
+
+      {/* Niveau de confiance avant trade */}
+      <Card style={{ padding: 16, marginBottom: 14 }}>
+        <CardLabel>Niveau de confiance</CardLabel>
+        <div style={{ marginTop: 14 }}>
+          {/* Score centré + label */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 14, flexShrink: 0,
+              background: confidenceLevel === 0 ? C.bg :
+                confidenceLevel <= 3 ? C.redDim : confidenceLevel <= 5 ? C.amberDim : confidenceLevel <= 7 ? C.tealDim : C.purpleDim,
+              border: `2px solid ${confidenceLevel === 0 ? C.border :
+                confidenceLevel <= 3 ? C.red : confidenceLevel <= 5 ? C.amber : confidenceLevel <= 7 ? C.teal : C.purpleBright}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <span className="tnum" style={{
+                fontSize: confidenceLevel === 0 ? 22 : 20, fontWeight: 800,
+                color: confidenceLevel === 0 ? C.textMuted :
+                  confidenceLevel <= 3 ? C.red : confidenceLevel <= 5 ? C.amber : confidenceLevel <= 7 ? C.teal : C.purpleBright,
+              }}>{confidenceLevel === 0 ? "—" : confidenceLevel}</span>
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 3 }}>
+                {confidenceLevel === 0 ? "Non évalué" :
+                 confidenceLevel <= 3 ? "Setup douteux" :
+                 confidenceLevel <= 5 ? "Quelques doutes" :
+                 confidenceLevel <= 7 ? "Setup valide" : "A+ Setup"}
+              </div>
+              <div style={{ fontSize: 12, color: C.textMuted }}>
+                {confidenceLevel === 0 ? "Tape un chiffre de 1 à 10" :
+                 confidenceLevel <= 3 ? "⚠️ À éviter normalement" :
+                 confidenceLevel <= 5 ? "🟡 À prendre avec précaution" :
+                 confidenceLevel <= 7 ? "🟢 Confiance suffisante" : "🔥 Exécution immédiate"}
+              </div>
+            </div>
+          </div>
+
+          {/* Segments cliquables */}
+          <div style={{ display: "flex", gap: 4 }}>
+            {[1,2,3,4,5,6,7,8,9,10].map(n => {
+              const filled = n <= confidenceLevel;
+              const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
+              return (
+                <button key={n} onClick={() => setConfidenceLevel(n === confidenceLevel ? 0 : n)} style={{
+                  flex: 1, height: 32, borderRadius: 6,
+                  border: `1.5px solid ${filled ? col : C.border}`,
+                  cursor: "pointer",
+                  background: filled ? col : C.inputBg || C.card,
+                  transition: "all 0.12s",
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+                }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: filled ? "rgba(255,255,255,0.9)" : C.textMuted, lineHeight: 1 }}>{n}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
+            <span style={{ fontSize: 10, color: C.textMuted }}>Très faible</span>
+            <span style={{ fontSize: 10, color: C.textMuted }}>Parfait</span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Résultat du trade — une seule ligne */}
+      <Card style={{ padding: 16, marginBottom: 14 }}>
+        <CardLabel>Résultat du trade</CardLabel>
+        <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+          {[
+            { v: "open",      label: "Ouvert",  svgIcon: "lock",  color: C.purple,        bg: C.purpleDim },
+            { v: "win",       label: "Gagné",   svgIcon: "check", color: C.teal,          bg: C.tealDim },
+            { v: "loss",      label: "Perdu",   svgIcon: "x",     color: C.red,           bg: C.redDim },
+            { v: "breakeven", label: "BE",      svgIcon: "minus", color: C.textSecondary, bg: "rgba(107,115,136,0.12)" },
+          ].map(opt => {
+            const active = status === opt.v;
+            const ic = active ? opt.color : C.textMuted;
+            const SvgIcon = () => {
+              if (opt.svgIcon === "lock") return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ic} strokeWidth="2" strokeLinecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>;
+              if (opt.svgIcon === "check") return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ic} strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M7 12.5l3.5 3.5 6.5-7"/></svg>;
+              if (opt.svgIcon === "x") return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ic} strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 8l8 8M16 8l-8 8"/></svg>;
+              return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ic} strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>;
+            };
+            return (
+              <button key={opt.v} onClick={() => setStatus(opt.v)} style={{
+                flex: 1, padding: "10px 4px", borderRadius: 10,
+                border: `2px solid ${active ? opt.color : C.border}`,
+                background: active ? opt.bg : (C.inputBg || C.card),
+                cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+                transition: "all 0.15s",
+              }}>
+                <SvgIcon />
+                <span style={{ fontSize: 11, fontWeight: active ? 700 : 400, color: active ? opt.color : C.textMuted }}>
+                  {opt.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </Card>
 
       <div style={{ display: "flex", gap: 10 }}>
@@ -2841,7 +3724,7 @@ function StatsHeatmap({ trades }) {
   }, [trades]);
 
   // Construit une grille de 16 semaines x 7 jours se terminant à "aujourd'hui" (cohérent avec les données mock)
-  const today = new Date("2026-06-19T00:00:00Z");
+  const today = new Date();
   const weeks = 16;
   const endOffset = (today.getUTCDay() + 6) % 7; // lundi = 0
   const gridStart = new Date(today);
@@ -3130,16 +4013,18 @@ function AdvancedStats({ trades }) {
    ============================================================================ */
 
 function TradingCalendar({ trades, onSelectDay }) {
-  const [cursor, setCursor] = useState(new Date("2026-06-19T00:00:00Z"));
+  const [cursor, setCursor] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
+  const [showR, setShowR] = useState(false);
 
   const byDay = useMemo(() => {
     const map = {};
     trades.forEach((t) => {
       const d = new Date(t.entryTime);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      if (!map[key]) map[key] = { pnl: 0, count: 0, trades: [] };
+      if (!map[key]) map[key] = { pnl: 0, r: 0, count: 0, trades: [] };
       map[key].pnl += t.resultUsd || 0;
+      map[key].r += t.resultR || 0;
       map[key].count += 1;
       map[key].trades.push(t);
     });
@@ -3153,12 +4038,12 @@ function TradingCalendar({ trades, onSelectDay }) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const monthPnl = useMemo(() => {
-    let sum = 0;
+    let sum = 0; let sumR = 0;
     Object.entries(byDay).forEach(([key, v]) => {
       const [y, m] = key.split("-").map(Number);
-      if (y === year && m === month) sum += v.pnl;
+      if (y === year && m === month) { sum += v.pnl; sumR += v.r; }
     });
-    return sum;
+    return { pnl: sum, r: sumR };
   }, [byDay, year, month]);
 
   const cells = [];
@@ -3178,9 +4063,18 @@ function TradingCalendar({ trades, onSelectDay }) {
             <button onClick={() => { setCursor(new Date(year, month - 1, 1)); setSelectedDay(null); }} style={btn.icon}><ChevronLeft size={16} /></button>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontWeight: 700, fontSize: 15, textTransform: "capitalize" }}>{cursor.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</div>
-              <div className="tnum" style={{ fontSize: 12, fontWeight: 700, color: monthPnl >= 0 ? C.teal : C.red }}>{fmtUsdSigned(monthPnl)}</div>
+              <div className="tnum" style={{ fontSize: 12, fontWeight: 700, color: (showR ? monthPnl.r : monthPnl.pnl) >= 0 ? C.teal : C.red }}>
+                {showR ? `${monthPnl.r >= 0 ? "+" : ""}${monthPnl.r.toFixed(1)}R` : fmtUsdSigned(monthPnl.pnl)}
+              </div>
             </div>
             <button onClick={() => { setCursor(new Date(year, month + 1, 1)); setSelectedDay(null); }} style={btn.icon}><ChevronRight size={16} /></button>
+          </div>
+
+          {/* Toggle $ / R */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, justifyContent: "center" }}>
+            {[{ v: false, l: "$ P&L" }, { v: true, l: "R:R" }].map(opt => (
+              <button key={String(opt.v)} onClick={() => setShowR(opt.v)} style={{ padding: "4px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: `1px solid ${showR === opt.v ? C.purple : C.border}`, background: showR === opt.v ? C.purpleDim : "transparent", color: showR === opt.v ? C.purpleBright : C.textSecondary, cursor: "pointer" }}>{opt.l}</button>
+            ))}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
@@ -3193,18 +4087,21 @@ function TradingCalendar({ trades, onSelectDay }) {
               if (d === null) return <div key={i} />;
               const key = `${year}-${month}-${d}`;
               const data = byDay[key];
-              const isToday = new Date("2026-06-19").toDateString() === new Date(year, month, d).toDateString();
+              const val = data ? (showR ? data.r : data.pnl) : null;
+              const isToday = new Date().toDateString() === new Date(year, month, d).toDateString();
               const isSelected = selectedDay && selectedDay.getDate() === d && selectedDay.getMonth() === month && selectedDay.getFullYear() === year;
               return (
                 <button key={i} onClick={() => setSelectedDay(data ? new Date(year, month, d) : null)} style={{
                   aspectRatio: "1", borderRadius: 7,
                   border: `1.5px solid ${isSelected ? C.purple : isToday ? C.purple : C.border}`,
-                  background: isSelected ? C.purpleDim : data ? (data.pnl >= 0 ? C.tealDim : C.redDim) : C.bg,
+                  background: isSelected ? C.purpleDim : data ? (val >= 0 ? C.tealDim : C.redDim) : C.bg,
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                   cursor: data ? "pointer" : "default", padding: 2, gap: 1,
                 }}>
                   <span style={{ fontSize: 10.5, color: data ? C.text : C.textMuted, fontWeight: isToday ? 700 : 500 }}>{d}</span>
-                  {data && <span className="tnum" style={{ fontSize: 8.5, fontWeight: 700, color: data.pnl >= 0 ? C.teal : C.red }}>{data.pnl >= 0 ? "+" : ""}{Math.round(data.pnl)}</span>}
+                  {data && <span className="tnum" style={{ fontSize: 8, fontWeight: 700, color: val >= 0 ? C.teal : C.red }}>
+                    {showR ? `${val >= 0 ? "+" : ""}${val.toFixed(1)}R` : `${val >= 0 ? "+" : ""}${Math.round(val)}`}
+                  </span>}
                 </button>
               );
             })}
@@ -3268,7 +4165,7 @@ function TradingCalendar({ trades, onSelectDay }) {
 const EMPTY_JOURNAL_ENTRY = { mood: 5, discipline: 5, note: "", lessons: "", mainMistake: "", tomorrowGoal: "" };
 
 function DailyJournal({ trades, journalNotes, setJournalNotes }) {
-  const [selectedDate, setSelectedDate] = useState(new Date("2026-06-19T00:00:00Z"));
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const tradesForDay = useMemo(() => trades.filter((t) => new Date(t.entryTime).toDateString() === selectedDate.toDateString()), [trades, selectedDate]);
   const dayPnl = tradesForDay.reduce((s, t) => s + (t.resultUsd || 0), 0);
@@ -3667,7 +4564,7 @@ function AddItemInput({ placeholder, onAdd }) {
   );
 }
 
-function SettingsPage({ settings, setSettings }) {
+function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSaveAccounts, onSwitchAccount }) {
   const [editingBalance, setEditingBalance] = useState(false);
   const [balanceInput, setBalanceInput] = useState(String(settings.accountBalance));
   const [newBroker, setNewBroker] = useState("");
@@ -3695,47 +4592,83 @@ function SettingsPage({ settings, setSettings }) {
 
       {/* Compte */}
       <SettingsSection title="💰 Comptes de trading">
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>Gérer tes différents comptes (prop firm, compte perso, démo, etc.)</div>
-          {(settings.accounts || [{ id: "main", name: "Compte principal", balance: settings.accountBalance, type: "perso" }]).map((acc, i) => (
-            <div key={acc.id} style={{ padding: "10px 12px", background: C.bg, borderRadius: 8, border: `1px solid ${acc.id === (settings.activeAccount || "main") ? C.purple : C.border}`, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{acc.name}</div>
-                <div style={{ fontSize: 11, color: C.textMuted }}>{acc.type} · ${(acc.balance || 0).toLocaleString()}</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>Chaque compte est isolé — les trades et stats ne se mélangent pas.</div>
+
+        {(accounts || []).map((acc) => {
+          const typeColors = { real: C.teal, demo: C.purple, challenge: C.amber };
+          const typeLabels = { real: "Réel", demo: "Démo", challenge: "Challenge" };
+          const isActive = acc.id === activeAccountId;
+          return (
+            <div key={acc.id} style={{ padding: "12px 14px", background: C.bg, borderRadius: 10, border: `1.5px solid ${isActive ? C.purple : C.border}`, marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 10, height: 10, borderRadius: "50%", background: typeColors[acc.type] || C.teal, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+                  <span style={{ color: typeColors[acc.type] || C.teal, fontWeight: 600 }}>{typeLabels[acc.type] || acc.type}</span>
+                  {acc.broker && ` · ${acc.broker}`}
+                  {acc.balance && ` · $${Number(acc.balance).toLocaleString()}`}
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {acc.id !== (settings.activeAccount || "main") && (
-                  <button onClick={() => update({ activeAccount: acc.id })} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}>Activer</button>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {isActive ? (
+                  <span style={{ fontSize: 11, color: C.purple, fontWeight: 700, background: C.purpleDim, padding: "3px 8px", borderRadius: 5 }}>Actif</span>
+                ) : (
+                  <button onClick={() => onSwitchAccount(acc.id)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}>Activer</button>
                 )}
-                {acc.id === (settings.activeAccount || "main") && (
-                  <span style={{ fontSize: 11, color: C.teal, fontWeight: 700 }}>✓ Actif</span>
+                {acc.id !== "main" && (
+                  <button onClick={() => onSaveAccounts(accounts.filter(a => a.id !== acc.id))} style={{ ...btn.icon, padding: "5px", color: C.red, borderColor: "transparent" }}><X size={13} /></button>
                 )}
               </div>
             </div>
-          ))}
-          <button onClick={() => {
-            const name = prompt("Nom du compte (ex: FTMO 100K, Compte perso):");
-            const balance = parseFloat(prompt("Solde initial ($):") || "0");
-            const type = prompt("Type (perso / prop firm / démo):") || "perso";
-            if (name) {
-              const newAcc = { id: `acc_${Date.now()}`, name, balance, type };
-              const accounts = settings.accounts || [{ id: "main", name: "Compte principal", balance: settings.accountBalance, type: "perso" }];
-              update({ accounts: [...accounts, newAcc] });
-            }
-          }} style={{ ...btn.ghost, fontSize: 12, marginTop: 4 }}>
-            <Plus size={13} /> Ajouter un compte
-          </button>
-        </div>
-        <SettingsRow label="Solde du compte actif" sub="Capital en compte (utilisé pour la calculatrice de risque)">
+          );
+        })}
+
+        {/* Ajouter un compte */}
+        {(() => {
+          const [showForm, setShowForm] = useState(false);
+          const [newName, setNewName] = useState("");
+          const [newType, setNewType] = useState("demo");
+          const [newBalance, setNewBalance] = useState("");
+          const [newBroker, setNewBroker] = useState("");
+          const handleAdd = () => {
+            if (!newName) return;
+            const acc = { id: `acc_${Date.now()}`, name: newName, type: newType, balance: Number(newBalance) || 0, broker: newBroker };
+            onSaveAccounts([...(accounts || []), acc]);
+            setShowForm(false); setNewName(""); setNewBalance(""); setNewBroker(""); setNewType("demo");
+          };
+          return showForm ? (
+            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", marginTop: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, marginBottom: 12 }}>Nouveau compte</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                {[{ v: "demo", l: "Démo", c: C.purple }, { v: "challenge", l: "Challenge", c: C.amber }, { v: "real", l: "Réel", c: C.teal }].map(t => (
+                  <button key={t.v} onClick={() => setNewType(t.v)} style={{ flex: 1, padding: "8px 6px", borderRadius: 8, border: `2px solid ${newType === t.v ? t.c : C.border}`, background: newType === t.v ? `${t.c}18` : "transparent", color: newType === t.v ? t.c : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{t.l}</button>
+                ))}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nom (ex: FTMO 100K, Compte démo)" style={inputStyle} />
+                <div className="form-grid-2">
+                  <input type="number" value={newBalance} onChange={e => setNewBalance(e.target.value)} placeholder="Solde ($)" style={inputStyle} />
+                  <input value={newBroker} onChange={e => setNewBroker(e.target.value)} placeholder="Broker (optionnel)" style={inputStyle} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button onClick={handleAdd} style={{ ...btn.primary, flex: 1 }}>Ajouter</button>
+                <button onClick={() => setShowForm(false)} style={btn.ghost}>Annuler</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowForm(true)} style={{ ...btn.ghost, marginTop: 6, width: "100%", justifyContent: "center" }}>
+              <Plus size={13} /> Ajouter un compte démo / challenge
+            </button>
+          );
+        })()}
+      </SettingsSection>
+
+      <SettingsSection title="💵 Solde & devise">
+        <SettingsRow label="Solde du compte" sub="Capital utilisé pour la calculatrice de risque">
           {editingBalance ? (
             <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
-              <input
-                type="number"
-                value={balanceInput}
-                onChange={(e) => setBalanceInput(e.target.value)}
-                autoFocus
-                style={{ ...inputStyle, width: 110 }}
-              />
+              <input type="number" value={balanceInput} onChange={(e) => setBalanceInput(e.target.value)} autoFocus style={{ ...inputStyle, width: 110 }} />
               <button onClick={() => { update({ accountBalance: Number(balanceInput) || 0 }); setEditingBalance(false); }} style={{ ...btn.primary, padding: "7px 12px" }}>OK</button>
               <button onClick={() => setEditingBalance(false)} style={{ ...btn.ghost, padding: "7px 10px" }}><X size={13} /></button>
             </div>
@@ -3746,13 +4679,8 @@ function SettingsPage({ settings, setSettings }) {
             </div>
           )}
         </SettingsRow>
-
-        <SettingsRow label="Devise du compte" sub="Devise dans laquelle ton P&L est calculé">
-          <select
-            value={settings.currency}
-            onChange={(e) => update({ currency: e.target.value })}
-            style={{ ...inputStyle, width: 90 }}
-          >
+        <SettingsRow label="Devise" sub="Devise dans laquelle ton P&L est calculé">
+          <select value={settings.currency} onChange={(e) => update({ currency: e.target.value })} style={{ ...inputStyle, width: 90 }}>
             {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </SettingsRow>
@@ -4113,6 +5041,37 @@ async function sbFetch(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// Upload une image vers Supabase Storage et retourne l'URL publique permanente
+async function uploadToStorage(file) {
+  const ext = file.name ? file.name.split(".").pop() : "jpg";
+  const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/trade-screenshots/${filename}`, {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": file.type || "image/jpeg",
+      "x-upsert": "true",
+    },
+    body: file,
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error("Upload Storage échoué : " + err);
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/trade-screenshots/${filename}`;
+}
+
+// Upload base64 → Storage (pour les captures existantes)
+async function uploadBase64ToStorage(base64) {
+  const [header, data] = base64.split(",");
+  const mime = header.match(/:(.*?);/)?.[1] || "image/jpeg";
+  const ext = mime.split("/")[1] || "jpg";
+  const blob = await fetch(base64).then(r => r.blob());
+  const file = new File([blob], `screenshot.${ext}`, { type: mime });
+  return uploadToStorage(file);
+}
+
 // Convertit un trade React → format base de données
 function tradeToDb(t) {
   return {
@@ -4136,6 +5095,16 @@ function tradeToDb(t) {
     verdict: t.verdict ?? null,
     screenshot_before: t.screenshotBefore ?? null,
     screenshot_after: t.screenshotAfter ?? null,
+    dxy_bias: t.dxyBias ?? null,
+    dxy_tags: t.dxyTags ?? [],
+    dxy_screenshot_before: t.dxyScreenshotBefore ?? null,
+    dxy_screenshot_after: t.dxyScreenshotAfter ?? null,
+    tf_alignment: t.tfAlignment ?? null,
+    tf_alignment_setup: t.tfAlignmentSetup ?? null,
+    confidence_level: t.confidenceLevel ?? null,
+    ote_fib: t.oteFib ?? null,
+    liquidity_sweep: t.liquiditySweep ?? false,
+    mss_confirmed: t.mssConfirmed ?? false,
   };
 }
 
@@ -4162,6 +5131,16 @@ function dbToTrade(r) {
     verdict: r.verdict,
     screenshotBefore: r.screenshot_before,
     screenshotAfter: r.screenshot_after,
+    dxyBias: r.dxy_bias,
+    dxyTags: r.dxy_tags ?? [],
+    dxyScreenshotBefore: r.dxy_screenshot_before,
+    dxyScreenshotAfter: r.dxy_screenshot_after,
+    tfAlignment: r.tf_alignment,
+    tfAlignmentSetup: r.tf_alignment_setup,
+    confidenceLevel: r.confidence_level,
+    oteFib: r.ote_fib,
+    liquiditySweep: r.liquidity_sweep,
+    mssConfirmed: r.mss_confirmed,
   };
 }
 
@@ -4196,11 +5175,34 @@ export default function TradingJournalApp() {
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState(null);
+
+  // Système multi-comptes
+  const [accounts, setAccounts] = useState(() => {
+    try {
+      const saved = localStorage.getItem("accounts");
+      return saved ? JSON.parse(saved) : [
+        { id: "main", name: "Compte réel", type: "real", balance: 10000, broker: "ICMarkets", color: C.teal },
+      ];
+    } catch { return [{ id: "main", name: "Compte réel", type: "real", balance: 10000, broker: "ICMarkets", color: C.teal }]; }
+  });
+  const [activeAccountId, setActiveAccountId] = useState(() => {
+    try { return localStorage.getItem("activeAccountId") || "main"; } catch { return "main"; }
+  });
+  const switchAccount = (id) => {
+    setActiveAccountId(id);
+    try { localStorage.setItem("activeAccountId", id); } catch {}
+  };
+  const saveAccounts = (newAccounts) => {
+    setAccounts(newAccounts);
+    try { localStorage.setItem("accounts", JSON.stringify(newAccounts)); } catch {}
+  };
+  const activeAccount = accounts.find(a => a.id === activeAccountId) || accounts[0];
+
   const [isDark, setIsDark] = useState(() => {
-    try { return localStorage.getItem("theme") === "dark"; } catch { return false; }
+    try { return localStorage.getItem("theme") !== "light"; } catch { return true; }
   });
   applyTheme(isDark);
-  const toggleTheme = () => setIsDark((v) => {
+  const toggleTheme = () => setIsDark(v => {
     const next = !v;
     try { localStorage.setItem("theme", next ? "dark" : "light"); } catch {}
     return next;
@@ -4277,16 +5279,15 @@ export default function TradingJournalApp() {
 
   // ── Sauvegarder un trade (ajout ou modification) ──
   const saveTrade = async (trade) => {
+    // Ajoute automatiquement l'accountId du compte actif
+    const tradeWithAccount = { ...trade, accountId: activeAccountId };
     const exists = trades.some((t) => t.id === trade.id);
-    // Mise à jour optimiste immédiate
-    setTrades((prev) => exists ? prev.map((t) => t.id === trade.id ? trade : t) : [trade, ...prev]);
+    setTrades((prev) => exists ? prev.map((t) => t.id === trade.id ? tradeWithAccount : t) : [tradeWithAccount, ...prev]);
     setActiveTradeId(trade.id);
     setView("tradeDetail");
     showToast(exists ? "Trade mis à jour ✓" : "Trade enregistré ✓");
-
-    // Sauvegarde Supabase en arrière-plan
     try {
-      const dbTrade = tradeToDb(trade);
+      const dbTrade = tradeToDb(tradeWithAccount);
       if (exists) {
         await sbFetch(`/trades?id=eq.${trade.id}`, { method: "PATCH", body: JSON.stringify(dbTrade) });
       } else {
@@ -4346,6 +5347,9 @@ export default function TradingJournalApp() {
     } catch (e) { console.error("Erreur statut:", e); }
   };
 
+  // Filtre trades par compte actif — les autres comptes sont isolés
+  const accountTrades = trades.filter(t => (t.accountId || "main") === activeAccountId);
+
   const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
@@ -4353,7 +5357,7 @@ export default function TradingJournalApp() {
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column" }}>
-        <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} />
+        <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} />
 
         {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
         {pinTarget && (
@@ -4382,7 +5386,7 @@ export default function TradingJournalApp() {
           </div>
         )}
 
-        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "22px 26px 100px" }}>
+        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "22px 16px", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 90px)" }}>
           {loading ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 16 }}>
               <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTopColor: C.purple, borderRadius: "50%", animation: "spinSlow 0.8s linear infinite" }} />
@@ -4390,19 +5394,19 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <Dashboard trades={trades} onOpenTrade={openTradeDetail} setView={setView} />}
-              {view === "trades" && <TradesList trades={trades} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} />}
+              {view === "dashboard" && <Dashboard trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} />}
+              {view === "trades" && <TradesList trades={accountTrades} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
                 <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} />
               )}
               {view === "tradeForm" && (
-                <TradeForm initial={editingTrade} setupOptions={setupOptions} appSettings={appSettings} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} />
+                <TradeForm initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} />
               )}
-              {view === "stats" && <AdvancedStats trades={trades} />}
+              {view === "stats" && <AdvancedStats trades={accountTrades} />}
               {view === "calculator" && <ForexCalculator />}
-              {view === "coach" && <AiCoach trades={trades} />}
-              {view === "settings" && <SettingsPage settings={appSettings} setSettings={saveSettings} />}
-              {view === "calendar" && <TradingCalendar trades={trades} onSelectDay={() => {}} />}
+              {view === "coach" && <AiCoach trades={accountTrades} />}
+              {view === "settings" && <SettingsPage settings={appSettings} setSettings={saveSettings} accounts={accounts} activeAccountId={activeAccountId} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} />}
+              {view === "calendar" && <TradingCalendar trades={accountTrades} onSelectDay={() => {}} />}
             </div>
           )}
         </main>
