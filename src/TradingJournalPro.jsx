@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   LayoutGrid, NotebookPen, BarChart3, Calendar as CalendarIcon,
   Plus, X, Upload, Search, Download, ChevronLeft, ChevronRight,
@@ -2570,8 +2570,22 @@ function DetailStat({ label, value, valueColor }) {
 function SmartCaptureBox({ value, onChange, onExtracted }) {
   const fileRef = useRef(null);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("idle"); // idle | analyzing | done | failed
+  const [status, setStatus] = useState("idle");
   const [result, setResult] = useState(null);
+
+  // Écoute Cmd+V / Ctrl+V globalement quand pas encore de photo
+  useEffect(() => {
+    if (value) return;
+    const onPaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) { handleFile(item.getAsFile()); return; }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [value]);
 
   const handleFile = async (file) => {
     setError("");
@@ -2626,11 +2640,26 @@ function SmartCaptureBox({ value, onChange, onExtracted }) {
         )}
       </div>
 
-      <div onClick={() => fileRef.current?.click()} style={{
-        border: `1.5px dashed ${status === "analyzing" ? C.purple : C.border}`, borderRadius: 8, cursor: "pointer", overflow: "hidden",
-        position: "relative", background: C.bg, minHeight: value ? "auto" : 140,
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
+      <div
+        onClick={() => !value && fileRef.current?.click()}
+        onPaste={(e) => {
+          const items = e.clipboardData?.items;
+          if (!items) return;
+          for (const item of items) {
+            if (item.type.startsWith("image/")) { e.preventDefault(); handleFile(item.getAsFile()); return; }
+          }
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); }}
+        tabIndex={0}
+        style={{
+          border: `1.5px dashed ${status === "analyzing" ? C.purple : C.border}`, borderRadius: 10,
+          cursor: value ? "default" : "pointer", overflow: "hidden",
+          position: "relative", background: C.inputBg || C.card,
+          minHeight: value ? "auto" : 140,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          outline: "none",
+        }}>
         {value ? (
           <>
             <img src={value} alt="Screenshot avant le trade" style={{ width: "100%", display: "block", maxHeight: 320, objectFit: "contain" }} />
@@ -2648,9 +2677,14 @@ function SmartCaptureBox({ value, onChange, onExtracted }) {
           </>
         ) : (
           <div style={{ textAlign: "center", color: C.textMuted, padding: 20 }}>
-            <Sparkles size={20} strokeWidth={1.5} style={{ marginBottom: 7, color: C.purpleBright }} />
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.textSecondary }}>Uploader le screenshot TradingView</div>
-            <div style={{ fontSize: 11, marginTop: 3 }}>Les champs entry / SL / TP / direction seront extraits automatiquement</div>
+            <Sparkles size={20} strokeWidth={1.5} style={{ marginBottom: 7, color: C.purpleBright, display: "block", margin: "0 auto 8px" }} />
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.textSecondary, marginBottom: 4 }}>Screenshot TradingView</div>
+            <div style={{ fontSize: 11, marginBottom: 6 }}>Clique · Glisse · ou colle avec</div>
+            <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+              <kbd style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 6px", fontSize: 10, color: C.textSecondary }}>⌘V</kbd>
+              <kbd style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 6px", fontSize: 10, color: C.textSecondary }}>Ctrl+V</kbd>
+            </div>
+            <div style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}>Extraction auto entry / SL / TP / direction</div>
           </div>
         )}
       </div>
@@ -2746,6 +2780,8 @@ function ImageUploadBox({ label, value, onChange }) {
   const fileRef = useRef(null);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const boxRef = useRef(null);
 
   const handleFile = async (file) => {
     setError("");
@@ -2758,11 +2794,11 @@ function ImageUploadBox({ label, value, onChange }) {
     reader.onload = (e) => onChange(e.target.result);
     reader.readAsDataURL(file);
 
-    // Upload Storage en arrière-plan
+    // Upload Storage
     setUploading(true);
     try {
       const url = await uploadToStorage(file);
-      onChange(url); // remplace le base64 par l'URL permanente
+      onChange(url);
     } catch (e) {
       setError("Upload échoué — photo conservée localement.");
     } finally {
@@ -2770,31 +2806,92 @@ function ImageUploadBox({ label, value, onChange }) {
     }
   };
 
+  // Presse-papier : Cmd+V / Ctrl+V
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        handleFile(item.getAsFile());
+        return;
+      }
+    }
+  };
+
+  // Drag & drop
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
+
+  // Écoute le paste global quand la box est visible
+  useEffect(() => {
+    const onPaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          handleFile(item.getAsFile());
+          return;
+        }
+      }
+    };
+    // On écoute seulement si la box est sans valeur (pas de photo déjà)
+    if (!value) {
+      window.addEventListener("paste", onPaste);
+      return () => window.removeEventListener("paste", onPaste);
+    }
+  }, [value]);
+
   return (
     <div>
       <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>{label}</div>
-      <div onClick={() => fileRef.current?.click()} style={{
-        border: `1.5px dashed ${C.border}`, borderRadius: 8, cursor: "pointer", overflow: "hidden",
-        position: "relative", background: C.bg, minHeight: value ? "auto" : 110,
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
+      <div
+        ref={boxRef}
+        onClick={() => !value && fileRef.current?.click()}
+        onPaste={handlePaste}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        tabIndex={0}
+        style={{
+          border: `1.5px dashed ${dragOver ? C.purple : value ? C.border : C.border}`,
+          borderRadius: 10, cursor: value ? "default" : "pointer", overflow: "hidden",
+          position: "relative", background: dragOver ? C.purpleDim : C.inputBg || C.card,
+          minHeight: value ? "auto" : 100,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "border-color 0.15s, background 0.15s",
+          outline: "none",
+        }}
+      >
         {value ? (
           <>
             <img src={value} alt={label} style={{ width: "100%", display: "block", maxHeight: 220, objectFit: "contain" }} />
-            <button onClick={(e) => { e.stopPropagation(); onChange(null); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(15,17,23,0.9)", border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, padding: 5, cursor: "pointer", display: "flex" }}>
+            <button onClick={(e) => { e.stopPropagation(); onChange(null); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(15,17,23,0.85)", border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, padding: 5, cursor: "pointer", display: "flex" }}>
               <X size={12} />
             </button>
           </>
         ) : (
-          <div style={{ textAlign: "center", color: C.textMuted, padding: 16 }}>
-            <Upload size={18} strokeWidth={1.5} style={{ marginBottom: 6 }} />
-            <div style={{ fontSize: 11.5 }}>Cliquer pour uploader</div>
+          <div style={{ textAlign: "center", color: C.textMuted, padding: 20 }}>
+            <Upload size={20} strokeWidth={1.5} style={{ marginBottom: 8, display: "block", margin: "0 auto 8px" }} />
+            <div style={{ fontSize: 12, fontWeight: 500, color: C.textSecondary, marginBottom: 4 }}>Clique · Glisse · Colle</div>
+            <div style={{ fontSize: 10.5, color: C.textMuted }}>
+              Capture d'écran → <kbd style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 5px", fontSize: 10 }}>⌘V</kbd> ou <kbd style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 5px", fontSize: 10 }}>Ctrl+V</kbd>
+            </div>
           </div>
         )}
       </div>
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files?.[0])} />
       {error && <div style={{ color: C.red, fontSize: 11, marginTop: 4 }}>{error}</div>}
-      {uploading && <div style={{ color: C.purpleBright, fontSize: 11, marginTop: 4 }}>⬆️ Upload en cours…</div>}
+      {uploading && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.purpleBright, fontSize: 11, marginTop: 6 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.purpleBright, animation: "pulse 1s infinite" }} />
+          Upload vers Supabase…
+        </div>
+      )}
     </div>
   );
 }
