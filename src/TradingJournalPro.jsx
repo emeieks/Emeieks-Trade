@@ -625,6 +625,10 @@ function GlobalStyle() {
         will-change: transform;
         z-index: 100;
       }
+      /* Safe area iPhone top - header s'adapte à l'encoche */
+      @supports (padding: env(safe-area-inset-top)) {
+        .topbar-safe { padding-top: env(safe-area-inset-top) !important; }
+      }
       /* Empêche le scroll du body sur iOS quand un champ est focus */
       .scroll-container {
         -webkit-overflow-scrolling: touch;
@@ -1255,7 +1259,7 @@ function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, a
   const typeLabels = { real: "Réel", demo: "Démo", challenge: "Challenge" };
 
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: `1px solid ${C.sidebarBorder}`, background: C.sidebar, gap: 8, minWidth: 0, position: "relative" }}>
+    <div className="topbar-safe" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: `1px solid ${C.sidebarBorder}`, background: C.sidebar, gap: 8, minWidth: 0, position: "relative" }}>
 
       {/* Logo + Emeieks Trade → cliquable accueil */}
       <button onClick={onHome} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}>
@@ -6208,7 +6212,7 @@ export default function TradingJournalApp() {
   const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base, paddingTop: "env(safe-area-inset-top, 0px)" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
