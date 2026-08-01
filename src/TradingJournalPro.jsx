@@ -1122,6 +1122,85 @@ const NAV_ITEMS = [
   { id: "settings", label: "Réglages", short: "Réglages", icon: Settings },
 ];
 
+function MobileNav({ view, setView, onNewTrade }) {
+  return (
+    <nav className="mobile-only" style={{
+      position: "fixed",
+      bottom: 0, left: 0, right: 0,
+      zIndex: 200,
+      display: "flex", justifyContent: "space-around", alignItems: "flex-end",
+      paddingTop: 10,
+      paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 6px)",
+      background: THEMES.dark.sidebar,
+      borderTop: "1px solid rgba(255,255,255,0.08)",
+      boxShadow: "0 -4px 24px rgba(0,0,0,0.35)",
+    }}>
+      {NAV_ITEMS.slice(0, 3).map((it) => {
+        const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
+        return (
+          <button key={it.id} onClick={() => setView(it.id)} style={{
+            background: "none", border: "none",
+            display: "flex", flexDirection: "column", alignItems: "center",
+            gap: 3, cursor: "pointer", padding: "0 4px", minWidth: 52,
+            color: active ? "#9D8FFF" : "rgba(255,255,255,0.4)",
+          }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32 }}>
+              {active && <div style={{ position: "absolute", inset: -3, borderRadius: 10, background: "rgba(157,143,255,0.14)" }} />}
+              {it.id === "dashboard" ? (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ position: "relative" }}>
+                  <path d="M3 9.5L12 3L21 9.5V20C21 20.55 20.55 21 20 21H15V15H9V21H4C3.45 21 3 20.55 3 20V9.5Z"
+                    fill={active ? "rgba(157,143,255,0.2)" : "transparent"}
+                    stroke={active ? "#9D8FFF" : "rgba(255,255,255,0.4)"}
+                    strokeWidth={active ? "2" : "1.7"}
+                    strokeLinejoin="round" strokeLinecap="round"/>
+                </svg>
+              ) : React.createElement(it.icon, { size: 22, strokeWidth: active ? 2 : 1.7, style: { position: "relative" } })}
+            </div>
+            <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400, letterSpacing: 0.1 }}>{it.short}</span>
+          </button>
+        );
+      })}
+
+      {/* Bouton + central */}
+      <button onClick={onNewTrade} style={{
+        background: "none", border: "none",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        gap: 3, cursor: "pointer", padding: "0 4px", minWidth: 52,
+        marginTop: -10,
+      }}>
+        <div style={{
+          width: 46, height: 46, borderRadius: "50%",
+          background: `linear-gradient(135deg, ${THEMES.dark.purple}, #5B3FE0)`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 2px 12px rgba(139,124,246,0.35)",
+          border: "2px solid rgba(255,255,255,0.12)",
+        }}>
+          <Plus size={24} strokeWidth={2.2} color="#fff" />
+        </div>
+        <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", fontWeight: 400 }}>Ajouter</span>
+      </button>
+
+      {NAV_ITEMS.slice(3).map((it) => {
+        const active = view === it.id;
+        return (
+          <button key={it.id} onClick={() => setView(it.id)} style={{
+            background: "none", border: "none",
+            display: "flex", flexDirection: "column", alignItems: "center",
+            gap: 3, cursor: "pointer", padding: "0 4px", minWidth: 52,
+            color: active ? "#9D8FFF" : "rgba(255,255,255,0.4)",
+          }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32 }}>
+              {active && <div style={{ position: "absolute", inset: -3, borderRadius: 10, background: "rgba(157,143,255,0.14)" }} />}
+              {React.createElement(it.icon, { size: 22, strokeWidth: active ? 2 : 1.7, style: { position: "relative" } })}
+            </div>
+            <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400, letterSpacing: 0.1 }}>{it.short}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 function Sidebar({ view, setView, onNewTrade }) {
   return (
     <>
@@ -1165,48 +1244,6 @@ function Sidebar({ view, setView, onNewTrade }) {
           </div>
         </div>
       </aside>
-
-      <nav className="mobile-only mobile-nav-fixed" style={getS().mobileNav}>
-        {NAV_ITEMS.slice(0, 3).map((it) => {
-          const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
-          return (
-            <button key={it.id} onClick={() => setView(it.id)} style={{ ...getS().mobileNavItem, color: active ? "#9D8FFF" : "rgba(255,255,255,0.4)" }}>
-              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32 }}>
-                {active && <div style={{ position: "absolute", inset: -3, borderRadius: 10, background: "rgba(157,143,255,0.14)" }} />}
-                {it.id === "dashboard" ? (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ position: "relative" }}>
-                    <path d="M3 9.5L12 3L21 9.5V20C21 20.55 20.55 21 20 21H15V15H9V21H4C3.45 21 3 20.55 3 20V9.5Z"
-                      fill={active ? "rgba(157,143,255,0.2)" : "transparent"}
-                      stroke={active ? "#9D8FFF" : "rgba(255,255,255,0.4)"}
-                      strokeWidth={active ? "2" : "1.7"}
-                      strokeLinejoin="round" strokeLinecap="round"/>
-                  </svg>
-                ) : React.createElement(it.icon, { size: 22, strokeWidth: active ? 2 : 1.7, style: { position: "relative" } })}
-              </div>
-              <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400, letterSpacing: 0.1, marginTop: 1 }}>{it.short}</span>
-            </button>
-          );
-        })}
-
-        {/* Bouton + central */}
-        <button onClick={onNewTrade} style={{ ...getS().mobileNavItem, marginTop: -10 }}>
-          <div style={getS().mobileFab}><Plus size={24} strokeWidth={2.2} color="#fff" /></div>
-          <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", fontWeight: 400, marginTop: 1 }}>Ajouter</span>
-        </button>
-
-        {NAV_ITEMS.slice(3).map((it) => {
-          const active = view === it.id;
-          return (
-            <button key={it.id} onClick={() => setView(it.id)} style={{ ...getS().mobileNavItem, color: active ? "#9D8FFF" : "rgba(255,255,255,0.4)" }}>
-              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32 }}>
-                {active && <div style={{ position: "absolute", inset: -3, borderRadius: 10, background: "rgba(157,143,255,0.14)" }} />}
-                {React.createElement(it.icon, { size: 22, strokeWidth: active ? 2 : 1.7, style: { position: "relative" } })}
-              </div>
-              <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400, letterSpacing: 0.1, marginTop: 1 }}>{it.short}</span>
-            </button>
-          );
-        })}
-      </nav>
     </>
   );
 }
@@ -6214,6 +6251,7 @@ export default function TradingJournalApp() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
       <GlobalStyle />
+      <MobileNav view={view} setView={setView} onNewTrade={openNewTrade} />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
         <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} />
