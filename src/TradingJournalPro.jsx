@@ -615,15 +615,14 @@ function GlobalStyle() {
       html, body { margin: 0; max-width: 100%; overflow-x: hidden; height: 100%; }
       #root { height: 100%; }
       /* Fix Safari iOS : position:fixed se décale quand un input a le focus */
-      nav.mobile-nav-fixed {
+      /* Nav mobile iOS — aucun transform sur les parents pour ne pas bloquer position:fixed */
+      html, body, #root { height: 100%; overflow: hidden; }
+      nav[data-mobile] {
         position: fixed !important;
         bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        transform: translateZ(0) !important;
-        -webkit-transform: translateZ(0) !important;
-        will-change: transform;
-        z-index: 100;
+        z-index: 9999 !important;
       }
       /* Safe area iPhone top - header s'adapte à l'encoche */
       @supports (padding: env(safe-area-inset-top)) {
@@ -680,7 +679,7 @@ function GlobalStyle() {
       input:hover:not(:focus), textarea:hover:not(:focus), select:hover:not(:focus) {
         border-color: ${C.borderLight} !important;
       }
-      body { color: ${C.text}; background: ${C.bg}; }
+      html, body, #root { min-height: 100%; } body { color: ${C.text}; background: ${C.bg}; margin: 0; }
       * { box-sizing: border-box; }
       option { color: ${C.text}; background: ${C.inputBg}; }
       input::-webkit-input-placeholder { color: ${C.textMuted} !important; -webkit-text-fill-color: ${C.textMuted} !important; }
@@ -1124,15 +1123,16 @@ const NAV_ITEMS = [
 
 function MobileNav({ view, setView, onNewTrade }) {
   return (
-    <nav className="mobile-only" style={{
-      flexShrink: 0,
+    <nav className="mobile-only" data-mobile="1" style={{
+      position: "fixed",
+      bottom: 0, left: 0, right: 0,
+      zIndex: 999,
       display: "flex", justifyContent: "space-around", alignItems: "flex-end",
-      paddingTop: 8,
-      paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
+      paddingTop: 10,
+      paddingBottom: "env(safe-area-inset-bottom, 0px)",
       background: THEMES.dark.sidebar,
       borderTop: "1px solid rgba(255,255,255,0.08)",
-      boxShadow: "0 -2px 16px rgba(0,0,0,0.3)",
-      minHeight: 62,
+      boxShadow: "0 -2px 20px rgba(0,0,0,0.4)",
     }}>
       {NAV_ITEMS.slice(0, 3).map((it) => {
         const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
@@ -6248,10 +6248,10 @@ export default function TradingJournalApp() {
   const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
-    <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: C.bg, color: C.text, fontFamily: FONT.base }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
-      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}>
+      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
         <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} />
 
         {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
@@ -6277,7 +6277,7 @@ export default function TradingJournalApp() {
         {/* Banner Killzone style bourse */}
         <KillzoneBanner />
 
-        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "22px 16px", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 85px)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "22px 16px", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 70px)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           {loading ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 16 }}>
               <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTopColor: C.purple, borderRadius: "50%", animation: "spinSlow 0.8s linear infinite" }} />
@@ -6303,8 +6303,8 @@ export default function TradingJournalApp() {
             </div>
           )}
         </main>
-        <MobileNav view={view} setView={setView} onNewTrade={openNewTrade} />
       </div>
+      <MobileNav view={view} setView={setView} onNewTrade={openNewTrade} />
       {toast && (
         <div style={{
           position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
