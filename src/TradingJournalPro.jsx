@@ -1466,8 +1466,8 @@ function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
       <div className="grid-kpi-8" style={{ marginBottom: 14 }}>
         <StatTile compact label="Profit total" value={fmtUsdSigned(stats.totalPnl)} valueColor={stats.totalPnl >= 0 ? C.teal : C.red} />
         <StatTile compact label="Avg R" value={fmtR(stats.avgRR)} valueColor={stats.avgRR >= 0 ? C.teal : C.red} />
-        <StatTile compact label="Avg Win" value={fmtUsdSigned(stats.avgWin)} valueColor={C.teal} />
-        <StatTile compact label="Avg Loss" value={fmtUsdSigned(stats.avgLoss)} valueColor={C.red} />
+        <StatTile compact label="Avg Win" value={stats.wins.length ? fmtUsdSigned(stats.avgWin) : "—"} valueColor={C.teal} />
+        <StatTile compact label="Avg Loss" value={stats.losses.length ? fmtUsdSigned(stats.avgLoss) : "—"} valueColor={stats.losses.length ? C.red : C.textMuted} />
         <StatTile compact label="Winrate" value={fmtPct(stats.winRate)} sub={`${stats.wins.length}G / ${stats.losses.length}P`} />
         <StatTile compact label="Drawdown" value={`-${stats.maxDD.toFixed(1)}%`} valueColor={C.red} />
         <StatTile compact label="Trades" value={stats.closed.length} />
@@ -1483,7 +1483,7 @@ function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
             <button style={{ ...btn.ghost, padding: "5px 10px", fontSize: 11 }}>Quotidien</button>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={260}>
+        <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={stats.curve} margin={{ top: 5, right: 8, left: -12, bottom: 0 }}>
             <defs>
               <linearGradient id="eqFill" x1="0" y1="0" x2="0" y2="1">
@@ -1493,7 +1493,14 @@ function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
             </defs>
             <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="label" tick={{ fill: C.textMuted, fontSize: 10.5 }} axisLine={{ stroke: C.border }} tickLine={false} minTickGap={40} />
-            <YAxis tick={{ fill: C.textMuted, fontSize: 10.5 }} axisLine={false} tickLine={false} width={54} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
+            <YAxis
+              tick={{ fill: C.textMuted, fontSize: 10.5 }} axisLine={false} tickLine={false} width={54}
+              tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`}
+              domain={[
+                (dataMin) => Math.floor(Math.min(dataMin, initialBalance) * 0.95 / 1000) * 1000,
+                (dataMax) => Math.ceil(dataMax * 1.05 / 1000) * 1000,
+              ]}
+            />
             <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.borderLight}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: C.textSecondary }} formatter={(v) => [fmtUsd(v), "Capital"]} />
             <Area type="monotone" dataKey="balance" stroke={C.teal} strokeWidth={2} fill="url(#eqFill)" />
           </AreaChart>
@@ -6201,10 +6208,10 @@ export default function TradingJournalApp() {
   const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base, paddingTop: "env(safe-area-inset-top, 0px)" }}>
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
-      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
         <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} />
 
         {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
