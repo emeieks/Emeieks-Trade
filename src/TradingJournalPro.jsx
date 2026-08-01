@@ -1125,15 +1125,14 @@ const NAV_ITEMS = [
 function MobileNav({ view, setView, onNewTrade }) {
   return (
     <nav className="mobile-only" style={{
-      position: "fixed",
-      bottom: 0, left: 0, right: 0,
-      zIndex: 200,
+      flexShrink: 0,
       display: "flex", justifyContent: "space-around", alignItems: "flex-end",
-      paddingTop: 10,
-      paddingBottom: "calc(env(safe-area-inset-bottom, 16px) + 6px)",
+      paddingTop: 8,
+      paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
       background: THEMES.dark.sidebar,
       borderTop: "1px solid rgba(255,255,255,0.08)",
-      boxShadow: "0 -4px 24px rgba(0,0,0,0.35)",
+      boxShadow: "0 -2px 16px rgba(0,0,0,0.3)",
+      minHeight: 62,
     }}>
       {NAV_ITEMS.slice(0, 3).map((it) => {
         const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
@@ -6249,11 +6248,10 @@ export default function TradingJournalApp() {
   const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
+    <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: C.bg, color: C.text, fontFamily: FONT.base }}>
       <GlobalStyle />
-      <MobileNav view={view} setView={setView} onNewTrade={openNewTrade} />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
-      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}>
         <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} />
 
         {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
@@ -6279,7 +6277,7 @@ export default function TradingJournalApp() {
         {/* Banner Killzone style bourse */}
         <KillzoneBanner />
 
-        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "22px 16px", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 90px)" }}>
+        <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "22px 16px", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 85px)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           {loading ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 16 }}>
               <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTopColor: C.purple, borderRadius: "50%", animation: "spinSlow 0.8s linear infinite" }} />
@@ -6305,6 +6303,7 @@ export default function TradingJournalApp() {
             </div>
           )}
         </main>
+        <MobileNav view={view} setView={setView} onNewTrade={openNewTrade} />
       </div>
       {toast && (
         <div style={{
