@@ -6251,7 +6251,7 @@ export default function TradingJournalApp() {
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
-      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+      <div style={{ display: "block", minHeight: "100vh", minHeight: 0, overflow: "hidden" }}>
         <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} />
 
         {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
