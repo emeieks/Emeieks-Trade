@@ -612,33 +612,21 @@ function GlobalStyle() {
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
       * { box-sizing: border-box; }
-      html, body { margin: 0; max-width: 100%; overflow-x: hidden; height: 100%; }
-      #root { height: 100%; }
-      /* Fix Safari iOS : position:fixed se décale quand un input a le focus */
-      /* Nav mobile iOS — aucun transform sur les parents pour ne pas bloquer position:fixed */
-      html, body, #root { height: 100%; overflow: hidden; }
-      nav[data-mobile] {
+      html, body { margin: 0; padding: 0; max-width: 100%; overflow-x: hidden; }
+      #root { min-height: 100vh; }
+      body { color: ${C.text}; background: ${C.bg}; }
+      /* Nav mobile : position fixed collée en bas */
+      nav.mobile-nav-fixed {
         position: fixed !important;
         bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
         z-index: 9999 !important;
       }
-      /* Safe area iPhone top - header s'adapte à l'encoche */
       @supports (padding: env(safe-area-inset-top)) {
         .topbar-safe { padding-top: env(safe-area-inset-top) !important; }
       }
-      /* Empêche le scroll du body sur iOS quand un champ est focus */
-      .scroll-container {
-        -webkit-overflow-scrolling: touch;
-        overflow-y: auto;
-      }
-      /* Support safe area iPhone (encoche + home indicator) */
       :root { --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px); }
-      @supports (padding: env(safe-area-inset-bottom)) {
-        nav[data-mobile-nav] { padding-bottom: calc(env(safe-area-inset-bottom) + 10px) !important; }
-      }
-      #root, #app { max-width: 100%; overflow-x: hidden; }
       img { max-width: 100%; }
       ::-webkit-scrollbar { width: 7px; height: 7px; }
       ::-webkit-scrollbar-track { background: transparent; }
@@ -679,12 +667,10 @@ function GlobalStyle() {
       input:hover:not(:focus), textarea:hover:not(:focus), select:hover:not(:focus) {
         border-color: ${C.borderLight} !important;
       }
-      html, body, #root { min-height: 100%; } body { color: ${C.text}; background: ${C.bg}; margin: 0; }
       * { box-sizing: border-box; }
       option { color: ${C.text}; background: ${C.inputBg}; }
       input::-webkit-input-placeholder { color: ${C.textMuted} !important; -webkit-text-fill-color: ${C.textMuted} !important; }
       input, textarea, select, button { font-family: ${FONT.base}; }
-      input:focus, textarea:focus, select:focus { outline: none; border-color: ${C.purple} !important; box-shadow: 0 0 0 3px ${C.purpleDim}; }
       button:focus-visible { outline: 2px solid ${C.purple}; outline-offset: 2px; }
       @media (prefers-reduced-motion: reduce) {
         * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -1242,7 +1228,8 @@ function Sidebar({ view, setView, onNewTrade }) {
             </div>
           </div>
         </div>
-      </aside>
+        </aside>
+      <MobileNav view={view} setView={setView} onNewTrade={onNewTrade} />
     </>
   );
 }
@@ -6248,10 +6235,10 @@ export default function TradingJournalApp() {
   const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
-      <div style={{ display: "block", minHeight: "100vh", minHeight: 0, overflow: "hidden" }}>
+      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column" }}>
         <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} />
 
         {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
@@ -6304,7 +6291,6 @@ export default function TradingJournalApp() {
           )}
         </main>
       </div>
-      <MobileNav view={view} setView={setView} onNewTrade={openNewTrade} />
       {toast && (
         <div style={{
           position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
