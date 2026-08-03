@@ -183,90 +183,118 @@ function KillzoneBanner() {
   };
   const fmt = (m) => m >= 60 ? `${Math.floor(m/60)}h${String(m%60).padStart(2,"0")}` : `${m}min`;
 
-  const dayOfWeek = now.getUTCDay(); // 0=dim, 6=sam
+  const dayOfWeek = now.getUTCDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
   const active = !isWeekend && KILLZONES.find(isInZone);
   const next = !isWeekend && !active && [...KILLZONES].sort((a,b) => minsUntil(a) - minsUntil(b))[0];
   const minsLeft = active ? (() => { const e = toMin(active.end); return e > thMin ? e - thMin : 1440 - thMin + e; })() : null;
 
-  const dotColor = active ? active.color : C.textMuted;
+  // Vérif news économiques demain
+  const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+  const todayStr = now.toISOString().slice(0, 10);
+  let newsAlert = null;
+  try {
+    const saved = JSON.parse(localStorage.getItem("previsions_news") || "[]");
+    const tomorrow = saved.find(n => n.date === tomorrowStr);
+    const today = saved.find(n => n.date === todayStr);
+    if (today) newsAlert = { news: today, isToday: true };
+    else if (tomorrow) newsAlert = { news: tomorrow, isToday: false };
+  } catch {}
 
   return (
-    <div style={{
-      background: C.sidebar,
-      borderBottom: `1px solid ${C.sidebarBorder}`,
-      padding: "0 18px",
-      height: 32,
-      display: "flex", alignItems: "center", gap: 0,
-      overflow: "hidden",
-    }}>
-      {/* Dot pulsant si active */}
-      <div style={{ position: "relative", width: 18, height: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 8 }}>
-        {active && <div style={{ position: "absolute", width: 12, height: 12, borderRadius: "50%", background: dotColor, opacity: 0.2, animation: "pulse 1.5s ease-in-out infinite" }} />}
-        <div style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-      </div>
+    <>
+      {/* Banderole news économique */}
+      {newsAlert && (
+        <div style={{
+          background: newsAlert.isToday ? C.red : "rgba(220,38,38,0.85)",
+          padding: "5px 18px",
+          display: "flex", alignItems: "center", gap: 8,
+          borderBottom: `1px solid ${C.red}`,
+        }}>
+          <span style={{ fontSize: 13 }}>🔴</span>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: "#fff" }}>
+            {newsAlert.isToday ? "AUJOURD'HUI" : "DEMAIN"} — {newsAlert.news.type} : {newsAlert.news.label}
+          </span>
+          <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.7)", marginLeft: "auto" }}>
+            {newsAlert.isToday ? "⚠️ News aujourd'hui — trader avec précaution" : "⚠️ News demain — prépare-toi"}
+          </span>
+        </div>
+      )}
 
-      {active ? (
-        <>
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: active.color, letterSpacing: 0.2, marginRight: 6 }}>
-            {active.emoji} {active.name.toUpperCase()}
-          </span>
-          <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 10 }}>
-            jusqu'à {active.end}
-          </span>
-          <span style={{ fontSize: 10, color: active.color, background: `${active.color}20`, padding: "1px 6px", borderRadius: 3, fontWeight: 700, letterSpacing: 0.5, marginRight: 12 }}>
-            LIVE
-          </span>
-          <span className="tnum" style={{ fontSize: 10.5, color: C.sidebarTextDim }}>
-            encore {fmt(minsLeft)}
-          </span>
-        </>
-      ) : next ? (
-        <>
-          <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 6 }}>Hors killzone</span>
-          <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 6 }}>·</span>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: C.sidebarText, marginRight: 5 }}>
-            {next.emoji} {next.name}
-          </span>
-          <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 5 }}>à {next.start}</span>
-          <span className="tnum" style={{ fontSize: 10.5, color: C.sidebarTextDim, background: "rgba(255,255,255,0.06)", padding: "1px 7px", borderRadius: 3 }}>
-            dans {fmt(minsUntil(next))}
-          </span>
-        </>
-      ) : isWeekend ? (
-        <span style={{ fontSize: 11, color: C.sidebarTextDim, letterSpacing: 0.3 }}>
-          Marché fermé — Weekend
-        </span>
-      ) : null}
+      {/* Ticker killzone */}
+      <div style={{
+        background: C.sidebar,
+        borderBottom: `1px solid ${C.sidebarBorder}`,
+        padding: "0 18px",
+        height: 32,
+        display: "flex", alignItems: "center", gap: 0,
+        overflow: "hidden",
+      }}>
+        <div style={{ position: "relative", width: 18, height: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 8 }}>
+          {active && <div style={{ position: "absolute", width: 12, height: 12, borderRadius: "50%", background: active.color, opacity: 0.2 }} />}
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: active ? active.color : C.textMuted, flexShrink: 0 }} />
+        </div>
 
-      {/* Séparateurs et sessions à droite */}
-      <div style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
-        {KILLZONES.map(kz => {
-          const isAct = isInZone(kz);
-          const short = kz.name === "New York Matin" ? "NY·AM" : kz.name === "New York Après-midi" ? "NY·PM" : kz.name.toUpperCase();
-          return (
-            <span key={kz.name} className="tnum" style={{
-              fontSize: 9.5, fontWeight: isAct ? 700 : 400,
-              color: isAct ? kz.color : "rgba(255,255,255,0.2)",
-              letterSpacing: 0.5,
-            }}>
-              {short}
-            </span>
-          );
-        })}
+        {active ? (
+          <>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: active.color, letterSpacing: 0.2, marginRight: 6 }}>{active.emoji} {active.name.toUpperCase()}</span>
+            <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 10 }}>jusqu'à {active.end}</span>
+            <span style={{ fontSize: 10, color: active.color, background: `${active.color}20`, padding: "1px 6px", borderRadius: 3, fontWeight: 700, letterSpacing: 0.5, marginRight: 12 }}>LIVE</span>
+            <span className="tnum" style={{ fontSize: 10.5, color: C.sidebarTextDim }}>encore {fmt(minsLeft)}</span>
+          </>
+        ) : next ? (
+          <>
+            <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 6 }}>Hors killzone</span>
+            <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 6 }}>·</span>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: C.sidebarText, marginRight: 5 }}>{next.emoji} {next.name}</span>
+            <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 5 }}>à {next.start}</span>
+            <span className="tnum" style={{ fontSize: 10.5, color: C.sidebarTextDim, background: "rgba(255,255,255,0.06)", padding: "1px 7px", borderRadius: 3 }}>dans {fmt(minsUntil(next))}</span>
+          </>
+        ) : isWeekend ? (
+          <span style={{ fontSize: 11, color: C.sidebarTextDim }}>Marché fermé — Weekend</span>
+        ) : null}
+
+        <div style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
+          {KILLZONES.map(kz => {
+            const isAct = !isWeekend && isInZone(kz);
+            const short = kz.name === "New York Matin" ? "NY·AM" : kz.name === "New York Après-midi" ? "NY·PM" : kz.name.toUpperCase();
+            return (
+              <span key={kz.name} className="tnum" style={{ fontSize: 9.5, fontWeight: isAct ? 700 : 400, color: isAct ? kz.color : "rgba(255,255,255,0.2)", letterSpacing: 0.5 }}>
+                {short}
+              </span>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
 
-// Killzones en heure Thaïlande (UTC+7)
-// Source photo : heure FR été (UTC+2) → TH (UTC+7) = +5h
-const KILLZONES = [
-  { name: "Asia", start: "07:00", end: "11:00", color: "#E67E22", emoji: "🌏", utcStart: 0, utcEnd: 4 },
-  { name: "London", start: "13:00", end: "16:00", color: "#4A7FBF", emoji: "🇬🇧", utcStart: 6, utcEnd: 9 },
-  { name: "New York Matin", start: "19:30", end: "22:00", color: "#C0392B", emoji: "🗽", utcStart: 12.5, utcEnd: 15 },
-  { name: "New York Après-midi", start: "00:30", end: "03:00", color: "#E74C3C", emoji: "🌆", utcStart: 17.5, utcEnd: 20 },
-];
+  const thH = (now.getUTCHours() + 7) % 24;
+  const thM = now.getUTCMinutes();
+  const thMin = thH * 60 + thM;
+
+  const toMin = (s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
+  const isInZone = (kz) => {
+    const s = toMin(kz.start), e = toMin(kz.end);
+    return e > s ? thMin >= s && thMin < e : thMin >= s || thMin < e;
+  };
+  const minsUntil = (kz) => {
+    const s = toMin(kz.start);
+    return s > thMin ? s - thMin : 1440 - thMin + s;
+  };
+  const fmt = (m) => m >= 60 ? `${Math.floor(m/60)}h${String(m%60).padStart(2,"0")}` : `${m}min`;
+
+  const dayOfWeek = now.getUTCDay(); // 0=dim, 6=sam
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const active = !isWeekend && KILLZONES.find(isInZone);
+  const next = !isWeekend && !active && [...KILLZONES].sort((a,b) => minsUntil(a) - minsUntil(b))[0];
+  const minsLeft = active ? (() => { const e = toMin(active.end); return e > thMin ? e - thMin : 1440 - thMin + e; })() : null;
 
 function KillzoneWidget() {
   const [now, setNow] = useState(new Date());
@@ -1436,7 +1464,20 @@ function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
 
   const stats = useMemo(() => computeStats(filteredTrades, initialBalance), [filteredTrades, initialBalance]);
   const byPair = useMemo(() => groupBy(stats.closed, (t) => t.pair).sort((a, b) => b.pnl - a.pnl).slice(0, 5), [stats.closed]);
-  const bySetup = useMemo(() => groupBy(stats.closed, (t) => t.setup || (t.tags || [])[0] || "—").sort((a, b) => b.pnl - a.pnl).slice(0, 5), [stats.closed]);
+  const bySetup = useMemo(() => {
+    const map = {};
+    stats.closed.forEach(t => {
+      const pdTags = (t.tags || []).filter(tag => TAG_CATALOG.find(tc => tc.name === tag && tc.category === "setup"));
+      const keys = pdTags.length > 0 ? pdTags : [t.setup || "—"];
+      keys.forEach(key => {
+        if (!map[key]) map[key] = { key, pnl: 0, wins: 0, trades: [] };
+        map[key].pnl += t.resultUsd || 0;
+        if (t.resultR > 0) map[key].wins += 1;
+        map[key].trades.push(t);
+      });
+    });
+    return Object.values(map).sort((a, b) => b.pnl - a.pnl).slice(0, 5);
+  }, [stats.closed]);
   const bySession = useMemo(() => groupBy(stats.closed, (t) => getSession(t.entryTime)).sort((a, b) => b.pnl - a.pnl), [stats.closed]);
 
   const byTag = useMemo(() => {
@@ -4952,133 +4993,44 @@ function PerformanceReview({ trades }) {
    ============================================================================ */
 
 function PlanDeTrading() {
-  const STORAGE_KEY = "trading_plan_items";
-  const [items, setItems] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; }
+  const STORAGE_KEY = "trading_plan_text";
+  const [text, setText] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEY) || ""; } catch { return ""; }
   });
-  const [newText, setNewText] = useState("");
-  const [editId, setEditId] = useState(null);
-  const [editText, setEditText] = useState("");
 
-  const save = (list) => {
-    setItems(list);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch {}
+  const handleChange = (e) => {
+    setText(e.target.value);
+    try { localStorage.setItem(STORAGE_KEY, e.target.value); } catch {}
   };
-
-  const addItem = () => {
-    const t = newText.trim();
-    if (!t) return;
-    save([...items, { id: Date.now(), text: t, checked: false }]);
-    setNewText("");
-  };
-
-  const toggle = (id) => save(items.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
-  const remove = (id) => save(items.filter(i => i.id !== id));
-  const startEdit = (item) => { setEditId(item.id); setEditText(item.text); };
-  const confirmEdit = (id) => { save(items.map(i => i.id === id ? { ...i, text: editText.trim() || i.text } : i)); setEditId(null); };
 
   return (
-    <div className="fade-in">
-      <PageHeader title="Plan de trading" />
-
-      <Card style={{ padding: 18, marginBottom: 14 }}>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 14 }}>
-          Définis ici ta stratégie, tes règles et ton plan de trading. Ces points te guident avant chaque session.
-        </div>
-
-        {/* Liste des points */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-          {items.length === 0 && (
-            <div style={{ textAlign: "center", padding: "30px 0", color: C.textMuted, fontSize: 13 }}>
-              <BookOpen size={28} strokeWidth={1.5} style={{ marginBottom: 10, opacity: 0.4 }} />
-              <div>Aucun point encore. Commence par définir ta stratégie.</div>
-            </div>
-          )}
-          {items.map((item, idx) => (
-            <div key={item.id} style={{
-              display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 12px",
-              background: item.checked ? "rgba(45,212,191,0.04)" : (C.inputBg || C.card),
-              borderRadius: 9, border: `1px solid ${item.checked ? C.teal + "30" : C.border}`,
-              transition: "all 0.15s",
-            }}>
-              {/* Numéro */}
-              <span style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, minWidth: 18, paddingTop: 2 }}>{idx + 1}.</span>
-
-              {/* Checkbox */}
-              <button onClick={() => toggle(item.id)} style={{
-                width: 18, height: 18, borderRadius: 5, flexShrink: 0, marginTop: 1,
-                border: `1.5px solid ${item.checked ? C.teal : C.border}`,
-                background: item.checked ? C.tealDim : "transparent",
-                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {item.checked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.teal} strokeWidth="3" strokeLinecap="round"><path d="M5 13l4 4L19 7"/></svg>}
-              </button>
-
-              {/* Texte ou édition */}
-              {editId === item.id ? (
-                <input
-                  autoFocus value={editText}
-                  onChange={e => setEditText(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") confirmEdit(item.id); if (e.key === "Escape") setEditId(null); }}
-                  onBlur={() => confirmEdit(item.id)}
-                  style={{ ...inputStyle, flex: 1, padding: "2px 8px", fontSize: 13 }}
-                />
-              ) : (
-                <span
-                  onDoubleClick={() => startEdit(item)}
-                  style={{ flex: 1, fontSize: 13, lineHeight: 1.5, color: item.checked ? C.textMuted : C.text, textDecoration: item.checked ? "line-through" : "none" }}
-                >
-                  {item.text}
-                </span>
-              )}
-
-              {/* Actions */}
-              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                <button onClick={() => startEdit(item)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 3 }}><Edit3 size={12} /></button>
-                <button onClick={() => remove(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 3 }}><X size={12} /></button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Ajouter un point */}
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={newText}
-            onChange={e => setNewText(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && addItem()}
-            placeholder="Ajouter un point de votre plan…"
-            style={{ ...inputStyle, flex: 1 }}
-          />
-          <button onClick={addItem} disabled={!newText.trim()} style={{ ...btn.primary, padding: "10px 14px", opacity: newText.trim() ? 1 : 0.4 }}>
-            <Plus size={16} />
-          </button>
-        </div>
-        <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 6 }}>Double-clic pour modifier · Entrée pour ajouter</div>
-      </Card>
-
-      {items.length > 0 && (
-        <div style={{ fontSize: 12, color: C.textMuted, textAlign: "center" }}>
-          {items.filter(i => i.checked).length}/{items.length} points validés
-        </div>
-      )}
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 160px)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: C.text, margin: 0 }}>Plan de trading</h1>
+      </div>
+      <textarea
+        value={text}
+        onChange={handleChange}
+        placeholder={"Écris ton plan de trading ici...\n\nExemple :\n— Ne trader que London et NY\n— Max 2 trades par jour\n— Stop loss obligatoire\n— Attendre la confirmation MSS\n..."}
+        style={{
+          flex: 1, width: "100%",
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 20,
+          color: C.text,
+          fontSize: 14,
+          lineHeight: 1.7,
+          resize: "none",
+          outline: "none",
+          fontFamily: "inherit",
+          boxSizing: "border-box",
+          WebkitTextFillColor: C.text,
+        }}
+      />
     </div>
   );
 }
-
-/* ============================================================================
-   PRÉVISIONS
-   ============================================================================ */
-
-const PAIRS_PREVISION = ["DXY", "EURUSD", "GBPUSD"];
-const TIMEFRAMES_PREV = ["Weekly", "Daily", "4H", "1H"];
-const BIAS_OPTIONS = [
-  { value: "bullish", label: "Bullish", color: C => C.teal },
-  { value: "bearish", label: "Bearish", color: C => C.red },
-  { value: "neutral", label: "Neutre", color: C => C.textMuted },
-];
-
-const NEWS_TYPES = ["FOMC", "NFP", "CPI", "PPI", "GDP", "PMI", "Jobless Claims", "Autre"];
 
 function Previsions({ pairs = ["DXY", "EURUSD", "GBPUSD"] }) {
   const STORAGE_KEY = "previsions_data";
@@ -5359,7 +5311,7 @@ function AiCoach({ trades }) {
    ============================================================================ */
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "CHF", "JPY"];
-const ALL_PAIRS = ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY", "AUDUSD", "USDCAD", "NZDUSD", "GBPJPY", "EURJPY", "GBPJPY", "USDCHF", "XAGUSD", "BTCUSD", "ETHUSD", "US30", "NAS100", "SPX500"];
+const ALL_PAIRS = ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY", "AUDUSD", "USDCAD", "NZDUSD", "GBPJPY", "EURJPY", "USDCHF", "XAGUSD", "BTCUSD", "ETHUSD", "US30", "NAS100", "SPX500"];
 
 function SettingsSection({ title, children }) {
   return (
@@ -5445,7 +5397,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
       <PageHeader title="Paramètres" />
 
       {/* Compte */}
-      <SettingsSection title="💰 Comptes de trading">
+      <SettingsSection title="📂 Comptes de trading">
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>Chaque compte est isolé — les trades et stats ne se mélangent pas.</div>
 
         {(accounts || []).map((acc) => {
@@ -5469,7 +5421,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
                 ) : (
                   <button onClick={() => onSwitchAccount(acc.id)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}>Activer</button>
                 )}
-                {acc.id !== "main" && (
+                {true && (
                   <button onClick={() => onSaveAccounts(accounts.filter(a => a.id !== acc.id))} style={{ ...btn.icon, padding: "5px", color: C.red, borderColor: "transparent" }}><X size={13} /></button>
                 )}
               </div>
@@ -5518,7 +5470,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
         })()}
       </SettingsSection>
 
-      <SettingsSection title="💵 Solde & devise">
+      <SettingsSection title="💲 Solde & devise">
         <SettingsRow label="Solde du compte" sub="Capital utilisé pour la calculatrice de risque">
           {editingBalance ? (
             <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
@@ -5541,7 +5493,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
       </SettingsSection>
 
       {/* Broker actif */}
-      <SettingsSection title="🏦 Broker actif">
+      <SettingsSection title="🔗 Broker actif">
         <SettingsRow label="Broker sélectionné" sub="Broker sur lequel tu trades actuellement">
           <select
             value={settings.broker}
@@ -5602,7 +5554,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
       </SettingsSection>
 
       {/* Tags personnalisés */}
-      <SettingsSection title="🏷️ PD Arrays & Tags">
+      <SettingsSection title="🎯 PD Arrays & Tags">
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>Gère les PD Arrays disponibles dans le formulaire. Tu peux masquer ceux que tu n'utilises pas.</div>
 
         {/* Tags par défaut — masquables */}
@@ -6057,13 +6009,11 @@ export default function TradingJournalApp() {
   const [accounts, setAccounts] = useState(() => {
     try {
       const saved = localStorage.getItem("accounts");
-      return saved ? JSON.parse(saved) : [
-        { id: "main", name: "Compte réel", type: "real", balance: 10000, broker: "ICMarkets", color: C.teal },
-      ];
-    } catch { return [{ id: "main", name: "Compte réel", type: "real", balance: 10000, broker: "ICMarkets", color: C.teal }]; }
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
   const [activeAccountId, setActiveAccountId] = useState(() => {
-    try { return localStorage.getItem("activeAccountId") || "main"; } catch { return "main"; }
+    try { return localStorage.getItem("activeAccountId") || null; } catch { return null; }
   });
   const switchAccount = (id) => {
     setActiveAccountId(id);
