@@ -5016,6 +5016,9 @@ function PlanDeTrading() {
   );
 }
 
+const TIMEFRAMES_PREV = ["Weekly", "Daily", "4H", "1H"];
+const NEWS_TYPES = ["FOMC", "NFP", "CPI", "PPI", "GDP", "PMI", "Jobless Claims", "Autre"];
+
 function Previsions({ pairs = ["DXY", "EURUSD", "GBPUSD"] }) {
   const STORAGE_KEY = "previsions_data";
   const NEWS_KEY = "previsions_news";
