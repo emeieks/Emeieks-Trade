@@ -161,6 +161,14 @@ function getSession(isoDate) {
   return "Hors session";
 }
 
+// Killzones en heure Thaïlande (UTC+7)
+const KILLZONES = [
+  { name: "Asia", start: "07:00", end: "11:00", color: "#E67E22", emoji: "🌏", utcStart: 0, utcEnd: 4 },
+  { name: "London", start: "13:00", end: "16:00", color: "#4A7FBF", emoji: "🇬🇧", utcStart: 6, utcEnd: 9 },
+  { name: "New York Matin", start: "19:30", end: "22:00", color: "#C0392B", emoji: "🗽", utcStart: 12.5, utcEnd: 15 },
+  { name: "New York Après-midi", start: "00:30", end: "03:00", color: "#E74C3C", emoji: "🌆", utcStart: 17.5, utcEnd: 20 },
+];
+
 function KillzoneBanner() {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -189,17 +197,19 @@ function KillzoneBanner() {
   const next = !isWeekend && !active && [...KILLZONES].sort((a,b) => minsUntil(a) - minsUntil(b))[0];
   const minsLeft = active ? (() => { const e = toMin(active.end); return e > thMin ? e - thMin : 1440 - thMin + e; })() : null;
 
-  // Vérif news économiques demain
-  const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
-  const todayStr = now.toISOString().slice(0, 10);
-  let newsAlert = null;
-  try {
-    const saved = JSON.parse(localStorage.getItem("previsions_news") || "[]");
-    const tomorrow = saved.find(n => n.date === tomorrowStr);
-    const today = saved.find(n => n.date === todayStr);
-    if (today) newsAlert = { news: today, isToday: true };
-    else if (tomorrow) newsAlert = { news: tomorrow, isToday: false };
-  } catch {}
+  // Vérif news économiques - dans useMemo pour éviter re-renders
+  const newsAlert = useMemo(() => {
+    const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+    const todayStr = now.toISOString().slice(0, 10);
+    try {
+      const saved = JSON.parse(localStorage.getItem("previsions_news") || "[]");
+      const today = saved.find(n => n.date === todayStr);
+      const tomorrow = saved.find(n => n.date === tomorrowStr);
+      if (today) return { news: today, isToday: true };
+      if (tomorrow) return { news: tomorrow, isToday: false };
+    } catch {}
+    return null;
+  }, [now]);
 
   return (
     <>
@@ -269,33 +279,6 @@ function KillzoneBanner() {
     </>
   );
 }
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30000);
-    return () => clearInterval(t);
-  }, []);
-
-  const thH = (now.getUTCHours() + 7) % 24;
-  const thM = now.getUTCMinutes();
-  const thMin = thH * 60 + thM;
-
-  const toMin = (s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
-  const isInZone = (kz) => {
-    const s = toMin(kz.start), e = toMin(kz.end);
-    return e > s ? thMin >= s && thMin < e : thMin >= s || thMin < e;
-  };
-  const minsUntil = (kz) => {
-    const s = toMin(kz.start);
-    return s > thMin ? s - thMin : 1440 - thMin + s;
-  };
-  const fmt = (m) => m >= 60 ? `${Math.floor(m/60)}h${String(m%60).padStart(2,"0")}` : `${m}min`;
-
-  const dayOfWeek = now.getUTCDay(); // 0=dim, 6=sam
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  const active = !isWeekend && KILLZONES.find(isInZone);
-  const next = !isWeekend && !active && [...KILLZONES].sort((a,b) => minsUntil(a) - minsUntil(b))[0];
-  const minsLeft = active ? (() => { const e = toMin(active.end); return e > thMin ? e - thMin : 1440 - thMin + e; })() : null;
-
 function KillzoneWidget() {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -1465,10 +1448,11 @@ function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
   const stats = useMemo(() => computeStats(filteredTrades, initialBalance), [filteredTrades, initialBalance]);
   const byPair = useMemo(() => groupBy(stats.closed, (t) => t.pair).sort((a, b) => b.pnl - a.pnl).slice(0, 5), [stats.closed]);
   const bySetup = useMemo(() => {
+    if (!stats?.closed) return [];
     const map = {};
     stats.closed.forEach(t => {
       const pdTags = (t.tags || []).filter(tag => TAG_CATALOG.find(tc => tc.name === tag && tc.category === "setup"));
-      const keys = pdTags.length > 0 ? pdTags : [t.setup || "—"];
+      const keys = pdTags.length > 0 ? pdTags : (t.setup ? [t.setup] : []);
       keys.forEach(key => {
         if (!map[key]) map[key] = { key, pnl: 0, wins: 0, trades: [] };
         map[key].pnl += t.resultUsd || 0;
@@ -1477,7 +1461,7 @@ function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
       });
     });
     return Object.values(map).sort((a, b) => b.pnl - a.pnl).slice(0, 5);
-  }, [stats.closed]);
+  }, [stats?.closed]);
   const bySession = useMemo(() => groupBy(stats.closed, (t) => getSession(t.entryTime)).sort((a, b) => b.pnl - a.pnl), [stats.closed]);
 
   const byTag = useMemo(() => {
@@ -5370,6 +5354,49 @@ function AddItemInput({ placeholder, onAdd }) {
   );
 }
 
+function AddAccountForm({ accounts, onSaveAccounts }) {
+  const [showForm, setShowForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState("demo");
+  const [newBalance, setNewBalance] = useState("");
+  const [newBroker, setNewBroker] = useState("");
+
+  const handleAdd = () => {
+    if (!newName) return;
+    const acc = { id: `acc_${Date.now()}`, name: newName, type: newType, balance: Number(newBalance) || 0, broker: newBroker };
+    onSaveAccounts([...(accounts || []), acc]);
+    setShowForm(false); setNewName(""); setNewBalance(""); setNewBroker(""); setNewType("demo");
+  };
+
+  if (!showForm) return (
+    <button onClick={() => setShowForm(true)} style={{ ...btn.ghost, marginTop: 6, width: "100%", justifyContent: "center" }}>
+      <Plus size={13} /> Ajouter un compte démo / challenge
+    </button>
+  );
+
+  return (
+    <div style={{ background: C.inputBg || C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", marginTop: 8 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, marginBottom: 12 }}>Nouveau compte</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        {[{ v: "demo", l: "Démo", c: C.purple }, { v: "challenge", l: "Challenge", c: C.amber }, { v: "real", l: "Réel", c: C.teal }].map(t => (
+          <button key={t.v} onClick={() => setNewType(t.v)} style={{ flex: 1, padding: "8px 6px", borderRadius: 8, border: `2px solid ${newType === t.v ? t.c : C.border}`, background: newType === t.v ? `${t.c}18` : "transparent", color: newType === t.v ? t.c : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{t.l}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nom (ex: FTMO 100K, Compte démo)" style={inputStyle} />
+        <div className="form-grid-2">
+          <input type="number" value={newBalance} onChange={e => setNewBalance(e.target.value)} placeholder="Solde ($)" style={inputStyle} />
+          <input value={newBroker} onChange={e => setNewBroker(e.target.value)} placeholder="Broker (optionnel)" style={inputStyle} />
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button onClick={handleAdd} style={{ ...btn.primary, flex: 1 }}>Ajouter</button>
+        <button onClick={() => setShowForm(false)} style={btn.ghost}>Annuler</button>
+      </div>
+    </div>
+  );
+}
+
 function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSaveAccounts, onSwitchAccount }) {
   const [editingBalance, setEditingBalance] = useState(false);
   const [balanceInput, setBalanceInput] = useState(String(settings.accountBalance));
@@ -5429,45 +5456,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
           );
         })}
 
-        {/* Ajouter un compte */}
-        {(() => {
-          const [showForm, setShowForm] = useState(false);
-          const [newName, setNewName] = useState("");
-          const [newType, setNewType] = useState("demo");
-          const [newBalance, setNewBalance] = useState("");
-          const [newBroker, setNewBroker] = useState("");
-          const handleAdd = () => {
-            if (!newName) return;
-            const acc = { id: `acc_${Date.now()}`, name: newName, type: newType, balance: Number(newBalance) || 0, broker: newBroker };
-            onSaveAccounts([...(accounts || []), acc]);
-            setShowForm(false); setNewName(""); setNewBalance(""); setNewBroker(""); setNewType("demo");
-          };
-          return showForm ? (
-            <div style={{ background: C.inputBg || C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", marginTop: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, marginBottom: 12 }}>Nouveau compte</div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                {[{ v: "demo", l: "Démo", c: C.purple }, { v: "challenge", l: "Challenge", c: C.amber }, { v: "real", l: "Réel", c: C.teal }].map(t => (
-                  <button key={t.v} onClick={() => setNewType(t.v)} style={{ flex: 1, padding: "8px 6px", borderRadius: 8, border: `2px solid ${newType === t.v ? t.c : C.border}`, background: newType === t.v ? `${t.c}18` : "transparent", color: newType === t.v ? t.c : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{t.l}</button>
-                ))}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nom (ex: FTMO 100K, Compte démo)" style={inputStyle} />
-                <div className="form-grid-2">
-                  <input type="number" value={newBalance} onChange={e => setNewBalance(e.target.value)} placeholder="Solde ($)" style={inputStyle} />
-                  <input value={newBroker} onChange={e => setNewBroker(e.target.value)} placeholder="Broker (optionnel)" style={inputStyle} />
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button onClick={handleAdd} style={{ ...btn.primary, flex: 1 }}>Ajouter</button>
-                <button onClick={() => setShowForm(false)} style={btn.ghost}>Annuler</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowForm(true)} style={{ ...btn.ghost, marginTop: 6, width: "100%", justifyContent: "center" }}>
-              <Plus size={13} /> Ajouter un compte démo / challenge
-            </button>
-          );
-        })()}
+        <AddAccountForm accounts={accounts} onSaveAccounts={onSaveAccounts} />
       </SettingsSection>
 
       <SettingsSection title="💲 Solde & devise">
