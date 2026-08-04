@@ -2422,7 +2422,7 @@ function PdRuleRow({ tag, color }) {
   );
 }
 
-function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange }) {
+function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetroSave }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState("avant");
   const [aiLoading, setAiLoading] = useState(false);
@@ -2430,6 +2430,16 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange }) {
   const [aiError, setAiError] = useState("");
   const [retroNote, setRetroNote] = useState(trade?.retroNote || "");
   const [retroRating, setRetroRating] = useState(trade?.retroRating || 0);
+
+  // Sauvegarde auto retroRating quand il change
+  const handleRetroRating = (val) => {
+    setRetroRating(val);
+    if (onRetroSave && trade?.id) onRetroSave(trade.id, { retroRating: val, retroNote });
+  };
+  const handleRetroNote = (val) => {
+    setRetroNote(val);
+    if (onRetroSave && trade?.id) onRetroSave(trade.id, { retroRating, retroNote: val });
+  };
   const [imgZoom, setImgZoom] = useState(null); // { src, label }
 
   const runAiAnalysis = async () => {
@@ -2499,20 +2509,46 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange }) {
         </div>
       </div>
 
-      {/* Onglets */}
-      <div style={{ display: "flex", gap: 0, marginBottom: 18, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.inputBg || C.card }}>
-        {TABS.map((tab, i) => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-            flex: 1, padding: "11px 8px", border: "none", borderRight: i < TABS.length - 1 ? `1px solid ${C.border}` : "none",
-            background: activeTab === tab.id ? C.purple : "transparent",
-            color: activeTab === tab.id ? "#fff" : C.textMuted,
-            fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 400,
-            cursor: "pointer", transition: "all 0.15s",
-          }}>{tab.label}</button>
-        ))}
-      </div>
+      {/* Onglets avec swipe */}
+      {(() => {
+        const tabOrder = ["avant", "apres", "retour"];
+        const handleSwipe = (() => {
+          let startX = 0;
+          return {
+            onTouchStart: (e) => { startX = e.touches[0].clientX; },
+            onTouchEnd: (e) => {
+              const diff = startX - e.changedTouches[0].clientX;
+              if (Math.abs(diff) < 50) return;
+              const cur = tabOrder.indexOf(activeTab);
+              if (diff > 0 && cur < tabOrder.length - 1) setActiveTab(tabOrder[cur + 1]);
+              if (diff < 0 && cur > 0) setActiveTab(tabOrder[cur - 1]);
+            },
+          };
+        })();
+        return (
+          <div {...handleSwipe}>
+            <div style={{ display: "flex", gap: 0, marginBottom: 18, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.inputBg || C.card }}>
+              {TABS.map((tab, i) => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+                  flex: 1, padding: "11px 8px", border: "none", borderRight: i < TABS.length - 1 ? `1px solid ${C.border}` : "none",
+                  background: activeTab === tab.id ? C.purple : "transparent",
+                  color: activeTab === tab.id ? "#fff" : C.textMuted,
+                  fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 400,
+                  cursor: "pointer", transition: "all 0.15s",
+                }}>{tab.label}</button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── ONGLET 1 : AVANT ─── */}
+      <div onTouchStart={(e) => { window._swipeStartX = e.touches[0].clientX; }} onTouchEnd={(e) => {
+        const diff = (window._swipeStartX || 0) - e.changedTouches[0].clientX;
+        const tabs = ["avant","apres","retour"];
+        const cur = tabs.indexOf(activeTab);
+        if (Math.abs(diff) > 50) { if (diff > 0 && cur < 2) setActiveTab(tabs[cur+1]); if (diff < 0 && cur > 0) setActiveTab(tabs[cur-1]); }
+      }}>
       {activeTab === "avant" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
@@ -2735,7 +2771,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange }) {
                 const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
                 const filled = n <= retroRating;
                 return (
-                  <button key={n} onClick={() => setRetroRating(n === retroRating ? 0 : n)} style={{
+                  <button key={n} onClick={() => handleRetroRating(n === retroRating ? 0 : n)} style={{
                     flex: 1, height: 30, borderRadius: 4,
                     border: `1.5px solid ${filled ? col : C.border}`,
                     cursor: "pointer", background: filled ? col : (C.inputBg || C.card),
@@ -2788,7 +2824,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange }) {
           {/* Rétrospective — 1 seul bloc texte */}
           <Card style={{ padding: 16 }}>
             <CardLabel>Rétrospective</CardLabel>
-            <textarea rows={5} placeholder="Qu'est-ce qui s'est passé ? Qu'as-tu bien fait ? Qu'aurais-tu fait différemment ? Quelles leçons tirer ?" style={{ ...inputStyle, resize: "vertical", marginTop: 10, lineHeight: 1.6 }} />
+            <textarea rows={5} value={retroNote} onChange={e => handleRetroNote(e.target.value)} placeholder="Qu'est-ce qui s'est passé ? Qu'as-tu bien fait ? Qu'aurais-tu fait différemment ? Quelles leçons tirer ?" style={{ ...inputStyle, resize: "vertical", marginTop: 10, lineHeight: 1.6 }} />
           </Card>
 
           {/* Verdict */}
@@ -2849,6 +2885,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange }) {
           </Card>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -3281,8 +3318,28 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
   ];
 
   // Calcul pip live
-  const pipDecimal = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.1 : 0.0001;
-  const pipValuePerLot = pair === "XAUUSD" ? 10 : pair.includes("JPY") ? 6.8 : 10;
+  const pipDecimal = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.01 : ["US30","NAS100","SPX500","BTCUSD","ETHUSD"].includes(pair) ? 1 : 0.0001;
+  const pipValuePerLot = (() => {
+      const ep = parseFloat(entryPrice) || 1;
+      if (pair === "XAUUSD") return 10;
+      if (pair === "XAGUSD") return 50;
+      if (["US30","NAS100","SPX500"].includes(pair)) return 1;
+      // USD quote fixe : EURUSD, GBPUSD, AUDUSD, NZDUSD, USDOLLAR...
+      if (pair.endsWith("USD") && !pair.startsWith("USD")) return 10;
+      // USDJPY spécial: pip = 0.01, valeur = 1000/entry
+      if (pair === "USDJPY") return 1000 / ep;
+      // USD base : USDCAD, USDCHF
+      if (pair.startsWith("USD")) return 10 / ep;
+      // JPY quote : GBPJPY, EURJPY, AUDJPY, CADJPY, CHFJPY, USDJPY
+      if (pair.endsWith("JPY")) return 1000 / ep;
+      // CAD quote : GBPCAD, EURCAD, AUDCAD, NZDCAD
+      if (pair.endsWith("CAD")) return 10 / ep;
+      // CHF quote : GBPCHF, EURCHF, AUDCHF, NZDCHF
+      if (pair.endsWith("CHF")) return 10 / ep;
+      // AUD base : AUDCAD, AUDCHF, AUDJPY, AUDNZD
+      if (pair.startsWith("AUD") && !pair.endsWith("USD")) return 10 * ep / (ep || 1);
+      return 10; // défaut USD quote
+    })();
 
   // Exit price = TP par défaut (modifiable)
   const prevTP = React.useRef(takeProfit);
@@ -3648,8 +3705,20 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
               {(() => {
                 const accountBalance = appSettings?.accountBalance || 10000;
                 const pairKey = (pair.includes("JPY") ? "JPY" : pair === "XAUUSD" ? "XAU" : "USD");
-                const pipDecimal = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.1 : 0.0001;
-                const pipValuePerLot = pair === "XAUUSD" ? 10 : pair.includes("JPY") ? 6.8 : 10;
+                const pipDecimal = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.01 : ["US30","NAS100","SPX500","BTCUSD","ETHUSD"].includes(pair) ? 1 : 0.0001;
+                const pipValuePerLot = (() => {
+                const ep = parseFloat(entryPrice) || 1;
+                if (pair === "XAUUSD") return 10;
+                if (pair === "XAGUSD") return 50;
+                if (["US30","NAS100","SPX500"].includes(pair)) return 1;
+                if (pair.endsWith("USD") && !pair.startsWith("USD")) return 10;
+                if (pair === "USDJPY") return 1000 / ep;
+                if (pair.startsWith("USD")) return 10 / ep;
+                if (pair.endsWith("JPY")) return 1000 / ep;
+                if (pair.endsWith("CAD")) return 10 / ep;
+                if (pair.endsWith("CHF")) return 10 / ep;
+                return 10;
+              })();
                 const riskUsdCalc = (accountBalance * Number(calcPct || 0)) / 100;
                 const numEntry = entryPrice !== "" ? Number(entryPrice) : null;
                 const numSL = stopLoss !== "" ? Number(stopLoss) : null;
@@ -4964,6 +5033,67 @@ function PerformanceReview({ trades }) {
           </div>
         </Card>
       )}
+
+      {/* Distribution des R */}
+      {closed.length > 0 && (() => {
+        const buckets = [
+          { label: "≤-2R", min: -99, max: -2 },
+          { label: "-1.5R", min: -2, max: -1 },
+          { label: "-1R", min: -1, max: -0.5 },
+          { label: "-0.5R", min: -0.5, max: 0 },
+          { label: "BE", min: 0, max: 0.01 },
+          { label: "+0.5R", min: 0.01, max: 0.5 },
+          { label: "+1R", min: 0.5, max: 1 },
+          { label: "+1.5R", min: 1, max: 1.5 },
+          { label: "+2R", min: 1.5, max: 2 },
+          { label: "+2R+", min: 2, max: 99 },
+        ].map(b => ({
+          ...b,
+          count: closed.filter(t => (t.resultR || 0) >= b.min && (t.resultR || 0) < b.max).length,
+        }));
+        const maxCount = Math.max(...buckets.map(b => b.count), 1);
+        return (
+          <Card style={{ padding: 18, marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 16 }}>
+              <BarChart3 size={13} color={C.purpleBright} />
+              <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Distribution des R</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 90 }}>
+              {buckets.map(b => {
+                const pct = (b.count / maxCount) * 100;
+                const isPos = b.min >= 0.01;
+                const isNeg = b.max <= 0;
+                const color = isPos ? C.teal : isNeg ? C.red : C.textMuted;
+                return (
+                  <div key={b.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                    {b.count > 0 && <span style={{ fontSize: 9, color: C.textMuted, fontWeight: 600 }}>{b.count}</span>}
+                    <div style={{ width: "100%", borderRadius: "3px 3px 0 0", background: b.count > 0 ? color : C.border, opacity: b.count > 0 ? 0.85 : 0.15, height: `${Math.max(pct, b.count > 0 ? 8 : 0)}%`, minHeight: b.count > 0 ? 4 : 0 }} />
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 3, marginTop: 5 }}>
+              {buckets.map(b => (
+                <div key={b.label} style={{ flex: 1, textAlign: "center" }}>
+                  <span style={{ fontSize: 7.5, color: C.textMuted }}>{b.label}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 16, marginTop: 10, justifyContent: "center" }}>
+              {[
+                { label: "Pertes", color: C.red, count: closed.filter(t => (t.resultR||0) < 0).length },
+                { label: "BE", color: C.textMuted, count: closed.filter(t => t.status === "breakeven").length },
+                { label: "Gains", color: C.teal, count: closed.filter(t => (t.resultR||0) > 0).length },
+              ].map(s => (
+                <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />
+                  <span style={{ fontSize: 11, color: C.textMuted }}>{s.label} <strong style={{ color: s.color }}>{s.count}</strong></span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
     </div>
   );
 }
@@ -5755,6 +5885,102 @@ function CalcResult({ label, value, color, highlight }) {
 
 const CORRECT_PIN = "1234"; // PIN par défaut — changeable dans les settings
 
+function Onboarding({ onComplete }) {
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState("");
+  const [type, setType] = useState("real");
+  const [balance, setBalance] = useState("10000");
+  const [broker, setBroker] = useState("");
+
+  const handleCreate = () => {
+    if (!name.trim()) return;
+    const acc = { id: `acc_${Date.now()}`, name: name.trim(), type, balance: Number(balance) || 10000, broker };
+    onComplete(acc);
+  };
+
+  const typeOpts = [
+    { v: "real", l: "Compte Réel", icon: "💵", desc: "Trading live avec vrai argent", color: C.teal },
+    { v: "demo", l: "Compte Démo", icon: "🎯", desc: "Pratique sans risque réel", color: C.purple },
+    { v: "challenge", l: "Challenge/Prop", icon: "🏆", desc: "FTMO, MFF, The5ers...", color: C.amber },
+  ];
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: FONT.base }}>
+      <div style={{ width: "100%", maxWidth: 420 }}>
+
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <EmeieksLogo size={56} />
+          <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginTop: 14, letterSpacing: -0.5 }}>Emeieks Trade</div>
+          <div style={{ fontSize: 14, color: C.textMuted, marginTop: 6 }}>Journal de trading ICT professionnel</div>
+        </div>
+
+        {step === 0 && (
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 6, textAlign: "center" }}>Bienvenue 👋</div>
+            <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 28, textAlign: "center", lineHeight: 1.6 }}>
+              Commençons par créer ton premier compte de trading.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+              {typeOpts.map(opt => (
+                <button key={opt.v} onClick={() => setType(opt.v)} style={{
+                  padding: "14px 16px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                  border: `2px solid ${type === opt.v ? opt.color : C.border}`,
+                  background: type === opt.v ? `${opt.color}12` : C.card,
+                  display: "flex", alignItems: "center", gap: 14, transition: "all 0.15s",
+                }}>
+                  <span style={{ fontSize: 22 }}>{opt.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: type === opt.v ? opt.color : C.text }}>{opt.l}</div>
+                    <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>{opt.desc}</div>
+                  </div>
+                  {type === opt.v && <div style={{ marginLeft: "auto", width: 18, height: 18, borderRadius: "50%", background: opt.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>
+                  </div>}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setStep(1)} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: "14px", fontSize: 15, fontWeight: 700 }}>
+              Continuer →
+            </button>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div>
+            <button onClick={() => setStep(0)} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 13, marginBottom: 20, display: "flex", alignItems: "center", gap: 4 }}>
+              ← Retour
+            </button>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 6 }}>Détails du compte</div>
+            <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 24 }}>Ces infos peuvent être modifiées plus tard dans Réglages.</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Nom du compte *</label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Mon compte réel, FTMO 100K..." autoFocus style={{ ...inputStyle, fontSize: 14 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Capital de départ ($)</label>
+                <input type="number" value={balance} onChange={e => setBalance(e.target.value)} placeholder="10000" style={{ ...inputStyle, fontSize: 14 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Broker (optionnel)</label>
+                <input value={broker} onChange={e => setBroker(e.target.value)} placeholder="Ex: ICMarkets, Pepperstone, FTMO..." style={{ ...inputStyle, fontSize: 14 }} />
+              </div>
+            </div>
+            <button onClick={handleCreate} disabled={!name.trim()} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: "14px", fontSize: 15, fontWeight: 700, marginTop: 24, opacity: name.trim() ? 1 : 0.4 }}>
+              Créer mon compte 🚀
+            </button>
+          </div>
+        )}
+
+        <div style={{ textAlign: "center", marginTop: 24, fontSize: 11, color: C.textMuted }}>
+          Tes données restent privées et sont sauvegardées localement.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PinScreen({ onUnlock, inline = false }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
@@ -5926,6 +6152,8 @@ function tradeToDb(t) {
     ote_fib: t.oteFib ?? null,
     liquidity_sweep: t.liquiditySweep ?? false,
     mss_confirmed: t.mssConfirmed ?? false,
+    retro_rating: t.retroRating ?? null,
+    retro_note: t.retroNote ?? null,
   };
 }
 
@@ -5962,6 +6190,8 @@ function dbToTrade(r) {
     oteFib: r.ote_fib,
     liquiditySweep: r.liquidity_sweep,
     mssConfirmed: r.mss_confirmed,
+    retroRating: r.retro_rating ?? 0,
+    retroNote: r.retro_note ?? "",
   };
 }
 
@@ -6217,7 +6447,7 @@ export default function TradingJournalApp() {
               {view === "dashboard" && <Dashboard trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} initialBalance={appSettings?.accountBalance || 10000} />}
               {view === "trades" && <TradesList trades={accountTrades} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
-                <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} />
+                <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} onRetroSave={async (id, data) => { await saveTrade({ ...trades.find(t => t.id === id), ...data }); }} />
               )}
               {view === "tradeForm" && (
                 <TradeForm initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} />
