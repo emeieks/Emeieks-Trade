@@ -6225,9 +6225,9 @@ export default function TradingJournalApp() {
         }
         setDbError(null);
       } catch (e) {
-        console.error("Erreur chargement:", e);
-        setDbError("Connexion Supabase échouée — mode hors ligne");
-        // Ne PAS charger les mock trades - on garde les données existantes
+        console.error("Erreur chargement Supabase:", e);
+        const msg = e?.message?.slice(0, 120) || "Erreur inconnue";
+        setDbError(`Connexion Supabase échouée — ${msg}`);
       } finally {
         setLoading(false);
       }
@@ -6369,6 +6369,11 @@ export default function TradingJournalApp() {
 
         {/* Banner Killzone style bourse */}
         <KillzoneBanner />
+        {dbError && (
+          <div style={{ background: "rgba(220,38,38,0.12)", borderBottom: "1px solid rgba(220,38,38,0.3)", padding: "7px 18px", fontSize: 11.5, color: "#FF6B6B", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            ⚠️ <span>{dbError}</span>
+          </div>
+        )}
 
         <main className="app-main" style={{ flex: 1, minWidth: 0, padding: "22px 16px", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 70px)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           {loading ? (
