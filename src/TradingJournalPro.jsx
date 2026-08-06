@@ -19,6 +19,12 @@ import {
 
 const PAIRS = ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY", "AUDUSD", "USDCAD", "NZDUSD", "GBPJPY"];
 
+const DEFAULT_ERRORS = [
+  "Entrer trop tôt","Entrer trop tard","TP trop tôt","SL trop serré","SL trop large",
+  "Pas de confirmation MSS","Revenge trading","Hors killzone","Pas de sweep de liquidité",
+  "FOMO","Sur-trader","Ignorer le DXY",
+];
+
 const TAG_CATALOG = [
   { name: "OB+", category: "setup" },
   { name: "OB-", category: "setup" },
@@ -2422,7 +2428,82 @@ function PdRuleRow({ tag, color }) {
   );
 }
 
-function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetroSave }) {
+function SimulateurTPMasquable({ trade }) {
+  const [show, setShow] = useState(false);
+  return (
+    <Card style={{ padding: 16 }}>
+      <button onClick={() => setShow(v => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{ fontSize: 14 }}>🎯</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Simulateur de TP</span>
+        </div>
+        <ChevronDown size={14} color={C.textMuted} style={{ transform: show ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
+      </button>
+      {show && <div style={{ marginTop: 14 }}><SimulateurTP trade={trade} /></div>}
+    </Card>
+  );
+}
+
+function AmeliorerSection({ appSettings, tradeId }) {
+  const KEY = `ameliorer_${tradeId}`;
+  const [checked, setChecked] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
+  });
+
+  const toggle = (err) => {
+    const next = checked.includes(err) ? checked.filter(e => e !== err) : [...checked, err];
+    setChecked(next);
+    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
+  };
+
+  const hidden = appSettings?.hiddenErrors || [];
+  const custom = appSettings?.customErrors || [];
+  const errors = [
+    ...DEFAULT_ERRORS.filter(e => !hidden.includes(e)),
+    ...custom,
+  ];
+
+  if (errors.length === 0) return null;
+
+  return (
+    <Card style={{ padding: 16 }}>
+      <CardLabel>À améliorer</CardLabel>
+      <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 12, marginTop: 4 }}>Coche les erreurs commises sur ce trade</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {errors.map(err => {
+          const isChecked = checked.includes(err);
+          return (
+            <button key={err} onClick={() => toggle(err)} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
+              borderRadius: 8, cursor: "pointer", textAlign: "left",
+              background: isChecked ? C.redDim : (C.inputBg || C.card),
+              border: `1px solid ${isChecked ? C.red + "60" : C.border}`,
+              transition: "all 0.12s",
+            }}>
+              <div style={{
+                width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                border: `1.5px solid ${isChecked ? C.red : C.border}`,
+                background: isChecked ? C.red : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {isChecked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>}
+              </div>
+              <span style={{ fontSize: 12.5, color: isChecked ? C.red : C.text, fontWeight: isChecked ? 600 : 400 }}>{err}</span>
+            </button>
+          );
+        })}
+      </div>
+      {checked.length > 0 && (
+        <div style={{ marginTop: 12, padding: "8px 12px", background: C.redDim, borderRadius: 7, border: `1px solid ${C.red}30` }}>
+          <span style={{ fontSize: 11.5, color: C.red, fontWeight: 600 }}>{checked.length} erreur{checked.length > 1 ? "s" : ""} identifiée{checked.length > 1 ? "s" : ""}</span>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{checked.join(" · ")}</div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetroSave, appSettings }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState("avant");
   const [aiLoading, setAiLoading] = useState(false);
@@ -2430,8 +2511,8 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
   const [aiError, setAiError] = useState("");
   const [retroNote, setRetroNote] = useState(trade?.retroNote || "");
   const [retroRating, setRetroRating] = useState(trade?.retroRating || 0);
+  const [imgZoom, setImgZoom] = useState(null);
 
-  // Sauvegarde auto retroRating quand il change
   const handleRetroRating = (val) => {
     setRetroRating(val);
     if (onRetroSave && trade?.id) onRetroSave(trade.id, { retroRating: val, retroNote });
@@ -2440,7 +2521,6 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
     setRetroNote(val);
     if (onRetroSave && trade?.id) onRetroSave(trade.id, { retroRating, retroNote: val });
   };
-  const [imgZoom, setImgZoom] = useState(null); // { src, label }
 
   const runAiAnalysis = async () => {
     setAiLoading(true); setAiError("");
@@ -2460,27 +2540,10 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
   const isBE = trade.status === "breakeven";
 
   const TABS = [
-    { id: "avant", label: "Avant" },
-    { id: "apres", label: "Après" },
+    { id: "avant", label: trade.pair || "Paire" },
+    { id: "apres", label: "DXY" },
     { id: "retour", label: "Retour" },
   ];
-
-  // Composant barre de score cliquable
-  const ScoreBar = ({ value, onChange, colors }) => (
-    <div style={{ display: "flex", gap: 3 }}>
-      {[1,2,3,4,5,6,7,8,9,10].map(n => {
-        const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
-        const filled = n <= value;
-        return (
-          <button key={n} onClick={() => onChange(n === value ? 0 : n)} style={{
-            flex: 1, height: 24, borderRadius: 4, border: "none", cursor: "pointer",
-            background: filled ? col : (C.inputBg || C.card),
-            opacity: filled ? 1 : 0.2, transition: "all 0.1s",
-          }} />
-        );
-      })}
-    </div>
-  );
 
   return (
     <div className="fade-in" style={{ maxWidth: 680 }}>
@@ -2495,7 +2558,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
             <DirBadge direction={trade.direction} size="lg" />
             <ResultBadge resultR={trade.resultR} status={trade.status} />
           </div>
-          <div style={{ fontSize: 12, color: C.textSecondary, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12, color: C.textSecondary, display: "flex", alignItems: "center", gap: 6 }}>
             <Clock size={12} /> {fmtDateTime(trade.entryTime)} · {getSession(trade.entryTime)}
           </div>
         </div>
@@ -2509,68 +2572,46 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
         </div>
       </div>
 
-      {/* Onglets avec swipe */}
-      {(() => {
-        const tabOrder = ["avant", "apres", "retour"];
-        const handleSwipe = (() => {
-          let startX = 0;
-          return {
-            onTouchStart: (e) => { startX = e.touches[0].clientX; },
-            onTouchEnd: (e) => {
-              const diff = startX - e.changedTouches[0].clientX;
-              if (Math.abs(diff) < 50) return;
-              const cur = tabOrder.indexOf(activeTab);
-              if (diff > 0 && cur < tabOrder.length - 1) setActiveTab(tabOrder[cur + 1]);
-              if (diff < 0 && cur > 0) setActiveTab(tabOrder[cur - 1]);
-            },
-          };
-        })();
-        return (
-          <div {...handleSwipe}>
-            <div style={{ display: "flex", gap: 0, marginBottom: 18, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.inputBg || C.card }}>
-              {TABS.map((tab, i) => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-                  flex: 1, padding: "11px 8px", border: "none", borderRight: i < TABS.length - 1 ? `1px solid ${C.border}` : "none",
-                  background: activeTab === tab.id ? C.purple : "transparent",
-                  color: activeTab === tab.id ? "#fff" : C.textMuted,
-                  fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 400,
-                  cursor: "pointer", transition: "all 0.15s",
-                }}>{tab.label}</button>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      {/* Onglets */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 18, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.inputBg || C.card }}>
+        {TABS.map((tab, i) => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+            flex: 1, padding: "11px 8px", border: "none",
+            borderRight: i < TABS.length - 1 ? `1px solid ${C.border}` : "none",
+            background: activeTab === tab.id ? C.purple : "transparent",
+            color: activeTab === tab.id ? "#fff" : C.textMuted,
+            fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 400,
+            cursor: "pointer", transition: "all 0.15s",
+          }}>{tab.label}</button>
+        ))}
+      </div>
 
-      {/* ─── ONGLET 1 : AVANT ─── */}
-      <div onTouchStart={(e) => { window._swipeStartX = e.touches[0].clientX; }} onTouchEnd={(e) => {
-        const diff = (window._swipeStartX || 0) - e.changedTouches[0].clientX;
+      {/* Swipe */}
+      <div onTouchStart={e => { window._swipeX = e.touches[0].clientX; }} onTouchEnd={e => {
+        const diff = (window._swipeX||0) - e.changedTouches[0].clientX;
         const tabs = ["avant","apres","retour"];
         const cur = tabs.indexOf(activeTab);
         if (Math.abs(diff) > 50) { if (diff > 0 && cur < 2) setActiveTab(tabs[cur+1]); if (diff < 0 && cur > 0) setActiveTab(tabs[cur-1]); }
       }}>
+
+      {/* ─── ONGLET 1 : PAIRE ─── */}
       {activeTab === "avant" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-          {/* Screenshots côte à côte : paire gauche, DXY droite */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <Card style={{ padding: 0, overflow: "hidden" }}>
-              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>Paire — Avant</div>
+              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>Avant</div>
               {trade.screenshotBefore
-                ? <img src={trade.screenshotBefore} alt="Avant" onClick={() => setImgZoom({ src: trade.screenshotBefore, label: "Paire — Avant" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
-                : <div style={{ padding: "24px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucun screenshot</div>
-              }
+                ? <img src={trade.screenshotBefore} onClick={() => setImgZoom({ src: trade.screenshotBefore, label: trade.pair + " — Avant" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
+                : <div style={{ padding: "32px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucune photo</div>}
             </Card>
             <Card style={{ padding: 0, overflow: "hidden" }}>
-              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>DXY — Avant</div>
-              {trade.dxyScreenshotBefore
-                ? <img src={trade.dxyScreenshotBefore} alt="DXY Avant" onClick={() => setImgZoom({ src: trade.dxyScreenshotBefore, label: "DXY — Avant" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
-                : <div style={{ padding: "24px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucun screenshot</div>
-              }
+              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>Après</div>
+              {trade.screenshotAfter
+                ? <img src={trade.screenshotAfter} onClick={() => setImgZoom({ src: trade.screenshotAfter, label: trade.pair + " — Après" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
+                : <div style={{ padding: "32px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucune photo</div>}
             </Card>
           </div>
 
-          {/* Identification setup */}
           <Card style={{ padding: 16 }}>
             <CardLabel>Identification</CardLabel>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
@@ -2578,12 +2619,12 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
               <DetailStat label="Direction" value={trade.direction === "long" ? "Long 📈" : "Short 📉"} valueColor={trade.direction === "long" ? "#4A9EFF" : "#F97316"} />
               <DetailStat label="Session" value={getSession(trade.entryTime) || "—"} />
               <DetailStat label="Timeframe" value={(trade.tags || []).find(t => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t)) || "—"} />
-              {trade.tfAlignment && <DetailStat label="TF alignement" value={`${trade.tfAlignment}${trade.tfAlignmentSetup ? ` · ${trade.tfAlignmentSetup}` : ""}`} />}
-              {trade.oteFib && <DetailStat label="Zone OTE" value={`${trade.oteFib} (${trade.oteFib === "0.618" ? "Golden" : trade.oteFib === "0.79" ? "Premium" : trade.oteFib})`} valueColor={C.teal} />}
+              {trade.tfAlignment && <DetailStat label="TF sup." value={trade.tfAlignment + (trade.tfAlignmentSetup ? " · " + trade.tfAlignmentSetup : "")} />}
+              {trade.oteFib && <DetailStat label="Zone OTE" value={trade.oteFib} valueColor={C.teal} />}
+              {trade.confidenceLevel > 0 && <DetailStat label="Confiance" value={trade.confidenceLevel + "/10"} valueColor={trade.confidenceLevel >= 7 ? C.teal : trade.confidenceLevel >= 4 ? C.amber : C.red} />}
             </div>
           </Card>
 
-          {/* PD Arrays + setup */}
           {((trade.tags || []).filter(t => TAG_CATALOG.find(tc => tc.name === t && tc.category === "setup")).length > 0) && (
             <Card style={{ padding: 16 }}>
               <CardLabel>PD Arrays / Setup</CardLabel>
@@ -2593,63 +2634,6 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
             </Card>
           )}
 
-          {/* DXY */}
-          {(trade.dxyBias || trade.dxyTags?.length > 0) && (
-            <Card style={{ padding: 16 }}>
-              <CardLabel>Analyse DXY</CardLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
-                {trade.dxyBias && <DetailStat label="Biais DXY" value={trade.dxyBias} />}
-                {trade.dxyTags?.length > 0 && (
-                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    {trade.dxyTags.map(tag => <TagBadge key={tag} name={tag} size="sm" />)}
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {/* Checklist */}
-          {(trade.liquiditySweep !== undefined || trade.mssConfirmed !== undefined) && (
-            <Card style={{ padding: 16 }}>
-              <CardLabel>Checklist</CardLabel>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-                {[
-                  { label: "Sweep de liquidité", val: trade.liquiditySweep },
-                  { label: "MSS confirmé", val: trade.mssConfirmed },
-                ].map(item => (
-                  <div key={item.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: C.bg, borderRadius: 8 }}>
-                    <span style={{ fontSize: 13, color: C.text }}>{item.label}</span>
-                    <span style={{ fontSize: 16 }}>{item.val ? "✅" : "❌"}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Niveau de confiance avant */}
-          {trade.confidenceLevel > 0 && (
-            <Card style={{ padding: 16 }}>
-              <CardLabel>Niveau de confiance avant le trade</CardLabel>
-              <div style={{ marginTop: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, color: C.textSecondary }}>
-                    {trade.confidenceLevel <= 3 ? "⚠️ Faible" : trade.confidenceLevel <= 5 ? "🟡 Moyen" : trade.confidenceLevel <= 7 ? "🟢 Bon" : "🔥 Excellent"}
-                  </span>
-                  <span className="tnum" style={{ fontSize: 24, fontWeight: 800, color: trade.confidenceLevel <= 3 ? C.red : trade.confidenceLevel <= 5 ? C.amber : trade.confidenceLevel <= 7 ? C.teal : C.purpleBright }}>
-                    {trade.confidenceLevel}/10
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 3 }}>
-                  {[1,2,3,4,5,6,7,8,9,10].map(n => {
-                    const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
-                    return <div key={n} style={{ flex: 1, height: 8, borderRadius: 3, background: n <= trade.confidenceLevel ? col : (C.border) }} />;
-                  })}
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* Notes avant */}
           {trade.notes && (
             <Card style={{ padding: 16 }}>
               <CardLabel>Notes</CardLabel>
@@ -2659,81 +2643,55 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
         </div>
       )}
 
-      {/* ─── ONGLET 2 : APRÈS ─── */}
+      {/* ─── ONGLET 2 : DXY ─── */}
       {activeTab === "apres" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* Screenshots côte à côte : paire gauche, DXY droite */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <Card style={{ padding: 0, overflow: "hidden" }}>
-              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>Paire — Après</div>
-              {trade.screenshotAfter
-                ? <img src={trade.screenshotAfter} alt="Après" onClick={() => setImgZoom({ src: trade.screenshotAfter, label: "Paire — Après" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
-                : <div style={{ padding: "24px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucun screenshot</div>
-              }
+              <div style={{ fontSize: 9.5, color: C.amber, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>DXY — Avant</div>
+              {trade.dxyScreenshotBefore
+                ? <img src={trade.dxyScreenshotBefore} onClick={() => setImgZoom({ src: trade.dxyScreenshotBefore, label: "DXY — Avant" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
+                : <div style={{ padding: "32px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucune photo</div>}
             </Card>
             <Card style={{ padding: 0, overflow: "hidden" }}>
-              <div style={{ fontSize: 9.5, color: C.textMuted, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>DXY — Après</div>
+              <div style={{ fontSize: 9.5, color: C.amber, padding: "5px 8px", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>DXY — Après</div>
               {trade.dxyScreenshotAfter
-                ? <img src={trade.dxyScreenshotAfter} alt="DXY Après" onClick={() => setImgZoom({ src: trade.dxyScreenshotAfter, label: "DXY — Après" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
-                : <div style={{ padding: "24px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucun screenshot</div>
-              }
+                ? <img src={trade.dxyScreenshotAfter} onClick={() => setImgZoom({ src: trade.dxyScreenshotAfter, label: "DXY — Après" })} style={{ width: "100%", display: "block", cursor: "zoom-in" }} />
+                : <div style={{ padding: "32px 8px", textAlign: "center", color: C.textMuted, fontSize: 11 }}>Aucune photo</div>}
             </Card>
           </div>
 
-          {/* Résultat */}
+          {(trade.dxyBias || (trade.dxyTags || []).length > 0) && (
+            <Card style={{ padding: 16 }}>
+              <CardLabel>Analyse DXY</CardLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+                {trade.dxyBias && <DetailStat label="Biais" value={trade.dxyBias} />}
+                {(trade.dxyTags || []).map(tag => <TagBadge key={tag} name={tag} size="sm" />)}
+              </div>
+            </Card>
+          )}
+
           <Card style={{ padding: 16 }}>
             <CardLabel>Résultat</CardLabel>
-
-            {/* P&L en grand */}
             <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 12 }}>
-              <div style={{ flex: 1, padding: "14px 12px", borderRadius: 10, background: (trade.status === "breakeven" ? "rgba(107,115,136,0.1)" : isWin ? C.tealDim : C.redDim), border: `1.5px solid ${trade.status === "breakeven" ? C.textMuted : isWin ? C.teal : C.red}40`, textAlign: "center" }}>
+              <div style={{ flex: 1, padding: "14px 12px", borderRadius: 10, background: isBE ? "rgba(107,115,136,0.1)" : isWin ? C.tealDim : C.redDim, border: `1.5px solid ${isBE ? C.textMuted : isWin ? C.teal : C.red}40`, textAlign: "center" }}>
                 <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Résultat $</div>
-                <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: trade.status === "breakeven" ? C.textSecondary : isWin ? C.teal : C.red, letterSpacing: -0.5 }}>
-                  {trade.status === "breakeven" ? "BE" : fmtUsdSigned(trade.resultUsd)}
-                </div>
+                <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: isBE ? C.textSecondary : isWin ? C.teal : C.red }}>{isBE ? "BE" : fmtUsdSigned(trade.resultUsd)}</div>
               </div>
-              <div style={{ flex: 1, padding: "14px 12px", borderRadius: 10, background: (trade.status === "breakeven" ? "rgba(107,115,136,0.1)" : isWin ? C.tealDim : C.redDim), border: `1.5px solid ${trade.status === "breakeven" ? C.textMuted : isWin ? C.teal : C.red}40`, textAlign: "center" }}>
+              <div style={{ flex: 1, padding: "14px 12px", borderRadius: 10, background: isBE ? "rgba(107,115,136,0.1)" : isWin ? C.tealDim : C.redDim, border: `1.5px solid ${isBE ? C.textMuted : isWin ? C.teal : C.red}40`, textAlign: "center" }}>
                 <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Résultat R</div>
-                <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: trade.status === "breakeven" ? C.textSecondary : isWin ? C.teal : C.red, letterSpacing: -0.5 }}>
-                  {trade.status === "breakeven" ? "0R" : fmtR(trade.resultR)}
-                </div>
+                <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: isBE ? C.textSecondary : isWin ? C.teal : C.red }}>{isBE ? "0R" : fmtR(trade.resultR)}</div>
               </div>
             </div>
-
-            {/* Détails prix en grille */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               <DetailStat label="Entrée" value={trade.entryPrice ?? "—"} />
               <DetailStat label="Sortie" value={trade.exitPrice ?? "—"} />
               <DetailStat label="Stop Loss" value={trade.stopLoss ?? "—"} valueColor={C.red} />
               <DetailStat label="Take Profit" value={trade.takeProfit ?? "—"} valueColor={C.teal} />
-              <DetailStat label="Taille" value={trade.positionSize ? `${trade.positionSize} lot` : "—"} />
+              <DetailStat label="Taille" value={trade.positionSize ? trade.positionSize + " lot" : "—"} />
               <DetailStat label="Risque $" value={trade.riskUsd ? fmtUsd(trade.riskUsd) : "—"} />
             </div>
           </Card>
-
-          {/* Statut */}
-          <Card style={{ padding: 16 }}>
-            <CardLabel>Statut</CardLabel>
-            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-              {[
-                { v: "open", label: "🔓 Ouvert", color: C.purple },
-                { v: "win",  label: "✅ Gagné",  color: C.teal },
-                { v: "loss", label: "❌ Perdu",  color: C.red },
-                { v: "breakeven", label: "➖ BE", color: C.textSecondary },
-              ].map(opt => {
-                const active = trade.status === opt.v;
-                return (
-                  <div key={opt.v} style={{ flex: "1 1 80px", padding: "10px 8px", borderRadius: 9, textAlign: "center",
-                    border: `2px solid ${active ? opt.color : C.border}`,
-                    background: active ? `${opt.color}18` : "transparent",
-                    color: active ? opt.color : C.textMuted, fontSize: 12, fontWeight: active ? 700 : 400 }}>
-                    {opt.label}
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-
         </div>
       )}
 
@@ -2741,141 +2699,98 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
       {activeTab === "retour" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-          {/* Score confiance avant (lecture seule) */}
           <Card style={{ padding: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <CardLabel style={{ margin: 0 }}>Confiance avant le trade</CardLabel>
-              <span className="tnum" style={{ fontSize: 20, fontWeight: 800, color: (trade.confidenceLevel || 0) <= 3 ? C.red : (trade.confidenceLevel || 0) <= 5 ? C.amber : (trade.confidenceLevel || 0) <= 7 ? C.teal : C.purpleBright }}>
-                {trade.confidenceLevel ? `${trade.confidenceLevel}/10` : "—"}
+              <CardLabel style={{ margin: 0 }}>Confiance avant</CardLabel>
+              <span className="tnum" style={{ fontSize: 20, fontWeight: 800, color: (trade.confidenceLevel||0) <= 3 ? C.red : (trade.confidenceLevel||0) <= 5 ? C.amber : (trade.confidenceLevel||0) <= 7 ? C.teal : C.purpleBright }}>
+                {trade.confidenceLevel ? trade.confidenceLevel + "/10" : "—"}
               </span>
             </div>
             <div style={{ display: "flex", gap: 3 }}>
               {[1,2,3,4,5,6,7,8,9,10].map(n => {
                 const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
-                const filled = n <= (trade.confidenceLevel || 0);
-                return <div key={n} style={{ flex: 1, height: 10, borderRadius: 3, background: filled ? col : (C.inputBg || C.card), border: `1px solid ${filled ? col : C.border}` }} />;
+                return <div key={n} style={{ flex: 1, height: 10, borderRadius: 3, background: n <= (trade.confidenceLevel||0) ? col : (C.inputBg||C.card), border: `1px solid ${n <= (trade.confidenceLevel||0) ? col : C.border}` }} />;
               })}
             </div>
           </Card>
 
-          {/* Score qualité après */}
           <Card style={{ padding: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <CardLabel style={{ margin: 0 }}>Qualité du trade (après)</CardLabel>
+              <CardLabel style={{ margin: 0 }}>Qualité (après)</CardLabel>
               <span className="tnum" style={{ fontSize: 20, fontWeight: 800, color: retroRating <= 0 ? C.textMuted : retroRating <= 3 ? C.red : retroRating <= 5 ? C.amber : retroRating <= 7 ? C.teal : C.purpleBright }}>
-                {retroRating > 0 ? `${retroRating}/10` : "—"}
+                {retroRating > 0 ? retroRating + "/10" : "—"}
               </span>
             </div>
-            <div style={{ display: "flex", gap: 3, marginBottom: 8 }}>
+            <div style={{ display: "flex", gap: 3 }}>
               {[1,2,3,4,5,6,7,8,9,10].map(n => {
                 const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
-                const filled = n <= retroRating;
-                return (
-                  <button key={n} onClick={() => handleRetroRating(n === retroRating ? 0 : n)} style={{
-                    flex: 1, height: 30, borderRadius: 4,
-                    border: `1.5px solid ${filled ? col : C.border}`,
-                    cursor: "pointer", background: filled ? col : (C.inputBg || C.card),
-                    transition: "all 0.1s",
-                  }} />
-                );
+                return <button key={n} onClick={() => handleRetroRating(n === retroRating ? 0 : n)} style={{ flex: 1, height: 28, borderRadius: 4, border: `1.5px solid ${n <= retroRating ? col : C.border}`, cursor: "pointer", background: n <= retroRating ? col : (C.inputBg||C.card), transition: "all 0.1s" }} />;
               })}
             </div>
-            <p style={{ fontSize: 11, color: C.textMuted, margin: 0 }}>
-              {retroRating === 0 ? "Évalue la qualité de l'exécution après coup." :
-               retroRating <= 3 ? "⚠️ Trade de mauvaise qualité — à analyser" :
-               retroRating <= 5 ? "🟡 Exécution correcte mais améliorable" :
-               retroRating <= 7 ? "🟢 Bonne exécution dans l'ensemble" : "🔥 Exécution parfaite — A+ setup"}
-            </p>
           </Card>
 
-          {/* Delta */}
           {trade.confidenceLevel > 0 && retroRating > 0 && (
             <Card style={{ padding: 14, background: `${Math.abs(retroRating - trade.confidenceLevel) <= 1 ? C.teal : C.amber}12`, border: `1px solid ${Math.abs(retroRating - trade.confidenceLevel) <= 1 ? C.teal : C.amber}40` }}>
               <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginBottom: 3 }}>
                 {Math.abs(retroRating - trade.confidenceLevel) <= 1 ? "✅ Bonne calibration" : retroRating > trade.confidenceLevel ? "⬆️ Meilleur que prévu" : "⬇️ Moins bon que prévu"}
               </div>
-              <div style={{ fontSize: 12, color: C.textSecondary }}>
-                Avant {trade.confidenceLevel}/10 · Après {retroRating}/10 · Écart {retroRating > trade.confidenceLevel ? "+" : ""}{retroRating - trade.confidenceLevel}
+              <div style={{ fontSize: 12, color: C.textSecondary }}>Avant {trade.confidenceLevel}/10 · Après {retroRating}/10</div>
+            </Card>
+          )}
+
+          {((trade.tags || []).filter(t => TAG_CATALOG.find(tc => tc.name === t && tc.category === "setup")).length > 0 || (trade.dxyTags || []).length > 0) && (
+            <Card style={{ padding: 16 }}>
+              <CardLabel>Règles respectées</CardLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+                {(trade.tags || []).filter(t => TAG_CATALOG.find(tc => tc.name === t && tc.category === "setup")).map(tag => {
+                  const def = TAG_CATALOG.find(t => t.name === tag);
+                  return <PdRuleRow key={tag} tag={tag} color={def?.color || C.purpleBright} />;
+                })}
+                {(trade.dxyTags || []).length > 0 && <>
+                  <div style={{ fontSize: 10, color: C.amber, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>DXY</div>
+                  {(trade.dxyTags || []).map(tag => <PdRuleRow key={"dxy_" + tag} tag={tag} color={C.amber} />)}
+                </>}
               </div>
             </Card>
           )}
 
-          {/* PD Arrays — Respecté / Non respecté */}
-          {(() => {
-            const pdTags = (trade.tags || []).filter(t => TAG_CATALOG.find(tc => tc.name === t && tc.category === "setup"));
-            if (pdTags.length === 0) return null;
-            return (
-              <Card style={{ padding: 16 }}>
-                <CardLabel>Règles de setup respectées</CardLabel>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
-                  {pdTags.map(tag => {
-                    const def = TAG_CATALOG.find(t => t.name === tag);
-                    const color = def?.color || C.purpleBright;
-                    return <PdRuleRow key={tag} tag={tag} color={color} />;
-                  })}
-                </div>
-              </Card>
-            );
-          })()}
+          {/* À améliorer — bullets cochables */}
+          <AmeliorerSection appSettings={appSettings} tradeId={trade.id} />
 
-          {/* Simulateur "Et si j'avais visé X R" */}
-          {trade.riskUsd && trade.status !== "open" && <SimulateurTP trade={trade} />}
+          {/* Simulateur TP masquable */}
+          {trade.riskUsd && trade.status !== "open" && <SimulateurTPMasquable trade={trade} />}
 
-          {/* Rétrospective — 1 seul bloc texte */}
           <Card style={{ padding: 16 }}>
             <CardLabel>Rétrospective</CardLabel>
-            <textarea rows={5} value={retroNote} onChange={e => handleRetroNote(e.target.value)} placeholder="Qu'est-ce qui s'est passé ? Qu'as-tu bien fait ? Qu'aurais-tu fait différemment ? Quelles leçons tirer ?" style={{ ...inputStyle, resize: "vertical", marginTop: 10, lineHeight: 1.6 }} />
+            <textarea rows={5} value={retroNote} onChange={e => handleRetroNote(e.target.value)} placeholder="Qu'est-ce qui s'est passé ? Leçons ?" style={{ ...inputStyle, resize: "vertical", marginTop: 10, lineHeight: 1.6 }} />
           </Card>
 
-          {/* Verdict */}
           <Card style={{ padding: 16 }}>
             <CardLabel>Ce trade était</CardLabel>
             <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-              <button onClick={() => onVerdictChange(trade.id, trade.verdict === "good" ? null : "good")} style={{
-                flex: 1, padding: "14px 12px", borderRadius: 12, fontSize: 26,
-                border: `2px solid ${trade.verdict === "good" ? C.teal : C.border}`,
-                background: trade.verdict === "good" ? C.tealDim : (C.inputBg || C.card),
-                cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
-              }}>
-                👍
-                <div style={{ fontSize: 12, color: trade.verdict === "good" ? C.teal : C.textMuted, fontWeight: 600 }}>Bon trade</div>
+              <button onClick={() => onVerdictChange(trade.id, trade.verdict === "good" ? null : "good")} style={{ flex: 1, padding: "14px 12px", borderRadius: 12, fontSize: 26, border: `2px solid ${trade.verdict === "good" ? C.teal : C.border}`, background: trade.verdict === "good" ? C.tealDim : (C.inputBg||C.card), cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                👍<div style={{ fontSize: 12, color: trade.verdict === "good" ? C.teal : C.textMuted, fontWeight: 600 }}>Bon trade</div>
               </button>
-              <button onClick={() => onVerdictChange(trade.id, trade.verdict === "bad" ? null : "bad")} style={{
-                flex: 1, padding: "14px 12px", borderRadius: 12, fontSize: 26,
-                border: `2px solid ${trade.verdict === "bad" ? C.red : C.border}`,
-                background: trade.verdict === "bad" ? C.redDim : (C.inputBg || C.card),
-                cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
-              }}>
-                👎
-                <div style={{ fontSize: 12, color: trade.verdict === "bad" ? C.red : C.textMuted, fontWeight: 600 }}>Mauvais trade</div>
+              <button onClick={() => onVerdictChange(trade.id, trade.verdict === "bad" ? null : "bad")} style={{ flex: 1, padding: "14px 12px", borderRadius: 12, fontSize: 26, border: `2px solid ${trade.verdict === "bad" ? C.red : C.border}`, background: trade.verdict === "bad" ? C.redDim : (C.inputBg||C.card), cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                👎<div style={{ fontSize: 12, color: trade.verdict === "bad" ? C.red : C.textMuted, fontWeight: 600 }}>Mauvais trade</div>
               </button>
             </div>
           </Card>
 
-          {/* Note personnelle */}
-          <Card style={{ padding: 16 }}>
-            <CardLabel>Note personnelle</CardLabel>
-            <p style={{ fontSize: 13, lineHeight: 1.6, margin: "10px 0 0", color: C.text, whiteSpace: "pre-wrap" }}>{trade.notes || "Aucune note."}</p>
-          </Card>
-
-          {/* Analyse IA */}
           <Card style={{ padding: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <Brain size={14} color={C.purpleBright} />
-                <span style={{ fontSize: 13, fontWeight: 700 }}>Analyse IA</span>
-              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}><Brain size={14} color={C.purpleBright} /><span style={{ fontSize: 13, fontWeight: 700 }}>Analyse IA</span></div>
               <button onClick={runAiAnalysis} disabled={aiLoading} style={{ ...btn.ghost, fontSize: 11.5, padding: "6px 11px", opacity: aiLoading ? 0.5 : 1 }}>
                 {aiLoading ? "⟳" : <Sparkles size={12} />} {aiAnalysis ? "Réanalyser" : "Analyser"}
               </button>
             </div>
             {aiError && <div style={{ color: C.red, fontSize: 12, padding: "9px 11px", background: C.redDim, borderRadius: 7 }}>{aiError}</div>}
-            {!aiAnalysis && !aiLoading && <div style={{ textAlign: "center", padding: "16px", color: C.textMuted, fontSize: 12 }}>Clique sur "Analyser" pour une lecture IA de ce trade.</div>}
+            {!aiAnalysis && !aiLoading && <div style={{ textAlign: "center", padding: "16px", color: C.textMuted, fontSize: 12 }}>Clique sur "Analyser" pour une lecture IA.</div>}
             {aiLoading && <div style={{ textAlign: "center", padding: "16px", color: C.textSecondary, fontSize: 12 }}>Analyse en cours…</div>}
             {aiAnalysis && (
               <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 8 }}>
                 {aiAnalysis.split("\n").map(l => l.replace(/^[-•*]\s*/, "").trim()).filter(Boolean).map((line, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, padding: "8px 10px", background: C.inputBg || C.card, borderRadius: 7, border: `1px solid ${C.border}` }}>
+                  <div key={i} style={{ display: "flex", gap: 8, padding: "8px 10px", background: C.inputBg||C.card, borderRadius: 7, border: `1px solid ${C.border}` }}>
                     <Sparkles size={12} color={C.purpleBright} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span style={{ fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>{line}</span>
                   </div>
@@ -5737,6 +5652,25 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
         </SettingsRow>
       </SettingsSection>
 
+      <SettingsSection title="⚠️ Erreurs à améliorer">
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>Apparaissent dans l'onglet Retour. Clique pour masquer celles que tu n'utilises pas.</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 8 }}>Par défaut</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+          {DEFAULT_ERRORS.map(err => {
+            const hidden = (settings.hiddenErrors || []).includes(err);
+            return (
+              <button key={err} onClick={() => {
+                const cur = settings.hiddenErrors || [];
+                update({ hiddenErrors: hidden ? cur.filter(x => x !== err) : [...cur, err] });
+              }} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 11.5, cursor: "pointer", border: `1px solid ${hidden ? C.border : C.red}`, background: hidden ? "transparent" : "rgba(255,83,112,0.08)", color: hidden ? C.textMuted : C.red, textDecoration: hidden ? "line-through" : "none", opacity: hidden ? 0.5 : 1 }}>{err}</button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 8 }}>Personnalisées</div>
+        <TagList items={settings.customErrors || []} onRemove={err => update({ customErrors: (settings.customErrors || []).filter(e => e !== err) })} />
+        <AddItemInput placeholder="Ex: Trop de confluences, mauvais TF..." onAdd={err => { if (err && !(settings.customErrors || []).includes(err)) update({ customErrors: [...(settings.customErrors || []), err] }); }} />
+      </SettingsSection>
+
       {toast && (
         <div style={{ position: "fixed", bottom: 130, left: "50%", transform: "translateX(-50%)", background: C.card, border: `1px solid ${C.border}`, padding: "9px 16px", borderRadius: 8, fontSize: 12.5, color: C.text, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 1000 }}>
           ✓ {toast}
@@ -6293,7 +6227,7 @@ export default function TradingJournalApp() {
       } catch (e) {
         console.error("Erreur chargement:", e);
         setDbError("Connexion Supabase échouée — mode hors ligne");
-        setTrades(MOCK_TRADES);
+        // Ne PAS charger les mock trades - on garde les données existantes
       } finally {
         setLoading(false);
       }
@@ -6447,7 +6381,7 @@ export default function TradingJournalApp() {
               {view === "dashboard" && <Dashboard trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} initialBalance={appSettings?.accountBalance || 10000} />}
               {view === "trades" && <TradesList trades={accountTrades} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
-                <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} onRetroSave={async (id, data) => { await saveTrade({ ...trades.find(t => t.id === id), ...data }); }} />
+                <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} appSettings={appSettings} onRetroSave={async (id, data) => { await saveTrade({ ...trades.find(t => t.id === id), ...data }); }} />
               )}
               {view === "tradeForm" && (
                 <TradeForm initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} />
