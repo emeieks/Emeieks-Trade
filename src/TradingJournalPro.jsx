@@ -1291,7 +1291,7 @@ function getS() { return {
    TOP BAR — sélecteur de période façon TradeZella
    ============================================================================ */
 
-function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, activeAccountId, onSwitchAccount, onHome, currentBalance }) {
+function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, activeAccountId, onSwitchAccount, onHome, currentBalance, onRefresh }) {
   const [showAccounts, setShowAccounts] = useState(false);
   const activeAccount = accounts?.find(a => a.id === activeAccountId) || accounts?.[0];
 
@@ -1342,6 +1342,16 @@ function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, a
               </>
             )}
           </div>
+        )}
+
+        {/* Sync manuel */}
+        {onRefresh && (
+          <button onClick={onRefresh} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="Synchroniser">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </button>
         )}
 
         {/* Calendrier */}
@@ -2068,6 +2078,7 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
 
 function TradeRow({ t, onOpen }) {
   const setupTags = (t.tags || []).filter(tag => TAG_CATALOG.find(tc => tc.name === tag && tc.category === "setup"));
+  const dxyTags = t.dxyTags || [];
   const isWin = t.resultR > 0;
   const cur = t.status === "open" ? "open" : t.status === "breakeven" ? "breakeven" : isWin ? "win" : "loss";
   const statusColors = { win: C.teal, loss: C.red, breakeven: C.textSecondary, open: C.purple };
@@ -2077,8 +2088,12 @@ function TradeRow({ t, onOpen }) {
       <div style={{ fontWeight: 700 }}>{t.pair}</div>
       <div style={{ color: C.textMuted, fontSize: 11.5 }}>{fmtDate(t.entryTime)}</div>
       <div style={{ fontSize: 12, fontWeight: 600, color: t.direction === "long" ? "#2D7DD2" : "#F97316" }}>{t.direction === "long" ? "Long" : "Short"}</div>
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
         {setupTags.slice(0, 2).map(tag => <TagBadge key={tag} name={tag} size="sm" />)}
+        {dxyTags.length > 0 && <>
+          <span style={{ color: C.border, fontSize: 14, fontWeight: 300 }}>╱</span>
+          {dxyTags.slice(0, 1).map(tag => <span key={tag} style={{ fontSize: 10.5, fontWeight: 600, color: C.amber, background: `${C.amber}15`, border: `1px solid ${C.amber}40`, padding: "2px 7px", borderRadius: 5 }}>DXY·{tag}</span>)}
+        </>}
       </div>
       <div className="tnum" style={{ fontWeight: 700, color: t.status === "open" || t.status === "breakeven" ? C.textSecondary : isWin ? C.teal : C.red }}>{t.status === "open" || t.status === "breakeven" ? "—" : fmtUsdSigned(t.resultUsd)}</div>
       <div className="tnum" style={{ color: C.textMuted, fontWeight: 600 }}>{fmtR(t.resultR)}</div>
@@ -2222,7 +2237,7 @@ function MobileTradeCard({ t, onOpen, isLast }) {
                   {tfTags.map(tf => (
                     <span key={tf} style={{ fontSize: 11, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, border: `1px solid rgba(149,128,255,0.25)`, padding: "2px 8px", borderRadius: 5 }}>{tf}</span>
                   ))}
-                  {/* PD Arrays — turquoise */}
+                  {/* PD Arrays paire */}
                   {setupTags.map(tag => {
                     const def = TAG_CATALOG.find(tc => tc.name === tag);
                     const color = def?.color || pdColor;
@@ -2230,6 +2245,13 @@ function MobileTradeCard({ t, onOpen, isLast }) {
                     const border = def?.color ? `${def.color}30` : pdBorder;
                     return <span key={tag} style={{ fontSize: 11, fontWeight: 500, color, background: bg, border: `1px solid ${border}`, padding: "2px 8px", borderRadius: 5 }}>{tag}</span>;
                   })}
+                  {/* Séparateur + DXY tags */}
+                  {(t.dxyTags || []).length > 0 && <>
+                    <span style={{ color: C.border, fontSize: 13, fontWeight: 300 }}>╱</span>
+                    {(t.dxyTags || []).map(tag => (
+                      <span key={"dxy_"+tag} style={{ fontSize: 11, fontWeight: 600, color: C.amber, background: `${C.amber}12`, border: `1px solid ${C.amber}35`, padding: "2px 8px", borderRadius: 5 }}>DXY·{tag}</span>
+                    ))}
+                  </>}
                 </div>
               )}
 
@@ -5108,18 +5130,38 @@ function Previsions({ pairs = ["DXY", "EURUSD", "GBPUSD"] }) {
 
       {/* Biais par paire */}
       {pairs.map(pair => {
-        const pairColor = pair === "DXY" ? C.amber : pair.includes("EUR") ? "#4A9EFF" : pair.includes("GBP") ? C.teal : pair.includes("USD") && !pair.startsWith("USD") ? C.red : C.purpleBright;
+        const pairColor = pair === "DXY" ? C.amber : pair.includes("EUR") ? "#4A9EFF" : pair.includes("GBP") ? C.teal : pair.includes("JPY") ? "#F59E0B" : pair.includes("AUD") ? "#10B981" : pair.includes("CAD") ? "#EF4444" : pair.includes("CHF") ? "#8B5CF6" : pair.includes("NZD") ? "#06B6D4" : pair.startsWith("XAU") ? "#F59E0B" : C.purpleBright;
+        const pairEmoji = pair === "DXY" ? "📊" : pair.includes("EUR") ? "🇪🇺" : pair.includes("GBP") ? "🇬🇧" : pair.includes("JPY") ? "🇯🇵" : pair.includes("AUD") ? "🇦🇺" : pair.includes("CAD") ? "🇨🇦" : pair.includes("CHF") ? "🇨🇭" : pair.includes("NZD") ? "🇳🇿" : pair.startsWith("XAU") ? "🥇" : "💱";
+        // Calcule le biais dominant
+        const allBiases = TIMEFRAMES_PREV.map(tf => biases[`${pair}_${tf}`]).filter(Boolean);
+        const bullCount = allBiases.filter(b => b === "bullish").length;
+        const bearCount = allBiases.filter(b => b === "bearish").length;
+        const dominantBias = bullCount > bearCount ? "bullish" : bearCount > bullCount ? "bearish" : allBiases.length > 0 ? "neutral" : null;
         return (
-          <Card key={pair} style={{ padding: 0, marginBottom: 12, overflow: "hidden" }}>
+          <Card key={pair} style={{ padding: 0, marginBottom: 12, overflow: "hidden", border: `1px solid ${dominantBias === "bullish" ? C.teal + "40" : dominantBias === "bearish" ? C.red + "40" : C.border}` }}>
             {/* Header paire */}
-            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 15, fontWeight: 800, color: pairColor, letterSpacing: -0.3 }}>{pair}</span>
-              {(() => {
-                const weeklyBias = biases[`${pair}_Weekly`];
-                if (!weeklyBias) return null;
-                const col = weeklyBias === "bullish" ? C.teal : weeklyBias === "bearish" ? C.red : C.textMuted;
-                return <span style={{ fontSize: 10, fontWeight: 700, color: col, background: `${col}18`, padding: "1px 7px", borderRadius: 10, textTransform: "uppercase" }}>{weeklyBias}</span>;
-              })()}
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10, background: `${pairColor}08` }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: `${pairColor}15`, border: `1.5px solid ${pairColor}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                {pairEmoji}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: pairColor, letterSpacing: -0.5 }}>{pair}</div>
+                {pair !== "DXY" && <div style={{ fontSize: 10, color: C.textMuted, marginTop: 1 }}>{pair.slice(0,3)} / {pair.slice(3)}</div>}
+              </div>
+              {dominantBias && (
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 2, textTransform: "uppercase", letterSpacing: 0.5 }}>Biais dominant</div>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
+                    color: dominantBias === "bullish" ? C.teal : dominantBias === "bearish" ? C.red : C.textMuted,
+                    background: dominantBias === "bullish" ? C.tealDim : dominantBias === "bearish" ? C.redDim : "rgba(107,115,136,0.1)",
+                    border: `1px solid ${dominantBias === "bullish" ? C.teal + "40" : dominantBias === "bearish" ? C.red + "40" : C.border}`,
+                    textTransform: "uppercase", letterSpacing: 0.5,
+                  }}>
+                    {dominantBias === "bullish" ? "↑ Bullish" : dominantBias === "bearish" ? "↓ Bearish" : "⇔ Conso."}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Timeframes */}
@@ -5145,11 +5187,12 @@ function Previsions({ pairs = ["DXY", "EURUSD", "GBPUSD"] }) {
                       const active = current === opt.value;
                       return (
                         <button key={opt.value} onClick={() => setBias(pair, tf, opt.value)} style={{
-                          padding: "5px 11px", borderRadius: 6, fontSize: 11, fontWeight: active ? 700 : 400,
-                          border: `1.5px solid ${active ? opt.color : C.border}`,
+                          padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: active ? 700 : 500,
+                          border: `2px solid ${active ? opt.color : C.border}`,
                           background: active ? opt.bg : "transparent",
                           color: active ? opt.color : C.textMuted,
                           cursor: "pointer", transition: "all 0.12s",
+                          boxShadow: active ? `0 0 8px ${opt.color}25` : "none",
                         }}>
                           {opt.label}
                         </button>
@@ -5505,61 +5548,6 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
         })}
 
         <AddAccountForm accounts={accounts} onSaveAccounts={onSaveAccounts} />
-      </SettingsSection>
-
-      <SettingsSection title="💲 Solde & devise">
-        <SettingsRow label="Solde du compte" sub="Capital utilisé pour la calculatrice de risque">
-          {editingBalance ? (
-            <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
-              <input type="number" value={balanceInput} onChange={(e) => setBalanceInput(e.target.value)} autoFocus style={{ ...inputStyle, width: 110 }} />
-              <button onClick={() => { update({ accountBalance: Number(balanceInput) || 0 }); setEditingBalance(false); }} style={{ ...btn.primary, padding: "7px 12px" }}>OK</button>
-              <button onClick={() => setEditingBalance(false)} style={{ ...btn.ghost, padding: "7px 10px" }}><X size={13} /></button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="tnum" style={{ fontSize: 15, fontWeight: 700, color: C.teal }}>${settings.accountBalance.toLocaleString()}</span>
-              <button onClick={() => { setBalanceInput(String(settings.accountBalance)); setEditingBalance(true); }} style={{ ...btn.ghost, padding: "6px 11px", fontSize: 12 }}>Modifier</button>
-            </div>
-          )}
-        </SettingsRow>
-        <SettingsRow label="Devise" sub="Devise dans laquelle ton P&L est calculé">
-          <select value={settings.currency} onChange={(e) => update({ currency: e.target.value })} style={{ ...inputStyle, width: 90 }}>
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </SettingsRow>
-      </SettingsSection>
-
-      {/* Broker actif */}
-      <SettingsSection title="🔗 Broker actif">
-        <SettingsRow label="Broker sélectionné" sub="Broker sur lequel tu trades actuellement">
-          <select
-            value={settings.broker}
-            onChange={(e) => update({ broker: e.target.value })}
-            style={{ ...inputStyle, width: 160 }}
-          >
-            {settings.brokers.map((b) => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </SettingsRow>
-
-        <div style={{ paddingTop: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 4 }}>Mes brokers</div>
-          <TagList items={settings.brokers} onRemove={removeBroker} />
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <input
-              value={newBroker}
-              onChange={(e) => setNewBroker(e.target.value)}
-              placeholder="Nom du broker (ex: FTMO)"
-              style={{ ...inputStyle, flex: 1 }}
-              onKeyDown={(e) => { if (e.key === "Enter" && newBroker.trim()) { addBroker(newBroker.trim()); setNewBroker(""); } }}
-            />
-            <button
-              onClick={() => { if (newBroker.trim()) { addBroker(newBroker.trim()); setNewBroker(""); } }}
-              style={{ ...btn.primary, padding: "8px 14px" }}
-            >
-              Ajouter
-            </button>
-          </div>
-        </div>
       </SettingsSection>
 
       {/* Paires tradées */}
@@ -6208,32 +6196,46 @@ export default function TradingJournalApp() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  // ── Chargement initial depuis Supabase ──
-  React.useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        // Charger les trades
-        const rows = await sbFetch("/trades?order=entry_time.desc");
-        setTrades((rows || []).map(dbToTrade));
-
-        // Charger les settings
-        const settingsRows = await sbFetch("/settings?id=eq.main");
-        if (settingsRows && settingsRows.length > 0) {
-          const s = dbToSettings(settingsRows[0]);
-          if (s) setAppSettings(s);
-        }
-        setDbError(null);
-      } catch (e) {
-        console.error("Erreur chargement Supabase:", e);
-        const msg = e?.message?.slice(0, 120) || "Erreur inconnue";
-        setDbError(`Connexion Supabase échouée — ${msg}`);
-      } finally {
-        setLoading(false);
+  // ── Chargement initial + sync temps réel ──
+  const loadData = React.useCallback(async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
+      const rows = await sbFetch("/trades?order=entry_time.desc");
+      setTrades((rows || []).map(dbToTrade));
+      const settingsRows = await sbFetch("/settings?id=eq.main");
+      if (settingsRows && settingsRows.length > 0) {
+        const s = dbToSettings(settingsRows[0]);
+        if (s) setAppSettings(s);
       }
+      setDbError(null);
+    } catch (e) {
+      console.error("Erreur chargement Supabase:", e);
+      const msg = e?.message?.slice(0, 120) || "Erreur inconnue";
+      setDbError(`Connexion Supabase échouée — ${msg}`);
+    } finally {
+      if (!silent) setLoading(false);
     }
-    loadData();
   }, []);
+
+  React.useEffect(() => {
+    // Chargement initial
+    loadData();
+
+    // Polling toutes les 30 secondes (sync entre appareils)
+    const interval = setInterval(() => loadData(true), 30000);
+
+    // Refresh quand l'app reprend le focus (retour depuis iOS ou autre onglet)
+    const onFocus = () => loadData(true);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") loadData(true);
+    });
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [loadData]);
 
   // ── Sauvegarde des settings dans Supabase ──
   const saveSettings = async (newSettings) => {
@@ -6345,7 +6347,7 @@ export default function TradingJournalApp() {
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column" }}>
-        <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} />
+        <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} onRefresh={() => loadData(false)} />
 
         {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
         {pinTarget && (
