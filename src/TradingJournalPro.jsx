@@ -19,6 +19,18 @@ import {
 
 const PAIRS = ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY", "AUDUSD", "USDCAD", "NZDUSD", "GBPJPY"];
 
+const DEFAULT_POSITIVES = [
+  "SL bien placé",
+  "Bon TP",
+  "Entrée précise",
+  "Respect du plan",
+  "Bonne lecture du DXY",
+  "Setup propre",
+  "Patience avant entrée",
+  "Bonne gestion du risque",
+  "MSS confirmé",
+  "Sweep de liquidité identifié",
+];
 const DEFAULT_ERRORS = [
   "Entrer trop tôt","Entrer trop tard","TP trop tôt","SL trop serré","SL trop large",
   "Pas de confirmation MSS","Revenge trading","Hors killzone","Pas de sweep de liquidité",
@@ -1238,10 +1250,10 @@ function Sidebar({ view, setView, onNewTrade }) {
 
         <div className="sidebar-footer" style={getS().footer}>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(139,124,246,0.18)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#C4BAFB" }}>JD</div>
+            <div style={{ flexShrink: 0 }}><EmeieksLogo size={30} /></div>
             <div>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.sidebarText }}>Mon compte</div>
-              <div style={{ fontSize: 10.5, color: C.sidebarTextDim }}>Compte démo</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.sidebarText, letterSpacing: -0.3 }}>Emeieks</div>
+              <div style={{ fontSize: 10, color: C.sidebarTextDim, letterSpacing: 0.3 }}>Trade Journal</div>
             </div>
           </div>
         </div>
@@ -1291,7 +1303,7 @@ function getS() { return {
    TOP BAR — sélecteur de période façon TradeZella
    ============================================================================ */
 
-function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, activeAccountId, onSwitchAccount, onHome, currentBalance, onRefresh }) {
+function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, activeAccountId, onSwitchAccount, onHome, currentBalance, onRefresh, cumulMode, setCumulMode }) {
   const [showAccounts, setShowAccounts] = useState(false);
   const activeAccount = accounts?.find(a => a.id === activeAccountId) || accounts?.[0];
 
@@ -1342,6 +1354,20 @@ function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, a
               </>
             )}
           </div>
+        )}
+
+        {/* Cumuler tous les comptes */}
+        {setCumulMode && accounts.length > 1 && (
+          <button onClick={() => setCumulMode(v => !v)} style={{
+            ...btn.icon,
+            background: cumulMode ? C.purpleDim : C.sidebarHover,
+            borderColor: cumulMode ? C.purple : C.sidebarBorder,
+            fontSize: 10, fontWeight: 700, padding: "6px 8px", letterSpacing: 0.3,
+            color: cumulMode ? C.purpleBright : C.sidebarTextDim,
+            minWidth: 44,
+          }} title="Cumuler tous les comptes">
+            ∑
+          </button>
         )}
 
         {/* Sync manuel */}
@@ -1742,6 +1768,9 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
   const [filterTags, setFilterTags] = useState([]);
   const [filterResult, setFilterResult] = useState("all");
   const [filterOte, setFilterOte] = useState("all");
+  const [filterExcludeTags, setFilterExcludeTags] = useState([]); // Mode Hide
+  const [filterPositive, setFilterPositive] = useState(""); // filtre point positif
+  const [filterNegative, setFilterNegative] = useState(""); // filtre erreur
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [filterSetup, setFilterSetup] = useState("all");
@@ -1817,9 +1846,21 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
       if (dateFrom && new Date(t.entryTime) < new Date(dateFrom)) return false;
       if (dateTo && new Date(t.entryTime) > new Date(dateTo + "T23:59:59")) return false;
       if (search && !t.pair.toLowerCase().includes(search.toLowerCase()) && !(t.notes || "").toLowerCase().includes(search.toLowerCase())) return false;
+      // Mode Hide — exclut les trades qui ont ces tags
+      if (filterExcludeTags.length > 0 && filterExcludeTags.some(et => (t.tags || []).includes(et) || (t.dxyTags || []).includes(et))) return false;
+      // Filtre point positif
+      if (filterPositive) {
+        const posKey = `positifs_${t.id}`;
+        try { const pos = JSON.parse(localStorage.getItem(posKey) || "[]"); if (!pos.includes(filterPositive)) return false; } catch { return false; }
+      }
+      // Filtre erreur
+      if (filterNegative) {
+        const negKey = `ameliorer_${t.id}`;
+        try { const neg = JSON.parse(localStorage.getItem(negKey) || "[]"); if (!neg.includes(filterNegative)) return false; } catch { return false; }
+      }
       return true;
     });
-  }, [trades, filterPair, filterSetup, filterSession, filterTags, filterResult, filterOte, dateFrom, dateTo, search]);
+  }, [trades, filterPair, filterSetup, filterSession, filterTags, filterResult, filterOte, dateFrom, dateTo, search, filterExcludeTags, filterPositive, filterNegative]);
 
   const activeFilterCount = [filterPair !== "all", filterSetup !== "all", filterSession !== "all", filterTags.length > 0, filterResult !== "all", filterOte !== "all", dateFrom, dateTo].filter(Boolean).length;
 
@@ -2467,61 +2508,63 @@ function SimulateurTPMasquable({ trade }) {
 }
 
 function AmeliorerSection({ appSettings, tradeId }) {
-  const KEY = `ameliorer_${tradeId}`;
-  const [checked, setChecked] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
-  });
+  const KEY_NEG = `ameliorer_${tradeId}`;
+  const KEY_POS = `positifs_${tradeId}`;
+  const [negChecked, setNegChecked] = useState(() => { try { return JSON.parse(localStorage.getItem(KEY_NEG) || "[]"); } catch { return []; } });
+  const [posChecked, setPosChecked] = useState(() => { try { return JSON.parse(localStorage.getItem(KEY_POS) || "[]"); } catch { return []; } });
 
-  const toggle = (err) => {
-    const next = checked.includes(err) ? checked.filter(e => e !== err) : [...checked, err];
-    setChecked(next);
-    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
-  };
+  const toggleNeg = (err) => { const next = negChecked.includes(err) ? negChecked.filter(e => e !== err) : [...negChecked, err]; setNegChecked(next); try { localStorage.setItem(KEY_NEG, JSON.stringify(next)); } catch {} };
+  const togglePos = (p) => { const next = posChecked.includes(p) ? posChecked.filter(e => e !== p) : [...posChecked, p]; setPosChecked(next); try { localStorage.setItem(KEY_POS, JSON.stringify(next)); } catch {} };
 
-  const hidden = appSettings?.hiddenErrors || [];
-  const custom = appSettings?.customErrors || [];
-  const errors = [
-    ...DEFAULT_ERRORS.filter(e => !hidden.includes(e)),
-    ...custom,
-  ];
+  const hiddenErrors = appSettings?.hiddenErrors || [];
+  const customErrors = appSettings?.customErrors || [];
+  const errors = [...DEFAULT_ERRORS.filter(e => !hiddenErrors.includes(e)), ...customErrors];
+  const positives = [...DEFAULT_POSITIVES, ...(appSettings?.customPositives || [])];
 
-  if (errors.length === 0) return null;
+  const CheckItem = ({ label, checked, onToggle, color }) => (
+    <button onClick={() => onToggle(label)} style={{
+      display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
+      borderRadius: 8, cursor: "pointer", textAlign: "left", width: "100%",
+      background: checked ? `${color}10` : (C.inputBg || C.card),
+      border: `1px solid ${checked ? color + "50" : C.border}`, transition: "all 0.12s",
+    }}>
+      <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `1.5px solid ${checked ? color : C.border}`, background: checked ? color : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {checked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>}
+      </div>
+      <span style={{ fontSize: 12.5, color: checked ? color : C.text, fontWeight: checked ? 600 : 400 }}>{label}</span>
+    </button>
+  );
 
   return (
-    <Card style={{ padding: 16 }}>
-      <CardLabel>À améliorer</CardLabel>
-      <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 12, marginTop: 4 }}>Coche les erreurs commises sur ce trade</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {errors.map(err => {
-          const isChecked = checked.includes(err);
-          return (
-            <button key={err} onClick={() => toggle(err)} style={{
-              display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
-              borderRadius: 8, cursor: "pointer", textAlign: "left",
-              background: isChecked ? C.redDim : (C.inputBg || C.card),
-              border: `1px solid ${isChecked ? C.red + "60" : C.border}`,
-              transition: "all 0.12s",
-            }}>
-              <div style={{
-                width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-                border: `1.5px solid ${isChecked ? C.red : C.border}`,
-                background: isChecked ? C.red : "transparent",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {isChecked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>}
-              </div>
-              <span style={{ fontSize: 12.5, color: isChecked ? C.red : C.text, fontWeight: isChecked ? 600 : 400 }}>{err}</span>
-            </button>
-          );
-        })}
-      </div>
-      {checked.length > 0 && (
-        <div style={{ marginTop: 12, padding: "8px 12px", background: C.redDim, borderRadius: 7, border: `1px solid ${C.red}30` }}>
-          <span style={{ fontSize: 11.5, color: C.red, fontWeight: 600 }}>{checked.length} erreur{checked.length > 1 ? "s" : ""} identifiée{checked.length > 1 ? "s" : ""}</span>
-          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{checked.join(" · ")}</div>
+    <>
+      {/* Points positifs */}
+      <Card style={{ padding: 16 }}>
+        <CardLabel>✅ Points positifs</CardLabel>
+        <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 10, marginTop: 4 }}>Ce que tu as bien fait sur ce trade</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {positives.map(p => <CheckItem key={p} label={p} checked={posChecked.includes(p)} onToggle={togglePos} color={C.teal} />)}
         </div>
-      )}
-    </Card>
+        {posChecked.length > 0 && (
+          <div style={{ marginTop: 10, padding: "8px 12px", background: C.tealDim, borderRadius: 7, border: `1px solid ${C.teal}30` }}>
+            <span style={{ fontSize: 11, color: C.teal }}>{posChecked.join(" · ")}</span>
+          </div>
+        )}
+      </Card>
+
+      {/* Points à améliorer */}
+      <Card style={{ padding: 16 }}>
+        <CardLabel>⚠️ À améliorer</CardLabel>
+        <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 10, marginTop: 4 }}>Erreurs commises sur ce trade</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {errors.map(err => <CheckItem key={err} label={err} checked={negChecked.includes(err)} onToggle={toggleNeg} color={C.red} />)}
+        </div>
+        {negChecked.length > 0 && (
+          <div style={{ marginTop: 10, padding: "8px 12px", background: C.redDim, borderRadius: 7, border: `1px solid ${C.red}30` }}>
+            <span style={{ fontSize: 11, color: C.red }}>{negChecked.length} erreur{negChecked.length > 1 ? "s" : ""} · {negChecked.join(" · ")}</span>
+          </div>
+        )}
+      </Card>
+    </>
   );
 }
 
@@ -2662,6 +2705,25 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
               <p style={{ fontSize: 13, lineHeight: 1.6, margin: "10px 0 0", color: C.text, whiteSpace: "pre-wrap" }}>{trade.notes}</p>
             </Card>
           )}
+
+          {/* Résultat condensé dans onglet Paire */}
+          {trade.status !== "open" && (
+            <Card style={{ padding: 16 }}>
+              <CardLabel>Résultat</CardLabel>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <div style={{ flex: 1, padding: "12px", borderRadius: 9, background: isBE ? "rgba(107,115,136,0.1)" : isWin ? C.tealDim : C.redDim, border: `1.5px solid ${isBE ? C.textMuted : isWin ? C.teal : C.red}40`, textAlign: "center" }}>
+                  <div className="tnum" style={{ fontSize: 20, fontWeight: 800, color: isBE ? C.textSecondary : isWin ? C.teal : C.red }}>{isBE ? "BE" : fmtUsdSigned(trade.resultUsd)}</div>
+                  <div className="tnum" style={{ fontSize: 12, color: isBE ? C.textMuted : isWin ? C.teal : C.red, marginTop: 2 }}>{isBE ? "0R" : fmtR(trade.resultR)}</div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, flex: 2 }}>
+                  <DetailStat label="Entrée" value={trade.entryPrice ?? "—"} />
+                  <DetailStat label="Sortie" value={trade.exitPrice ?? "—"} />
+                  <DetailStat label="SL" value={trade.stopLoss ?? "—"} valueColor={C.red} />
+                  <DetailStat label="TP" value={trade.takeProfit ?? "—"} valueColor={C.teal} />
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
@@ -2686,9 +2748,23 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
           {(trade.dxyBias || (trade.dxyTags || []).length > 0) && (
             <Card style={{ padding: 16 }}>
               <CardLabel>Analyse DXY</CardLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
-                {trade.dxyBias && <DetailStat label="Biais" value={trade.dxyBias} />}
-                {(trade.dxyTags || []).map(tag => <TagBadge key={tag} name={tag} size="sm" />)}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                {trade.dxyBias && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11.5, color: C.textMuted }}>Biais :</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: trade.dxyBias === "Bullish" ? C.teal : trade.dxyBias === "Bearish" ? C.red : C.textMuted }}>{trade.dxyBias}</span>
+                  </div>
+                )}
+                {(trade.dxyTags || []).length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>PD Arrays DXY :</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                      {(trade.dxyTags || []).map(tag => (
+                        <span key={tag} style={{ fontSize: 11.5, fontWeight: 600, color: C.amber, background: `${C.amber}12`, border: `1px solid ${C.amber}35`, padding: "3px 10px", borderRadius: 6 }}>{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
           )}
@@ -4232,7 +4308,21 @@ function AdvancedStats({ trades }) {
   const closed = useMemo(() => trades.filter((t) => t.status !== "open"), [trades]);
 
   const byPair = useMemo(() => groupBy(closed, (t) => t.pair), [closed]);
-  const bySetup = useMemo(() => groupBy(closed, (t) => t.setup), [closed]);
+  const bySetup = useMemo(() => {
+    const map = {};
+    closed.forEach(t => {
+      const pdTags = (t.tags || []).filter(tag => TAG_CATALOG.find(tc => tc.name === tag && tc.category === "setup"));
+      const keys = pdTags.length > 0 ? pdTags : (t.setup ? [t.setup] : []);
+      keys.forEach(key => {
+        if (!map[key]) map[key] = { key, trades: [], pnl: 0, wins: 0, count: 0, winRate: 0 };
+        map[key].trades.push(t);
+        map[key].pnl += t.resultUsd || 0;
+        map[key].count += 1;
+        if (t.resultR > 0) map[key].wins += 1;
+      });
+    });
+    return Object.values(map).map(g => ({ ...g, winRate: g.count ? g.wins / g.count * 100 : 0 }));
+  }, [closed]);
   const bySession = useMemo(() => groupBy(closed, (t) => getSession(t.entryTime)), [closed]);
 
   const byHour = useMemo(() => {
@@ -4464,19 +4554,46 @@ function AdvancedStats({ trades }) {
         <StatsHeatmap trades={closed} />
       </Card>
 
-      {/* Analyse des tags */}
+      {/* Analyse des tags — PD Arrays séparés des TF */}
       <Card style={{ padding: 18, marginBottom: 14 }}>
-        <CardLabel>Analyse des tags</CardLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 12, maxHeight: 280, overflowY: "auto" }}>
-          {[...byTagAll].sort((a, b) => b.pnl - a.pnl).map((g) => (
-            <div key={g.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
-              <TagBadge name={g.key} size="sm" />
-              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                <span style={{ fontSize: 11, color: C.textMuted }}>{g.winRate.toFixed(0)}% WR</span>
-                <span className="tnum" style={{ fontWeight: 700, fontSize: 12.5, color: g.pnl >= 0 ? C.teal : C.red, minWidth: 70, textAlign: "right" }}>{fmtUsdSigned(g.pnl)}</span>
+        <CardLabel>PD Arrays — Performance</CardLabel>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, maxHeight: 300, overflowY: "auto" }}>
+          {[...byTagAll].filter(g => TAG_CATALOG.find(tc => tc.name === g.key && tc.category === "setup")).sort((a, b) => b.pnl - a.pnl).map(g => (
+            <div key={g.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", borderRadius: 7, background: C.inputBg || C.card, border: `1px solid ${C.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <TagBadge name={g.key} size="sm" />
+                <span style={{ fontSize: 11, color: C.textMuted }}>{g.count}T</span>
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span className="tnum" style={{ fontSize: 11, color: g.winRate >= 50 ? C.teal : C.red }}>{g.winRate.toFixed(0)}% WR</span>
+                <span className="tnum" style={{ fontWeight: 700, fontSize: 12, color: g.pnl >= 0 ? C.teal : C.red, minWidth: 65, textAlign: "right" }}>{fmtUsdSigned(g.pnl)}</span>
               </div>
             </div>
           ))}
+          {byTagAll.filter(g => TAG_CATALOG.find(tc => tc.name === g.key && tc.category === "setup")).length === 0 && (
+            <div style={{ fontSize: 12, color: C.textMuted, padding: "12px 0" }}>Aucun PD Array taggé sur tes trades.</div>
+          )}
+        </div>
+      </Card>
+
+      <Card style={{ padding: 18, marginBottom: 14 }}>
+        <CardLabel>Timeframes — Performance</CardLabel>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+          {[...byTagAll].filter(g => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(g.key)).sort((a, b) => b.count - a.count).map(g => (
+            <div key={g.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", borderRadius: 7, background: C.inputBg || C.card, border: `1px solid ${C.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, padding: "2px 8px", borderRadius: 5 }}>{g.key}</span>
+                <span style={{ fontSize: 11, color: C.textMuted }}>{g.count}T</span>
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span className="tnum" style={{ fontSize: 11, color: g.winRate >= 50 ? C.teal : C.red }}>{g.winRate.toFixed(0)}% WR</span>
+                <span className="tnum" style={{ fontWeight: 700, fontSize: 12, color: g.pnl >= 0 ? C.teal : C.red, minWidth: 65, textAlign: "right" }}>{fmtUsdSigned(g.pnl)}</span>
+              </div>
+            </div>
+          ))}
+          {byTagAll.filter(g => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(g.key)).length === 0 && (
+            <div style={{ fontSize: 12, color: C.textMuted, padding: "12px 0" }}>Aucun timeframe taggé.</div>
+          )}
         </div>
       </Card>
 
@@ -5522,27 +5639,52 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
           const typeColors = { real: C.teal, demo: C.purple, challenge: C.amber };
           const typeLabels = { real: "Réel", demo: "Démo", challenge: "Challenge" };
           const isActive = acc.id === activeAccountId;
+          const [editing, setEditing] = useState(false);
+          const [editName, setEditName] = useState(acc.name);
+          const [editBalance, setEditBalance] = useState(String(acc.balance || ""));
+          const [editBroker, setEditBroker] = useState(acc.broker || "");
+          const [editType, setEditType] = useState(acc.type || "real");
+          const saveEdit = () => {
+            onSaveAccounts(accounts.map(a => a.id === acc.id ? { ...a, name: editName, balance: Number(editBalance) || 0, broker: editBroker, type: editType } : a));
+            setEditing(false);
+          };
           return (
-            <div key={acc.id} style={{ padding: "12px 14px", background: C.inputBg || C.card, borderRadius: 10, border: `1.5px solid ${isActive ? C.purple : C.border}`, marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: typeColors[acc.type] || C.teal, flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
-                <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
-                  <span style={{ color: typeColors[acc.type] || C.teal, fontWeight: 600 }}>{typeLabels[acc.type] || acc.type}</span>
-                  {acc.broker && ` · ${acc.broker}`}
-                  {acc.balance && ` · $${Number(acc.balance).toLocaleString()}`}
+            <div key={acc.id} style={{ background: C.inputBg || C.card, borderRadius: 10, border: `1.5px solid ${isActive ? C.purple : C.border}`, marginBottom: 8, overflow: "hidden" }}>
+              <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: typeColors[acc.type] || C.teal, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
+                  <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+                    <span style={{ color: typeColors[acc.type] || C.teal, fontWeight: 600 }}>{typeLabels[acc.type] || acc.type}</span>
+                    {acc.broker && ` · ${acc.broker}`}
+                    {acc.balance && ` · $${Number(acc.balance).toLocaleString()}`}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {isActive ? <span style={{ fontSize: 11, color: C.purple, fontWeight: 700, background: C.purpleDim, padding: "3px 8px", borderRadius: 5 }}>Actif</span>
+                    : <button onClick={() => onSwitchAccount(acc.id)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}>Activer</button>}
+                  <button onClick={() => setEditing(v => !v)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px", color: editing ? C.purple : C.textMuted }}><Edit3 size={12} /></button>
+                  <button onClick={() => onSaveAccounts(accounts.filter(a => a.id !== acc.id))} style={{ ...btn.icon, padding: "5px", color: C.red, borderColor: "transparent" }}><X size={13} /></button>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                {isActive ? (
-                  <span style={{ fontSize: 11, color: C.purple, fontWeight: 700, background: C.purpleDim, padding: "3px 8px", borderRadius: 5 }}>Actif</span>
-                ) : (
-                  <button onClick={() => onSwitchAccount(acc.id)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}>Activer</button>
-                )}
-                {true && (
-                  <button onClick={() => onSaveAccounts(accounts.filter(a => a.id !== acc.id))} style={{ ...btn.icon, padding: "5px", color: C.red, borderColor: "transparent" }}><X size={13} /></button>
-                )}
-              </div>
+              {editing && (
+                <div style={{ padding: "12px 14px", borderTop: `1px solid ${C.border}`, background: C.bg, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                    {[{ v: "real", l: "Réel", c: C.teal }, { v: "demo", l: "Démo", c: C.purple }, { v: "challenge", l: "Challenge", c: C.amber }].map(t => (
+                      <button key={t.v} onClick={() => setEditType(t.v)} style={{ flex: 1, padding: "6px", borderRadius: 7, border: `1.5px solid ${editType === t.v ? t.c : C.border}`, background: editType === t.v ? `${t.c}15` : "transparent", color: editType === t.v ? t.c : C.textMuted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{t.l}</button>
+                    ))}
+                  </div>
+                  <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nom du compte" style={{ ...inputStyle, fontSize: 12 }} />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input type="number" value={editBalance} onChange={e => setEditBalance(e.target.value)} placeholder="Solde ($)" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
+                    <input value={editBroker} onChange={e => setEditBroker(e.target.value)} placeholder="Broker" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={saveEdit} style={{ ...btn.primary, flex: 1, fontSize: 12 }}>Sauvegarder</button>
+                    <button onClick={() => setEditing(false)} style={{ ...btn.ghost, fontSize: 12 }}>Annuler</button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -6333,7 +6475,8 @@ export default function TradingJournalApp() {
   };
 
   // Filtre trades par compte actif — les autres comptes sont isolés
-  const accountTrades = trades.filter(t => (t.accountId || "main") === activeAccountId);
+  const [cumulMode, setCumulMode] = useState(false);
+  const accountTrades = cumulMode ? trades : trades.filter(t => (t.accountId || accounts[0]?.id || "main") === activeAccountId);
   const currentBalance = useMemo(() => {
     const initial = appSettings?.accountBalance || 10000;
     const closed = accountTrades.filter(t => t.status !== "open");
@@ -6347,7 +6490,7 @@ export default function TradingJournalApp() {
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column" }}>
-        <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} onRefresh={() => loadData(false)} />
+        <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} onRefresh={() => loadData(false)} cumulMode={cumulMode} setCumulMode={setCumulMode} />
 
         {/* Modal PIN — s'affiche uniquement quand on essaie d'ajouter un trade sans être authentifié */}
         {pinTarget && (
