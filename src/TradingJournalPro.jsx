@@ -6363,19 +6363,73 @@ export default function TradingJournalApp() {
     // Chargement initial
     loadData();
 
-    // Polling toutes les 30 secondes (sync entre appareils)
-    const interval = setInterval(() => loadData(true), 30000);
+    // Supabase Realtime via WebSocket — sync instantané entre appareils
+    let ws = null;
+    let wsReconnectTimer = null;
+    let heartbeatTimer = null;
+    let isConnected = false;
 
-    // Refresh quand l'app reprend le focus (retour depuis iOS ou autre onglet)
-    const onFocus = () => loadData(true);
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") loadData(true);
-    });
+    const connectRealtime = () => {
+      try {
+        const wsUrl = SUPABASE_URL.replace("https://", "wss://") + "/realtime/v1/websocket?apikey=" + SUPABASE_KEY + "&vsn=1.0.0";
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          isConnected = true;
+          // Subscribe au channel postgres_changes pour la table trades
+          ws.send(JSON.stringify({
+            topic: "realtime:public:trades",
+            event: "phx_join",
+            payload: { config: { broadcast: { self: false }, presence: { key: "" }, postgres_changes: [{ event: "*", schema: "public", table: "trades" }] } },
+            ref: "1"
+          }));
+          // Heartbeat toutes les 25s pour garder la connexion
+          heartbeatTimer = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ topic: "phoenix", event: "heartbeat", payload: {}, ref: "heartbeat" }));
+            }
+          }, 25000);
+        };
+
+        ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            // Quand un trade change (INSERT, UPDATE, DELETE) → rechargement
+            if (msg.event === "postgres_changes" || (msg.payload?.data?.type && ["INSERT","UPDATE","DELETE"].includes(msg.payload.data.type))) {
+              loadData(true);
+            }
+          } catch {}
+        };
+
+        ws.onclose = () => {
+          isConnected = false;
+          clearInterval(heartbeatTimer);
+          // Reconnexion après 3 secondes
+          wsReconnectTimer = setTimeout(connectRealtime, 3000);
+        };
+
+        ws.onerror = () => {
+          ws?.close();
+        };
+      } catch {}
+    };
+
+    connectRealtime();
+
+    // Polling fallback toutes les 10s (si WebSocket ne marche pas)
+    const interval = setInterval(() => loadData(true), 10000);
+
+    // Refresh immédiat au retour sur l'app
+    const onVisible = () => { if (document.visibilityState === "visible") loadData(true); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", () => loadData(true));
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
+      clearInterval(heartbeatTimer);
+      clearTimeout(wsReconnectTimer);
+      document.removeEventListener("visibilitychange", onVisible);
+      if (ws) ws.close();
     };
   }, [loadData]);
 
