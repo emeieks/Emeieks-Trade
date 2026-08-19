@@ -6256,6 +6256,7 @@ function dbToTrade(r) {
     mssConfirmed: r.mss_confirmed,
     retroRating: r.retro_rating ?? 0,
     retroNote: r.retro_note ?? "",
+  updatedAt: r.updated_at || 0,
   };
 }
 
@@ -6338,12 +6339,36 @@ export default function TradingJournalApp() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  // ── Chargement initial + sync temps réel ──
+  // ── Clé localStorage ──
+  const LS_KEY = "emeieks_trades_v1";
+
+  // ── Pull initial depuis Supabase + merge par updatedAt ──
   const loadData = React.useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
       const rows = await sbFetch("/trades?order=entry_time.desc");
-      setTrades((rows || []).map(dbToTrade));
+      const remote = (rows || []).map(dbToTrade);
+
+      // Merge : garde le plus récent selon updatedAt
+      let local = [];
+      try { local = JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch {}
+
+      const merged = {};
+      // Commence par les trades locaux
+      local.forEach(t => { merged[t.id] = t; });
+      // Supabase écrase si plus récent
+      remote.forEach(t => {
+        const loc = merged[t.id];
+        if (!loc || (t.updatedAt || 0) >= (loc.updatedAt || 0)) {
+          merged[t.id] = t;
+        }
+      });
+
+      const result = Object.values(merged).sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
+      setTrades(result);
+      try { localStorage.setItem(LS_KEY, JSON.stringify(result)); } catch {}
+
+      // Settings
       const settingsRows = await sbFetch("/settings?id=eq.main");
       if (settingsRows && settingsRows.length > 0) {
         const s = dbToSettings(settingsRows[0]);
@@ -6351,75 +6376,52 @@ export default function TradingJournalApp() {
       }
       setDbError(null);
     } catch (e) {
-      console.error("Erreur chargement Supabase:", e);
-      const msg = e?.message?.slice(0, 120) || "Erreur inconnue";
-      setDbError(`Connexion Supabase échouée — ${msg}`);
+      console.error("Erreur Supabase:", e);
+      // Fallback localStorage si Supabase down
+      try {
+        const local = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+        if (local.length > 0) setTrades(local);
+      } catch {}
+      setDbError("Mode hors ligne — données locales");
     } finally {
       if (!silent) setLoading(false);
     }
   }, []);
 
   React.useEffect(() => {
-    // Chargement initial
+    // Pull initial
     loadData();
 
-    // Supabase Realtime via WebSocket — sync instantané entre appareils
+    // WebSocket Realtime Supabase — sync instantané
     let ws = null;
     let wsReconnectTimer = null;
     let heartbeatTimer = null;
-    let isConnected = false;
 
     const connectRealtime = () => {
       try {
         const wsUrl = SUPABASE_URL.replace("https://", "wss://") + "/realtime/v1/websocket?apikey=" + SUPABASE_KEY + "&vsn=1.0.0";
         ws = new WebSocket(wsUrl);
-
         ws.onopen = () => {
-          isConnected = true;
-          // Subscribe au channel postgres_changes pour la table trades
-          ws.send(JSON.stringify({
-            topic: "realtime:public:trades",
-            event: "phx_join",
-            payload: { config: { broadcast: { self: false }, presence: { key: "" }, postgres_changes: [{ event: "*", schema: "public", table: "trades" }] } },
-            ref: "1"
-          }));
-          // Heartbeat toutes les 25s pour garder la connexion
-          heartbeatTimer = setInterval(() => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ topic: "phoenix", event: "heartbeat", payload: {}, ref: "heartbeat" }));
-            }
-          }, 25000);
+          ws.send(JSON.stringify({ topic: "realtime:public:trades", event: "phx_join", payload: { config: { postgres_changes: [{ event: "*", schema: "public", table: "trades" }] } }, ref: "1" }));
+          heartbeatTimer = setInterval(() => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ topic: "phoenix", event: "heartbeat", payload: {}, ref: "hb" })); }, 25000);
         };
-
         ws.onmessage = (e) => {
           try {
             const msg = JSON.parse(e.data);
-            // Quand un trade change (INSERT, UPDATE, DELETE) → rechargement
-            if (msg.event === "postgres_changes" || (msg.payload?.data?.type && ["INSERT","UPDATE","DELETE"].includes(msg.payload.data.type))) {
-              loadData(true);
-            }
+            if (msg.event === "postgres_changes" || msg.payload?.data?.type) loadData(true);
           } catch {}
         };
-
-        ws.onclose = () => {
-          isConnected = false;
-          clearInterval(heartbeatTimer);
-          // Reconnexion après 3 secondes
-          wsReconnectTimer = setTimeout(connectRealtime, 3000);
-        };
-
-        ws.onerror = () => {
-          ws?.close();
-        };
+        ws.onclose = () => { clearInterval(heartbeatTimer); wsReconnectTimer = setTimeout(connectRealtime, 3000); };
+        ws.onerror = () => ws?.close();
       } catch {}
     };
 
     connectRealtime();
 
-    // Polling fallback toutes les 10s (si WebSocket ne marche pas)
+    // Polling fallback 10s
     const interval = setInterval(() => loadData(true), 10000);
 
-    // Refresh immédiat au retour sur l'app
+    // Refresh au retour sur l'app
     const onVisible = () => { if (document.visibilityState === "visible") loadData(true); };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", () => loadData(true));
@@ -6460,15 +6462,18 @@ export default function TradingJournalApp() {
 
   // ── Sauvegarder un trade (ajout ou modification) ──
   const saveTrade = async (trade) => {
-    // Ajoute automatiquement l'accountId du compte actif
-    const tradeWithAccount = { ...trade, accountId: activeAccountId };
+    const now = Date.now();
+    const tradeWithAccount = { ...trade, accountId: activeAccountId, updatedAt: now };
     const exists = trades.some((t) => t.id === trade.id);
-    setTrades((prev) => exists ? prev.map((t) => t.id === trade.id ? tradeWithAccount : t) : [tradeWithAccount, ...prev]);
+    const newTrades = exists ? trades.map(t => t.id === trade.id ? tradeWithAccount : t) : [tradeWithAccount, ...trades];
+    setTrades(newTrades);
+    // Sauvegarde locale immédiate
+    try { localStorage.setItem(LS_KEY, JSON.stringify(newTrades)); } catch {}
     setActiveTradeId(trade.id);
     setView("tradeDetail");
     showToast(exists ? "Trade mis à jour ✓" : "Trade enregistré ✓");
     try {
-      const dbTrade = tradeToDb(tradeWithAccount);
+      const dbTrade = { ...tradeToDb(tradeWithAccount), updated_at: now };
       if (exists) {
         await sbFetch(`/trades?id=eq.${trade.id}`, { method: "PATCH", body: JSON.stringify(dbTrade) });
       } else {
@@ -6476,20 +6481,20 @@ export default function TradingJournalApp() {
       }
     } catch (e) {
       console.error("Erreur sauvegarde trade:", e);
-      showToast("⚠️ Sauvegarde échouée — vérifie ta connexion", true);
+      showToast("⚠️ Sauvegarde locale OK — sync Supabase échouée", true);
     }
   };
 
   // ── Supprimer un trade ──
   const deleteTrade = async (id) => {
-    setTrades((prev) => prev.filter((t) => t.id !== id));
+    const newTrades = trades.filter(t => t.id !== id);
+    setTrades(newTrades);
+    try { localStorage.setItem(LS_KEY, JSON.stringify(newTrades)); } catch {}
     setView("trades");
     showToast("Trade supprimé");
     try {
       await sbFetch(`/trades?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
-    } catch (e) {
-      console.error("Erreur suppression:", e);
-    }
+    } catch (e) { console.error("Erreur suppression:", e); }
   };
 
   // ── Mettre à jour le verdict 👍/👎 ──
