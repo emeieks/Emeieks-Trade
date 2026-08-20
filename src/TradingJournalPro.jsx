@@ -3924,14 +3924,17 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
         <CardLabel>Screenshots</CardLabel>
         <div className="form-grid-2" style={{ marginTop: 10 }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>Avant le trade</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>
+              Avant le trade
+              <span style={{ fontSize: 10, color: C.purpleBright, fontWeight: 500, marginLeft: 6 }}>✨ Autofill IA</span>
+            </div>
             {screenshotBefore ? (
               <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", border: `1.5px solid ${C.border}` }}>
                 <img src={screenshotBefore} alt="Avant" style={{ width: "100%", display: "block", maxHeight: 220, objectFit: "contain", background: C.bg }} />
                 <button onClick={() => { setScreenshotBefore(null); setExtractedMeta(null); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(15,17,23,0.9)", border: `1px solid ${C.border}`, borderRadius: 5, color: "#fff", padding: 5, cursor: "pointer", display: "flex" }}><X size={12} /></button>
               </div>
             ) : (
-              <ImageUploadBox label="" value={null} onChange={setScreenshotBefore} />
+              <SmartCaptureBox value={screenshotBefore} onChange={setScreenshotBefore} onExtracted={handleExtracted} />
             )}
           </div>
           <ImageUploadBox label="Après le trade" value={screenshotAfter} onChange={setScreenshotAfter} />
@@ -6130,6 +6133,7 @@ function PinScreen({ onUnlock, inline = false }) {
 /* ============================================================================
    SUPABASE CLIENT
    ============================================================================ */
+const LS_KEY = "emeieks_trades_v1";
 const SUPABASE_URL = "https://ljmmvkwvuzwweitreybh.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxqbW12a3d2dXp3d2VpdHJleWJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyMDI4OTMsImV4cCI6MjEwMDc3ODg5M30.BfcbAZi2Gqo-BgLg5rQYDjz3xh_We8MReC308hQ5qIE";
 
@@ -6339,35 +6343,16 @@ export default function TradingJournalApp() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  // ── Clé localStorage ──
-  const LS_KEY = "emeieks_trades_v1";
-
   // ── Pull initial depuis Supabase + merge par updatedAt ──
   const loadData = React.useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
+      // Charge directement depuis Supabase — source de vérité
       const rows = await sbFetch("/trades?order=entry_time.desc");
       const remote = (rows || []).map(dbToTrade);
-
-      // Merge : garde le plus récent selon updatedAt
-      let local = [];
-      try { local = JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch {}
-
-      const merged = {};
-      // Commence par les trades locaux
-      local.forEach(t => { merged[t.id] = t; });
-      // Supabase écrase si plus récent
-      remote.forEach(t => {
-        const loc = merged[t.id];
-        if (!loc || (t.updatedAt || 0) >= (loc.updatedAt || 0)) {
-          merged[t.id] = t;
-        }
-      });
-
-      const result = Object.values(merged).sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
-      setTrades(result);
-      try { localStorage.setItem(LS_KEY, JSON.stringify(result)); } catch {}
-
+      setTrades(remote);
+      // Sauvegarde locale pour fallback offline
+      try { localStorage.setItem(LS_KEY, JSON.stringify(remote)); } catch {}
       // Settings
       const settingsRows = await sbFetch("/settings?id=eq.main");
       if (settingsRows && settingsRows.length > 0) {
@@ -6380,9 +6365,8 @@ export default function TradingJournalApp() {
       // Fallback localStorage si Supabase down
       try {
         const local = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
-        if (local.length > 0) setTrades(local);
+        if (local.length > 0) { setTrades(local); setDbError("Mode hors ligne — données locales"); }
       } catch {}
-      setDbError("Mode hors ligne — données locales");
     } finally {
       if (!silent) setLoading(false);
     }
