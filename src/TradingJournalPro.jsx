@@ -5565,6 +5565,62 @@ function AddItemInput({ placeholder, onAdd }) {
   );
 }
 
+function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAccounts }) {
+  const typeColors = { real: C.teal, demo: C.purple, challenge: C.amber };
+  const typeLabels = { real: "Réel", demo: "Démo", challenge: "Challenge" };
+  const isActive = acc.id === activeAccountId;
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(acc.name);
+  const [editBalance, setEditBalance] = useState(String(acc.balance || ""));
+  const [editBroker, setEditBroker] = useState(acc.broker || "");
+  const [editType, setEditType] = useState(acc.type || "real");
+
+  const saveEdit = () => {
+    onSaveAccounts(accounts.map(a => a.id === acc.id ? { ...a, name: editName, balance: Number(editBalance) || 0, broker: editBroker, type: editType } : a));
+    setEditing(false);
+  };
+
+  return (
+    <div style={{ background: C.inputBg || C.card, borderRadius: 10, border: `1.5px solid ${isActive ? C.purple : C.border}`, marginBottom: 8, overflow: "hidden" }}>
+      <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: typeColors[acc.type] || C.teal, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+            <span style={{ color: typeColors[acc.type] || C.teal, fontWeight: 600 }}>{typeLabels[acc.type] || acc.type}</span>
+            {acc.broker && ` · ${acc.broker}`}
+            {acc.balance && ` · $${Number(acc.balance).toLocaleString()}`}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {isActive
+            ? <span style={{ fontSize: 11, color: C.purple, fontWeight: 700, background: C.purpleDim, padding: "3px 8px", borderRadius: 5 }}>Actif</span>
+            : <button onClick={() => onSwitchAccount(acc.id)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}>Activer</button>}
+          <button onClick={() => setEditing(v => !v)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px", color: editing ? C.purple : C.textMuted }}><Edit3 size={12} /></button>
+          <button onClick={() => onSaveAccounts(accounts.filter(a => a.id !== acc.id))} style={{ ...btn.icon, padding: "5px", color: C.red, borderColor: "transparent" }}><X size={13} /></button>
+        </div>
+      </div>
+      {editing && (
+        <div style={{ padding: "12px 14px", borderTop: `1px solid ${C.border}`, background: C.bg, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+            {[{ v: "real", l: "Réel", c: C.teal }, { v: "demo", l: "Démo", c: C.purple }, { v: "challenge", l: "Challenge", c: C.amber }].map(t => (
+              <button key={t.v} onClick={() => setEditType(t.v)} style={{ flex: 1, padding: "6px", borderRadius: 7, border: `1.5px solid ${editType === t.v ? t.c : C.border}`, background: editType === t.v ? `${t.c}15` : "transparent", color: editType === t.v ? t.c : C.textMuted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{t.l}</button>
+            ))}
+          </div>
+          <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nom du compte" style={{ ...inputStyle, fontSize: 12 }} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <input type="number" value={editBalance} onChange={e => setEditBalance(e.target.value)} placeholder="Solde ($)" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
+            <input value={editBroker} onChange={e => setEditBroker(e.target.value)} placeholder="Broker" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={saveEdit} style={{ ...btn.primary, flex: 1, fontSize: 12 }}>Sauvegarder</button>
+            <button onClick={() => setEditing(false)} style={{ ...btn.ghost, fontSize: 12 }}>Annuler</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 function AddAccountForm({ accounts, onSaveAccounts }) {
   const [showForm, setShowForm] = useState(false);
   const [newName, setNewName] = useState("");
@@ -5638,59 +5694,9 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
       <SettingsSection title="📂 Comptes de trading">
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>Chaque compte est isolé — les trades et stats ne se mélangent pas.</div>
 
-        {(accounts || []).map((acc) => {
-          const typeColors = { real: C.teal, demo: C.purple, challenge: C.amber };
-          const typeLabels = { real: "Réel", demo: "Démo", challenge: "Challenge" };
-          const isActive = acc.id === activeAccountId;
-          const [editing, setEditing] = useState(false);
-          const [editName, setEditName] = useState(acc.name);
-          const [editBalance, setEditBalance] = useState(String(acc.balance || ""));
-          const [editBroker, setEditBroker] = useState(acc.broker || "");
-          const [editType, setEditType] = useState(acc.type || "real");
-          const saveEdit = () => {
-            onSaveAccounts(accounts.map(a => a.id === acc.id ? { ...a, name: editName, balance: Number(editBalance) || 0, broker: editBroker, type: editType } : a));
-            setEditing(false);
-          };
-          return (
-            <div key={acc.id} style={{ background: C.inputBg || C.card, borderRadius: 10, border: `1.5px solid ${isActive ? C.purple : C.border}`, marginBottom: 8, overflow: "hidden" }}>
-              <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 10, height: 10, borderRadius: "50%", background: typeColors[acc.type] || C.teal, flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
-                  <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
-                    <span style={{ color: typeColors[acc.type] || C.teal, fontWeight: 600 }}>{typeLabels[acc.type] || acc.type}</span>
-                    {acc.broker && ` · ${acc.broker}`}
-                    {acc.balance && ` · $${Number(acc.balance).toLocaleString()}`}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  {isActive ? <span style={{ fontSize: 11, color: C.purple, fontWeight: 700, background: C.purpleDim, padding: "3px 8px", borderRadius: 5 }}>Actif</span>
-                    : <button onClick={() => onSwitchAccount(acc.id)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}>Activer</button>}
-                  <button onClick={() => setEditing(v => !v)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px", color: editing ? C.purple : C.textMuted }}><Edit3 size={12} /></button>
-                  <button onClick={() => onSaveAccounts(accounts.filter(a => a.id !== acc.id))} style={{ ...btn.icon, padding: "5px", color: C.red, borderColor: "transparent" }}><X size={13} /></button>
-                </div>
-              </div>
-              {editing && (
-                <div style={{ padding: "12px 14px", borderTop: `1px solid ${C.border}`, background: C.bg, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
-                    {[{ v: "real", l: "Réel", c: C.teal }, { v: "demo", l: "Démo", c: C.purple }, { v: "challenge", l: "Challenge", c: C.amber }].map(t => (
-                      <button key={t.v} onClick={() => setEditType(t.v)} style={{ flex: 1, padding: "6px", borderRadius: 7, border: `1.5px solid ${editType === t.v ? t.c : C.border}`, background: editType === t.v ? `${t.c}15` : "transparent", color: editType === t.v ? t.c : C.textMuted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{t.l}</button>
-                    ))}
-                  </div>
-                  <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nom du compte" style={{ ...inputStyle, fontSize: 12 }} />
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input type="number" value={editBalance} onChange={e => setEditBalance(e.target.value)} placeholder="Solde ($)" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
-                    <input value={editBroker} onChange={e => setEditBroker(e.target.value)} placeholder="Broker" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={saveEdit} style={{ ...btn.primary, flex: 1, fontSize: 12 }}>Sauvegarder</button>
-                    <button onClick={() => setEditing(false)} style={{ ...btn.ghost, fontSize: 12 }}>Annuler</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {(accounts || []).map((acc) => (
+          <AccountCard key={acc.id} acc={acc} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={onSwitchAccount} onSaveAccounts={onSaveAccounts} />
+        ))}
 
         <AddAccountForm accounts={accounts} onSaveAccounts={onSaveAccounts} />
       </SettingsSection>
