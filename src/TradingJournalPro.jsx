@@ -6453,7 +6453,7 @@ export default function TradingJournalApp() {
   // ── Sauvegarder un trade (ajout ou modification) ──
   const saveTrade = async (trade) => {
     const now = Date.now();
-    const tradeWithAccount = { ...trade, accountId: activeAccountId, updatedAt: now };
+    const tradeWithAccount = { ...trade, accountId: effectiveAccountId, updatedAt: now };
     const exists = trades.some((t) => t.id === trade.id);
     const newTrades = exists ? trades.map(t => t.id === trade.id ? tradeWithAccount : t) : [tradeWithAccount, ...trades];
     setTrades(newTrades);
@@ -6525,7 +6525,12 @@ export default function TradingJournalApp() {
 
   // Filtre trades par compte actif — les autres comptes sont isolés
   const [cumulMode, setCumulMode] = useState(false);
-  const accountTrades = cumulMode ? trades : trades.filter(t => (t.accountId || accounts[0]?.id || "main") === activeAccountId);
+  const effectiveAccountId = activeAccountId || accounts[0]?.id || null;
+  const accountTrades = cumulMode ? trades : trades.filter(t => {
+    const tid = t.accountId || null;
+    if (!effectiveAccountId) return true; // pas de compte = tous
+    return tid === effectiveAccountId || (!tid && effectiveAccountId === accounts[0]?.id);
+  });
   const currentBalance = useMemo(() => {
     const initial = appSettings?.accountBalance || 10000;
     const closed = accountTrades.filter(t => t.status !== "open");
