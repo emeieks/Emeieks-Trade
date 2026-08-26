@@ -6235,6 +6235,7 @@ function tradeToDb(t) {
 function dbToTrade(r) {
   return {
     id: r.id,
+    accountId: r.account_id || null,
     pair: r.pair,
     direction: r.direction,
     entryTime: r.entry_time,
@@ -6266,10 +6267,9 @@ function dbToTrade(r) {
     mssConfirmed: r.mss_confirmed,
     retroRating: r.retro_rating ?? 0,
     retroNote: r.retro_note ?? "",
-  updatedAt: r.updated_at || 0,
+    updatedAt: r.updated_at || 0,
   };
 }
-
 function dbToSettings(r) {
   if (!r) return null;
   return {
@@ -6526,11 +6526,9 @@ export default function TradingJournalApp() {
   // Filtre trades par compte actif — les autres comptes sont isolés
   const [cumulMode, setCumulMode] = useState(false);
   const effectiveAccountId = activeAccountId || accounts[0]?.id || null;
-  const accountTrades = cumulMode ? trades : trades.filter(t => {
-    const tid = t.accountId || null;
-    if (!effectiveAccountId) return true; // pas de compte = tous
-    return tid === effectiveAccountId || (!tid && effectiveAccountId === accounts[0]?.id);
-  });
+  const accountTrades = cumulMode || !effectiveAccountId
+    ? trades
+    : trades.filter(t => !t.accountId || t.accountId === effectiveAccountId);
   const currentBalance = useMemo(() => {
     const initial = appSettings?.accountBalance || 10000;
     const closed = accountTrades.filter(t => t.status !== "open");
