@@ -5170,8 +5170,16 @@ function PlanDeTrading() {
   });
 
   const handleChange = (e) => {
-    setText(e.target.value);
-    try { localStorage.setItem(STORAGE_KEY, e.target.value); } catch {}
+    const val = e.target.value;
+    setText(val);
+    try { localStorage.setItem(STORAGE_KEY, val); } catch {}
+    // Sync Supabase avec délai 2s
+    clearTimeout(window._planSyncTimer);
+    window._planSyncTimer = setTimeout(async () => {
+      try {
+        await sbFetch("/settings?id=eq.main", { method: "PATCH", body: JSON.stringify({ trading_plan: val }) });
+      } catch {}
+    }, 2000);
   };
 
   return (
@@ -5221,8 +5229,16 @@ function Previsions({ pairs = ["DXY", "EURUSD", "GBPUSD"] }) {
   const [newNewsLabel, setNewNewsLabel] = useState("");
   const [showAddNews, setShowAddNews] = useState(false);
 
-  const saveBiases = (b) => { setBiases(b); try { localStorage.setItem(STORAGE_KEY, JSON.stringify(b)); } catch {} };
-  const saveNews = (n) => { setNews(n); try { localStorage.setItem(NEWS_KEY, JSON.stringify(n)); } catch {} };
+  const saveBiases = (b) => {
+    setBiases(b);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(b)); } catch {}
+    try { sbFetch("/settings?id=eq.main", { method: "PATCH", body: JSON.stringify({ previsions_biases: b }) }); } catch {}
+  };
+  const saveNews = (n) => {
+    setNews(n);
+    try { localStorage.setItem(NEWS_KEY, JSON.stringify(n)); } catch {}
+    try { sbFetch("/settings?id=eq.main", { method: "PATCH", body: JSON.stringify({ previsions_news: n }) }); } catch {}
+  };
 
   const setBias = (pair, tf, val) => {
     const key = `${pair}_${tf}`;
@@ -6279,6 +6295,10 @@ function dbToSettings(r) {
     pairs: r.pairs ?? ["EURUSD","GBPUSD","XAUUSD","USDJPY","AUDUSD","USDCAD","NZDUSD","GBPJPY"],
     brokers: r.brokers ?? ["ICMarkets","Pepperstone","FTMO","MyForexFunds"],
     customTags: r.custom_tags ?? [],
+    hiddenTags: r.hidden_tags ?? [],
+    customErrors: r.custom_errors ?? [],
+    hiddenErrors: r.hidden_errors ?? [],
+    customPositives: r.custom_positives ?? [],
   };
 }
 
@@ -6316,9 +6336,16 @@ export default function TradingJournalApp() {
     setActiveAccountId(id);
     try { localStorage.setItem("activeAccountId", id); } catch {}
   };
-  const saveAccounts = (newAccounts) => {
+  const saveAccounts = async (newAccounts) => {
     setAccounts(newAccounts);
     try { localStorage.setItem("accounts", JSON.stringify(newAccounts)); } catch {}
+    // Sync Supabase
+    try {
+      await sbFetch("/settings?id=eq.main", {
+        method: "PATCH",
+        body: JSON.stringify({ accounts: newAccounts }),
+      });
+    } catch (e) { console.error("Erreur sync comptes:", e); }
   };
   const activeAccount = accounts.find(a => a.id === activeAccountId) || accounts[0];
 
@@ -6362,8 +6389,30 @@ export default function TradingJournalApp() {
       // Settings
       const settingsRows = await sbFetch("/settings?id=eq.main");
       if (settingsRows && settingsRows.length > 0) {
-        const s = dbToSettings(settingsRows[0]);
+        const r = settingsRows[0];
+        const s = dbToSettings(r);
         if (s) setAppSettings(s);
+
+        // Comptes
+        if (r.accounts && Array.isArray(r.accounts) && r.accounts.length > 0) {
+          setAccounts(r.accounts);
+          try { localStorage.setItem("accounts", JSON.stringify(r.accounts)); } catch {}
+        }
+
+        // Plan de trading
+        if (r.trading_plan) {
+          try { localStorage.setItem("trading_plan_text", r.trading_plan); } catch {}
+        }
+
+        // Prévisions biais
+        if (r.previsions_biases) {
+          try { localStorage.setItem("previsions_data", JSON.stringify(r.previsions_biases)); } catch {}
+        }
+
+        // News économiques
+        if (r.previsions_news) {
+          try { localStorage.setItem("previsions_news", JSON.stringify(r.previsions_news)); } catch {}
+        }
       }
       setDbError(null);
     } catch (e) {
@@ -6426,6 +6475,13 @@ export default function TradingJournalApp() {
   }, [loadData]);
 
   // ── Sauvegarde des settings dans Supabase ──
+  // Sauvegarde globale vers Supabase (settings + plan + prévisions + comptes)
+  const syncToSupabase = async (patch) => {
+    try {
+      await sbFetch("/settings?id=eq.main", { method: "PATCH", body: JSON.stringify(patch) });
+    } catch (e) { console.error("Sync Supabase:", e); }
+  };
+
   const saveSettings = async (newSettings) => {
     setAppSettings(newSettings);
     try {
@@ -6438,12 +6494,14 @@ export default function TradingJournalApp() {
           pairs: newSettings.pairs,
           brokers: newSettings.brokers,
           custom_tags: newSettings.customTags,
+          hidden_tags: newSettings.hiddenTags,
+          custom_errors: newSettings.customErrors,
+          hidden_errors: newSettings.hiddenErrors,
+          custom_positives: newSettings.customPositives,
           updated_at: new Date().toISOString(),
         }),
       });
-    } catch (e) {
-      console.error("Erreur sauvegarde settings:", e);
-    }
+    } catch (e) { console.error("Erreur settings:", e); }
   };
 
   const openEditTrade = (trade) => { setEditingTrade(trade); setView("tradeForm"); };
