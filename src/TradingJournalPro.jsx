@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
-  LayoutGrid, NotebookPen, BarChart3, Calendar as CalendarIcon,
+  LayoutGrid, NotebookPen, BarChart3,
   Plus, X, Upload, Search, Download, ChevronLeft, ChevronRight,
   TrendingUp, TrendingDown, Minus, Filter, ArrowUpRight, ArrowDownRight,
   Trash2, Edit3, Trophy, Clock, Save, Info, ChevronDown,
-  Sparkles, CheckCircle2, AlertCircle, Brain, ImageOff, Calculator,
-  ThumbsUp, ThumbsDown, Settings, Plus as PlusIcon, XCircle, MinusCircle,
-  BookOpen, Target, Newspaper,
+  Sparkles, CheckCircle2, AlertCircle, Brain, Calculator,
+  Settings,
+  BookOpen, Newspaper, RefreshCw,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -30,12 +30,21 @@ const DEFAULT_POSITIVES = [
   "Bonne gestion du risque",
   "MSS confirmé",
   "Sweep de liquidité identifié",
+  "Biais HTF respecté",
+  "Entrée du bon côté (premium/discount)",
+  "Displacement confirmé",
+  "SMT avec le DXY",
+  "Draw on liquidity clair",
 ];
 const DEFAULT_ERRORS = [
   "Entrer trop tôt","Entrer trop tard","TP trop tôt","SL trop serré","SL trop large",
   "Pas de confirmation MSS","Revenge trading","Hors killzone","Pas de sweep de liquidité",
   "FOMO","Sur-trader","Ignorer le DXY",
+  "Contre le biais HTF","Long en premium / short en discount","Pas de displacement",
+  "Pas de draw on liquidity clair","Entrée avant la killzone",
 ];
+const ICT_MODELS = ["Silver Bullet", "2022 Model", "Turtle Soup", "Judas Swing", "Power of 3 (AMD)", "Unicorn", "OTE", "Breaker", "Autre"];
+const LIQ_POINTS = ["BSL", "SSL", "PDH", "PDL", "Asia High", "Asia Low", "London High", "London Low", "EQH", "EQL", "PWH", "PWL"];
 
 const TAG_CATALOG = [
   { name: "OB+", category: "setup" },
@@ -50,6 +59,8 @@ const TAG_CATALOG = [
   { name: "Balanced Price Range", category: "setup" },
   { name: "Old High/Low", category: "setup" },
   { name: "Liquidity Sweep", category: "setup" },
+  { name: "Volume Imbalance", category: "setup" },
+  { name: "Propulsion Block", category: "setup" },
   { name: "A+ Setup", category: "setup" },
   { name: "London Session", category: "session" },
   { name: "New York Session", category: "session" },
@@ -57,135 +68,66 @@ const TAG_CATALOG = [
   { name: "Revenge Trade", category: "mistake" },
 ];
 
-function seedRandom(seed) {
-  let s = seed;
-  return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+
+
+
+
+
+
+// ── Heure de New York (gère l'heure d'été / d'hiver automatiquement) ──
+const NY_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour12: false, weekday: "short", hour: "2-digit", minute: "2-digit" });
+const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function nyNow(date) {
+  const parts = NY_FMT.formatToParts(date);
+  const g = (t) => parts.find((x) => x.type === t)?.value;
+  const h = Number(g("hour")) % 24;
+  return { dow: WD.indexOf(g("weekday")), min: h * 60 + Number(g("minute")) };
 }
-const rnd = seedRandom(42);
-function pick(arr) { return arr[Math.floor(rnd() * arr.length)]; }
-function pickMultiple(arr, min, max) {
-  const n = Math.floor(rnd() * (max - min + 1)) + min;
-  return [...arr].sort(() => rnd() - 0.5).slice(0, n);
+// Décalage NY → Thaïlande (en minutes) pour une date donnée
+function nyToThOffset(date) {
+  const ny = nyNow(date).min;
+  const utc = date.getUTCHours() * 60 + date.getUTCMinutes();
+  let off = ny - utc; if (off > 720) off -= 1440; if (off < -720) off += 1440;
+  return 420 - off;
 }
+const fmtHM = (m) => { const x = ((m % 1440) + 1440) % 1440; return `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`; };
 
-function genTrades() {
-  const trades = [];
-  const setupTags = TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name);
-  const mistakeTags = TAG_CATALOG.filter((t) => t.category === "mistake").map((t) => t.name);
-  const today = new Date();
-  let id = 1;
-
-  for (let daysAgo = 110; daysAgo >= 0; daysAgo--) {
-    const n = rnd() > 0.6 ? (rnd() > 0.78 ? 2 : 1) : 0;
-    for (let i = 0; i < n; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - daysAgo);
-      const hour = Math.floor(rnd() * 22) + 1;
-      date.setUTCHours(hour, Math.floor(rnd() * 60), 0, 0);
-
-      const pair = pick(PAIRS);
-      const direction = rnd() > 0.5 ? "long" : "short";
-      const tags = pickMultiple(setupTags, 1, 2);
-      const isAplus = tags.includes("A+ Setup");
-      const isHighProb = tags.includes("Order Block") || tags.includes("Fair Value Gap") || tags.includes("Liquidity Sweep");
-      const isLowProb = tags.includes("Liquidity Void") || tags.includes("Balanced Price Range");
-      let winProb = 0.54;
-      if (isAplus) winProb += 0.22;
-      if (isHighProb) winProb += 0.08;
-      if (isLowProb) winProb -= 0.15;
-      const actualWin = rnd() < winProb;
-
-      const riskUsd = Math.round((40 + rnd() * 160) * 100) / 100;
-      const rMultiple = actualWin
-        ? Math.round((0.8 + rnd() * 3.2) * 100) / 100
-        : -Math.round((0.6 + rnd() * 0.45) * 100) / 100;
-      const resultUsd = Math.round(riskUsd * rMultiple * 100) / 100;
-      const pipMult = pair === "XAUUSD" ? 10 : pair.includes("JPY") ? 0.93 : 10;
-      const resultPips = Math.round(rMultiple * (8 + rnd() * 12) * pipMult * 10) / 10;
-
-      const hasMistake = rnd() > 0.8;
-      const mistakes = hasMistake ? pickMultiple(mistakeTags, 1, 1) : [];
-      const entryPrice = pair === "XAUUSD" ? 2300 + rnd() * 100 : pair.includes("JPY") ? 145 + rnd() * 8 : 1 + rnd() * 0.3;
-      const decimals = pair.includes("JPY") || pair === "XAUUSD" ? 2 : 5;
-
-      const primarySetup = tags.find((t) => t !== "A+ Setup") || tags[0] || "Order Block";
-
-      // Notes de réflexion corrélées au résultat (pour des stats cohérentes côté Coach)
-      const baseQuality = actualWin ? 6 + rnd() * 4 : 3 + rnd() * 5;
-      const clamp10 = (v) => Math.max(1, Math.min(10, Math.round(v)));
-      const tradeRating = clamp10(baseQuality + (rnd() - 0.5) * 2);
-      const analysisQuality = clamp10(baseQuality + (rnd() - 0.5) * 2);
-      const confidence = clamp10(baseQuality + (rnd() - 0.5) * 3);
-      const discipline = clamp10(actualWin ? 6 + rnd() * 4 : 4 + rnd() * 5);
-      const emotionalLevel = clamp10(hasMistake ? 6 + rnd() * 4 : 2 + rnd() * 5);
-
-      trades.push({
-        id: id++,
-        entryTime: date.toISOString(),
-        pair, direction,
-        setup: primarySetup,
-        entryPrice: Number(entryPrice.toFixed(decimals)),
-        stopLoss: null, takeProfit: null, exitPrice: null,
-        positionSize: Number((0.1 + rnd() * 0.9).toFixed(2)),
-        riskUsd, resultUsd, resultPips,
-        resultR: rMultiple, resultRManual: false,
-        status: rnd() > 0.95 ? "breakeven" : "closed",
-        notes: pick([
-          "Setup conforme au plan, exécution propre du début à la fin.",
-          "Entrée un peu précipitée, j'aurais dû attendre la confirmation H1.",
-          "Bonne lecture de la liquidité, sortie au bon moment sur la zone.",
-          "Stop trop serré par rapport à la volatilité du moment.",
-          "Respect total du plan de trading, rien à redire.",
-          "Sorti trop tôt par manque de confiance dans le mouvement.",
-          "J'ai déplacé mon stop par peur, à corriger.",
-          "Belle confluence multi-timeframe, setup A+.",
-        ]),
-        tags: [...tags, ...mistakes],
-        // Journal de réflexion
-        reflection: {
-          tradeRating, analysisQuality, confidence, discipline, emotionalLevel,
-          whyTaken: "", whatWorked: "", whatFailed: "", toImprove: "",
-        },
-        // Évaluation du setup
-        setupEval: {
-          entry: clamp10(baseQuality + (rnd() - 0.5) * 2),
-          riskManagement: clamp10(baseQuality + (rnd() - 0.5) * 2),
-          timing: clamp10(baseQuality + (rnd() - 0.5) * 2),
-          patience: clamp10(discipline + (rnd() - 0.5) * 2),
-          execution: clamp10(baseQuality + (rnd() - 0.5) * 2),
-        },
-      });
-    }
-  }
-  return trades.sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
-}
-
-const MOCK_TRADES = genTrades();
-
-function getSession(isoDate) {
-  // Détecte la killzone depuis l'heure d'entrée en UTC+7 (Thaïlande)
-  const d = new Date(isoDate);
-  const thH = (d.getUTCHours() + 7) % 24;
-  const thM = d.getUTCMinutes();
-  const thMin = thH * 60 + thM;
-  // Asia : 07:00-11:00 TH
-  if (thMin >= 7*60 && thMin < 11*60) return "Asia Session";
-  // London : 13:00-16:00 TH
-  if (thMin >= 13*60 && thMin < 16*60) return "London Session";
-  // New York Matin : 19:30-22:00 TH
-  if (thMin >= 19*60+30 && thMin < 22*60) return "New York Session";
-  // New York Après-midi : 00:30-03:00 TH (chevauchement minuit)
-  if (thMin >= 0*60+30 && thMin < 3*60) return "New York Session";
-  return "Hors session";
-}
-
-// Killzones en heure Thaïlande (UTC+7)
+// Killzones ICT, définies en heure de New York
 const KILLZONES = [
-  { name: "Asia", start: "07:00", end: "11:00", color: "#E67E22", emoji: "🌏", utcStart: 0, utcEnd: 4 },
-  { name: "London", start: "13:00", end: "16:00", color: "#4A7FBF", emoji: "🇬🇧", utcStart: 6, utcEnd: 9 },
-  { name: "New York Matin", start: "19:30", end: "22:00", color: "#C0392B", emoji: "🗽", utcStart: 12.5, utcEnd: 15 },
-  { name: "New York Après-midi", start: "00:30", end: "03:00", color: "#E74C3C", emoji: "🌆", utcStart: 17.5, utcEnd: 20 },
+  { name: "Asia", short: "ASIA", s: 20 * 60, e: 24 * 60, color: "#E67E22", emoji: "🌏" },
+  { name: "London", short: "LONDON", s: 2 * 60, e: 5 * 60, color: "#4A7FBF", emoji: "🇬🇧" },
+  { name: "New York Matin", short: "NY·AM", s: 8 * 60 + 30, e: 11 * 60, color: "#C0392B", emoji: "🗽" },
+  { name: "New York Après-midi", short: "NY·PM", s: 13 * 60 + 30, e: 16 * 60, color: "#E74C3C", emoji: "🌆" },
 ];
+// Silver Bullet ICT (heure de New York)
+const SILVER_BULLETS = [
+  { name: "SB London", s: 3 * 60, e: 4 * 60 },
+  { name: "SB AM", s: 10 * 60, e: 11 * 60 },
+  { name: "SB PM", s: 14 * 60, e: 15 * 60 },
+];
+const inNyRange = (min, z) => min >= z.s && min < z.e;
+
+function killzoneAt(isoDate) {
+  const { min } = nyNow(new Date(isoDate));
+  return KILLZONES.find((z) => inNyRange(min, z)) || null;
+}
+function silverBulletAt(isoDate) {
+  const { min } = nyNow(new Date(isoDate));
+  return SILVER_BULLETS.find((z) => inNyRange(min, z)) || null;
+}
+// Session « large » utilisée par les tags existants
+function getSession(isoDate) {
+  const kz = killzoneAt(isoDate);
+  if (!kz) return "Hors session";
+  if (kz.name === "Asia") return "Asia Session";
+  if (kz.name === "London") return "London Session";
+  return "New York Session";
+}
+// Killzone détaillée (NY AM / NY PM séparés)
+function killzoneLabel(isoDate) {
+  const kz = killzoneAt(isoDate);
+  return kz ? (kz.name === "New York Matin" ? "NY AM" : kz.name === "New York Après-midi" ? "NY PM" : kz.name) : "Hors killzone";
+}
 
 function KillzoneBanner() {
   const [now, setNow] = useState(new Date());
@@ -194,26 +136,20 @@ function KillzoneBanner() {
     return () => clearInterval(t);
   }, []);
 
-  const thH = (now.getUTCHours() + 7) % 24;
-  const thM = now.getUTCMinutes();
-  const thMin = thH * 60 + thM;
-
-  const toMin = (s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
-  const isInZone = (kz) => {
-    const s = toMin(kz.start), e = toMin(kz.end);
-    return e > s ? thMin >= s && thMin < e : thMin >= s || thMin < e;
-  };
-  const minsUntil = (kz) => {
-    const s = toMin(kz.start);
-    return s > thMin ? s - thMin : 1440 - thMin + s;
-  };
+  const ny = nyNow(now);
+  const off = nyToThOffset(now);
+  const th = (m) => fmtHM(m + off);
+  const minsUntil = (kz) => (kz.s - ny.min + 1440) % 1440;
   const fmt = (m) => m >= 60 ? `${Math.floor(m/60)}h${String(m%60).padStart(2,"0")}` : `${m}min`;
-
-  const dayOfWeek = now.getUTCDay();
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  const active = !isWeekend && KILLZONES.find(isInZone);
+  // Forex : fermé du vendredi 17h au dimanche 17h (heure de New York)
+  const isWeekend = ny.dow === 6 || (ny.dow === 5 && ny.min >= 17 * 60) || (ny.dow === 0 && ny.min < 17 * 60);
+  const active = !isWeekend && KILLZONES.find((z) => inNyRange(ny.min, z));
   const next = !isWeekend && !active && [...KILLZONES].sort((a,b) => minsUntil(a) - minsUntil(b))[0];
-  const minsLeft = active ? (() => { const e = toMin(active.end); return e > thMin ? e - thMin : 1440 - thMin + e; })() : null;
+  const minsLeft = active ? active.e - ny.min : null;
+  const sb = !isWeekend && SILVER_BULLETS.find((z) => inNyRange(ny.min, z));
+  const isInZone = (kz) => inNyRange(ny.min, kz);
+  if (active) active.end = th(active.e);
+  if (next) next.start = th(next.s);
 
   // Vérif news économiques - dans useMemo pour éviter re-renders
   const newsAlert = useMemo(() => {
@@ -269,6 +205,7 @@ function KillzoneBanner() {
             <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 10 }}>jusqu'à {active.end}</span>
             <span style={{ fontSize: 10, color: active.color, background: `${active.color}20`, padding: "1px 6px", borderRadius: 3, fontWeight: 700, letterSpacing: 0.5, marginRight: 12 }}>LIVE</span>
             <span className="tnum" style={{ fontSize: 10.5, color: C.sidebarTextDim }}>encore {fmt(minsLeft)}</span>
+            {sb && <span style={{ fontSize: 10, color: "#E5E7EB", background: "rgba(255,255,255,0.1)", padding: "1px 6px", borderRadius: 3, fontWeight: 700, marginLeft: 8 }}>⚡ {sb.name}</span>}
           </>
         ) : next ? (
           <>
@@ -285,7 +222,7 @@ function KillzoneBanner() {
         <div style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
           {KILLZONES.map(kz => {
             const isAct = !isWeekend && isInZone(kz);
-            const short = kz.name === "New York Matin" ? "NY·AM" : kz.name === "New York Après-midi" ? "NY·PM" : kz.name.toUpperCase();
+            const short = kz.short;
             return (
               <span key={kz.name} className="tnum" style={{ fontSize: 9.5, fontWeight: isAct ? 700 : 400, color: isAct ? kz.color : "rgba(255,255,255,0.2)", letterSpacing: 0.5 }}>
                 {short}
@@ -297,63 +234,7 @@ function KillzoneBanner() {
     </>
   );
 }
-function KillzoneWidget() {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(t);
-  }, []);
 
-  // Heure Thaïlande = UTC+7
-  const thH = (now.getUTCHours() + 7) % 24;
-  const thM = now.getUTCMinutes();
-  const thTime = `${String(thH).padStart(2, "0")}:${String(thM).padStart(2, "0")}`;
-
-  const activeZone = KILLZONES.find(kz => {
-    const [sh, sm] = kz.start.split(":").map(Number);
-    const [eh, em] = kz.end.split(":").map(Number);
-    const startMin = sh * 60 + sm;
-    const endMin = eh * 60 + em;
-    const nowMin = thH * 60 + thM;
-    if (endMin > startMin) return nowMin >= startMin && nowMin < endMin;
-    return nowMin >= startMin || nowMin < endMin; // chevauchement minuit
-  });
-
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <CardLabel style={{ margin: 0 }}>🕐 Killzones ICT</CardLabel>
-        <div className="tnum" style={{ fontSize: 13, fontWeight: 700, color: activeZone ? activeZone.color : C.textMuted }}>
-          TH {thTime} {activeZone ? `• ${activeZone.emoji} ${activeZone.name}` : "• Hors killzone"}
-        </div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {KILLZONES.map(kz => {
-          const isActive = activeZone?.name === kz.name;
-          return (
-            <div key={kz.name} style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "9px 12px", borderRadius: 8,
-              background: isActive ? `${kz.color}15` : C.inputBg || C.card,
-              border: `1px solid ${isActive ? kz.color : C.border}`,
-              transition: "all 0.2s",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 15 }}>{kz.emoji}</span>
-                <span style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? kz.color : C.text }}>{kz.name}</span>
-                {isActive && <span style={{ fontSize: 10, background: kz.color, color: "#fff", padding: "1px 6px", borderRadius: 10, fontWeight: 700 }}>LIVE</span>}
-              </div>
-              <span className="tnum" style={{ fontSize: 12, color: isActive ? kz.color : C.textMuted, fontWeight: isActive ? 700 : 400 }}>
-                {kz.start} – {kz.end}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 6 }}>Heure Thaïlande (UTC+7) · Forex/Gold</div>
-    </div>
-  );
-}
 
 function fmtUsdSigned(n) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -381,6 +262,11 @@ function fmtDateTime(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) + " · " +
     d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+function toLocalInput(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; }
 
@@ -489,6 +375,18 @@ function buildCoachPrompt(trades) {
     resultR: t.resultR,
     win: t.resultR > 0,
     tags: t.tags,
+    confidenceBefore: t.confidenceLevel || null,
+    qualityAfter: t.retroRating || null,
+    verdict: t.verdict || null,
+    ote: t.oteFib || null,
+    killzone: killzoneLabel(t.entryTime),
+    ictModel: t.ictModel || null,
+    htfBias: t.htfBias || null,
+    pdZone: t.pdZone || null,
+    sweptLiquidity: t.sweptLiquidity || null,
+    drawOnLiquidity: t.drawOnLiquidity || null,
+    displacement: !!t.displacement,
+    mistakes: t.mistakes || [],
     rating: t.reflection?.tradeRating ?? null,
     analysisQuality: t.reflection?.analysisQuality ?? null,
     confidence: t.reflection?.confidence ?? null,
@@ -1472,22 +1370,28 @@ function MiniBarRow({ label, pnl, maxAbsPnl }) {
   );
 }
 
-function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
+function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalance = 10000 }) {
   const [period, setPeriod] = useState("30j");
+  const [eqMode, setEqMode] = useState("cum");
 
   const filteredTrades = useMemo(() => {
     if (period === "tout") return trades;
     const days = period === "7j" ? 7 : period === "30j" ? 30 : 90;
-    const since = new Date();
-    since.setDate(since.getDate() - days);
-    // Les données mock sont de 2026 — on adapte la référence
-    const ref = new Date();
-    const cutoff = new Date(ref);
-    cutoff.setDate(ref.getDate() - days);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
     return trades.filter((t) => new Date(t.entryTime) >= cutoff);
   }, [trades, period]);
 
   const stats = useMemo(() => computeStats(filteredTrades, initialBalance), [filteredTrades, initialBalance]);
+  const dailyData = useMemo(() => {
+    const m = {};
+    stats.closed.forEach((t) => {
+      const d = new Date(t.entryTime);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      m[k] = (m[k] || 0) + (t.resultUsd || 0);
+    });
+    return Object.keys(m).sort().map((k) => ({ label: fmtDate(k + "T12:00:00"), pnl: Math.round(m[k] * 100) / 100 }));
+  }, [stats.closed]);
   const byPair = useMemo(() => groupBy(stats.closed, (t) => t.pair).sort((a, b) => b.pnl - a.pnl).slice(0, 5), [stats.closed]);
   const bySetup = useMemo(() => {
     if (!stats?.closed) return [];
@@ -1573,10 +1477,22 @@ function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <CardLabel info>Courbe d'équité cumulée</CardLabel>
           <div style={{ display: "flex", gap: 6 }}>
-            <button style={{ ...btn.ghost, padding: "5px 10px", fontSize: 11, background: C.purpleDim, color: C.purpleBright, borderColor: "transparent" }}>Cumulé</button>
-            <button style={{ ...btn.ghost, padding: "5px 10px", fontSize: 11 }}>Quotidien</button>
+            {[["cum", "Cumulé"], ["day", "Quotidien"]].map(([k, l]) => (
+              <button key={k} onClick={() => setEqMode(k)} style={{ ...btn.ghost, padding: "5px 10px", fontSize: 11, ...(eqMode === k ? { background: C.purpleDim, color: C.purpleBright, borderColor: "transparent" } : {}) }}>{l}</button>
+            ))}
           </div>
         </div>
+        {eqMode === "day" ? (
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={dailyData} margin={{ top: 5, right: 8, left: -12, bottom: 0 }}>
+            <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: C.textMuted, fontSize: 10.5 }} axisLine={{ stroke: C.border }} tickLine={false} minTickGap={30} />
+            <YAxis tick={{ fill: C.textMuted, fontSize: 10.5 }} axisLine={false} tickLine={false} width={54} tickFormatter={(v) => `$${Math.round(v)}`} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.borderLight}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: C.textSecondary }} formatter={(v) => [fmtUsdSigned(v), "P&L du jour"]} cursor={{ fill: "rgba(128,128,160,0.08)" }} />
+            <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>{dailyData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? C.teal : C.red} />)}</Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        ) : (
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={stats.curve} margin={{ top: 5, right: 8, left: -12, bottom: 0 }}>
             <defs>
@@ -1599,6 +1515,7 @@ function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
             <Area type="monotone" dataKey="balance" stroke={C.teal} strokeWidth={2} fill="url(#eqFill)" />
           </AreaChart>
         </ResponsiveContainer>
+        )}
       </Card>
 
       {/* Ligne 3 — Win/Loss + Profit par paire/setup/session */}
@@ -1684,7 +1601,7 @@ function Dashboard({ trades, onOpenTrade, setView, initialBalance = 10000 }) {
 
         <div className="desktop-only table-scroll">
           <div style={{ display: "grid", gridTemplateColumns: "90px 70px 60px 110px 90px 80px 1fr", padding: "8px 18px", fontSize: 10.5, color: C.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, borderBottom: `1px solid ${C.border}`, minWidth: 640 }}>
-            <div>Date</div><div>Paire</div><div>Dir.</div><div>Setup</div><div>Résultat</div><div>R</div><div>Tags</div>
+            <div>Date</div><div>Paire</div><div>Dir.</div><div>Setup</div><div>Résultat</div><div>Statut</div><div>Tags</div>
           </div>
           {recentTrades.map((t) => (
             <div key={t.id} className="row-hover" onClick={() => onOpenTrade(t.id)} style={{ display: "grid", gridTemplateColumns: "90px 70px 60px 110px 90px 80px 1fr", padding: "11px 18px", borderBottom: `1px solid ${C.border}`, alignItems: "center", cursor: "pointer", fontSize: 12.5, minWidth: 640 }}>
@@ -1814,10 +1731,13 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
     setPendingOte("all"); setFilterOte("all");
     setPendingDateFrom(""); setDateFrom("");
     setPendingDateTo(""); setDateTo("");
+    setFilterPositive(""); setFilterNegative("");
   };
 
-  const setupOptions = useMemo(() => [...new Set(trades.map((t) => t.setup).filter(Boolean))], [trades]);
+  
   const pdSetupOptions = TAG_CATALOG.filter(t => t.category === "setup");
+  const errOptions = useMemo(() => [...new Set(trades.flatMap((t) => t.mistakes || []))].sort(), [trades]);
+  const posOptions = useMemo(() => [...new Set(trades.flatMap((t) => t.positives || []))].sort(), [trades]);
   const togglePendingTag = (name) => setPendingTags(prev => prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]);
 
   // Grouper les trades par mois
@@ -1850,19 +1770,17 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
       if (filterExcludeTags.length > 0 && filterExcludeTags.some(et => (t.tags || []).includes(et) || (t.dxyTags || []).includes(et))) return false;
       // Filtre point positif
       if (filterPositive) {
-        const posKey = `positifs_${t.id}`;
-        try { const pos = JSON.parse(localStorage.getItem(posKey) || "[]"); if (!pos.includes(filterPositive)) return false; } catch { return false; }
+        if (!(t.positives || []).includes(filterPositive)) return false;
       }
       // Filtre erreur
       if (filterNegative) {
-        const negKey = `ameliorer_${t.id}`;
-        try { const neg = JSON.parse(localStorage.getItem(negKey) || "[]"); if (!neg.includes(filterNegative)) return false; } catch { return false; }
+        if (!(t.mistakes || []).includes(filterNegative)) return false;
       }
       return true;
     });
   }, [trades, filterPair, filterSetup, filterSession, filterTags, filterResult, filterOte, dateFrom, dateTo, search, filterExcludeTags, filterPositive, filterNegative]);
 
-  const activeFilterCount = [filterPair !== "all", filterSetup !== "all", filterSession !== "all", filterTags.length > 0, filterResult !== "all", filterOte !== "all", dateFrom, dateTo].filter(Boolean).length;
+  const activeFilterCount = [filterPair !== "all", filterSetup !== "all", filterSession !== "all", filterTags.length > 0, filterResult !== "all", filterOte !== "all", dateFrom, dateTo, filterPositive, filterNegative].filter(Boolean).length;
 
   const toggleMonth = (key) => {
     setOpenMonths((prev) => {
@@ -1959,6 +1877,23 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
             </div>
           </div>
 
+          {(errOptions.length > 0 || posOptions.length > 0) && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
+              <Field label="Erreur commise">
+                <select value={filterNegative} onChange={(e) => setFilterNegative(e.target.value)} style={inputStyle}>
+                  <option value="">Toutes</option>
+                  {errOptions.map((x) => <option key={x} value={x}>{x}</option>)}
+                </select>
+              </Field>
+              <Field label="Point positif">
+                <select value={filterPositive} onChange={(e) => setFilterPositive(e.target.value)} style={inputStyle}>
+                  <option value="">Tous</option>
+                  {posOptions.map((x) => <option key={x} value={x}>{x}</option>)}
+                </select>
+              </Field>
+            </div>
+          )}
+
           {/* PD Arrays multi-sélection */}
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, marginBottom: 18 }}>
             <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>
@@ -2033,7 +1968,7 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
             <button onClick={applyFilters} style={{ ...btn.primary, flex: 1, justifyContent: "center", padding: "12px", fontSize: 14, fontWeight: 700 }}>
               <Search size={15} /> Appliquer
             </button>
-            {(pendingPair !== "all" || pendingSession !== "all" || pendingResult !== "all" || pendingOte !== "all" || pendingTags.length > 0 || pendingDateFrom || pendingDateTo) && (
+            {(pendingPair !== "all" || pendingSession !== "all" || pendingResult !== "all" || pendingOte !== "all" || pendingTags.length > 0 || pendingDateFrom || pendingDateTo || filterPositive || filterNegative) && (
               <button onClick={resetFilters} style={{ ...btn.ghost, padding: "12px 16px" }}>
                 Tout effacer
               </button>
@@ -2081,7 +2016,7 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
                 {isOpen && (
                   <div style={{ background: "transparent", padding: "10px 8px", display: "flex", flexDirection: "column", gap: 8 }}>
                     <div className="desktop-only table-scroll" style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "90px 90px 70px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "100px 80px 60px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
                         <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>P&L</div><div>R</div><div>Statut</div>
                       </div>
                       {monthTrades.map((t) => <TradeRow key={t.id} t={t} onOpen={onOpen} />)}
@@ -2100,7 +2035,7 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
           <>
           <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.card }} className="desktop-only">
             <div className="table-scroll">
-            <div style={{ display: "grid", gridTemplateColumns: "90px 90px 70px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "100px 80px 60px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
               <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>P&L</div><div>R</div><div>Statut</div>
             </div>
             {filtered.map((t) => <TradeRow key={t.id} t={t} onOpen={onOpen} />)}
@@ -2468,8 +2403,9 @@ function SimulateurTP({ trade }) {
   );
 }
 
-function PdRuleRow({ tag, color }) {
-  const [resp, setResp] = useState(null);
+function PdRuleRow({ tag, color, value, onChange }) {
+  const resp = value || null;
+  const setResp = (v) => onChange(v);
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: C.inputBg || C.card, borderRadius: 10, border: `1px solid ${C.border}` }}>
       <span style={{ fontSize: 13, fontWeight: 600, color }}>{tag}</span>
@@ -2507,14 +2443,11 @@ function SimulateurTPMasquable({ trade }) {
   );
 }
 
-function AmeliorerSection({ appSettings, tradeId }) {
-  const KEY_NEG = `ameliorer_${tradeId}`;
-  const KEY_POS = `positifs_${tradeId}`;
-  const [negChecked, setNegChecked] = useState(() => { try { return JSON.parse(localStorage.getItem(KEY_NEG) || "[]"); } catch { return []; } });
-  const [posChecked, setPosChecked] = useState(() => { try { return JSON.parse(localStorage.getItem(KEY_POS) || "[]"); } catch { return []; } });
-
-  const toggleNeg = (err) => { const next = negChecked.includes(err) ? negChecked.filter(e => e !== err) : [...negChecked, err]; setNegChecked(next); try { localStorage.setItem(KEY_NEG, JSON.stringify(next)); } catch {} };
-  const togglePos = (p) => { const next = posChecked.includes(p) ? posChecked.filter(e => e !== p) : [...posChecked, p]; setPosChecked(next); try { localStorage.setItem(KEY_POS, JSON.stringify(next)); } catch {} };
+function AmeliorerSection({ appSettings, trade, onPatch }) {
+  const negChecked = trade.mistakes || [];
+  const posChecked = trade.positives || [];
+  const toggleNeg = (err) => onPatch({ mistakes: negChecked.includes(err) ? negChecked.filter(e => e !== err) : [...negChecked, err] });
+  const togglePos = (p) => onPatch({ positives: posChecked.includes(p) ? posChecked.filter(e => e !== p) : [...posChecked, p] });
 
   const hiddenErrors = appSettings?.hiddenErrors || [];
   const customErrors = appSettings?.customErrors || [];
@@ -2568,7 +2501,7 @@ function AmeliorerSection({ appSettings, tradeId }) {
   );
 }
 
-function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetroSave, appSettings }) {
+function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetroSave, onPatch, appSettings }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState("avant");
   const [aiLoading, setAiLoading] = useState(false);
@@ -2686,6 +2619,12 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
               <DetailStat label="Timeframe" value={(trade.tags || []).find(t => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t)) || "—"} />
               {trade.tfAlignment && <DetailStat label="TF sup." value={trade.tfAlignment + (trade.tfAlignmentSetup ? " · " + trade.tfAlignmentSetup : "")} />}
               {trade.oteFib && <DetailStat label="Zone OTE" value={trade.oteFib} valueColor={C.teal} />}
+              <DetailStat label="Killzone" value={killzoneLabel(trade.entryTime) + (silverBulletAt(trade.entryTime) ? " · ⚡ SB" : "")} />
+              {trade.ictModel && <DetailStat label="Modèle ICT" value={trade.ictModel} valueColor={C.purpleBright} />}
+              {trade.htfBias && <DetailStat label="Biais HTF" value={trade.htfBias} valueColor={htfAligned(trade) ? C.teal : C.red} />}
+              {trade.pdZone && <DetailStat label="Zone" value={trade.pdZone} valueColor={pdAligned(trade) === false ? C.red : C.teal} />}
+              {trade.sweptLiquidity && <DetailStat label="Liquidité prise" value={trade.sweptLiquidity} />}
+              {trade.drawOnLiquidity && <DetailStat label="Draw on liquidity" value={trade.drawOnLiquidity} />}
               {trade.confidenceLevel > 0 && <DetailStat label="Confiance" value={trade.confidenceLevel + "/10"} valueColor={trade.confidenceLevel >= 7 ? C.teal : trade.confidenceLevel >= 4 ? C.amber : C.red} />}
             </div>
           </Card>
@@ -2842,18 +2781,18 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
                 {(trade.tags || []).filter(t => TAG_CATALOG.find(tc => tc.name === t && tc.category === "setup")).map(tag => {
                   const def = TAG_CATALOG.find(t => t.name === tag);
-                  return <PdRuleRow key={tag} tag={tag} color={def?.color || C.purpleBright} />;
+                  return <PdRuleRow key={tag} tag={tag} value={(trade.rules || {})[tag]} onChange={(v) => { const nr = { ...(trade.rules || {}) }; if (v) nr[tag] = v; else delete nr[tag]; onPatch && onPatch(trade.id, { rules: nr }); }} color={def?.color || C.purpleBright} />;
                 })}
                 {(trade.dxyTags || []).length > 0 && <>
                   <div style={{ fontSize: 10, color: C.amber, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>DXY</div>
-                  {(trade.dxyTags || []).map(tag => <PdRuleRow key={"dxy_" + tag} tag={tag} color={C.amber} />)}
+                  {(trade.dxyTags || []).map(tag => <PdRuleRow key={"dxy_" + tag} tag={"DXY " + tag} value={(trade.rules || {})["DXY " + tag]} onChange={(v) => { const k = "DXY " + tag; const nr = { ...(trade.rules || {}) }; if (v) nr[k] = v; else delete nr[k]; onPatch && onPatch(trade.id, { rules: nr }); }} color={C.amber} />)}
                 </>}
               </div>
             </Card>
           )}
 
           {/* À améliorer — bullets cochables */}
-          <AmeliorerSection appSettings={appSettings} tradeId={trade.id} />
+          <AmeliorerSection appSettings={appSettings} trade={trade} onPatch={(p) => onPatch && onPatch(trade.id, p)} />
 
           {/* Simulateur TP masquable */}
           {trade.riskUsd && trade.status !== "open" && <SimulateurTPMasquable trade={trade} />}
@@ -2912,14 +2851,7 @@ function RatingDisplay({ label, value, color }) {
   );
 }
 
-function ReflectionRow({ label, text }) {
-  return (
-    <div style={{ padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>{text}</div>
-    </div>
-  );
-}
+
 
 function DetailStat({ label, value, valueColor }) {
   return (
@@ -3249,17 +3181,7 @@ function ImageUploadBox({ label, value, onChange }) {
   );
 }
 
-function ToggleBtn({ active, onClick, color, children }) {
-  return (
-    <button onClick={onClick} style={{
-      flex: 1, padding: "8px 10px", borderRadius: 7, border: `1px solid ${active ? color : C.border}`,
-      background: active ? color + "1F" : C.bg, color: active ? color : C.textSecondary,
-      fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
-    }}>
-      {children}
-    </button>
-  );
-}
+
 
 function LiveCalcStat({ label, value, color }) {
   return (
@@ -3270,27 +3192,13 @@ function LiveCalcStat({ label, value, color }) {
   );
 }
 
-function RatingSlider({ label, value, onChange, color }) {
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 500 }}>{label}</span>
-        <span className="tnum" style={{ fontSize: 13, fontWeight: 800, color: color || C.purpleBright }}>{value}/10</span>
-      </div>
-      <input
-        type="range" min={1} max={10} step={1} value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        style={{ width: "100%", accentColor: color || C.purple }}
-      />
-    </div>
-  );
-}
 
-function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
+
+function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trades }) {
   const isEdit = !!initial;
   const [pair, setPair] = useState(initial?.pair || "EURUSD");
   const [direction, setDirection] = useState(initial?.direction || "long");
-  const [entryTime, setEntryTime] = useState(initial?.entryTime ? initial.entryTime.slice(0, 16) : new Date().toISOString().slice(0, 16));
+  const [entryTime, setEntryTime] = useState(toLocalInput(initial?.entryTime));
   const [entryPrice, setEntryPrice] = useState(initial?.entryPrice ?? "");
   const [stopLoss, setStopLoss] = useState(initial?.stopLoss ?? "");
   const [takeProfit, setTakeProfit] = useState(initial?.takeProfit ?? "");
@@ -3318,6 +3226,14 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
   const [tfAlignment, setTfAlignment] = useState(initial?.tfAlignment || "");
   const [tfAlignmentSetup, setTfAlignmentSetup] = useState(initial?.tfAlignmentSetup || "");
   const [oteFib, setOteFib] = useState(initial?.oteFib || "");
+  const [maxR, setMaxR] = useState(initial?.maxR ?? "");
+  const [ictModel, setIctModel] = useState(initial?.ictModel || "");
+  const [htfBias, setHtfBias] = useState(initial?.htfBias || "");
+  const [pdZone, setPdZone] = useState(initial?.pdZone || "");
+  const [sweptLiquidity, setSweptLiquidity] = useState(initial?.sweptLiquidity || "");
+  const [drawOnLiquidity, setDrawOnLiquidity] = useState(initial?.drawOnLiquidity || "");
+  const [displacement, setDisplacement] = useState(initial?.displacement || false);
+  const [smt, setSmt] = useState(initial?.smt || false);
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [calcPct, setCalcPct] = useState("1");
 
@@ -3465,7 +3381,10 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
       resultR: finalResultR, resultRManual,
       status: finalStatus, notes, tags, screenshotBefore, screenshotAfter,
       dxyBias, dxyScreenshotBefore, dxyScreenshotAfter, dxyTags,
-      liquiditySweep, mssConfirmed, tfAlignment, tfAlignmentSetup, confidenceLevel, oteFib,
+      mssConfirmed, tfAlignment, tfAlignmentSetup, confidenceLevel, oteFib,
+      maxR: maxR === "" ? null : Number(maxR),
+      ictModel, htfBias, pdZone, sweptLiquidity, drawOnLiquidity, displacement, smt,
+      liquiditySweep: liquiditySweep || (!!sweptLiquidity && sweptLiquidity !== "Aucune"),
     });
   };
 
@@ -3697,6 +3616,64 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
         </div>
       </Card>
 
+      {/* Contexte ICT */}
+      <Card style={{ padding: 16, marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <CardLabel>Contexte ICT</CardLabel>
+          {entryTime && (() => { const kz = killzoneLabel(entryTime); const sb = silverBulletAt(entryTime); return (
+            <span style={{ fontSize: 11, color: kz === "Hors killzone" ? C.amber : C.teal, fontWeight: 700 }}>{kz}{sb ? ` · ⚡ ${sb.name}` : ""}</span>); })()}
+        </div>
+        {(() => {
+          const seg = (val, set, opts) => (
+            <div style={{ display: "flex", gap: 6 }}>
+              {opts.map(([v, l, col]) => { const on = val === v; return (
+                <button key={v} onClick={() => set(on ? "" : v)} style={{ flex: 1, padding: "9px 6px", borderRadius: 8, fontSize: 12.5, fontWeight: on ? 700 : 500, cursor: "pointer", border: `1.5px solid ${on ? col : C.border}`, background: on ? col + "1A" : "transparent", color: on ? col : C.textSecondary }}>{l}</button>); })}
+            </div>);
+          const wantZone = direction === "long" ? "Discount" : "Premium";
+          const htfOk = htfBias ? (htfBias === "Bullish") === (direction === "long") : null;
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+              <Field label="Biais HTF (Daily / H4)">
+                {seg(htfBias, setHtfBias, [["Bullish", "↑ Bullish", C.teal], ["Bearish", "↓ Bearish", C.red]])}
+                {htfOk === false && <span style={{ fontSize: 11.5, color: C.red, fontWeight: 600 }}>⚠️ Ce trade va contre ton biais HTF</span>}
+              </Field>
+              <Field label="Zone d'entrée dans le dealing range">
+                {seg(pdZone, setPdZone, [["Discount", "Discount", C.teal], ["Equilibrium", "Équilibre", C.textSecondary], ["Premium", "Premium", C.red]])}
+                {pdZone && pdZone !== "Equilibrium" && pdZone !== wantZone && <span style={{ fontSize: 11.5, color: C.red, fontWeight: 600 }}>⚠️ {direction === "long" ? "Long en premium" : "Short en discount"}</span>}
+              </Field>
+              <div className="form-grid-2">
+                <Field label="Modèle ICT">
+                  <SelectWithCheck value={ictModel} onChange={(e) => setIctModel(e.target.value)} style={inputStyle}>
+                    <option value="">— Sélectionner —</option>
+                    {ICT_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </SelectWithCheck>
+                </Field>
+                <Field label="Liquidité prise avant l'entrée">
+                  <SelectWithCheck value={sweptLiquidity} onChange={(e) => setSweptLiquidity(e.target.value)} style={inputStyle}>
+                    <option value="">— Sélectionner —</option>
+                    {LIQ_POINTS.map((m) => <option key={m} value={m}>{m}</option>)}
+                    <option value="Aucune">Aucune</option>
+                  </SelectWithCheck>
+                </Field>
+                <Field label="Draw on liquidity (cible)">
+                  <SelectWithCheck value={drawOnLiquidity} onChange={(e) => setDrawOnLiquidity(e.target.value)} style={inputStyle}>
+                    <option value="">— Sélectionner —</option>
+                    {[...LIQ_POINTS, "FVG HTF", "OB HTF"].map((m) => <option key={m} value={m}>{m}</option>)}
+                  </SelectWithCheck>
+                </Field>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[["Displacement", displacement, setDisplacement], ["SMT divergence", smt, setSmt]].map(([l, v, set]) => (
+                  <button key={l} onClick={() => set(!v)} style={{ flex: 1, minWidth: 130, padding: "10px 12px", borderRadius: 9, cursor: "pointer", border: `1.5px solid ${v ? C.teal : C.border}`, background: v ? C.tealDim : "transparent", color: v ? C.teal : C.textSecondary, fontSize: 12.5, fontWeight: 600 }}>{v ? "✓ " : ""}{l}</button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </Card>
+
+      <PreTradeContext trades={(trades || []).filter((t) => t.id !== initial?.id)} pair={pair} direction={direction} tags={tags} ictModel={ictModel} entryTime={entryTime} />
+
       {/* Prix et taille — avec TP/SL colorés, exit = TP par défaut, risque % live */}
       <Card style={{ padding: 16, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -3916,6 +3893,11 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
             <input type="checkbox" checked={resultRManual} onChange={(e) => setResultRManual(e.target.checked)} />
             Modifier R
           </label>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <Field label="R max atteint (optionnel)" hint="Le plus loin que le prix est allé en ta faveur, en R. Sert à simuler tes TP dans Stats › Exécution.">
+            <input type="number" step="0.1" placeholder="Ex: 2.8" value={maxR} onChange={(e) => setMaxR(e.target.value)} style={{ ...inputStyle, maxWidth: 160 }} />
+          </Field>
         </div>
       </Card>
 
@@ -4145,30 +4127,7 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave }) {
   );
 }
 
-function TagGroup({ label, tags, active, onToggle }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 700 }}>{label}</div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {tags.map((t) => {
-          const isActive = active.includes(t.name);
-          const isMistake = t.category === "mistake";
-          const color = isMistake ? C.red : C.purpleBright;
-          return (
-            <button key={t.name} onClick={() => onToggle(t.name)} style={{
-              padding: "5px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
-              border: `1px solid ${isActive ? color : C.border}`,
-              background: isActive ? color + "1F" : C.bg,
-              color: isActive ? color : C.textSecondary,
-            }}>
-              {t.name}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+
 
 /* ============================================================================
    STATISTIQUES — section extrêmement détaillée
@@ -4307,7 +4266,7 @@ function StatsHeatmap({ trades }) {
   );
 }
 
-function AdvancedStats({ trades }) {
+function OverviewStats({ trades }) {
   const closed = useMemo(() => trades.filter((t) => t.status !== "open"), [trades]);
 
   const byPair = useMemo(() => groupBy(closed, (t) => t.pair), [closed]);
@@ -4329,7 +4288,7 @@ function AdvancedStats({ trades }) {
   const bySession = useMemo(() => groupBy(closed, (t) => getSession(t.entryTime)), [closed]);
 
   const byHour = useMemo(() => {
-    const groups = groupBy(closed, (t) => `${String(new Date(t.entryTime).getUTCHours()).padStart(2, "0")}h`);
+    const groups = groupBy(closed, (t) => `${String((new Date(t.entryTime).getUTCHours() + 7) % 24).padStart(2, "0")}h`);
     return groups.sort((a, b) => a.key.localeCompare(b.key));
   }, [closed]);
 
@@ -4347,61 +4306,13 @@ function AdvancedStats({ trades }) {
   }, [closed]);
 
   // Analyse PD Arrays : winrate + avgR + confiance moyenne + OTE impact
-  const pdArrayStats = useMemo(() => {
-    const setupTagNames = TAG_CATALOG.filter(t => t.category === "setup").map(t => t.name);
-    const map = {};
-    closed.forEach(t => {
-      (t.tags || []).filter(tag => setupTagNames.includes(tag)).forEach(tag => {
-        if (!map[tag]) map[tag] = { trades: [], pnl: 0, wins: 0, totalR: 0, totalConf: 0, confCount: 0 };
-        map[tag].trades.push(t);
-        map[tag].pnl += t.resultUsd || 0;
-        if (t.resultR > 0) map[tag].wins += 1;
-        map[tag].totalR += t.resultR || 0;
-        if (t.confidenceLevel) { map[tag].totalConf += t.confidenceLevel; map[tag].confCount += 1; }
-      });
-    });
-    return Object.entries(map).map(([name, v]) => ({
-      name,
-      count: v.trades.length,
-      winRate: v.trades.length ? (v.wins / v.trades.length) * 100 : 0,
-      pnl: v.pnl,
-      avgR: v.trades.length ? v.totalR / v.trades.length : 0,
-      avgConf: v.confCount ? v.totalConf / v.confCount : null,
-    })).filter(g => g.count >= 1).sort((a, b) => b.avgR - a.avgR);
-  }, [closed]);
+  
 
   // OTE impact : trades avec OTE vs sans OTE
-  const oteImpact = useMemo(() => {
-    const withOte = closed.filter(t => t.oteFib);
-    const withoutOte = closed.filter(t => !t.oteFib);
-    const calcGroup = (arr) => ({
-      count: arr.length,
-      winRate: arr.length ? arr.filter(t => t.resultR > 0).length / arr.length * 100 : 0,
-      avgR: arr.length ? arr.reduce((s, t) => s + (t.resultR || 0), 0) / arr.length : 0,
-      pnl: arr.reduce((s, t) => s + (t.resultUsd || 0), 0),
-    });
-    return { withOte: calcGroup(withOte), withoutOte: calcGroup(withoutOte) };
-  }, [closed]);
+  
 
   // Confiance vs résultat
-  const confVsResult = useMemo(() => {
-    const rated = closed.filter(t => t.confidenceLevel > 0);
-    const buckets = [
-      { label: "1-3 (Faible)", min: 1, max: 3 },
-      { label: "4-5 (Moyen)", min: 4, max: 5 },
-      { label: "6-7 (Bon)", min: 6, max: 7 },
-      { label: "8-10 (Excellent)", min: 8, max: 10 },
-    ].map(b => {
-      const group = rated.filter(t => t.confidenceLevel >= b.min && t.confidenceLevel <= b.max);
-      return {
-        ...b,
-        count: group.length,
-        winRate: group.length ? group.filter(t => t.resultR > 0).length / group.length * 100 : 0,
-        avgR: group.length ? group.reduce((s, t) => s + (t.resultR || 0), 0) / group.length : 0,
-      };
-    });
-    return buckets;
-  }, [closed]);
+  
 
   const setupFull = useMemo(() => {
     return [...bySetup].map((g) => ({
@@ -4456,7 +4367,6 @@ function AdvancedStats({ trades }) {
   if (closed.length === 0) {
     return (
       <div className="fade-in">
-        <PageHeader title="Statistiques" />
         <EmptyState icon={BarChart3} title="Pas encore assez de données" text="Ajoute des trades pour débloquer l'analyse détaillée." />
       </div>
     );
@@ -4464,7 +4374,6 @@ function AdvancedStats({ trades }) {
 
   return (
     <div className="fade-in">
-      <PageHeader title="Statistiques" />
 
       {/* Tableau setup complet — winrate, trades, profit, average R réunis (priorité tableau pro) */}
       <Card style={{ padding: 18, marginBottom: 14 }}>
@@ -4511,7 +4420,7 @@ function AdvancedStats({ trades }) {
       {/* Profit par heure / jour */}
       <div className="grid-2" style={{ marginBottom: 14 }}>
         <Card style={{ padding: 18 }}>
-          <CardLabel>Profit par heure (UTC)</CardLabel>
+          <CardLabel>Profit par heure (Thaïlande)</CardLabel>
           <ResponsiveContainer width="100%" height={170}>
             <BarChart data={byHour} margin={{ top: 10, right: 4, left: -22, bottom: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
@@ -4621,6 +4530,552 @@ function AdvancedStats({ trades }) {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+/* ============================================================================
+   ANALYSE — erreurs, ce qui marche, psychologie, exécution, revue de la semaine
+   ============================================================================ */
+
+const SESSION_TAGS = ["London Session", "New York Session", "Asia Session", "Hors session"];
+const TF_TAGS = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"];
+const TYPE_TAGS = ["Swing", "Day Trading", "Scalping"];
+const MISTAKE_TAGS = TAG_CATALOG.filter((t) => t.category === "mistake").map((t) => t.name);
+const isSetupTag = (tag) => !SESSION_TAGS.includes(tag) && !TF_TAGS.includes(tag) && !TYPE_TAGS.includes(tag) && !MISTAKE_TAGS.includes(tag);
+const setupsOf = (t) => (t.tags || []).filter(isSetupTag);
+const sessionOf = (t) => (t.tags || []).find((g) => SESSION_TAGS.includes(g)) || getSession(t.entryTime);
+const mistakesOf = (t) => [...new Set([...(t.mistakes || []), ...(t.tags || []).filter((g) => MISTAKE_TAGS.includes(g))])];
+const closedOf = (trades) => trades.filter((t) => t.status !== "open");
+const kzOf = (t) => killzoneLabel(t.entryTime);
+const htfAligned = (t) => (t.htfBias ? (t.htfBias === "Bullish") === (t.direction === "long") : null);
+const pdAligned = (t) => (!t.pdZone || t.pdZone === "Equilibrium" ? null : (t.direction === "long" ? t.pdZone === "Discount" : t.pdZone === "Premium"));
+const sweptOf = (t) => (t.sweptLiquidity && t.sweptLiquidity !== "Aucune") || t.liquiditySweep ? true : (t.sweptLiquidity === "Aucune" ? false : null);
+// Règles ICT vérifiées automatiquement à partir de ce que tu remplis
+const ICT_RULES = [
+  { label: "Dans le sens du biais HTF", test: (t) => htfAligned(t) },
+  { label: "Bon côté premium / discount", test: (t) => pdAligned(t) },
+  { label: "Pendant une killzone", test: (t) => kzOf(t) !== "Hors killzone" },
+  { label: "Liquidité prise avant l'entrée", test: (t) => sweptOf(t) },
+  { label: "MSS confirmé", test: (t) => !!t.mssConfirmed },
+  { label: "Displacement", test: (t) => !!t.displacement },
+  { label: "DXY aligné", test: (t) => dxyAligned(t) },
+  { label: "SMT divergence", test: (t) => !!t.smt },
+];
+
+function IctRulesTable({ closed }) {
+  const rows = ICT_RULES.map((rule) => {
+    const yes = closed.filter((t) => rule.test(t) === true), no = closed.filter((t) => rule.test(t) === false);
+    return { label: rule.label, yes: aggR(yes), no: aggR(no) };
+  }).filter((r) => r.yes.n + r.no.n > 0);
+  if (!rows.length) return <div style={{ fontSize: 12, color: C.textMuted }}>Remplis la carte « Contexte ICT » de tes trades pour voir cette analyse.</div>;
+  const G = "minmax(0,1.3fr) 1fr 1fr 58px";
+  const cell = (a) => a.n ? <span className="tnum" style={{ color: rCol(a.avgR), fontWeight: 700 }}>{fmtRs(a.avgR)} <span style={{ color: C.textMuted, fontWeight: 500, fontSize: 10.5 }}>· {a.n}T · {a.wr.toFixed(0)}%</span></span> : <span style={{ color: C.textMuted }}>—</span>;
+  return (
+    <div style={{ borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "7px 12px", background: C.inputBg, fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4 }}>
+        <div>Règle</div><div>Respectée</div><div>Pas respectée</div><div style={{ textAlign: "right" }}>Écart</div>
+      </div>
+      {rows.map((r) => { const gap = r.yes.n && r.no.n ? r.yes.avgR - r.no.avgR : null; return (
+        <div key={r.label} style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "9px 12px", borderTop: `1px solid ${C.border}`, alignItems: "center", fontSize: 12 }}>
+          <div style={{ fontWeight: 600, color: C.text, lineHeight: 1.3 }}>{r.label}</div>
+          <div>{cell(r.yes)}</div><div>{cell(r.no)}</div>
+          <div className="tnum" style={{ textAlign: "right", fontWeight: 800, color: gap == null ? C.textMuted : rCol(gap) }}>{gap == null ? "—" : fmtRs(gap)}</div>
+        </div>); })}
+      <div style={{ padding: "6px 12px", fontSize: 10, color: C.textMuted, borderTop: `1px solid ${C.border}` }}>Moyenne par trade. Écart = ce que la règle te rapporte quand tu la respectes.</div>
+    </div>
+  );
+}
+const rOf = (t) => (t.status === "breakeven" ? 0 : Number(t.resultR) || 0);
+
+function pipSize(pair) {
+  if (pair.includes("JPY") || pair === "XAUUSD" || pair === "XAGUSD") return 0.01;
+  if (["US30", "NAS100", "SPX500", "BTCUSD", "ETHUSD"].includes(pair)) return 1;
+  return 0.0001;
+}
+
+// Biais DXY attendu selon la paire et le sens : EURUSD long → DXY baissier, USDJPY long → DXY haussier
+function dxyAligned(t) {
+  if (!t.dxyBias || t.dxyBias === "Neutre" || !t.pair) return null;
+  const base = t.pair.slice(0, 3), quote = t.pair.slice(3);
+  let expected = null;
+  if (quote === "USD") expected = t.direction === "long" ? "Bearish" : "Bullish";
+  else if (base === "USD") expected = t.direction === "long" ? "Bullish" : "Bearish";
+  if (!expected) return null;
+  return expected === t.dxyBias;
+}
+
+function aggR(arr) {
+  const n = arr.length;
+  const wins = arr.filter((t) => rOf(t) > 0).length;
+  const sumR = arr.reduce((s, t) => s + rOf(t), 0);
+  const pnl = arr.reduce((s, t) => s + (t.resultUsd || 0), 0);
+  return { n, wins, wr: n ? (wins / n) * 100 : 0, sumR, avgR: n ? sumR / n : 0, pnl };
+}
+
+function groupAgg(trades, keysFn) {
+  const m = {};
+  trades.forEach((t) => {
+    const ks = keysFn(t);
+    (Array.isArray(ks) ? ks : [ks]).forEach((k) => { if (k == null || k === "") return; (m[k] = m[k] || []).push(t); });
+  });
+  return Object.entries(m).map(([label, arr]) => ({ label, ...aggR(arr), trades: arr }));
+}
+
+const rCol = (v) => (v > 0.0001 ? C.teal : v < -0.0001 ? C.red : C.textSecondary);
+const fmtRs = (v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}R`;
+
+function ASection({ title, sub, children, right }) {
+  return (
+    <Card style={{ padding: 18, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{title}</div>
+          {sub && <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 3, lineHeight: 1.5 }}>{sub}</div>}
+        </div>
+        {right}
+      </div>
+      <div style={{ marginTop: 12 }}>{children}</div>
+    </Card>
+  );
+}
+
+function AggTable({ rows, labelHead = "", empty = "Pas encore de données.", minN = 5, limit }) {
+  const list = limit ? rows.slice(0, limit) : rows;
+  if (!list.length) return <div style={{ fontSize: 12, color: C.textMuted }}>{empty}</div>;
+  const G = "minmax(0,1fr) 38px 48px 62px 66px";
+  return (
+    <div style={{ borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "7px 12px", background: C.inputBg, fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4 }}>
+        <div>{labelHead}</div><div style={{ textAlign: "right" }}>N</div><div style={{ textAlign: "right" }}>WR</div><div style={{ textAlign: "right" }}>Moy.</div><div style={{ textAlign: "right" }}>Total</div>
+      </div>
+      {list.map((r, i) => (
+        <div key={r.label + i} style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "9px 12px", borderTop: `1px solid ${C.border}`, alignItems: "center", opacity: r.n < minN ? 0.5 : 1 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.text, minWidth: 0, lineHeight: 1.35, overflowWrap: "anywhere" }}>{r.label}</div>
+          <div className="tnum" style={{ textAlign: "right", fontSize: 12, color: C.textSecondary }}>{r.n}</div>
+          <div className="tnum" style={{ textAlign: "right", fontSize: 12, fontWeight: 600, color: r.wr >= 50 ? C.teal : C.red }}>{r.wr.toFixed(0)}%</div>
+          <div className="tnum" style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: rCol(r.avgR) }}>{fmtRs(r.avgR)}</div>
+          <div className="tnum" style={{ textAlign: "right", fontSize: 12.5, fontWeight: 800, color: rCol(r.sumR) }}>{fmtRs(r.sumR)}</div>
+        </div>
+      ))}
+      <div style={{ padding: "6px 12px", fontSize: 10, color: C.textMuted, borderTop: `1px solid ${C.border}` }}>Grisé = moins de {minN} trades, pas encore fiable</div>
+    </div>
+  );
+}
+
+function BigStat({ label, value, color, sub }) {
+  return (
+    <div style={{ padding: "12px 12px", borderRadius: 10, background: C.inputBg, border: `1px solid ${C.border}`, minWidth: 0 }}>
+      <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600 }}>{label}</div>
+      <div className="tnum" style={{ fontSize: 18, fontWeight: 800, color: color || C.text, marginTop: 3 }}>{value}</div>
+      {sub && <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ---------- Mes erreurs ---------- */
+function ErrorsTab({ trades }) {
+  const closed = useMemo(() => closedOf(trades), [trades]);
+  const d = useMemo(() => {
+    const withErr = closed.filter((t) => mistakesOf(t).length > 0);
+    const clean = closed.filter((t) => mistakesOf(t).length === 0);
+    const byErr = groupAgg(closed, mistakesOf).sort((a, b) => a.sumR - b.sumR);
+    const total = aggR(closed);
+    const ruled = closed.filter((t) => Object.keys(t.rules || {}).length > 0);
+    const allOk = ruled.filter((t) => Object.values(t.rules).every((v) => v === "ok"));
+    const broken = ruled.filter((t) => Object.values(t.rules).some((v) => v === "no"));
+    const byRuleBroken = groupAgg(broken, (t) => Object.entries(t.rules).filter(([, v]) => v === "no").map(([k]) => k)).sort((a, b) => b.n - a.n);
+    // Évolution par mois (6 derniers)
+    const months = {};
+    closed.forEach((t) => { const dd = new Date(t.entryTime); const k = `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, "0")}`; (months[k] = months[k] || []).push(t); });
+    const monthRows = Object.keys(months).sort().slice(-6).map((k) => {
+      const arr = months[k]; const e = arr.filter((t) => mistakesOf(t).length > 0);
+      return { k, n: arr.length, withErr: e.length, pct: arr.length ? (e.length / arr.length) * 100 : 0, errR: aggR(e).sumR };
+    });
+    return { withErr: aggR(withErr), clean: aggR(clean), total, byErr, ruled: ruled.length, allOk: aggR(allOk), broken: aggR(broken), byRuleBroken, monthRows, tagged: withErr.length };
+  }, [closed]);
+
+  if (!closed.length) return <EmptyState icon={AlertCircle} title="Pas encore de trades clôturés" text="Coche tes erreurs dans l'onglet Retour de chaque trade pour voir ce qu'elles te coûtent." />;
+
+  return (
+    <div>
+      <ASection title="Ce que tes erreurs te coûtent" sub="Basé sur les erreurs cochées dans l'onglet Retour de chaque trade (et les tags d'erreur).">
+        <div className="grid-kpi-4">
+          <BigStat label="Ton total actuel" value={fmtRs(d.total.sumR)} color={rCol(d.total.sumR)} sub={`${d.total.n} trades`} />
+          <BigStat label="Trades avec erreur" value={fmtRs(d.withErr.sumR)} color={rCol(d.withErr.sumR)} sub={`${d.withErr.n} trades · ${d.withErr.wr.toFixed(0)}% WR`} />
+          <BigStat label="Trades propres" value={fmtRs(d.clean.sumR)} color={rCol(d.clean.sumR)} sub={`${d.clean.n} trades · ${d.clean.wr.toFixed(0)}% WR`} />
+          <BigStat label="Moyenne par trade" value={`${fmtRs(d.clean.avgR)} / ${fmtRs(d.withErr.avgR)}`} sub="propre / avec erreur" />
+        </div>
+        {d.withErr.n > 0 && (
+          <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 9, background: d.withErr.sumR < 0 ? C.redDim : C.inputBg, border: `1px solid ${d.withErr.sumR < 0 ? C.red + "40" : C.border}`, fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>
+            {d.withErr.sumR < 0
+              ? <>Sans les trades où tu as fait une erreur, tu serais à <b style={{ color: rCol(d.clean.sumR) }}>{fmtRs(d.clean.sumR)}</b> au lieu de <b>{fmtRs(d.total.sumR)}</b>.</>
+              : <>Tes trades avec erreur restent positifs ({fmtRs(d.withErr.sumR)}), mais rapportent {fmtRs(d.withErr.avgR)} par trade contre {fmtRs(d.clean.avgR)} pour les trades propres.</>}
+          </div>
+        )}
+        {d.tagged === 0 && <div style={{ marginTop: 10, fontSize: 12, color: C.amber }}>Aucune erreur cochée pour l'instant. Ouvre un trade › Retour › « À améliorer ».</div>}
+      </ASection>
+
+      <ASection title="Tes règles ICT, vérifiées automatiquement" sub="Calculé à partir de la carte « Contexte ICT », de la checklist et de l'heure d'entrée. Rien à cocher en plus.">
+        <IctRulesTable closed={closed} />
+      </ASection>
+
+      <ASection title="Erreur par erreur" sub="Triées de la plus coûteuse à la moins coûteuse.">
+        <AggTable rows={d.byErr} labelHead="Erreur" empty="Aucune erreur cochée." minN={3} />
+      </ASection>
+
+      <ASection title="Règles respectées ou non" sub={`D'après l'onglet Retour › Règles respectées (${d.ruled} trades remplis).`}>
+        <div className="grid-2" style={{ marginBottom: 12 }}>
+          <BigStat label="Toutes les règles respectées" value={fmtRs(d.allOk.avgR) + " / trade"} color={rCol(d.allOk.avgR)} sub={`${d.allOk.n} trades · ${d.allOk.wr.toFixed(0)}% WR`} />
+          <BigStat label="Au moins une règle cassée" value={fmtRs(d.broken.avgR) + " / trade"} color={rCol(d.broken.avgR)} sub={`${d.broken.n} trades · ${d.broken.wr.toFixed(0)}% WR`} />
+        </div>
+        <AggTable rows={d.byRuleBroken} labelHead="Règle cassée" empty="Aucune règle marquée « Non »." minN={3} />
+      </ASection>
+
+      <ASection title="Est-ce que tu progresses ?" sub="Part de tes trades avec au moins une erreur, mois par mois.">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {d.monthRows.map((m) => (
+            <div key={m.k} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 70, fontSize: 12, color: C.textSecondary, textTransform: "capitalize" }}>{new Date(m.k + "-15").toLocaleDateString("fr-FR", { month: "short", year: "2-digit" })}</span>
+              <div style={{ flex: 1, height: 8, borderRadius: 4, background: C.border, overflow: "hidden" }}>
+                <div style={{ width: `${m.pct}%`, height: "100%", background: m.pct > 40 ? C.red : m.pct > 20 ? C.amber : C.teal }} />
+              </div>
+              <span className="tnum" style={{ width: 92, textAlign: "right", fontSize: 11.5, color: C.textSecondary }}>{m.withErr}/{m.n} · {m.pct.toFixed(0)}%</span>
+            </div>
+          ))}
+        </div>
+      </ASection>
+    </div>
+  );
+}
+
+/* ---------- Ce qui marche ---------- */
+function EdgeTab({ trades }) {
+  const closed = useMemo(() => closedOf(trades), [trades]);
+  const d = useMemo(() => {
+    const dxyLabel = (t) => { const a = dxyAligned(t); return a === true ? "DXY aligné" : a === false ? "DXY contre" : "DXY non noté"; };
+    const htfLabel = (t) => { const a = htfAligned(t); return a === true ? "avec HTF" : a === false ? "contre HTF" : "HTF ?"; };
+    const combos = groupAgg(closed, (t) => {
+      const ss = setupsOf(t);
+      const model = t.ictModel || (t.oteFib ? `OTE ${t.oteFib}` : "sans modèle");
+      return (ss.length ? ss : ["Sans PD Array"]).map((s) => `${s} · ${kzOf(t)} · ${model} · ${htfLabel(t)}`);
+    }).filter((g) => g.n >= 2);
+    const best = [...combos].sort((a, b) => b.avgR - a.avgR || b.n - a.n).filter((g) => g.avgR > 0).slice(0, 8);
+    const worst = [...combos].sort((a, b) => a.avgR - b.avgR).filter((g) => g.avgR < 0).slice(0, 5);
+    const sortR = (arr) => arr.sort((a, b) => b.avgR - a.avgR);
+    return {
+      best, worst,
+      setup: sortR(groupAgg(closed, (t) => setupsOf(t).length ? setupsOf(t) : ["Sans PD Array"])),
+      session: sortR(groupAgg(closed, kzOf)),
+      sb: sortR(groupAgg(closed, (t) => { const sb = silverBulletAt(t.entryTime); return sb ? sb.name : "Hors Silver Bullet"; })),
+      model: sortR(groupAgg(closed, (t) => t.ictModel || "Modèle non noté")),
+      htf: sortR(groupAgg(closed, (t) => { const a = htfAligned(t); return a === true ? "Avec le biais HTF" : a === false ? "Contre le biais HTF" : "Biais non noté"; })),
+      pd: sortR(groupAgg(closed, (t) => { const a = pdAligned(t); return a === true ? "Bon côté" : a === false ? "Mauvais côté" : t.pdZone === "Equilibrium" ? "Équilibre" : "Zone non notée"; })),
+      swept: sortR(groupAgg(closed, (t) => t.sweptLiquidity || "Non noté")),
+      dol: sortR(groupAgg(closed, (t) => t.drawOnLiquidity || "Non noté")),
+      disp: sortR([{ label: "Avec displacement", ...aggR(closed.filter((t) => t.displacement)) }, { label: "Sans displacement", ...aggR(closed.filter((t) => !t.displacement)) }].filter((x) => x.n)),
+      ote: sortR(groupAgg(closed, (t) => t.oteFib ? `OTE ${t.oteFib}` : "Sans OTE")),
+      dxy: sortR(groupAgg(closed, dxyLabel)),
+      tf: sortR(groupAgg(closed, (t) => (t.tags || []).find((g) => TF_TAGS.includes(g)) || "TF non noté")),
+      dir: sortR(groupAgg(closed, (t) => t.direction === "long" ? "Long" : "Short")),
+      pair: sortR(groupAgg(closed, (t) => t.pair)),
+      check: sortR([
+        { label: "Sweep + MSS", ...aggR(closed.filter((t) => t.liquiditySweep && t.mssConfirmed)) },
+        { label: "Sweep seul", ...aggR(closed.filter((t) => t.liquiditySweep && !t.mssConfirmed)) },
+        { label: "MSS seul", ...aggR(closed.filter((t) => !t.liquiditySweep && t.mssConfirmed)) },
+        { label: "Ni sweep ni MSS", ...aggR(closed.filter((t) => !t.liquiditySweep && !t.mssConfirmed)) },
+      ].filter((r) => r.n > 0)),
+      pos: sortR(groupAgg(closed, (t) => t.positives || [])),
+    };
+  }, [closed]);
+
+  if (!closed.length) return <EmptyState icon={Trophy} title="Pas encore de trades clôturés" text="Ton edge apparaîtra ici dès tes premiers trades clôturés." />;
+
+  return (
+    <div>
+      <ASection title="Tes meilleures combinaisons" sub="PD Array × killzone × modèle ICT × biais HTF, au moins 2 trades. C'est là que se trouve ton vrai edge.">
+        <AggTable rows={d.best} labelHead="Combinaison" empty="Pas encore de combinaison positive avec 2 trades ou plus." />
+      </ASection>
+      {d.worst.length > 0 && (
+        <ASection title="Combinaisons à éviter" sub="Les mêmes critères, mais qui te font perdre.">
+          <AggTable rows={d.worst} labelHead="Combinaison" />
+        </ASection>
+      )}
+      <div className="grid-2">
+        <ASection title="Modèle ICT"><AggTable rows={d.model} labelHead="Modèle" /></ASection>
+        <ASection title="Par PD Array"><AggTable rows={d.setup} labelHead="PD Array" /></ASection>
+        <ASection title="Killzone" sub="Calculée depuis l'heure d'entrée, en heure de New York."><AggTable rows={d.session} labelHead="Killzone" /></ASection>
+        <ASection title="Silver Bullet" sub="03-04h, 10-11h et 14-15h heure de New York."><AggTable rows={d.sb} labelHead="Fenêtre" /></ASection>
+        <ASection title="Biais HTF"><AggTable rows={d.htf} labelHead="Biais" /></ASection>
+        <ASection title="Premium / Discount" sub="Bon côté = long en discount, short en premium."><AggTable rows={d.pd} labelHead="Zone" /></ASection>
+        <ASection title="Liquidité prise"><AggTable rows={d.swept} labelHead="Liquidité" /></ASection>
+        <ASection title="Draw on liquidity"><AggTable rows={d.dol} labelHead="Cible" /></ASection>
+        <ASection title="Displacement"><AggTable rows={d.disp} labelHead="Displacement" /></ASection>
+        <ASection title="Zone OTE"><AggTable rows={d.ote} labelHead="OTE" /></ASection>
+        <ASection title="Biais DXY" sub="Aligné = le DXY va dans le sens qui confirme ton trade."><AggTable rows={d.dxy} labelHead="DXY" /></ASection>
+        <ASection title="Checklist sweep / MSS"><AggTable rows={d.check} labelHead="Checklist" /></ASection>
+        <ASection title="Timeframe"><AggTable rows={d.tf} labelHead="TF" /></ASection>
+        <ASection title="Sens"><AggTable rows={d.dir} labelHead="Sens" /></ASection>
+        <ASection title="Paire"><AggTable rows={d.pair} labelHead="Paire" /></ASection>
+      </div>
+      <ASection title="Tes points positifs" sub="Quand tu coches ce point positif, combien ça rapporte.">
+        <AggTable rows={d.pos} labelHead="Point positif" empty="Coche tes points positifs dans l'onglet Retour de chaque trade." minN={3} />
+      </ASection>
+    </div>
+  );
+}
+
+/* ---------- Psychologie ---------- */
+function PsychoTab({ trades }) {
+  const closed = useMemo(() => closedOf(trades), [trades]);
+  const d = useMemo(() => {
+    const both = closed.filter((t) => t.confidenceLevel > 0 && t.retroRating > 0);
+    const gap = both.length ? both.reduce((s, t) => s + (t.retroRating - t.confidenceLevel), 0) / both.length : null;
+    const overconf = closed.filter((t) => t.confidenceLevel >= 8);
+    const chron = [...closed].sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
+    const afterLoss = [], afterWin = [];
+    for (let i = 1; i < chron.length; i++) { const prev = rOf(chron[i - 1]); if (prev < 0) afterLoss.push(chron[i]); else if (prev > 0) afterWin.push(chron[i]); }
+    const dayIdx = {}; const byNum = { "1er trade du jour": [], "2e trade du jour": [], "3e trade et +": [] };
+    chron.forEach((t) => { const k = new Date(t.entryTime).toDateString(); dayIdx[k] = (dayIdx[k] || 0) + 1; const n = dayIdx[k]; byNum[n === 1 ? "1er trade du jour" : n === 2 ? "2e trade du jour" : "3e trade et +"].push(t); });
+    const sameDayAfterLoss = [];
+    for (let i = 1; i < chron.length; i++) if (rOf(chron[i - 1]) < 0 && new Date(chron[i - 1].entryTime).toDateString() === new Date(chron[i].entryTime).toDateString()) sameDayAfterLoss.push(chron[i]);
+    return { gap, nBoth: both.length, overconf: aggR(overconf),
+      seq: [{ label: "Après une perte", ...aggR(afterLoss) }, { label: "Après une perte, le même jour", ...aggR(sameDayAfterLoss) }, { label: "Après un gain", ...aggR(afterWin) }],
+      num: Object.entries(byNum).map(([label, arr]) => ({ label, ...aggR(arr) })).filter((r) => r.n) };
+  }, [closed]);
+
+  return (
+    <div>
+      <ASection title="Ta confiance est-elle fiable ?" sub="Confiance notée avant le trade comparée à la qualité notée après.">
+        <div className="grid-kpi-4">
+          <BigStat label="Écart moyen après − avant" value={d.gap == null ? "—" : `${d.gap > 0 ? "+" : ""}${d.gap.toFixed(1)}`} color={d.gap == null ? C.text : Math.abs(d.gap) <= 1 ? C.teal : C.amber} sub={d.gap == null ? "note les deux sur tes trades" : d.gap < -1 ? "tu te sur-estimes" : d.gap > 1 ? "tu te sous-estimes" : "bien calibré"} />
+          <BigStat label="Trades à confiance 8+" value={fmtRs(d.overconf.avgR) + " / trade"} color={rCol(d.overconf.avgR)} sub={`${d.overconf.n} trades · ${d.overconf.wr.toFixed(0)}% WR`} />
+          <BigStat label="Trades notés avant + après" value={d.nBoth} />
+        </div>
+      </ASection>
+      <ASection title="Le trade d'après" sub="Ce que tu fais juste après une perte. C'est là que se voit le revenge trading.">
+        <AggTable rows={d.seq} labelHead="Situation" minN={3} />
+      </ASection>
+      <ASection title="Combien de trades par jour ?" sub="Si ton 3e trade perd en moyenne, une règle « max 2 trades par jour » te ferait gagner de l'argent.">
+        <AggTable rows={d.num} labelHead="Numéro du trade" minN={3} />
+      </ASection>
+      <PerformanceReview trades={trades} />
+    </div>
+  );
+}
+
+/* ---------- Exécution ---------- */
+function ExecTab({ trades }) {
+  const closed = useMemo(() => closedOf(trades), [trades]);
+  const d = useMemo(() => {
+    const withMax = closed.filter((t) => t.maxR != null && !Number.isNaN(Number(t.maxR)));
+    const real = withMax.reduce((s, t) => s + rOf(t), 0);
+    const sims = [1, 1.5, 2, 2.5, 3, 4].map((X) => {
+      const hit = withMax.filter((t) => Number(t.maxR) >= X).length;
+      const total = withMax.reduce((s, t) => s + (Number(t.maxR) >= X ? X : (rOf(t) < 0 ? rOf(t) : -1)), 0);
+      return { X, hit, total, wr: withMax.length ? (hit / withMax.length) * 100 : 0 };
+    });
+    const bestSim = sims.reduce((a, b) => (b.total > a.total ? b : a), sims[0]);
+    const early = withMax.filter((t) => rOf(t) > 0 && Number(t.maxR) - rOf(t) >= 1);
+    const leftR = early.reduce((s, t) => s + (Number(t.maxR) - rOf(t)), 0);
+    const slBucket = (t) => {
+      if (t.entryPrice == null || t.stopLoss == null) return null;
+      const p = Math.abs(t.entryPrice - t.stopLoss) / pipSize(t.pair);
+      return p < 10 ? "SL < 10 pips" : p < 20 ? "SL 10-20 pips" : p < 35 ? "SL 20-35 pips" : "SL 35+ pips";
+    };
+    const order = ["SL < 10 pips", "SL 10-20 pips", "SL 20-35 pips", "SL 35+ pips"];
+    const sl = groupAgg(closed, slBucket).sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
+    const planned = closed.filter((t) => t.entryPrice != null && t.stopLoss != null && t.takeProfit != null && t.entryPrice !== t.stopLoss)
+      .map((t) => ({ t, rr: Math.abs(t.takeProfit - t.entryPrice) / Math.abs(t.entryPrice - t.stopLoss) }));
+    const wins = planned.filter((x) => rOf(x.t) > 0);
+    return { n: withMax.length, real, sims, bestSim, early: early.length, leftR, sl,
+      plannedRR: planned.length ? planned.reduce((s, x) => s + x.rr, 0) / planned.length : null,
+      winR: wins.length ? wins.reduce((s, x) => s + rOf(x.t), 0) / wins.length : null,
+      winPlanned: wins.length ? wins.reduce((s, x) => s + x.rr, 0) / wins.length : null };
+  }, [closed]);
+
+  return (
+    <div>
+      <ASection title="R visé ou R obtenu" sub="Est-ce que tu laisses courir tes gains jusqu'à ton TP ?">
+        <div className="grid-kpi-4">
+          <BigStat label="R:R prévu (moyen)" value={d.plannedRR == null ? "—" : `1:${d.plannedRR.toFixed(2)}`} />
+          <BigStat label="Gains : R prévu" value={d.winPlanned == null ? "—" : fmtRs(d.winPlanned)} />
+          <BigStat label="Gains : R obtenu" value={d.winR == null ? "—" : fmtRs(d.winR)} color={d.winR != null && d.winPlanned != null && d.winR < d.winPlanned - 0.3 ? C.amber : C.teal} sub={d.winR != null && d.winPlanned != null && d.winR < d.winPlanned - 0.3 ? "tu sors avant ton TP" : ""} />
+        </div>
+      </ASection>
+
+      <ASection title="Simulateur de TP sur tous tes trades" sub={`Utilise le « R max atteint » noté dans le trade (${d.n} trades). Hypothèse prudente : si la cible n'est pas atteinte, le trade finit au stop (−1R).`}>
+        {d.n === 0 ? (
+          <div style={{ fontSize: 12.5, color: C.textSecondary, lineHeight: 1.6 }}>Renseigne « R max atteint » quand tu enregistres ou modifies un trade (carte Résultat). Après une dizaine de trades, tu sauras quel TP fixe te rapporte le plus.</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {d.sims.map((x) => (
+                <div key={x.X} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: `1px solid ${x === d.bestSim ? C.teal : C.border}`, background: x === d.bestSim ? C.tealDim : C.inputBg }}>
+                  <span style={{ width: 70, fontSize: 13, fontWeight: 700 }}>TP {x.X}R</span>
+                  <span className="tnum" style={{ flex: 1, fontSize: 11.5, color: C.textMuted }}>atteint {x.hit}/{d.n} ({x.wr.toFixed(0)}%)</span>
+                  <span className="tnum" style={{ fontSize: 13.5, fontWeight: 800, color: rCol(x.total) }}>{fmtRs(x.total)}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, fontSize: 12.5, color: C.text }}>
+              Ton résultat réel sur ces trades : <b style={{ color: rCol(d.real) }}>{fmtRs(d.real)}</b>. Meilleur TP fixe : <b style={{ color: C.teal }}>{d.bestSim.X}R ({fmtRs(d.bestSim.total)})</b>.
+            </div>
+            {d.early > 0 && <div style={{ marginTop: 6, fontSize: 12, color: C.amber }}>{d.early} trade(s) gagnant(s) clôturé(s) au moins 1R avant le plus haut : {fmtRs(d.leftR)} laissés sur la table.</div>}
+          </>
+        )}
+      </ASection>
+
+      <ASection title="Taille du stop" sub="Est-ce qu'un SL trop serré te fait sortir pour rien ?">
+        <AggTable rows={d.sl} labelHead="Distance du SL" empty="Renseigne entrée et SL pour voir cette analyse." />
+      </ASection>
+    </div>
+  );
+}
+
+/* ---------- Revue de la semaine ---------- */
+function weekStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+function weekKeyOf(d) { const s = weekStart(d); return `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`; }
+
+function WeekTab({ trades, onOpenTrade, onVerdict }) {
+  const [offset, setOffset] = useState(0);
+  const start = useMemo(() => { const s = weekStart(new Date()); s.setDate(s.getDate() - 7 * offset); return s; }, [offset]);
+  const end = new Date(start); end.setDate(end.getDate() + 7);
+  const key = weekKeyOf(start);
+  const [goals, setGoals] = useState(() => { try { return JSON.parse(localStorage.getItem("weekly_goals") || "{}"); } catch { return {}; } });
+  const goalTimer = useRef(null);
+  const setGoal = (txt) => {
+    const next = { ...goals, [key]: txt };
+    setGoals(next);
+    try { localStorage.setItem("weekly_goals", JSON.stringify(next)); } catch {}
+    clearTimeout(goalTimer.current);
+    goalTimer.current = setTimeout(() => saveSettingsPatch({ weekly_goals: next }), 800);
+  };
+  const wk = useMemo(() => trades.filter((t) => { const d = new Date(t.entryTime); return d >= start && d < end; }), [trades, start]);
+  const closed = closedOf(wk);
+  const a = aggR(closed);
+  const sorted = [...closed].sort((x, y) => rOf(y) - rOf(x));
+  const best = sorted.filter((t) => rOf(t) > 0).slice(0, 3);
+  const worst = [...sorted].reverse().filter((t) => rOf(t) < 0).slice(0, 3);
+  const topErr = groupAgg(closed, mistakesOf).sort((x, y) => y.n - x.n)[0];
+  const bestSetup = groupAgg(closed, (t) => setupsOf(t)).filter((g) => g.sumR > 0).sort((x, y) => y.sumR - x.sumR)[0];
+  const unjudged = closed.filter((t) => !t.verdict);
+  const label = `${start.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${new Date(end - 864e5).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`;
+
+  const Mini = ({ t }) => (
+    <button onClick={() => onOpenTrade(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: 8, borderRadius: 9, border: `1px solid ${C.border}`, background: C.inputBg, cursor: "pointer", textAlign: "left" }}>
+      {t.screenshotBefore ? <img src={t.screenshotBefore} alt="" style={{ width: 56, height: 38, objectFit: "cover", borderRadius: 5, flexShrink: 0 }} /> : <div style={{ width: 56, height: 38, borderRadius: 5, background: C.border, flexShrink: 0 }} />}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.text }}>{t.pair} <span style={{ fontWeight: 500, color: C.textMuted }}>{t.direction === "long" ? "Long" : "Short"} · {fmtDate(t.entryTime)}</span></div>
+        <div style={{ fontSize: 11, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{setupsOf(t).join(" · ") || "—"}</div>
+      </div>
+      <span className="tnum" style={{ fontSize: 13, fontWeight: 800, color: rCol(rOf(t)) }}>{fmtRs(rOf(t))}</span>
+    </button>
+  );
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <button onClick={() => setOffset((o) => o + 1)} style={btn.icon} aria-label="Semaine précédente"><ChevronLeft size={16} /></button>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{offset === 0 ? "Cette semaine" : offset === 1 ? "Semaine dernière" : "Semaine"}</div>
+          <div style={{ fontSize: 12, color: C.textMuted }}>{label}</div>
+        </div>
+        <button onClick={() => setOffset((o) => Math.max(0, o - 1))} disabled={offset === 0} style={{ ...btn.icon, opacity: offset === 0 ? 0.4 : 1 }} aria-label="Semaine suivante"><ChevronRight size={16} /></button>
+      </div>
+
+      <div className="grid-kpi-4" style={{ marginBottom: 14 }}>
+        <BigStat label="Résultat" value={fmtUsdSigned(a.pnl)} color={rCol(a.pnl)} sub={fmtRs(a.sumR)} />
+        <BigStat label="Trades" value={a.n} sub={`${wk.length - closed.length} encore ouvert(s)`} />
+        <BigStat label="Winrate" value={`${a.wr.toFixed(0)}%`} />
+        <BigStat label="Moyenne" value={fmtRs(a.avgR)} color={rCol(a.avgR)} />
+      </div>
+
+      <div className="grid-2">
+        <ASection title="Meilleurs trades">{best.length ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{best.map((t) => <Mini key={t.id} t={t} />)}</div> : <div style={{ fontSize: 12, color: C.textMuted }}>Aucun trade gagnant.</div>}</ASection>
+        <ASection title="Pires trades">{worst.length ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{worst.map((t) => <Mini key={t.id} t={t} />)}</div> : <div style={{ fontSize: 12, color: C.textMuted }}>Aucun trade perdant.</div>}</ASection>
+      </div>
+
+      <div className="grid-2">
+        <BigStat label="Erreur la plus fréquente" value={topErr ? topErr.label : "Aucune cochée"} color={topErr ? C.red : C.teal} sub={topErr ? `${topErr.n} fois · ${fmtRs(topErr.sumR)}` : ""} />
+        <BigStat label="Meilleur setup" value={bestSetup ? bestSetup.label : "—"} color={C.teal} sub={bestSetup ? `${bestSetup.n} trades · ${fmtRs(bestSetup.sumR)}` : ""} />
+      </div>
+
+      {unjudged.length > 0 && (
+        <ASection title={`À juger (${unjudged.length})`} sub="Bon trade ou mauvais trade, peu importe le résultat. Ça garde tes stats complètes.">
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {unjudged.map((t) => (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}><Mini t={t} /></div>
+                <button onClick={() => onVerdict(t.id, "good")} style={{ ...btn.icon, fontSize: 18, padding: "6px 9px" }} aria-label="Bon trade">👍</button>
+                <button onClick={() => onVerdict(t.id, "bad")} style={{ ...btn.icon, fontSize: 18, padding: "6px 9px" }} aria-label="Mauvais trade">👎</button>
+              </div>
+            ))}
+          </div>
+        </ASection>
+      )}
+
+      <ASection title="Objectif de la semaine" sub="Une seule chose à corriger ou à répéter. Enregistré dans Supabase.">
+        <textarea id={"goal-" + key} rows={3} value={goals[key] || ""} onChange={(e) => setGoal(e.target.value)} placeholder={topErr ? `Ex : zéro « ${topErr.label} » cette semaine` : "Ex : max 2 trades par jour, uniquement en London"} style={{ ...inputStyle, resize: "vertical" }} />
+      </ASection>
+    </div>
+  );
+}
+
+/* ---------- Avant d'entrer : ton historique sur le même contexte ---------- */
+function PreTradeContext({ trades, pair, direction, tags, ictModel, entryTime }) {
+  const closed = useMemo(() => closedOf(trades || []), [trades]);
+  const sess = (tags || []).find((g) => SESSION_TAGS.includes(g));
+  const setups = (tags || []).filter(isSetupTag);
+  const base = closed.filter((t) => t.pair === pair && t.direction === direction);
+  const rows = [{ label: `${pair} ${direction === "long" ? "Long" : "Short"}`, ...aggR(base) }];
+  if (sess) rows.push({ label: `+ ${sess.replace(" Session", "")}`, ...aggR(base.filter((t) => sessionOf(t) === sess)) });
+  if (setups.length) rows.push({ label: `+ ${setups.join(" / ")}`, ...aggR(base.filter((t) => (!sess || sessionOf(t) === sess) && setupsOf(t).some((s) => setups.includes(s)))) });
+  if (ictModel) rows.push({ label: `Modèle ${ictModel} (toutes paires)`, ...aggR(closed.filter((t) => t.ictModel === ictModel)) });
+  if (entryTime) { const kz = killzoneLabel(entryTime); rows.push({ label: `${kz} (toutes paires)`, ...aggR(closed.filter((t) => kzOf(t) === kz)) }); }
+  const last = rows[Math.min(rows.length - 1, setups.length ? (sess ? 2 : 1) : (sess ? 1 : 0))];
+  const warn = last.n >= 3 && last.avgR < 0;
+  const good = last.n >= 3 && last.avgR > 0.3;
+  if (!base.length) return null;
+  return (
+    <Card style={{ padding: 16, marginBottom: 14, border: `1px solid ${warn ? C.red + "60" : good ? C.teal + "60" : C.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+        <BarChart3 size={14} color={warn ? C.red : good ? C.teal : C.purpleBright} />
+        <span style={{ fontSize: 13, fontWeight: 700 }}>Ton historique sur ce contexte</span>
+      </div>
+      <AggTable rows={rows} labelHead="Contexte" minN={3} />
+      {warn && <div style={{ marginTop: 8, fontSize: 12.5, color: C.red, fontWeight: 600 }}>Attention : ce contexte te fait perdre en moyenne ({fmtRs(last.avgR)} sur {last.n} trades).</div>}
+      {good && <div style={{ marginTop: 8, fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Bon contexte pour toi : {fmtRs(last.avgR)} en moyenne sur {last.n} trades.</div>}
+    </Card>
+  );
+}
+
+const STATS_TABS = [
+  { id: "overview", label: "Vue d'ensemble" },
+  { id: "errors", label: "Mes erreurs" },
+  { id: "edge", label: "Ce qui marche" },
+  { id: "psycho", label: "Psychologie" },
+  { id: "exec", label: "Exécution" },
+  { id: "week", label: "Semaine" },
+];
+
+function AdvancedStats({ trades, onOpenTrade, onVerdict }) {
+  const [tab, setTab] = useState(() => { try { return localStorage.getItem("stats_tab") || "overview"; } catch { return "overview"; } });
+  const pick = (id) => { setTab(id); try { localStorage.setItem("stats_tab", id); } catch {} };
+  return (
+    <div className="fade-in">
+      <PageHeader title="Statistiques" />
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 16, paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
+        {STATS_TABS.map((t) => (
+          <button key={t.id} onClick={() => pick(t.id)} style={{ flexShrink: 0, padding: "8px 13px", borderRadius: 20, fontSize: 12.5, fontWeight: tab === t.id ? 700 : 500, cursor: "pointer", border: `1px solid ${tab === t.id ? C.purple : C.border}`, background: tab === t.id ? C.purpleDim : "transparent", color: tab === t.id ? C.purpleBright : C.textSecondary }}>{t.label}</button>
+        ))}
+      </div>
+      {tab === "overview" && <OverviewStats trades={trades} />}
+      {tab === "errors" && <ErrorsTab trades={trades} />}
+      {tab === "edge" && <EdgeTab trades={trades} />}
+      {tab === "psycho" && <PsychoTab trades={trades} />}
+      {tab === "exec" && <ExecTab trades={trades} />}
+      {tab === "week" && <WeekTab trades={trades} onOpenTrade={onOpenTrade} onVerdict={onVerdict} />}
     </div>
   );
 }
@@ -4779,140 +5234,8 @@ function TradingCalendar({ trades, onSelectDay }) {
    DAILY JOURNAL
    ============================================================================ */
 
-const EMPTY_JOURNAL_ENTRY = { mood: 5, discipline: 5, note: "", lessons: "", mainMistake: "", tomorrowGoal: "" };
 
-function DailyJournal({ trades, journalNotes, setJournalNotes }) {
-  const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const tradesForDay = useMemo(() => trades.filter((t) => new Date(t.entryTime).toDateString() === selectedDate.toDateString()), [trades, selectedDate]);
-  const dayPnl = tradesForDay.reduce((s, t) => s + (t.resultUsd || 0), 0);
-  const dayKey = selectedDate.toDateString();
-  const rawEntry = journalNotes[dayKey];
-  // Rétrocompatibilité : si une ancienne note texte simple existe, on la migre dans le nouveau format
-  const entry = typeof rawEntry === "string" ? { ...EMPTY_JOURNAL_ENTRY, note: rawEntry } : (rawEntry || EMPTY_JOURNAL_ENTRY);
-
-  const updateEntry = (patch) => {
-    setJournalNotes((prev) => ({ ...prev, [dayKey]: { ...entry, ...patch } }));
-  };
-
-  const daysWithTrades = useMemo(() => {
-    const set = new Set();
-    trades.forEach((t) => set.add(new Date(t.entryTime).toDateString()));
-    return [...set].map((s) => new Date(s)).sort((a, b) => b - a);
-  }, [trades]);
-
-  return (
-    <div className="fade-in">
-      <PageHeader title="Journal" />
-
-      <div className="journal-layout" style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
-        <Card className="journal-sidebar" style={{ padding: 8, width: 200, maxWidth: "100%", flexShrink: 0, maxHeight: 480, overflowY: "auto" }}>
-          <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, padding: "4px 8px 8px" }}>Jours avec trades</div>
-          {daysWithTrades.map((d) => {
-            const active = d.toDateString() === dayKey;
-            const dayTrades = trades.filter((t) => new Date(t.entryTime).toDateString() === d.toDateString());
-            const pnl = dayTrades.reduce((s, t) => s + (t.resultUsd || 0), 0);
-            return (
-              <button key={d.toISOString()} onClick={() => setSelectedDate(d)} className="row-hover" style={{
-                width: "100%", textAlign: "left", background: active ? C.purpleDim : "transparent",
-                border: "none", borderRadius: 6, padding: "8px 8px", cursor: "pointer", display: "flex",
-                justifyContent: "space-between", alignItems: "center", marginBottom: 1,
-              }}>
-                <span style={{ fontSize: 12, color: active ? C.text : C.textSecondary }}>{fmtDate(d.toISOString())}</span>
-                <span className="tnum" style={{ fontSize: 11, fontWeight: 700, color: pnl >= 0 ? C.teal : C.red }}>{fmtUsdSigned(pnl)}</span>
-              </button>
-            );
-          })}
-        </Card>
-
-        <div className="journal-main" style={{ flex: "1 1 380px", minWidth: 280, maxWidth: "100%" }}>
-          {/* En-tête du jour — profit, trades, humeur, discipline en un coup d'œil */}
-          <Card style={{ padding: 16, marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, textTransform: "capitalize" }}>{selectedDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</div>
-            </div>
-            <div className="grid-rating-5" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-              <LiveCalcStat label="Profit" value={fmtUsdSigned(dayPnl)} color={dayPnl >= 0 ? C.teal : C.red} />
-              <LiveCalcStat label="Trades" value={tradesForDay.length} />
-              <LiveCalcStat label="Humeur" value={`${entry.mood}/10`} color={C.purpleBright} />
-              <LiveCalcStat label="Discipline" value={`${entry.discipline}/10`} color={C.teal} />
-            </div>
-          </Card>
-
-          {tradesForDay.length > 0 && (
-            <Card style={{ padding: 14, marginBottom: 12 }}>
-              <CardLabel>Résumé des trades</CardLabel>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-                {tradesForDay.map((t) => (
-                  <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.border}` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <span style={{ fontWeight: 700, fontSize: 12.5 }}>{t.pair}</span>
-                      <DirBadge direction={t.direction} />
-                    </div>
-                    <ResultBadge resultR={t.resultR} status={t.status} size="sm" />
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Humeur / discipline du jour — sliders */}
-          <Card style={{ padding: 16, marginBottom: 12 }}>
-            <CardLabel>Humeur &amp; discipline</CardLabel>
-            <div className="form-grid-2" style={{ marginTop: 12 }}>
-              <RatingSlider label="Humeur" value={entry.mood} onChange={(v) => updateEntry({ mood: v })} color={C.purpleBright} />
-              <RatingSlider label="Discipline" value={entry.discipline} onChange={(v) => updateEntry({ discipline: v })} color={C.teal} />
-            </div>
-          </Card>
-
-          <Card style={{ padding: 16, marginBottom: 12 }}>
-            <CardLabel>Note du jour</CardLabel>
-            <textarea
-              rows={4}
-              placeholder="Ressenti général, biais de marché, contexte de la séance…"
-              value={entry.note}
-              onChange={(e) => updateEntry({ note: e.target.value })}
-              style={{ ...inputStyle, resize: "vertical", marginTop: 10 }}
-            />
-          </Card>
-
-          <Card style={{ padding: 16, marginBottom: 12 }}>
-            <CardLabel>Leçons apprises</CardLabel>
-            <textarea
-              rows={3}
-              placeholder="Ce que cette séance t'a appris…"
-              value={entry.lessons}
-              onChange={(e) => updateEntry({ lessons: e.target.value })}
-              style={{ ...inputStyle, resize: "vertical", marginTop: 10 }}
-            />
-          </Card>
-
-          <Card style={{ padding: 16, marginBottom: 12 }}>
-            <CardLabel>Erreur principale</CardLabel>
-            <textarea
-              rows={2}
-              placeholder="La chose à corriger en priorité…"
-              value={entry.mainMistake}
-              onChange={(e) => updateEntry({ mainMistake: e.target.value })}
-              style={{ ...inputStyle, resize: "vertical", marginTop: 10 }}
-            />
-          </Card>
-
-          <Card style={{ padding: 16 }}>
-            <CardLabel>Objectif demain</CardLabel>
-            <textarea
-              rows={2}
-              placeholder="Sur quoi te concentrer à la prochaine séance…"
-              value={entry.tomorrowGoal}
-              onChange={(e) => updateEntry({ tomorrowGoal: e.target.value })}
-              style={{ ...inputStyle, resize: "vertical", marginTop: 10 }}
-            />
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ============================================================================
    PERFORMANCE REVIEW — moyennes des notes, meilleurs/pires setups
@@ -4921,108 +5244,60 @@ function DailyJournal({ trades, journalNotes, setJournalNotes }) {
 function avg(arr) { return arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null; }
 
 function PerformanceReview({ trades }) {
-  const closed = useMemo(() => trades.filter((t) => t.status !== "open" && t.reflection), [trades]);
+  const closed = useMemo(() => trades.filter((t) => t.status !== "open"), [trades]);
 
-  const overallAvg = useMemo(() => ({
-    tradeRating: avg(closed.map((t) => t.reflection.tradeRating)),
-    analysisQuality: avg(closed.map((t) => t.reflection.analysisQuality)),
-    confidence: avg(closed.map((t) => t.reflection.confidence)),
-    discipline: avg(closed.map((t) => t.reflection.discipline)),
-    emotionalLevel: avg(closed.map((t) => t.reflection.emotionalLevel)),
+  const pdArrayStats = useMemo(() => {
+    const setupTagNames = TAG_CATALOG.filter(t => t.category === "setup").map(t => t.name);
+    const map = {};
+    closed.forEach(t => {
+      (t.tags || []).filter(tag => setupTagNames.includes(tag)).forEach(tag => {
+        if (!map[tag]) map[tag] = { n: 0, wins: 0, totalR: 0, totalConf: 0, confCount: 0 };
+        const m = map[tag]; m.n++; if (t.resultR > 0) m.wins++; m.totalR += t.resultR || 0;
+        if (t.confidenceLevel) { m.totalConf += t.confidenceLevel; m.confCount++; }
+      });
+    });
+    return Object.entries(map).map(([name, v]) => ({ name, count: v.n, winRate: v.wins / v.n * 100, avgR: v.totalR / v.n, avgConf: v.confCount ? v.totalConf / v.confCount : null }))
+      .sort((a, b) => b.avgR - a.avgR);
+  }, [closed]);
+
+  const oteImpact = useMemo(() => {
+    const g = (arr) => ({ count: arr.length, winRate: arr.length ? arr.filter(t => t.resultR > 0).length / arr.length * 100 : 0, avgR: arr.length ? arr.reduce((s, t) => s + (t.resultR || 0), 0) / arr.length : 0 });
+    return { withOte: g(closed.filter(t => t.oteFib)), withoutOte: g(closed.filter(t => !t.oteFib)) };
+  }, [closed]);
+
+  const confVsResult = useMemo(() => [
+    { label: "1-3 (Faible)", min: 1, max: 3 }, { label: "4-5 (Moyen)", min: 4, max: 5 },
+    { label: "6-7 (Bon)", min: 6, max: 7 }, { label: "8-10 (Excellent)", min: 8, max: 10 },
+  ].map(b => {
+    const grp = closed.filter(t => t.confidenceLevel >= b.min && t.confidenceLevel <= b.max);
+    return { ...b, count: grp.length, winRate: grp.length ? grp.filter(t => t.resultR > 0).length / grp.length * 100 : 0, avgR: grp.length ? grp.reduce((s, t) => s + (t.resultR || 0), 0) / grp.length : 0 };
   }), [closed]);
 
-  const overallEvalAvg = useMemo(() => {
-    const withEval = closed.filter((t) => t.setupEval);
-    return {
-      entry: avg(withEval.map((t) => t.setupEval.entry)),
-      riskManagement: avg(withEval.map((t) => t.setupEval.riskManagement)),
-      timing: avg(withEval.map((t) => t.setupEval.timing)),
-      patience: avg(withEval.map((t) => t.setupEval.patience)),
-      execution: avg(withEval.map((t) => t.setupEval.execution)),
-    };
+  const avgs = useMemo(() => {
+    const conf = closed.filter(t => t.confidenceLevel > 0).map(t => t.confidenceLevel);
+    const qual = closed.filter(t => t.retroRating > 0).map(t => t.retroRating);
+    const judged = closed.filter(t => t.verdict === "good" || t.verdict === "bad");
+    const good = judged.filter(t => t.verdict === "good");
+    return { conf: avg(conf), qual: avg(qual), judged: judged.length, goodPct: judged.length ? good.length / judged.length * 100 : null,
+      goodWr: good.length ? good.filter(t => t.resultR > 0).length / good.length * 100 : null };
   }, [closed]);
-
-  const bySetupRated = useMemo(() => {
-    const map = {};
-    closed.forEach((t) => {
-      if (!map[t.setup]) map[t.setup] = { key: t.setup, trades: [], pnl: 0 };
-      map[t.setup].trades.push(t);
-      map[t.setup].pnl += t.resultUsd || 0;
-    });
-    return Object.values(map).map((g) => ({
-      key: g.key,
-      count: g.trades.length,
-      pnl: g.pnl,
-      avgRating: avg(g.trades.map((t) => t.reflection.tradeRating)),
-    })).filter((g) => g.count >= 2);
-  }, [closed]);
-
-  const bestSetups = [...bySetupRated].sort((a, b) => b.avgRating - a.avgRating).slice(0, 5);
-  const worstSetups = [...bySetupRated].sort((a, b) => a.avgRating - b.avgRating).slice(0, 5);
 
   if (closed.length === 0) {
-    return <EmptyState icon={Brain} title="Pas encore de réflexions enregistrées" text="Remplis le journal de réflexion sur tes trades pour voir tes moyennes ici." />;
+    return <EmptyState icon={Brain} title="Pas encore de trades clôturés" text="Clôture des trades et note-les (confiance, qualité, bon/mauvais) pour voir tes moyennes ici." />;
   }
 
   return (
     <div>
-      <div className="grid-2" style={{ marginBottom: 14 }}>
-        <Card style={{ padding: 18 }}>
-          <CardLabel>Moyennes — journal de réflexion</CardLabel>
-          <div className="grid-rating-5" style={{ marginTop: 12 }}>
-            <RatingDisplay label="Trade" value={overallAvg.tradeRating?.toFixed(1) ?? "—"} />
-            <RatingDisplay label="Analyse" value={overallAvg.analysisQuality?.toFixed(1) ?? "—"} />
-            <RatingDisplay label="Confiance" value={overallAvg.confidence?.toFixed(1) ?? "—"} />
-            <RatingDisplay label="Discipline" value={overallAvg.discipline?.toFixed(1) ?? "—"} color={C.teal} />
-            <RatingDisplay label="Émotionnel" value={overallAvg.emotionalLevel?.toFixed(1) ?? "—"} color={C.red} />
-          </div>
-        </Card>
-        <Card style={{ padding: 18 }}>
-          <CardLabel>Moyennes — évaluation du setup</CardLabel>
-          <div className="grid-rating-5" style={{ marginTop: 12 }}>
-            <RatingDisplay label="Entrée" value={overallEvalAvg.entry?.toFixed(1) ?? "—"} />
-            <RatingDisplay label="Risque" value={overallEvalAvg.riskManagement?.toFixed(1) ?? "—"} />
-            <RatingDisplay label="Timing" value={overallEvalAvg.timing?.toFixed(1) ?? "—"} />
-            <RatingDisplay label="Patience" value={overallEvalAvg.patience?.toFixed(1) ?? "—"} />
-            <RatingDisplay label="Exécution" value={overallEvalAvg.execution?.toFixed(1) ?? "—"} />
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid-2" style={{ marginBottom: 14 }}>
-        <Card style={{ padding: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
-            <Trophy size={13} color={C.teal} />
-            <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Meilleurs setups (note moyenne)</span>
-          </div>
-          {bestSetups.length === 0 ? <div style={{ fontSize: 12, color: C.textMuted }}>Pas assez de trades notés par setup (min. 2).</div> : (
-            <DataTable
-              columns={[
-                { key: "key", label: "Setup" },
-                { key: "avgRating", label: "Note moy.", align: "right", render: (r) => `${r.avgRating.toFixed(1)}/10`, color: () => C.teal },
-                { key: "pnl", label: "P&L", align: "right", render: (r) => fmtUsdSigned(r.pnl), color: (r) => r.pnl >= 0 ? C.teal : C.red },
-              ]}
-              rows={bestSetups}
-            />
-          )}
-        </Card>
-        <Card style={{ padding: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
-            <Sparkles size={13} color={C.red} />
-            <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Pires setups (note moyenne)</span>
-          </div>
-          {worstSetups.length === 0 ? <div style={{ fontSize: 12, color: C.textMuted }}>Pas assez de trades notés par setup (min. 2).</div> : (
-            <DataTable
-              columns={[
-                { key: "key", label: "Setup" },
-                { key: "avgRating", label: "Note moy.", align: "right", render: (r) => `${r.avgRating.toFixed(1)}/10`, color: () => C.red },
-                { key: "pnl", label: "P&L", align: "right", render: (r) => fmtUsdSigned(r.pnl), color: (r) => r.pnl >= 0 ? C.teal : C.red },
-              ]}
-              rows={worstSetups}
-            />
-          )}
-        </Card>
-      </div>
+      <Card style={{ padding: 18, marginBottom: 14 }}>
+        <CardLabel>Moyennes de tes auto-évaluations</CardLabel>
+        <div className="grid-kpi-4" style={{ marginTop: 12 }}>
+          <RatingDisplay label="Confiance avant" value={avgs.conf != null ? avgs.conf.toFixed(1) + "/10" : "—"} />
+          <RatingDisplay label="Qualité après" value={avgs.qual != null ? avgs.qual.toFixed(1) + "/10" : "—"} color={C.teal} />
+          <RatingDisplay label="Jugés « bon trade »" value={avgs.goodPct != null ? avgs.goodPct.toFixed(0) + "%" : "—"} color={C.teal} />
+          <RatingDisplay label="Winrate des bons trades" value={avgs.goodWr != null ? avgs.goodWr.toFixed(0) + "%" : "—"} />
+        </div>
+        <div style={{ fontSize: 11, color: C.textMuted, marginTop: 8 }}>{avgs.judged} trade(s) jugé(s) 👍/👎 sur {closed.length} clôturé(s)</div>
+      </Card>
 
       {/* PD Arrays performance */}
       {pdArrayStats.length > 0 && (
@@ -5177,7 +5452,7 @@ function PlanDeTrading() {
     clearTimeout(window._planSyncTimer);
     window._planSyncTimer = setTimeout(async () => {
       try {
-        await sbFetch("/settings?id=eq.main", { method: "PATCH", body: JSON.stringify({ trading_plan: val }) });
+        await saveSettingsPatch({ trading_plan: val });
       } catch {}
     }, 2000);
   };
@@ -5232,12 +5507,12 @@ function Previsions({ pairs = ["DXY", "EURUSD", "GBPUSD"] }) {
   const saveBiases = (b) => {
     setBiases(b);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(b)); } catch {}
-    try { sbFetch("/settings?id=eq.main", { method: "PATCH", body: JSON.stringify({ previsions_biases: b }) }); } catch {}
+    try { saveSettingsPatch({ previsions_biases: b }); } catch {}
   };
   const saveNews = (n) => {
     setNews(n);
     try { localStorage.setItem(NEWS_KEY, JSON.stringify(n)); } catch {}
-    try { sbFetch("/settings?id=eq.main", { method: "PATCH", body: JSON.stringify({ previsions_news: n }) }); } catch {}
+    try { saveSettingsPatch({ previsions_news: n }); } catch {}
   };
 
   const setBias = (pair, tf, val) => {
@@ -5521,7 +5796,6 @@ function AiCoach({ trades }) {
    SETTINGS PAGE
    ============================================================================ */
 
-const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "CHF", "JPY"];
 const ALL_PAIRS = ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY", "AUDUSD", "USDCAD", "NZDUSD", "GBPJPY", "EURJPY", "USDCHF", "XAGUSD", "BTCUSD", "ETHUSD", "US30", "NAS100", "SPX500"];
 
 function SettingsSection({ title, children }) {
@@ -5590,6 +5864,7 @@ function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAc
   const [editBalance, setEditBalance] = useState(String(acc.balance || ""));
   const [editBroker, setEditBroker] = useState(acc.broker || "");
   const [editType, setEditType] = useState(acc.type || "real");
+  const [confirmDel, setConfirmDel] = useState(false);
 
   const saveEdit = () => {
     onSaveAccounts(accounts.map(a => a.id === acc.id ? { ...a, name: editName, balance: Number(editBalance) || 0, broker: editBroker, type: editType } : a));
@@ -5613,7 +5888,9 @@ function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAc
             ? <span style={{ fontSize: 11, color: C.purple, fontWeight: 700, background: C.purpleDim, padding: "3px 8px", borderRadius: 5 }}>Actif</span>
             : <button onClick={() => onSwitchAccount(acc.id)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px" }}>Activer</button>}
           <button onClick={() => setEditing(v => !v)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px", color: editing ? C.purple : C.textMuted }}><Edit3 size={12} /></button>
-          <button onClick={() => onSaveAccounts(accounts.filter(a => a.id !== acc.id))} style={{ ...btn.icon, padding: "5px", color: C.red, borderColor: "transparent" }}><X size={13} /></button>
+          {confirmDel
+            ? <button onClick={() => onSaveAccounts(accounts.filter(a => a.id !== acc.id))} onBlur={() => setConfirmDel(false)} style={{ ...btn.ghost, fontSize: 11, padding: "5px 10px", color: C.red, borderColor: `${C.red}60` }}>Supprimer ?</button>
+            : <button onClick={() => setConfirmDel(true)} style={{ ...btn.icon, padding: "5px", color: C.red, borderColor: "transparent" }}><X size={13} /></button>}
         </div>
       </div>
       {editing && (
@@ -5681,9 +5958,9 @@ function AddAccountForm({ accounts, onSaveAccounts }) {
 }
 
 function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSaveAccounts, onSwitchAccount }) {
-  const [editingBalance, setEditingBalance] = useState(false);
-  const [balanceInput, setBalanceInput] = useState(String(settings.accountBalance));
-  const [newBroker, setNewBroker] = useState("");
+  
+  
+  
   const [toast, setToast] = useState("");
 
   const update = (patch) => {
@@ -5697,10 +5974,8 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
   };
   const removePair = (pair) => update({ pairs: settings.pairs.filter((p) => p !== pair) });
 
-  const addBroker = (broker) => {
-    if (!settings.brokers.includes(broker)) update({ brokers: [...settings.brokers, broker] });
-  };
-  const removeBroker = (broker) => update({ brokers: settings.brokers.filter((b) => b !== broker) });
+  
+  
 
   return (
     <div className="fade-in" style={{ maxWidth: 600 }}>
@@ -5974,101 +6249,7 @@ function CalcResult({ label, value, color, highlight }) {
 
 const CORRECT_PIN = "1234"; // PIN par défaut — changeable dans les settings
 
-function Onboarding({ onComplete }) {
-  const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
-  const [type, setType] = useState("real");
-  const [balance, setBalance] = useState("10000");
-  const [broker, setBroker] = useState("");
 
-  const handleCreate = () => {
-    if (!name.trim()) return;
-    const acc = { id: `acc_${Date.now()}`, name: name.trim(), type, balance: Number(balance) || 10000, broker };
-    onComplete(acc);
-  };
-
-  const typeOpts = [
-    { v: "real", l: "Compte Réel", icon: "💵", desc: "Trading live avec vrai argent", color: C.teal },
-    { v: "demo", l: "Compte Démo", icon: "🎯", desc: "Pratique sans risque réel", color: C.purple },
-    { v: "challenge", l: "Challenge/Prop", icon: "🏆", desc: "FTMO, MFF, The5ers...", color: C.amber },
-  ];
-
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: FONT.base }}>
-      <div style={{ width: "100%", maxWidth: 420 }}>
-
-        {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <EmeieksLogo size={56} />
-          <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginTop: 14, letterSpacing: -0.5 }}>Emeieks Trade</div>
-          <div style={{ fontSize: 14, color: C.textMuted, marginTop: 6 }}>Journal de trading ICT professionnel</div>
-        </div>
-
-        {step === 0 && (
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 6, textAlign: "center" }}>Bienvenue 👋</div>
-            <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 28, textAlign: "center", lineHeight: 1.6 }}>
-              Commençons par créer ton premier compte de trading.
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-              {typeOpts.map(opt => (
-                <button key={opt.v} onClick={() => setType(opt.v)} style={{
-                  padding: "14px 16px", borderRadius: 12, cursor: "pointer", textAlign: "left",
-                  border: `2px solid ${type === opt.v ? opt.color : C.border}`,
-                  background: type === opt.v ? `${opt.color}12` : C.card,
-                  display: "flex", alignItems: "center", gap: 14, transition: "all 0.15s",
-                }}>
-                  <span style={{ fontSize: 22 }}>{opt.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: type === opt.v ? opt.color : C.text }}>{opt.l}</div>
-                    <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>{opt.desc}</div>
-                  </div>
-                  {type === opt.v && <div style={{ marginLeft: "auto", width: 18, height: 18, borderRadius: "50%", background: opt.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>
-                  </div>}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setStep(1)} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: "14px", fontSize: 15, fontWeight: 700 }}>
-              Continuer →
-            </button>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div>
-            <button onClick={() => setStep(0)} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 13, marginBottom: 20, display: "flex", alignItems: "center", gap: 4 }}>
-              ← Retour
-            </button>
-            <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 6 }}>Détails du compte</div>
-            <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 24 }}>Ces infos peuvent être modifiées plus tard dans Réglages.</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Nom du compte *</label>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Mon compte réel, FTMO 100K..." autoFocus style={{ ...inputStyle, fontSize: 14 }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Capital de départ ($)</label>
-                <input type="number" value={balance} onChange={e => setBalance(e.target.value)} placeholder="10000" style={{ ...inputStyle, fontSize: 14 }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, display: "block", marginBottom: 6 }}>Broker (optionnel)</label>
-                <input value={broker} onChange={e => setBroker(e.target.value)} placeholder="Ex: ICMarkets, Pepperstone, FTMO..." style={{ ...inputStyle, fontSize: 14 }} />
-              </div>
-            </div>
-            <button onClick={handleCreate} disabled={!name.trim()} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: "14px", fontSize: 15, fontWeight: 700, marginTop: 24, opacity: name.trim() ? 1 : 0.4 }}>
-              Créer mon compte 🚀
-            </button>
-          </div>
-        )}
-
-        <div style={{ textAlign: "center", marginTop: 24, fontSize: 11, color: C.textMuted }}>
-          Tes données restent privées et sont sauvegardées localement.
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function PinScreen({ onUnlock, inline = false }) {
   const [pin, setPin] = useState("");
@@ -6200,14 +6381,7 @@ async function uploadToStorage(file) {
 }
 
 // Upload base64 → Storage (pour les captures existantes)
-async function uploadBase64ToStorage(base64) {
-  const [header, data] = base64.split(",");
-  const mime = header.match(/:(.*?);/)?.[1] || "image/jpeg";
-  const ext = mime.split("/")[1] || "jpg";
-  const blob = await fetch(base64).then(r => r.blob());
-  const file = new File([blob], `screenshot.${ext}`, { type: mime });
-  return uploadToStorage(file);
-}
+
 
 // Convertit un trade React → format base de données
 function tradeToDb(t) {
@@ -6244,6 +6418,18 @@ function tradeToDb(t) {
     mss_confirmed: t.mssConfirmed ?? false,
     retro_rating: t.retroRating ?? null,
     retro_note: t.retroNote ?? null,
+    account_id: t.accountId ?? null,
+    mistakes: t.mistakes ?? [],
+    positives: t.positives ?? [],
+    rules: t.rules ?? {},
+    max_r: t.maxR ?? null,
+    ict_model: t.ictModel ?? null,
+    htf_bias: t.htfBias ?? null,
+    pd_zone: t.pdZone ?? null,
+    swept_liquidity: t.sweptLiquidity ?? null,
+    draw_on_liquidity: t.drawOnLiquidity ?? null,
+    displacement: t.displacement ?? false,
+    smt: t.smt ?? false,
   };
 }
 
@@ -6283,6 +6469,17 @@ function dbToTrade(r) {
     mssConfirmed: r.mss_confirmed,
     retroRating: r.retro_rating ?? 0,
     retroNote: r.retro_note ?? "",
+    mistakes: r.mistakes ?? [],
+    positives: r.positives ?? [],
+    rules: r.rules ?? {},
+    maxR: r.max_r ?? null,
+    ictModel: r.ict_model ?? "",
+    htfBias: r.htf_bias ?? "",
+    pdZone: r.pd_zone ?? "",
+    sweptLiquidity: r.swept_liquidity ?? "",
+    drawOnLiquidity: r.draw_on_liquidity ?? "",
+    displacement: !!r.displacement,
+    smt: !!r.smt,
     updatedAt: r.updated_at || 0,
   };
 }
@@ -6300,6 +6497,70 @@ function dbToSettings(r) {
     hiddenErrors: r.hidden_errors ?? [],
     customPositives: r.custom_positives ?? [],
   };
+}
+
+// ── Écriture Supabase tolérante : si une colonne manque dans la base, on la retire et on réessaie ──
+const MISSING_COLS = { trades: new Set(), settings: new Set() };
+async function sbWrite(table, path, method, row, prefer) {
+  for (let i = 0; i < 8; i++) {
+    const body = { ...row };
+    MISSING_COLS[table].forEach((c) => delete body[c]);
+    try { return await sbFetch(path, { method, prefer, body: JSON.stringify(body) }); }
+    catch (e) {
+      const m = String(e.message).match(/'([a-z0-9_]+)' column/i);
+      if (m && m[1] in body) { MISSING_COLS[table].add(m[1]); console.warn("Colonne absente dans Supabase :", table + "." + m[1]); continue; }
+      // Type différent dans la base (ex. updated_at en date) : on retire les colonnes « techniques » une par une
+      if (/invalid input syntax|out of range/i.test(String(e.message))) {
+        const c = ["updated_at", "account_id", "max_r"].find((k) => k in body);
+        if (c) { MISSING_COLS[table].add(c); console.warn("Type incompatible, colonne ignorée :", table + "." + c); continue; }
+      }
+      throw e;
+    }
+  }
+}
+// Réglages : file d'attente locale fusionnée, renvoyée tant que Supabase n'a pas confirmé
+const SET_PENDING_KEY = "emeieks_settings_pending_v1";
+function setPendGet() { try { return JSON.parse(localStorage.getItem(SET_PENDING_KEY) || "{}"); } catch { return {}; } }
+async function saveSettingsPatch(patch) {
+  const m = { ...setPendGet(), ...patch };
+  try { localStorage.setItem(SET_PENDING_KEY, JSON.stringify(m)); } catch {}
+  return flushSettings();
+}
+let SETTINGS_FLUSHING = null;
+async function flushSettings() {
+  if (SETTINGS_FLUSHING) return SETTINGS_FLUSHING;
+  SETTINGS_FLUSHING = (async () => {
+    const m = setPendGet();
+    if (!Object.keys(m).length) return true;
+    try {
+      await sbWrite("settings", "/settings?on_conflict=id", "POST", { id: "main", ...m }, "resolution=merge-duplicates,return=minimal");
+      const cur = setPendGet(); Object.keys(m).forEach((k) => { if (JSON.stringify(cur[k]) === JSON.stringify(m[k])) delete cur[k]; });
+      try { localStorage.setItem(SET_PENDING_KEY, JSON.stringify(cur)); } catch {}
+      return true;
+    } catch (e) { console.error("Sync réglages:", e); return false; }
+  })();
+  try { return await SETTINGS_FLUSHING; } finally { SETTINGS_FLUSHING = null; }
+}
+
+// ── File d'attente locale : un trade modifié/supprimé reste ici tant que Supabase n'a pas confirmé ──
+const PENDING_KEY = "emeieks_pending_v1";
+function pendGet() { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || "{}"); } catch { return {}; } }
+function pendSet(m) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(m)); } catch {} }
+async function pushTrade(t) {
+  const row = { ...tradeToDb(t), updated_at: t.updatedAt || Date.now() };
+  await sbWrite("trades", "/trades?on_conflict=id", "POST", row, "resolution=merge-duplicates,return=minimal");
+}
+async function flushPending() {
+  const m = pendGet(); let left = 0;
+  for (const id of Object.keys(m)) {
+    const x = m[id];
+    try {
+      if (x._deleted) await sbFetch(`/trades?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" });
+      else await pushTrade(x);
+      const cur = pendGet(); if (cur[id] && (cur[id].updatedAt || 0) === (x.updatedAt || 0)) { delete cur[id]; pendSet(cur); }
+    } catch { left++; }
+  }
+  return left;
 }
 
 export default function TradingJournalApp() {
@@ -6341,10 +6602,7 @@ export default function TradingJournalApp() {
     try { localStorage.setItem("accounts", JSON.stringify(newAccounts)); } catch {}
     // Sync Supabase
     try {
-      await sbFetch("/settings?id=eq.main", {
-        method: "PATCH",
-        body: JSON.stringify({ accounts: newAccounts }),
-      });
+      await saveSettingsPatch({ accounts: newAccounts });
     } catch (e) { console.error("Erreur sync comptes:", e); }
   };
   const activeAccount = accounts.find(a => a.id === activeAccountId) || accounts[0];
@@ -6368,7 +6626,7 @@ export default function TradingJournalApp() {
   });
   const [activeTradeId, setActiveTradeId] = useState(null);
   const [editingTrade, setEditingTrade] = useState(null);
-  const [journalNotes, setJournalNotes] = useState({});
+  
   const [toast, setToast] = useState(null);
 
   const showToast = (msg, error = false) => {
@@ -6382,14 +6640,49 @@ export default function TradingJournalApp() {
       if (!silent) setLoading(true);
       // Charge directement depuis Supabase — source de vérité
       const rows = await sbFetch("/trades?order=entry_time.desc");
-      const remote = (rows || []).map(dbToTrade);
+      let remote = (rows || []).map(dbToTrade);
+      // Applique les changements locaux pas encore confirmés par Supabase (jamais écrasés par le pull)
+      const pend = pendGet();
+      Object.keys(pend).forEach((id) => {
+        const x = pend[id];
+        remote = remote.filter((t) => String(t.id) !== String(id));
+        if (!x._deleted) remote.push(x);
+      });
+      remote.sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
       setTrades(remote);
+      // Migration unique : cases « À améliorer / Points positifs / Règles » qui n'existaient que sur ce téléphone
+      try {
+        const migrated = [];
+        remote = remote.map((t) => {
+          const lsNeg = JSON.parse(localStorage.getItem(`ameliorer_${t.id}`) || "null");
+          const lsPos = JSON.parse(localStorage.getItem(`positifs_${t.id}`) || "null");
+          const rules = {};
+          for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(`rules_${t.id}_`)) rules[k.slice(`rules_${t.id}_`.length)] = localStorage.getItem(k); }
+          if (!lsNeg && !lsPos && !Object.keys(rules).length) return t;
+          const nt = { ...t,
+            mistakes: [...new Set([...(t.mistakes || []), ...(lsNeg || [])])],
+            positives: [...new Set([...(t.positives || []), ...(lsPos || [])])],
+            rules: { ...rules, ...(t.rules || {}) }, updatedAt: Date.now() };
+          migrated.push(nt); return nt;
+        });
+        if (migrated.length) {
+          const pm = pendGet(); migrated.forEach((t) => { pm[t.id] = t; }); pendSet(pm);
+          const ok = (await flushPending()) === 0;
+          if (ok) remote.forEach((t) => { localStorage.removeItem(`ameliorer_${t.id}`); localStorage.removeItem(`positifs_${t.id}`); Object.keys(t.rules || {}).forEach((g) => localStorage.removeItem(`rules_${t.id}_${g}`)); });
+        }
+      } catch (e) { console.error("Migration locale:", e); }
+      setTrades(remote);
+      if (Object.keys(pendGet()).length) flushPending();
       // Sauvegarde locale pour fallback offline
       try { localStorage.setItem(LS_KEY, JSON.stringify(remote)); } catch {}
       // Settings
       const settingsRows = await sbFetch("/settings?id=eq.main");
-      if (settingsRows && settingsRows.length > 0) {
-        const r = settingsRows[0];
+      const setPend = setPendGet();
+      if ((settingsRows && settingsRows.length > 0) || Object.keys(setPend).length) {
+        // Les changements pas encore envoyés gagnent sur la version serveur
+        const r = { ...((settingsRows && settingsRows[0]) || {}), ...setPend };
+        if (Object.keys(setPend).length) flushSettings();
+        if (r.weekly_goals) { try { localStorage.setItem("weekly_goals", JSON.stringify(r.weekly_goals)); } catch {} }
         const s = dbToSettings(r);
         if (s) setAppSettings(s);
 
@@ -6463,31 +6756,27 @@ export default function TradingJournalApp() {
     // Refresh au retour sur l'app
     const onVisible = () => { if (document.visibilityState === "visible") loadData(true); };
     document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", () => loadData(true));
+    const onFocus = () => loadData(true);
+    window.addEventListener("focus", onFocus);
 
     return () => {
       clearInterval(interval);
       clearInterval(heartbeatTimer);
       clearTimeout(wsReconnectTimer);
       document.removeEventListener("visibilitychange", onVisible);
-      if (ws) ws.close();
+      window.removeEventListener("focus", onFocus);
+      if (ws) { ws.onclose = null; ws.close(); }
     };
   }, [loadData]);
 
   // ── Sauvegarde des settings dans Supabase ──
   // Sauvegarde globale vers Supabase (settings + plan + prévisions + comptes)
-  const syncToSupabase = async (patch) => {
-    try {
-      await sbFetch("/settings?id=eq.main", { method: "PATCH", body: JSON.stringify(patch) });
-    } catch (e) { console.error("Sync Supabase:", e); }
-  };
+  
 
   const saveSettings = async (newSettings) => {
     setAppSettings(newSettings);
     try {
-      await sbFetch("/settings?id=eq.main", {
-        method: "PATCH",
-        body: JSON.stringify({
+      await saveSettingsPatch({
           account_balance: newSettings.accountBalance,
           currency: newSettings.currency,
           broker: newSettings.broker,
@@ -6499,7 +6788,6 @@ export default function TradingJournalApp() {
           hidden_errors: newSettings.hiddenErrors,
           custom_positives: newSettings.customPositives,
           updated_at: new Date().toISOString(),
-        }),
       });
     } catch (e) { console.error("Erreur settings:", e); }
   };
@@ -6508,77 +6796,74 @@ export default function TradingJournalApp() {
   const openTradeDetail = (id) => { setActiveTradeId(id); setView("tradeDetail"); };
   const setupOptions = useMemo(() => [...new Set(trades.map((t) => t.setup).filter(Boolean))], [trades]);
 
+  // ── Persistance : local d'abord (file d'attente), puis Supabase ──
+  const persist = async (t, quiet = false) => {
+    const m = pendGet(); m[t.id] = t; pendSet(m);
+    try {
+      await pushTrade(t);
+      const cur = pendGet(); if (cur[t.id] && cur[t.id].updatedAt === t.updatedAt) { delete cur[t.id]; pendSet(cur); }
+    } catch (e) {
+      console.error("Erreur sauvegarde trade:", e);
+      if (!quiet) showToast("⚠️ Gardé sur le téléphone — envoi à Supabase au prochain essai", true);
+    }
+  };
+  const tradesRef = React.useRef(trades);
+  tradesRef.current = trades;
+  const writeLocal = (list) => { try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch {} };
+
   // ── Sauvegarder un trade (ajout ou modification) ──
   const saveTrade = async (trade) => {
     const now = Date.now();
-    const tradeWithAccount = { ...trade, accountId: effectiveAccountId, updatedAt: now };
-    const exists = trades.some((t) => t.id === trade.id);
-    const newTrades = exists ? trades.map(t => t.id === trade.id ? tradeWithAccount : t) : [tradeWithAccount, ...trades];
+    const existing = tradesRef.current.find((t) => t.id === trade.id);
+    // On garde les champs que le formulaire ne connaît pas (verdict, rétrospective, compte…)
+    const merged = { ...(existing || {}), ...trade, accountId: existing?.accountId ?? effectiveAccountId, updatedAt: now };
+    const newTrades = existing ? tradesRef.current.map((t) => t.id === trade.id ? merged : t) : [merged, ...tradesRef.current];
     setTrades(newTrades);
-    // Sauvegarde locale immédiate
-    try { localStorage.setItem(LS_KEY, JSON.stringify(newTrades)); } catch {}
+    writeLocal(newTrades);
     setActiveTradeId(trade.id);
     setView("tradeDetail");
-    showToast(exists ? "Trade mis à jour ✓" : "Trade enregistré ✓");
-    try {
-      const dbTrade = { ...tradeToDb(tradeWithAccount), updated_at: now };
-      if (exists) {
-        await sbFetch(`/trades?id=eq.${trade.id}`, { method: "PATCH", body: JSON.stringify(dbTrade) });
-      } else {
-        await sbFetch("/trades", { method: "POST", body: JSON.stringify(dbTrade) });
-      }
-    } catch (e) {
-      console.error("Erreur sauvegarde trade:", e);
-      showToast("⚠️ Sauvegarde locale OK — sync Supabase échouée", true);
-    }
+    showToast(existing ? "Trade mis à jour ✓" : "Trade enregistré ✓");
+    persist(merged);
+  };
+
+  // ── Modifier quelques champs d'un trade (statut, verdict, rétro) ──
+  const retroTimers = React.useRef({});
+  const patchTrade = (id, patch, debounce = 0) => {
+    const t = tradesRef.current.find((x) => x.id === id);
+    if (!t) return;
+    const nt = { ...t, ...patch, updatedAt: Date.now() };
+    const list = tradesRef.current.map((x) => x.id === id ? nt : x);
+    tradesRef.current = list;
+    setTrades(list);
+    writeLocal(list);
+    clearTimeout(retroTimers.current[id]);
+    if (debounce) retroTimers.current[id] = setTimeout(() => persist(nt, true), debounce);
+    else persist(nt);
   };
 
   // ── Supprimer un trade ──
   const deleteTrade = async (id) => {
-    const newTrades = trades.filter(t => t.id !== id);
+    const newTrades = tradesRef.current.filter(t => t.id !== id);
     setTrades(newTrades);
-    try { localStorage.setItem(LS_KEY, JSON.stringify(newTrades)); } catch {}
+    writeLocal(newTrades);
     setView("trades");
     showToast("Trade supprimé");
+    const m = pendGet(); m[id] = { id, _deleted: true, updatedAt: Date.now() }; pendSet(m);
     try {
-      await sbFetch(`/trades?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
+      await sbFetch(`/trades?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" });
+      const cur = pendGet(); delete cur[id]; pendSet(cur);
     } catch (e) { console.error("Erreur suppression:", e); }
   };
 
-  // ── Mettre à jour le verdict 👍/👎 ──
-  const updateVerdict = async (id, verdict) => {
-    setTrades((prev) => prev.map((t) => t.id === id ? { ...t, verdict } : t));
-    try {
-      await sbFetch(`/trades?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ verdict }) });
-    } catch (e) { console.error("Erreur verdict:", e); }
-  };
+  const updateVerdict = (id, verdict) => patchTrade(id, { verdict });
 
   // ── Mettre à jour le statut Win/Loss ──
-  const updateTradeStatus = async (id, newStatus, newResultR) => {
-    setTrades((prev) => prev.map((t) => {
-      if (t.id !== id) return t;
-      const updatedR = newResultR !== undefined ? newResultR : t.resultR;
-      const updatedUsd = newResultR !== undefined && t.riskUsd ? newResultR * t.riskUsd : t.resultUsd;
-      return {
-        ...t,
-        status: newStatus === "win" || newStatus === "loss" ? "closed" : newStatus,
-        resultR: updatedR,
-        resultUsd: updatedUsd,
-      };
-    }));
-    try {
-      const t = trades.find((t) => t.id === id);
-      const updatedR = newResultR !== undefined ? newResultR : t?.resultR;
-      const updatedUsd = newResultR !== undefined && t?.riskUsd ? newResultR * t.riskUsd : t?.resultUsd;
-      await sbFetch(`/trades?id=eq.${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          status: newStatus === "win" || newStatus === "loss" ? "closed" : newStatus,
-          result_r: updatedR,
-          result_usd: updatedUsd,
-        }),
-      });
-    } catch (e) { console.error("Erreur statut:", e); }
+  const updateTradeStatus = (id, newStatus, newResultR) => {
+    const t = tradesRef.current.find((x) => x.id === id);
+    if (!t) return;
+    const updatedR = newResultR !== undefined ? newResultR : t.resultR;
+    const updatedUsd = newResultR !== undefined && t.riskUsd ? Math.round(newResultR * t.riskUsd * 100) / 100 : t.resultUsd;
+    patchTrade(id, { status: newStatus === "win" || newStatus === "loss" ? "closed" : newStatus, resultR: updatedR, resultUsd: updatedUsd });
   };
 
   // Filtre trades par compte actif — les autres comptes sont isolés
@@ -6587,11 +6872,14 @@ export default function TradingJournalApp() {
   const accountTrades = cumulMode || !effectiveAccountId
     ? trades
     : trades.filter(t => !t.accountId || t.accountId === effectiveAccountId);
+  const initialBalance = cumulMode
+    ? (accounts.reduce((s2, a) => s2 + (Number(a.balance) || 0), 0) || appSettings?.accountBalance || 10000)
+    : (Number(activeAccount?.balance) || appSettings?.accountBalance || 10000);
   const currentBalance = useMemo(() => {
-    const initial = appSettings?.accountBalance || 10000;
+    const initial = initialBalance;
     const closed = accountTrades.filter(t => t.status !== "open");
     return initial + closed.reduce((s, t) => s + (t.resultUsd || 0), 0);
-  }, [accountTrades, appSettings?.accountBalance]);
+  }, [accountTrades, initialBalance]);
 
   const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
@@ -6638,15 +6926,15 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <Dashboard trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} initialBalance={appSettings?.accountBalance || 10000} />}
+              {view === "dashboard" && <Dashboard trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
               {view === "trades" && <TradesList trades={accountTrades} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
-                <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} appSettings={appSettings} onRetroSave={async (id, data) => { await saveTrade({ ...trades.find(t => t.id === id), ...data }); }} />
+                <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} appSettings={appSettings} onRetroSave={(id, data) => patchTrade(id, data, 800)} onPatch={(id, data) => patchTrade(id, data)} />
               )}
               {view === "tradeForm" && (
-                <TradeForm initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} />
+                <TradeForm initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} trades={accountTrades} />
               )}
-              {view === "stats" && <AdvancedStats trades={accountTrades} />}
+              {view === "stats" && <AdvancedStats trades={accountTrades} onOpenTrade={openTradeDetail} onVerdict={updateVerdict} />}
               {view === "calculator" && <ForexCalculator />}
               {view === "plan" && <PlanDeTrading />}
               {view === "previsions" && <Previsions pairs={["DXY", ...(appSettings?.pairs || PAIRS)]} />}
