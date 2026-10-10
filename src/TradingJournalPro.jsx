@@ -6641,6 +6641,20 @@ export default function TradingJournalApp() {
       // Charge directement depuis Supabase — source de vérité
       const rows = await sbFetch("/trades?order=entry_time.desc");
       let remote = (rows || []).map(dbToTrade);
+      // SÉCURITÉ : base vide mais trades présents sur ce téléphone → on ne les efface jamais,
+      // on les renvoie vers Supabase (cas d'un projet en pause, recréé ou d'envois ratés)
+      try {
+        const local = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+        const backup = JSON.parse(localStorage.getItem(LS_KEY + "_backup") || "[]");
+        const mine = local.length ? local : backup;
+        if (mine.length && local.length) localStorage.setItem(LS_KEY + "_backup", JSON.stringify(local));
+        const remoteIds = new Set(remote.map((t) => String(t.id)));
+        const missing = mine.filter((t) => t && t.id != null && !remoteIds.has(String(t.id)));
+        if (remote.length === 0 && missing.length) {
+          const pm = pendGet(); missing.forEach((t) => { if (!pm[t.id]) pm[t.id] = { ...t, updatedAt: t.updatedAt || Date.now() }; }); pendSet(pm);
+          console.warn(missing.length + " trade(s) du téléphone renvoyé(s) vers Supabase");
+        }
+      } catch (e) { console.error("Sauvegarde locale:", e); }
       // Applique les changements locaux pas encore confirmés par Supabase (jamais écrasés par le pull)
       const pend = pendGet();
       Object.keys(pend).forEach((id) => {
