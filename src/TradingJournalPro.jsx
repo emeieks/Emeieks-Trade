@@ -224,7 +224,7 @@ function KillzoneBanner() {
 
         {active ? (
           <>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: active.color, letterSpacing: 0.2, marginRight: 6 }}>{active.emoji} {active.name.toUpperCase()}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: active.color, letterSpacing: 0.2, marginRight: 6 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><SessionFlag name={active.name} size={15} />{active.name.toUpperCase()}</span></span>
             <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 10 }}>jusqu'à {active.end}</span>
             <span style={{ fontSize: 10, color: active.color, background: `${active.color}20`, padding: "1px 6px", borderRadius: 3, fontWeight: 700, letterSpacing: 0.5, marginRight: 12 }}>LIVE</span>
             <span className="tnum" style={{ fontSize: 10.5, color: C.sidebarTextDim }}>encore {fmt(minsLeft)}</span>
@@ -234,7 +234,7 @@ function KillzoneBanner() {
           <>
             <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 6 }}>Hors killzone</span>
             <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 6 }}>·</span>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: C.sidebarText, marginRight: 5 }}>{next.emoji} {next.name}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: C.sidebarText, marginRight: 5 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><SessionFlag name={next.name} size={15} />{next.name}</span></span>
             <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 5 }}>à {next.start}</span>
             <span className="tnum" style={{ fontSize: 10.5, color: C.sidebarTextDim, background: "rgba(255,255,255,0.06)", padding: "1px 7px", borderRadius: 3 }}>dans {fmt(minsUntil(next))}</span>
           </>
@@ -1128,7 +1128,7 @@ function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, a
         {accounts && accounts.length > 0 && (
           <div style={{ position: "relative" }}>
             <button onClick={() => setShowAccounts(v => !v)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, background: C.sidebarHover, border: `1px solid ${C.sidebarBorder}`, cursor: "pointer" }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: typeColors[activeAccount?.type] || C.teal, flexShrink: 0 }} />
+              {activeAccount?.logo ? <AccountLogo acc={activeAccount} size={18} /> : <div style={{ width: 8, height: 8, borderRadius: "50%", background: typeColors[activeAccount?.type] || C.teal, flexShrink: 0 }} />}
               <span style={{ fontSize: 12, fontWeight: 600, color: C.sidebarText, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeAccount?.name}</span>
               <ChevronDown size={11} color={C.sidebarTextDim} />
             </button>
@@ -1138,7 +1138,7 @@ function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, a
                 <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 99, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.4)", minWidth: 200, overflow: "hidden" }}>
                   {accounts.map((acc) => (
                     <button key={acc.id} onClick={() => { onSwitchAccount(acc.id); setShowAccounts(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: acc.id === activeAccountId ? C.purpleDim : "none", border: "none", cursor: "pointer", borderBottom: `1px solid ${C.border}` }}>
-                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: typeColors[acc.type] || C.teal, flexShrink: 0 }} />
+                      <AccountLogo acc={acc} size={26} />
                       <div style={{ flex: 1, textAlign: "left" }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
                         <div style={{ fontSize: 11, color: C.textMuted }}>
@@ -1261,7 +1261,7 @@ function groupBy(trades, keyFn) {
 
 
 function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalance = 10000 }) {
-  const [period, setPeriod] = useState("30j");
+  const [period, setPeriod] = useState("tout");
   const [eqMode, setEqMode] = useState("cum");
 
   const filteredTrades = useMemo(() => {
@@ -1283,7 +1283,7 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
     return Object.keys(m).sort().map((k) => ({ label: fmtDate(k + "T12:00:00"), pnl: Math.round(m[k] * 100) / 100 }));
   }, [stats.closed]);
   const recentTrades = filteredTrades.slice(0, 5);
-  const PERIODS = ["7j", "30j", "90j", "tout"];
+  const PERIODS = ["tout", "7j", "30j", "90j"];
   const totalR = stats.closed.reduce((s, t) => s + (Number(t.resultR) || 0), 0);
   const [goal, setGoal] = useState(() => { try { return JSON.parse(localStorage.getItem("emeieks_goals") || "null") || { monthR: 10, maxTrades: 2, stopR: 2 }; } catch (e) { return { monthR: 10, maxTrades: 2, stopR: 2 }; } });
   const saveGoal = (g) => { setGoal(g); try { localStorage.setItem("emeieks_goals", JSON.stringify(g)); } catch (e) {} };
@@ -1307,7 +1307,7 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
                 color: period === p ? C.text : C.textMuted,
                 border: period === p ? `1px solid ${C.border}` : "1px solid transparent",
                 boxShadow: period === p ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-              }}>{p}</button>
+              }}>{p === "tout" ? "Tout" : p}</button>
             ))}
           </div>
           <button onClick={() => setView("coach")} title="IA Coach" aria-label="IA Coach" style={{ ...btn.ghost, padding: "7px 9px" }}><Brain size={15} /></button>
@@ -1461,7 +1461,7 @@ function exportToCsv(trades) {
   }
 }
 
-function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome, onPatch }) {
+function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome, onPatch, appSettings }) {
   const [quickId, setQuickId] = useState(null);
   const onOpen = onPatch ? (id) => setQuickId(id) : onOpenFull;
   const quickTrade = quickId ? trades.find((t) => t.id === quickId) : null;
@@ -1584,7 +1584,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
 
   return (
     <div className="fade-in">
-      {quickTrade && <QuickTradeModal key={quickTrade.id} trade={quickTrade} onClose={() => setQuickId(null)} onPatch={onPatch} onOpenFull={onOpenFull} />}
+      {quickTrade && <QuickTradeModal key={quickTrade.id} trade={quickTrade} onClose={() => setQuickId(null)} onPatch={onPatch} onOpenFull={onOpenFull} appSettings={appSettings} />}
       <PageHeader title="Mes trades" action={
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => exportToCsv(filtered)} style={btn.ghost} title="Exporter CSV" aria-label="Exporter CSV"><Download size={14} /></button>
@@ -1794,7 +1794,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
                     <span style={{ fontSize: 8, color: C.textMuted, transform: isOpen ? "rotate(0)" : "rotate(-90deg)", display: "inline-block", transition: "transform 0.2s" }}>▼</span>
                     <div style={{ textAlign: "left" }}>
                       <div style={{ fontSize: 15, fontWeight: 800, color: C.text, textTransform: "capitalize", letterSpacing: 0.2 }}>{monthLabel}</div>
-                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{monthTrades.length} trades · {wins}W/{monthTrades.filter((x) => x.resultR < 0).length}L</div>
+                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{monthTrades.length} trade{monthTrades.length > 1 ? "s" : ""} · {wins}W/{monthTrades.filter((x) => x.resultR < 0).length}L</div>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -1807,7 +1807,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
                   <div style={{ background: "transparent", padding: "10px 8px", display: "flex", flexDirection: "column", gap: 8 }}>
                     <div className="desktop-only table-scroll" style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "100px 80px 60px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
-                        <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>P&L</div><div>R</div><div>Statut</div>
+                        <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>R</div><div>$</div><div>Statut</div>
                       </div>
                       {monthTrades.map((t) => <TradeRow key={t.id} t={t} onOpen={onOpen} />)}
                     </div>
@@ -1826,7 +1826,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
           <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.card }} className="desktop-only">
             <div className="table-scroll">
             <div style={{ display: "grid", gridTemplateColumns: "100px 80px 60px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
-              <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>P&L</div><div>R</div><div>Statut</div>
+              <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>R</div><div>$</div><div>Statut</div>
             </div>
             {filtered.map((t) => <TradeRow key={t.id} t={t} onOpen={onOpen} />)}
             </div>
@@ -1842,7 +1842,18 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
   );
 }
 
-function QuickTradeModal({ trade, onClose, onPatch, onOpenFull }) {
+function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
+  const SESS = ["London Session", "New York Session", "Asia Session", "Hors session"];
+  const [when, setWhen] = useState(toLocalInput(trade.entryTime));
+  const [sess, setSess] = useState((trade.tags || []).find((g) => SESS.includes(g)) || getSession(trade.entryTime));
+  const tfList = appSettings?.timeframes && appSettings.timeframes.length ? appSettings.timeframes : DEFAULT_TFS;
+  const hiddenT = appSettings?.hiddenTags || [];
+  const setupNames = [...TAG_CATALOG.filter((t) => t.category === "setup" && !hiddenT.includes(t.name)).map((t) => t.name), ...(appSettings?.customTags || [])];
+  const ALLTF = ["M1","M3","M5","M15","M30","H1","H4","D1","W1","D","W","MN", ...tfList];
+  const [rows, setRows] = useState(() => { const ts = trade.rules?.tfSetups; if (Array.isArray(ts) && ts.length) return ts.map((r) => ({ tf: r.tf, setups: [...(r.setups || [])] }));
+    const tf = (trade.tags || []).find((g) => ALLTF.includes(g)); const st = (trade.tags || []).filter((g) => setupNames.includes(g) || TAG_CATALOG.find((c) => c.name === g && c.category === "setup"));
+    return [{ tf: tf || tfList[0], setups: st }]; });
+  const [rq, setRq] = useState({});
   const [entry, setEntry] = useState(trade.entryPrice ?? "");
   const [sl, setSl] = useState(trade.stopLoss ?? "");
   const [tp, setTp] = useState(trade.takeProfit ?? "");
@@ -1862,7 +1873,10 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull }) {
     const en = entry === "" ? null : Number(entry), s = sl === "" ? null : Number(sl), t = tp === "" ? null : Number(tp);
     let resultR = st === "open" ? null : st === "breakeven" ? 0 : liveR != null ? Math.round(liveR * 100) / 100 : null;
     const risk = Number(trade.riskUsd) || null;
-    onPatch(trade.id, { entryPrice: en, stopLoss: s, takeProfit: t, direction: dir, screenshotBefore: before, screenshotAfter: after,
+    const keep = (trade.tags || []).filter((g) => !SESS.includes(g) && !ALLTF.includes(g) && !setupNames.includes(g) && !TAG_CATALOG.find((c) => c.name === g && c.category === "setup"));
+    const tags = [...new Set([...keep, ...rows.map((r) => r.tf).filter(Boolean), ...rows.flatMap((r) => r.setups), ...(sess ? [sess] : [])])];
+    const iso = when && !isNaN(new Date(when).getTime()) ? new Date(when).toISOString() : trade.entryTime;
+    onPatch(trade.id, { entryTime: iso, tags, rules: { ...(trade.rules || {}), tfSetups: rows.filter((r) => r.tf || r.setups.length) }, entryPrice: en, stopLoss: s, takeProfit: t, direction: dir, screenshotBefore: before, screenshotAfter: after,
       status: st === "win" || st === "loss" ? "closed" : st, resultR, resultUsd: resultR == null ? null : risk ? Math.round(resultR * risk * 100) / 100 : trade.resultUsd ?? null, retroRating: note });
     onClose();
   };
@@ -1874,7 +1888,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.8, lineHeight: 1, display: "flex", alignItems: "center", gap: 10 }}><PairLogo pair={trade.pair} size={38} />{trade.pair}</div>
-            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{fmtDateTime(trade.entryTime)}</div>
+            <input type="datetime-local" value={when} onChange={(e) => { setWhen(e.target.value); const d = new Date(e.target.value); if (!isNaN(d.getTime())) setSess(getSession(d.toISOString())); }} aria-label="Date" style={{ ...inputStyle, width: "auto", padding: "5px 9px", fontSize: 12.5, marginTop: 6 }} />
           </div>
           <button onClick={onClose} aria-label="Fermer" style={{ ...btn.ghost, padding: 8 }}><X size={16} /></button>
         </div>
@@ -1886,6 +1900,29 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull }) {
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => setDir("long")} style={big(dir === "long", C.teal)}>↗ Long</button>
           <button onClick={() => setDir("short")} style={big(dir === "short", "#F97316")}>↘ Short</button>
+        </div>
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Session</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {SESS.map((x) => <button key={x} onClick={() => setSess(x)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: `1px solid ${sess === x ? C.purple : C.border}`, background: sess === x ? C.purpleDim : "transparent", color: sess === x ? C.purpleBright : C.textSecondary }}><SessionFlag name={x} size={15} />{x.replace(" Session", "")}</button>)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Setup</div>
+          {rows.map((row, i) => { const qq = (rq[i] || "").trim().toLowerCase(); const hits = qq ? setupNames.filter((n) => n.toLowerCase().includes(qq) && !row.setups.includes(n)).slice(0, 6) : [];
+            const upd = (fn) => setRows((rs) => rs.map((r, j) => j === i ? fn(r) : r));
+            return (<div key={i} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                <select value={row.tf} onChange={(e) => upd((r) => ({ ...r, tf: e.target.value }))} aria-label="Timeframe" style={{ ...inp, width: 76, flexShrink: 0, fontWeight: 800 }}>{[...new Set([...tfList, row.tf].filter(Boolean))].map((t) => <option key={t} value={t}>{t}</option>)}</select>
+                <input value={rq[i] || ""} onChange={(e) => setRq((m) => ({ ...m, [i]: e.target.value }))} placeholder="Ajouter un PD array…" style={{ ...inp, flex: 1, minWidth: 0 }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && hits[0]) { upd((r) => ({ ...r, setups: [...r.setups, hits[0]] })); setRq((m) => ({ ...m, [i]: "" })); } }} />
+                {rows.length > 1 && <button onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} aria-label="Retirer" style={{ ...btn.ghost, padding: "6px 9px" }}><X size={13} /></button>}
+              </div>
+              {hits.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{hits.map((h) => <Chip key={h} onClick={() => { upd((r) => ({ ...r, setups: [...r.setups, h] })); setRq((m) => ({ ...m, [i]: "" })); }}>+ {h}</Chip>)}</div>}
+              {row.setups.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{row.setups.map((st) => <span key={st} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: C.purpleDim, color: C.purpleBright, fontSize: 12, fontWeight: 700 }}><b style={{ color: C.text }}>{row.tf}</b> {st}
+                <button onClick={() => upd((r) => ({ ...r, setups: r.setups.filter((x) => x !== st) }))} aria-label={"Retirer " + st} style={{ background: "none", border: "none", color: C.purpleBright, cursor: "pointer", padding: 0, display: "flex" }}><X size={12} /></button></span>)}</div>}
+            </div>); })}
+          <button onClick={() => setRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 12.5, cursor: "pointer", padding: 0 }}>+ Ajouter une timeframe</button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <ImageUploadBox label="Avant" value={before} onChange={setBefore} />
@@ -1931,15 +1968,15 @@ function TradeRow({ t, onOpen }) {
       <div style={{ color: C.textMuted, fontSize: 11.5 }}>{fmtDate(t.entryTime)}</div>
       <div style={{ fontSize: 12, fontWeight: 600, color: t.direction === "long" ? "#2D7DD2" : "#F97316" }}>{t.direction === "long" ? "Long" : "Short"}</div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-        {(() => { const ts = t.rules?.tfSetups; const items = Array.isArray(ts) && ts.length ? ts.flatMap((r) => (r.setups || []).map((x) => [x, r.tf])) : setupTags.map((x) => [x, (t.tags || []).find((g) => ["M1","M3","M5","M15","M30","H1","H4","D1","W1","MN"].includes(g)) || ""]);
+        {(() => { const ts = t.rules?.tfSetups; const items = Array.isArray(ts) && ts.length ? ts.flatMap((r) => (r.setups || []).map((x) => [x, r.tf])) : setupTags.map((x) => [x, (t.tags || []).find((g) => ["M1","M3","M5","M15","M30","H1","H4","D1","W1","D","W","MN"].includes(g)) || ""]);
           return items.slice(0, 3).map(([n, tf]) => <span key={n + tf} style={{ fontSize: 11, fontWeight: 700, color: C.text, background: C.inputBg || C.bg, border: `1px solid ${C.border}`, padding: "2px 8px", borderRadius: 6 }}>{n}{tf ? <span style={{ color: C.purpleBright, marginLeft: 5 }}>{tf}</span> : null}</span>); })()}
         {dxyTags.length > 0 && <>
           <span style={{ color: C.border, fontSize: 14, fontWeight: 300 }}>╱</span>
           {dxyTags.slice(0, 1).map(tag => <span key={tag} style={{ fontSize: 10.5, fontWeight: 600, color: C.amber, background: `${C.amber}15`, border: `1px solid ${C.amber}40`, padding: "2px 7px", borderRadius: 5 }}>DXY·{tag}</span>)}
         </>}
       </div>
-      <div className="tnum" style={{ fontWeight: 700, color: t.status === "open" || t.status === "breakeven" ? C.textSecondary : isWin ? C.teal : C.red }}>{t.status === "open" || t.status === "breakeven" ? "—" : fmtUsdSigned(t.resultUsd)}</div>
-      <div className="tnum" style={{ color: C.textMuted, fontWeight: 600 }}>{fmtR(t.resultR)}</div>
+      <div className="tnum" style={{ fontWeight: 800, fontSize: 14, color: t.status === "open" ? C.textSecondary : (t.resultR || 0) > 0 ? C.teal : (t.resultR || 0) < 0 ? C.red : C.textSecondary }}>{t.status === "open" ? "—" : fmtR(t.resultR)}</div>
+      <div className="tnum" style={{ color: C.textMuted, fontWeight: 600, fontSize: 12 }}>{t.status === "open" || t.resultUsd == null ? "—" : fmtUsdSigned(t.resultUsd)}</div>
       <div>
         <span style={{ padding: "3px 9px", borderRadius: 20, background: `${statusColors[cur]}18`, border: `1px solid ${statusColors[cur]}40`, color: statusColors[cur], fontSize: 11, fontWeight: 600 }}>
           {statusLabels[cur]}
@@ -1951,7 +1988,7 @@ function TradeRow({ t, onOpen }) {
 
 function MobileTradeCard({ t, onOpen, isLast }) {
   const setupTags = (t.tags || []).filter(tag => TAG_CATALOG.find(tc => tc.name === tag && tc.category === "setup"));
-  const tfTags = (t.tags || []).filter(tag => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(tag));
+  const tfTags = (t.tags || []).filter(tag => ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(tag));
   const isWin = t.resultR > 0;
   const isBE = t.status === "breakeven";
   const isOpen = t.status === "open";
@@ -2383,7 +2420,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
               <DetailStat label="Paire" value={trade.pair} />
               <DetailStat label="Direction" value={trade.direction === "long" ? "Long" : "Short"} valueColor={trade.direction === "long" ? "#4A9EFF" : "#F97316"} />
               <DetailStat label="Session" value={getSession(trade.entryTime) || "—"} />
-              <DetailStat label="Timeframe" value={(trade.tags || []).find(t => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t)) || "—"} />
+              <DetailStat label="Timeframe" value={(trade.tags || []).find(t => ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(t)) || "—"} />
               {trade.tfAlignment && <DetailStat label="TF sup." value={trade.tfAlignment + (trade.tfAlignmentSetup ? " · " + trade.tfAlignmentSetup : "")} />}
               {trade.oteFib && <DetailStat label="Zone OTE" value={trade.oteFib} valueColor={C.teal} />}
               <DetailStat label="Killzone" value={killzoneLabel(trade.entryTime) + (silverBulletAt(trade.entryTime) ? " · Silver Bullet" : "")} />
@@ -3013,7 +3050,7 @@ function Section({ title, icon, sub, open, onToggle, children }) {
 }
 
 // ── Nouveau formulaire d'ajout (v2) ──
-const DEFAULT_TFS = ["M1", "M5", "M15", "H1", "H4", "D1"];
+const DEFAULT_TFS = ["M15", "H1", "H4", "D", "W"];
 const GRADES = [["A+", "A", "A-"], ["B+", "B", "B-"], ["C+", "C", "C-"], ["D+", "D", "D-"], ["E"]];
 const gradeToLevel = (g) => !g ? 0 : g[0] === "A" ? 5 : g[0] === "B" ? 4 : g[0] === "C" ? 3 : g[0] === "D" ? 2 : 1;
 function pipInfo(pair, entry) {
@@ -3042,7 +3079,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const tfList = (appSettings?.timeframes && appSettings.timeframes.length ? appSettings.timeframes : DEFAULT_TFS);
   const initTf = (() => {
     const r = initial?.rules?.tfSetups; if (Array.isArray(r) && r.length) return r;
-    const tags = initial?.tags || []; const tf = tags.find((t) => tfList.includes(t) || ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t));
+    const tags = initial?.tags || []; const tf = tags.find((t) => tfList.includes(t) || ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(t));
     const st = tags.filter((t) => TAG_CATALOG.find((c) => c.name === t && c.category === "setup") || (appSettings?.customTags || []).includes(t));
     return [{ tf: tf || tfList[Math.min(2, tfList.length - 1)], setups: st }];
   })();
@@ -3122,7 +3159,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
 
         {/* 1. Date */}
         <div style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Date et heure</span>{kz && <span style={{ color: kz === "Hors killzone" ? C.amber : C.teal }}>{kz}</span>}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Date et heure</span>{kz && <span style={{ color: kz === "Hors killzone" ? C.amber : C.teal, display: "inline-flex", alignItems: "center", gap: 6 }}><SessionFlag name={kz} size={15} />{kz}</span>}</div>
           <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={inp} aria-label="Date et heure" />
         </div>
 
@@ -4213,7 +4250,7 @@ function OverviewStats({ trades }) {
       <Card style={{ padding: 18, marginBottom: 14 }}>
         <CardLabel>Timeframes — Performance</CardLabel>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-          {[...byTagAll].filter(g => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(g.key)).sort((a, b) => b.count - a.count).map(g => (
+          {[...byTagAll].filter(g => ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(g.key)).sort((a, b) => b.count - a.count).map(g => (
             <div key={g.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", borderRadius: 7, background: C.inputBg || C.card, border: `1px solid ${C.border}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, padding: "2px 8px", borderRadius: 5 }}>{g.key}</span>
@@ -4225,7 +4262,7 @@ function OverviewStats({ trades }) {
               </div>
             </div>
           ))}
-          {byTagAll.filter(g => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(g.key)).length === 0 && (
+          {byTagAll.filter(g => ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(g.key)).length === 0 && (
             <div style={{ fontSize: 12, color: C.textMuted, padding: "12px 0" }}>Aucun timeframe taggé.</div>
           )}
         </div>
@@ -4799,7 +4836,7 @@ function SimpleStats({ trades }) {
     return { n, w, l: l.filter((t) => t.resultR < 0).length, wr: n ? w / n * 100 : 0, r, usd, avg: n ? r / n : 0, pf: gl ? gw / gl : null }; };
   const group = (fn) => { const m = {}; closed.forEach((t) => { (fn(t) || []).forEach((k) => { if (k) (m[k] = m[k] || []).push(t); }); }); return Object.entries(m).map(([k, l]) => ({ k, ...agg(l) })).sort((a, b) => b.r - a.r); };
   const T = agg(closed);
-  const setupsOfT = (t) => { const ts = t.rules?.tfSetups; if (Array.isArray(ts) && ts.length) return ts.flatMap((r) => (r.setups || []).map((x) => x + (r.tf ? " " + r.tf : ""))); return (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")); };
+  const setupsOfT = (t) => { const ts = t.rules?.tfSetups; if (Array.isArray(ts) && ts.length) return ts.flatMap((r) => (r.setups || []).map((x) => x + (r.tf ? " " + r.tf : ""))); const tf = (t.tags || []).find((g) => ["M1","M3","M5","M15","M30","H1","H4","D1","W1","D","W","MN"].includes(g)); return (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")).map((x) => x + (tf ? " " + tf : "")); };
   const pairs = group((t) => [t.pair]);
   const setups = group(setupsOfT);
   const sessions = group((t) => [getSession(t.entryTime)]);
@@ -4827,7 +4864,7 @@ function SimpleStats({ trades }) {
   const Bars = ({ rows }) => { const mx = Math.max(0.01, ...rows.map((r) => Math.abs(r.r))); return (
     <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
       {rows.map((r) => <div key={r.k}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}><span style={{ fontWeight: 700 }}>{r.k} <span style={{ color: C.textMuted, fontWeight: 500 }}>· {r.n} trades · {r.wr.toFixed(0)}%</span></span><span className="tnum" style={{ fontWeight: 800, color: col(r.r) }}>{fmtR(r.r)}</span></div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}><span style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}><SessionFlag name={r.k} size={16} />{r.k} <span style={{ color: C.textMuted, fontWeight: 500 }}>· {r.n} trade{r.n > 1 ? "s" : ""} · {r.wr.toFixed(0)}%</span></span><span className="tnum" style={{ fontWeight: 800, color: col(r.r) }}>{fmtR(r.r)}</span></div>
         <div style={{ height: 6, borderRadius: 3, background: C.inputBg || C.bg, overflow: "hidden" }}><div style={{ width: Math.abs(r.r) / mx * 100 + "%", height: "100%", background: col(r.r), borderRadius: 3 }} /></div>
       </div>)}
       {rows.length === 0 && <div style={{ fontSize: 12.5, color: C.textMuted }}>Pas encore de trades.</div>}
@@ -4836,7 +4873,7 @@ function SimpleStats({ trades }) {
     <div className="fade-in" style={{ maxWidth: 820, margin: "0 auto" }}>
       <PageHeader title="Statistiques" />
       <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-        {["7j", "30j", "90j", "tout"].map((p) => <button key={p} onClick={() => setPeriod(p)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: period === p ? C.purpleDim : "transparent", color: period === p ? C.purpleBright : C.textSecondary, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{p === "tout" ? "Tout" : p}</button>)}
+        {["tout", "7j", "30j", "90j"].map((p) => <button key={p} onClick={() => setPeriod(p)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: period === p ? C.purpleDim : "transparent", color: period === p ? C.purpleBright : C.textSecondary, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{p === "tout" ? "Tout" : p}</button>)}
       </div>
 
       <div style={{ ...card, padding: 18 }}>
@@ -5616,6 +5653,18 @@ function AiCoach({ trades }) {
 
 const ALL_PAIRS = [...new Set([...ALL_INSTRUMENTS, "US30"])];
 
+// Drapeau rond par session : London = Europe, New York = USA, Asia = Japon
+function SessionFlag({ name, size = 16 }) {
+  const n = String(name || "").toLowerCase();
+  const cur = n.includes("london") || n.includes("londres") ? "EUR" : n.includes("new york") || n.includes("ny") ? "USD" : n.includes("asia") || n.includes("tokyo") ? "JPY" : null;
+  const id = (React.useId ? React.useId() : String(Math.random())).replace(/[:.]/g, "");
+  if (!cur) return null;
+  return (<svg width={size} height={size} viewBox="0 0 30 30" style={{ flexShrink: 0, display: "inline-block", verticalAlign: "middle" }}>
+    <defs><clipPath id={"sf" + id}><circle cx="15" cy="15" r="15" /></clipPath></defs>
+    <g clipPath={`url(#sf${id})`}><FlagFill cur={cur} /></g>
+    <circle cx="15" cy="15" r="14.5" fill="none" stroke="rgba(255,255,255,0.15)" />
+  </svg>);
+}
 // ── Logos automatiques (drapeaux superposés façon TradingView) ──
 function FlagFill({ cur, id }) {
   const W = 30;
@@ -5803,6 +5852,91 @@ function AddItemInput({ placeholder, onAdd }) {
   );
 }
 
+// ── Réglages : listes avec recherche (paires, PD arrays, timeframes) ──
+async function readClipboardImage() {
+  const items = await navigator.clipboard.read();
+  for (const it of items) { const t = it.types.find((x) => x.startsWith("image/")); if (t) { const b = await it.getType(t); return new File([b], "image.png", { type: t }); } }
+  return null;
+}
+function ToggleRow({ on, onClick, left, right, onDelete }) {
+  return (<div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderTop: `1px solid ${C.border}` }}>
+    <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>{left}</div>
+    {right}
+    {onDelete && <button onClick={onDelete} title="Supprimer" style={{ ...btn.ghost, padding: "5px 7px", color: C.red }}><Trash2 size={13} /></button>}
+    <button onClick={onClick} aria-label={on ? "Désactiver" : "Activer"} style={{ width: 38, height: 22, borderRadius: 11, border: "none", background: on ? C.purple : C.border, position: "relative", cursor: "pointer", flexShrink: 0, padding: 0 }}>
+      <span style={{ position: "absolute", top: 3, left: on ? 19 : 3, width: 16, height: 16, borderRadius: 8, background: "#fff", transition: "left .15s" }} /></button>
+  </div>);
+}
+function SearchBox({ value, onChange, placeholder }) {
+  return (<div style={{ position: "relative" }}><Search size={14} color={C.textMuted} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ ...inputStyle, paddingLeft: 34 }} /></div>);
+}
+function PairsSettings({ settings, addPair, removePair }) {
+  const [q, setQ] = useState(""); const [cat, setCat] = useState("");
+  const all = [...new Set([...ALL_PAIRS, ...(settings.pairs || [])])];
+  const qn = q.trim().toUpperCase();
+  const list = (qn || cat) ? all.filter((p) => (!cat || assetCat(p) === cat) && (!qn || p.includes(qn) || (PAIR_LABEL[p] || "").toUpperCase().includes(qn) || Object.entries(PAIR_ALIASES).some(([k, v]) => v === p && k.startsWith(qn)))) : [];
+  const active = settings.pairs || [];
+  return (<div>
+    <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>Actives ({active.length}) — elles apparaissent en premier dans le formulaire.</div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+      {active.map((p) => <span key={p} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 6px 4px 5px", borderRadius: 999, border: `1px solid ${C.border}`, fontSize: 12, fontWeight: 700 }}><PairLogo pair={p} size={18} />{p}<button onClick={() => removePair(p)} aria-label={"Retirer " + p} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", padding: 0, display: "flex" }}><X size={12} /></button></span>)}
+    </div>
+    <SearchBox value={q} onChange={setQ} placeholder="Rechercher un actif (EUR, gold, NQ, BTC…)" />
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+      {ASSET_CATS.map(([c]) => <button key={c} onClick={() => setCat(cat === c ? "" : c)} style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `1px solid ${cat === c ? C.purple : C.border}`, background: cat === c ? C.purpleDim : "transparent", color: cat === c ? C.purpleBright : C.textSecondary }}>{c}</button>)}
+    </div>
+    {list.length > 0 && <div style={{ marginTop: 10, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", borderTop: "none" }}>
+      {list.map((p) => { const on = active.includes(p); return <ToggleRow key={p} on={on} onClick={() => on ? removePair(p) : addPair(p)} left={<><PairLogo pair={p} size={24} /><span style={{ fontSize: 13.5, fontWeight: 700 }}>{PAIR_LABEL[p] ? PAIR_LABEL[p] + " · " + p : p}</span></>} right={<span style={{ fontSize: 11, color: C.textMuted }}>{assetCat(p)}</span>} />; })}
+    </div>}
+    {qn && !all.includes(qn) && list.length === 0 && /^[A-Z0-9]{3,10}$/.test(qn) && <button onClick={() => { addPair(qn); setQ(""); }} style={{ ...btn.ghost, marginTop: 10 }}><Plus size={13} /> Ajouter « {qn} »</button>}
+  </div>);
+}
+function TimeframesSettings({ settings, update }) {
+  const cur = settings.timeframes && settings.timeframes.length ? settings.timeframes : DEFAULT_TFS;
+  const [v, setV] = useState("");
+  const add = () => { const t = v.trim().toUpperCase(); if (!t || cur.includes(t)) return; update({ timeframes: [...cur, t] }); setV(""); };
+  return (<div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+      {cur.map((tf) => <span key={tf} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 12px", borderRadius: 9, border: `1px solid ${C.purple}`, background: C.purpleDim, color: C.purpleBright, fontSize: 13, fontWeight: 800 }}>{tf}
+        <button onClick={() => update({ timeframes: cur.filter((x) => x !== tf) })} aria-label={"Supprimer " + tf} style={{ background: "none", border: "none", color: C.purpleBright, cursor: "pointer", padding: 0, display: "flex" }}><X size={12} /></button></span>)}
+    </div>
+    <div style={{ display: "flex", gap: 8 }}>
+      <input value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Ex : M5, H2, MN…" style={{ ...inputStyle, flex: 1 }} />
+      <button onClick={add} style={btn.primary}><Plus size={14} /> Ajouter</button>
+    </div>
+    {settings.timeframes && settings.timeframes.length > 0 && <button onClick={() => update({ timeframes: DEFAULT_TFS })} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12, cursor: "pointer", marginTop: 8, padding: 0 }}>Remettre par défaut (M15, H1, H4, D, W)</button>}
+  </div>);
+}
+function PdArraysSettings({ settings, update }) {
+  const [q, setQ] = useState(""); const [showAll, setShowAll] = useState(false);
+  const hidden = settings.hiddenTags || [], custom = settings.customTags || [];
+  const all = [...TAG_CATALOG.filter((t) => t.category === "setup").map((t) => ({ name: t.name, custom: false })), ...custom.map((n) => ({ name: n, custom: true }))];
+  const qn = q.trim().toLowerCase();
+  const list = qn ? all.filter((t) => t.name.toLowerCase().includes(qn)) : showAll ? all : [];
+  const activeN = all.filter((t) => !hidden.includes(t.name)).length;
+  const exists = all.some((t) => t.name.toLowerCase() === qn);
+  return (<div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <span style={{ fontSize: 12, color: C.textMuted }}>{activeN} actif(s) sur {all.length}</span>
+      <button onClick={() => setShowAll((v) => !v)} style={{ background: "none", border: "none", color: C.purpleBright, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{showAll ? "Masquer la liste" : "Tout voir"}</button>
+    </div>
+    <SearchBox value={q} onChange={setQ} placeholder="Rechercher ou ajouter un PD array (SIBI, OB+…)" />
+    {list.length > 0 && <div style={{ marginTop: 10, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", borderTop: "none" }}>
+      {list.map((t) => { const on = !hidden.includes(t.name); return <ToggleRow key={t.name} on={on}
+        onClick={() => update({ hiddenTags: on ? [...hidden, t.name] : hidden.filter((x) => x !== t.name) })}
+        onDelete={t.custom ? () => update({ customTags: custom.filter((x) => x !== t.name), hiddenTags: hidden.filter((x) => x !== t.name) }) : null}
+        left={<><span style={{ fontSize: 13.5, fontWeight: 700, opacity: on ? 1 : 0.5 }}>{t.name}</span>{t.custom && <span style={{ fontSize: 10.5, color: C.textMuted }}>perso</span>}</>} />; })}
+    </div>}
+    {qn && !exists && list.length === 0 && <button onClick={() => { update({ customTags: [...custom, q.trim()] }); setQ(""); }} style={{ ...btn.ghost, marginTop: 10 }}><Plus size={13} /> Ajouter « {q.trim()} »</button>}
+  </div>);
+}
+function AccountLogo({ acc, size = 30 }) {
+  const typeColors = { real: C.teal, demo: C.purple, challenge: C.amber };
+  if (acc?.logo) return <img src={acc.logo} alt="" style={{ width: size, height: size, borderRadius: size * 0.28, objectFit: "contain", flexShrink: 0, background: "rgba(255,255,255,0.04)" }} />;
+  return <span style={{ width: size, height: size, borderRadius: size * 0.28, background: `${typeColors[acc?.type] || C.teal}22`, color: typeColors[acc?.type] || C.teal, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.4, fontWeight: 900, flexShrink: 0 }}>{(acc?.name || "?").slice(0, 1).toUpperCase()}</span>;
+}
+
 function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAccounts }) {
   const typeColors = { real: C.teal, demo: C.purple, challenge: C.amber };
   const typeLabels = { real: "Réel", demo: "Démo", challenge: "Challenge" };
@@ -5813,16 +5947,23 @@ function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAc
   const [editBroker, setEditBroker] = useState(acc.broker || "");
   const [editType, setEditType] = useState(acc.type || "real");
   const [confirmDel, setConfirmDel] = useState(false);
+  const [editLogo, setEditLogo] = useState(acc.logo || null);
+  const [logoMsg, setLogoMsg] = useState("");
+  const logoRef = useRef(null);
+  const setLogoFile = async (file) => {
+    const r = new FileReader(); r.onload = (e) => setEditLogo(e.target.result); r.readAsDataURL(file);
+    try { const url = await uploadToStorage(file); if (url) setEditLogo(url); } catch (e) {}
+  };
 
   const saveEdit = () => {
-    onSaveAccounts(accounts.map(a => a.id === acc.id ? { ...a, name: editName, balance: Number(editBalance) || 0, broker: editBroker, type: editType } : a));
+    onSaveAccounts(accounts.map(a => a.id === acc.id ? { ...a, name: editName, balance: Number(editBalance) || 0, broker: editBroker, type: editType, logo: editLogo || null } : a));
     setEditing(false);
   };
 
   return (
     <div style={{ background: C.inputBg || C.card, borderRadius: 10, border: `1.5px solid ${isActive ? C.purple : C.border}`, marginBottom: 8, overflow: "hidden" }}>
       <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 10, height: 10, borderRadius: "50%", background: typeColors[acc.type] || C.teal, flexShrink: 0 }} />
+        <AccountLogo acc={acc} size={36} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
@@ -5848,6 +5989,14 @@ function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAc
               <button key={t.v} onClick={() => setEditType(t.v)} style={{ flex: 1, padding: "6px", borderRadius: 7, border: `1.5px solid ${editType === t.v ? t.c : C.border}`, background: editType === t.v ? `${t.c}15` : "transparent", color: editType === t.v ? t.c : C.textMuted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{t.l}</button>
             ))}
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <AccountLogo acc={{ ...acc, logo: editLogo, name: editName }} size={44} />
+            <button onClick={async () => { setLogoMsg(""); try { const f = await readClipboardImage(); if (!f) return setLogoMsg("Aucune image copiée."); await setLogoFile(f); } catch (e) { setLogoMsg("Presse-papier refusé : utilise Fichier."); } }} style={{ ...btn.ghost, fontSize: 12 }}><Clipboard size={13} /> Coller</button>
+            <button onClick={() => logoRef.current?.click()} style={{ ...btn.ghost, fontSize: 12 }}><Upload size={13} /> Fichier</button>
+            {editLogo && <button onClick={() => setEditLogo(null)} style={{ ...btn.ghost, fontSize: 12, color: C.red }}><X size={13} /></button>}
+            <input ref={logoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) setLogoFile(f); e.target.value = ""; }} />
+          </div>
+          {logoMsg && <div style={{ fontSize: 11.5, color: C.red }}>{logoMsg}</div>}
           <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nom du compte" style={{ ...inputStyle, fontSize: 12 }} />
           <div style={{ display: "flex", gap: 8 }}>
             <input type="number" value={editBalance} onChange={e => setEditBalance(e.target.value)} placeholder="Solde ($)" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
@@ -5942,92 +6091,19 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
 
       {/* Paires tradées */}
       <SettingsSection title="Paires tradées" icon={LineChart}>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>Sélectionne les paires qui apparaissent dans le formulaire d'ajout de trade</div>
-
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-          {ALL_PAIRS.map((pair) => {
-            const active = settings.pairs.includes(pair);
-            return (
-              <button
-                key={pair}
-                onClick={() => active ? removePair(pair) : addPair(pair)}
-                style={{
-                  padding: "5px 11px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  border: `1px solid ${active ? C.purple : C.border}`,
-                  background: active ? C.purpleDim : "transparent",
-                  color: active ? C.purpleBright : C.textSecondary,
-                }}
-              >
-                {pair}
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 4 }}>Ajouter une paire personnalisée</div>
-        <AddItemInput placeholder="Ex: USDZAR, US30..." onAdd={addPair} />
+        <PairsSettings settings={settings} addPair={addPair} removePair={removePair} />
       </SettingsSection>
 
       <SettingsSection title="Logos des actifs" icon={Coins}>
         <PairLogosSettings />
       </SettingsSection>
 
-      <SettingsSection title="Timeframes par défaut" icon={Timer}>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>Les timeframes proposées dans le formulaire (setup).</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-          {["M1", "M3", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"].map((tf) => {
-            const cur = settings.timeframes && settings.timeframes.length ? settings.timeframes : DEFAULT_TFS;
-            const on = cur.includes(tf);
-            return <button key={tf} onClick={() => { const next = on ? cur.filter((x) => x !== tf) : [...cur, tf]; const order = ["M1", "M3", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"]; update({ timeframes: next.sort((a, b) => order.indexOf(a) - order.indexOf(b)) }); }}
-              style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textMuted }}>{tf}</button>;
-          })}
-        </div>
+      <SettingsSection title="Timeframes" icon={Timer}>
+        <TimeframesSettings settings={settings} update={update} />
       </SettingsSection>
 
-      {/* Tags personnalisés */}
-      <SettingsSection title="PD Arrays & Tags" icon={Target}>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>Gère les PD Arrays disponibles dans le formulaire. Tu peux masquer ceux que tu n'utilises pas.</div>
-
-        {/* Tags par défaut — masquables */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 8 }}>Tags par défaut</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-          {TAG_CATALOG.filter((t) => t.category === "setup").map((t) => {
-            const hidden = (settings.hiddenTags || []).includes(t.name);
-            return (
-              <button key={t.name} onClick={() => {
-                const current = settings.hiddenTags || [];
-                update({ hiddenTags: hidden ? current.filter(x => x !== t.name) : [...current, t.name] });
-              }} style={{
-                padding: "4px 10px", borderRadius: 5, fontSize: 11.5, cursor: "pointer",
-                border: `1px solid ${hidden ? C.border : C.purple}`,
-                background: hidden ? "transparent" : C.purpleDim,
-                color: hidden ? C.textMuted : C.purpleBright,
-                textDecoration: hidden ? "line-through" : "none",
-                opacity: hidden ? 0.5 : 1,
-              }}>
-                {t.name}
-              </button>
-            );
-          })}
-        </div>
-        {(settings.hiddenTags || []).length > 0 && (
-          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>
-            {(settings.hiddenTags || []).length} tag(s) masqué(s) — clique dessus pour les réactiver
-          </div>
-        )}
-
-        {/* Tags personnalisés */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 8 }}>Tags personnalisés</div>
-        <TagList
-          items={settings.customTags || []}
-          onRemove={(tag) => update({ customTags: (settings.customTags || []).filter((t) => t !== tag) })}
-        />
-        <AddItemInput
-          placeholder="Ex: Propulsion, ICT Killzone, IPDA..."
-          onAdd={(tag) => {
-            if (!(settings.customTags || []).includes(tag)) update({ customTags: [...(settings.customTags || []), tag] });
-          }}
-        />
+      <SettingsSection title="PD Arrays" icon={Target}>
+        <PdArraysSettings settings={settings} update={update} />
       </SettingsSection>
 
       {/* Réinitialisation */}
@@ -6940,7 +7016,7 @@ export default function TradingJournalApp() {
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
               {view === "dashboard" && <Dashboard trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
-              {view === "trades" && <TradesList trades={accountTrades} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
+              {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
                 <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} appSettings={appSettings} onRetroSave={(id, data) => patchTrade(id, data, 800)} onPatch={(id, data) => patchTrade(id, data)} />
               )}
