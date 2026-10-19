@@ -18,6 +18,27 @@ import {
    ============================================================================ */
 
 const PAIRS = ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY", "AUDUSD", "USDCAD", "NZDUSD", "GBPJPY"];
+// Format de prix par actif (chiffres avant la virgule, décimales) — prix relevés mi-octobre 2026
+const PRICE_FMT = {
+  EURUSD: [1, 4], GBPUSD: [1, 4], AUDUSD: [0, 4], NZDUSD: [0, 4], USDCAD: [1, 4], USDCHF: [0, 4],
+  EURGBP: [0, 4], EURCHF: [0, 4], EURAUD: [1, 4], EURCAD: [1, 4], EURNZD: [1, 4],
+  GBPCHF: [1, 4], GBPAUD: [1, 4], GBPCAD: [1, 4], GBPNZD: [1, 4],
+  AUDCAD: [0, 4], AUDCHF: [0, 4], AUDNZD: [1, 4], NZDCAD: [0, 4], NZDCHF: [0, 4], CADCHF: [0, 4],
+  USDJPY: [3, 2], EURJPY: [3, 2], GBPJPY: [3, 2], AUDJPY: [3, 2], NZDJPY: [2, 2], CADJPY: [3, 2], CHFJPY: [3, 2],
+  XAUUSD: [4, 2], XAGUSD: [2, 3], USOIL: [2, 2], BTCUSD: [5, 2], ETHUSD: [4, 2], NAS100: [5, 2], SPX500: [4, 2],
+};
+const ALL_INSTRUMENTS = Object.keys(PRICE_FMT);
+const PAIR_ALIASES = { NQ: "NAS100", NASDAQ: "NAS100", ES: "SPX500", SP500: "SPX500", GOLD: "XAUUSD", OR: "XAUUSD", SILVER: "XAGUSD", ARGENT: "XAGUSD", OIL: "USOIL", CRUDE: "USOIL", WTI: "USOIL", PETROLE: "USOIL", BTC: "BTCUSD", BITCOIN: "BTCUSD", ETH: "ETHUSD", ETHEREUM: "ETHUSD" };
+const PAIR_LABEL = { NAS100: "NQ", SPX500: "ES", USOIL: "Crude oil", XAUUSD: "Gold", XAGUSD: "Silver", BTCUSD: "BTC", ETHUSD: "ETH" };
+// Tape seulement les chiffres : la virgule se place toute seule (EURUSD 11229 → 1,1229)
+function autoPrice(raw, pair) {
+  const t = String(raw).replace(",", ".").replace(/[^0-9.]/g, "");
+  if (t.includes(".")) return t;
+  const f = PRICE_FMT[pair]; if (!f || !t) return t;
+  const [n] = f;
+  if (n === 0) return "0." + t.replace(/^0+/, "");
+  return t.length > n ? t.slice(0, n) + "." + t.slice(n) : t;
+}
 
 const DEFAULT_POSITIVES = [
   "SL bien placé",
@@ -2910,6 +2931,230 @@ function Section({ title, icon, sub, open, onToggle, children }) {
   );
 }
 
+// ── Nouveau formulaire d'ajout (v2) ──
+const DEFAULT_TFS = ["M1", "M5", "M15", "H1", "H4", "D1"];
+const GRADES = [["A+", "A", "A-"], ["B+", "B", "B-"], ["C+", "C", "C-"], ["D+", "D", "D-"], ["E"]];
+const gradeToLevel = (g) => !g ? 0 : g[0] === "A" ? 5 : g[0] === "B" ? 4 : g[0] === "C" ? 3 : g[0] === "D" ? 2 : 1;
+function pipInfo(pair, entry) {
+  const ep = Number(entry) || 1;
+  const dec = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.1 : pair === "XAGUSD" ? 0.01 : ["US30", "NAS100", "SPX500", "BTCUSD", "ETHUSD"].includes(pair) ? 1 : 0.0001;
+  let val = 10;
+  if (pair === "USOIL") return { dec: 0.01, val: 10 };
+  if (pair === "BTCUSD" || pair === "ETHUSD") return { dec: 1, val: 1 };
+  if (pair === "XAUUSD") val = 10; else if (pair === "XAGUSD") val = 50; else if (["US30", "NAS100", "SPX500"].includes(pair)) val = 1;
+  else if (pair.endsWith("USD") && !pair.startsWith("USD")) val = 10; else if (pair.endsWith("JPY")) val = 1000 / ep;
+  else if (pair.startsWith("USD") || pair.endsWith("CAD") || pair.endsWith("CHF")) val = 10 / ep;
+  return { dec, val };
+}
+function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
+  const isEdit = !!initial;
+  const [entryTime, setEntryTime] = useState(toLocalInput(initial?.entryTime));
+  const [pair, setPair] = useState(initial?.pair || "");
+  const [q, setQ] = useState("");
+  const [direction, setDirection] = useState(initial?.direction || "long");
+  const [entryPrice, setEntryPrice] = useState(initial?.entryPrice ?? "");
+  const [stopLoss, setStopLoss] = useState(initial?.stopLoss ?? "");
+  const [takeProfit, setTakeProfit] = useState(initial?.takeProfit ?? "");
+  const lastRisk = (trades || []).find((t) => Number(t.riskUsd) > 0)?.riskUsd;
+  const [riskMode, setRiskMode] = useState(initial?.positionSize != null && initial?.riskUsd == null ? "lots" : "usd");
+  const [riskVal, setRiskVal] = useState(String(initial ? (initial.riskUsd ?? initial.positionSize ?? "") : (lastRisk ?? 100)));
+  const tfList = (appSettings?.timeframes && appSettings.timeframes.length ? appSettings.timeframes : DEFAULT_TFS);
+  const initTf = (() => {
+    const r = initial?.rules?.tfSetups; if (Array.isArray(r) && r.length) return r;
+    const tags = initial?.tags || []; const tf = tags.find((t) => tfList.includes(t) || ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t));
+    const st = tags.filter((t) => TAG_CATALOG.find((c) => c.name === t && c.category === "setup") || (appSettings?.customTags || []).includes(t));
+    return [{ tf: tf || tfList[Math.min(2, tfList.length - 1)], setups: st }];
+  })();
+  const [tfRows, setTfRows] = useState(initTf);
+  const [rowQ, setRowQ] = useState({});
+  const [shotBefore, setShotBefore] = useState(initial?.screenshotBefore || null);
+  const [shotAfter, setShotAfter] = useState(initial?.screenshotAfter || null);
+  const [grade, setGrade] = useState(initial?.rules?.grade || "");
+  const [status, setStatus] = useState(initial ? (initial.status === "closed" ? (Number(initial.resultR) >= 0 ? "win" : "loss") : initial.status) : "open");
+  const [rIn, setRIn] = useState(initial?.resultR != null ? String(Math.abs(initial.resultR)) : "");
+  const [notes, setNotes] = useState(initial?.notes || "");
+
+  const hidden = appSettings?.hiddenTags || [];
+  const setupNames = [...TAG_CATALOG.filter((t) => t.category === "setup" && !hidden.includes(t.name)).map((t) => t.name), ...(appSettings?.customTags || [])];
+  const allPairs = [...new Set([...(appSettings?.pairs || []), ...PAIRS, ...ALL_INSTRUMENTS])];
+  const used = {}; (trades || []).forEach((t) => { used[t.pair] = (used[t.pair] || 0) + 1; });
+  const qn = q.trim().toUpperCase();
+  const pairHits = qn ? [...new Set([...Object.keys(PAIR_ALIASES).filter((k) => k.startsWith(qn)).map((k) => PAIR_ALIASES[k]), ...allPairs.filter((p) => p.includes(qn) || (PAIR_LABEL[p] || "").toUpperCase().includes(qn))])].sort((a, b) => (used[b] || 0) - (used[a] || 0)).slice(0, 10) : [];
+
+  const { dec, val } = pipInfo(pair || "EURUSD", entryPrice);
+  const en = entryPrice === "" ? null : Number(entryPrice), sl = stopLoss === "" ? null : Number(stopLoss), tp = takeProfit === "" ? null : Number(takeProfit);
+  const slPips = en != null && sl != null ? Math.abs(en - sl) / dec : null;
+  const rv = riskVal === "" ? null : Number(riskVal);
+  const riskUsd = riskMode === "usd" ? rv : (rv != null && slPips ? Math.round(slPips * val * rv * 100) / 100 : null);
+  const lots = riskMode === "lots" ? rv : (rv != null && slPips ? Math.round(rv / (slPips * val) * 100) / 100 : null);
+  const rr = en != null && sl != null && tp != null && en !== sl ? Math.abs(tp - en) / Math.abs(en - sl) : null;
+  const rFinal = status === "breakeven" ? 0 : status === "win" ? (rIn !== "" ? Math.abs(Number(rIn)) : rr) : status === "loss" ? -(rIn !== "" ? Math.abs(Number(rIn)) : 1) : null;
+  const timeOk = !!entryTime && !isNaN(new Date(entryTime).getTime());
+  const canSave = timeOk && !!pair;
+
+  const save = () => {
+    if (!canSave) return;
+    const tfTags = tfRows.map((r) => r.tf).filter(Boolean);
+    const stTags = tfRows.flatMap((r) => r.setups);
+    const sess = getSession(new Date(entryTime).toISOString());
+    const keep = (initial?.tags || []).filter((t) => !["M1","M5","M15","M30","H1","H4","D1","W1",...tfList].includes(t) && !setupNames.includes(t) && !["London Session", "New York Session", "Asia Session", "Hors session"].includes(t));
+    const tags = [...new Set([...keep, ...tfTags, ...stTags, ...(sess === "Hors session" ? [] : [sess])])];
+    const finalR = rFinal == null ? null : Math.round(rFinal * 100) / 100;
+    const finalStatus = status === "win" || status === "loss" ? "closed" : status;
+    onSave({
+      ...(initial || {}),
+      id: initial?.id || uid(), pair, direction,
+      entryTime: new Date(entryTime).toISOString(),
+      entryPrice: en, stopLoss: sl, takeProfit: tp,
+      exitPrice: initial?.exitPrice ?? (status === "win" ? tp : status === "loss" ? sl : status === "breakeven" ? en : null),
+      positionSize: lots, riskUsd,
+      resultR: finalR, resultRManual: true,
+      resultUsd: finalR == null ? null : (riskUsd ? Math.round(finalR * riskUsd * 100) / 100 : initial?.resultUsd ?? null),
+      status: finalStatus, notes, tags,
+      screenshotBefore: shotBefore, screenshotAfter: shotAfter,
+      confidenceLevel: gradeToLevel(grade) || initial?.confidenceLevel || 0,
+      rules: { ...(initial?.rules || {}), tfSetups: tfRows.filter((r) => r.tf || r.setups.length), grade },
+    });
+  };
+
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14 };
+  const lab = { fontSize: 12, fontWeight: 700, color: C.textSecondary, marginBottom: 6 };
+  const inp = { ...inputStyle, padding: "11px 12px", fontSize: 15 };
+  const big = (on, col) => ({ flex: 1, padding: "13px 6px", borderRadius: 13, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}1A` : "transparent", color: on ? col : C.textMuted, fontSize: 15, fontWeight: 800, cursor: "pointer" });
+  const kz = entryTime ? killzoneLabel(entryTime) : "";
+
+  return (
+    <div className="fade-in" style={{ paddingBottom: 120 }}>
+      <style>{`@media (max-width: 600px) { .tf2-bar { bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; } } @media (min-width: 601px) { .tf2-bar { left: 220px !important; } } @media (min-width: 601px) and (max-width: 1024px) { .tf2-bar { left: 72px !important; } }`}</style>
+      <div style={{ maxWidth: 620, margin: "0 auto", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div>
+          <BackLink onClick={onCancel}>Annuler</BackLink>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 0", letterSpacing: -0.4 }}>{isEdit ? "Modifier le trade" : "Nouveau trade"}</h1>
+        </div>
+
+        {/* 1. Date */}
+        <div style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Date et heure</span>{kz && <span style={{ color: kz === "Hors killzone" ? C.amber : C.teal }}>{kz}</span>}</div>
+          <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={inp} aria-label="Date et heure" />
+        </div>
+
+        {/* 2. Paire */}
+        <div style={card}>
+          <div style={lab}>Paire</div>
+          {pair && !q ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>{PAIR_LABEL[pair] ? PAIR_LABEL[pair] + " · " + pair : pair}</span>
+              <button onClick={() => { setPair(""); setQ(""); }} style={{ ...btn.ghost, padding: "6px 10px", fontSize: 12 }}>Changer</button>
+            </div>
+          ) : (<>
+            <div style={{ position: "relative" }}>
+              <Search size={15} color={C.textMuted} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+              <input autoFocus={!isEdit} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tape EUR, GBP, XAU…" style={{ ...inp, paddingLeft: 36 }} aria-label="Rechercher une paire"
+                onKeyDown={(e) => { if (e.key === "Enter" && pairHits[0]) { setPair(pairHits[0]); setQ(""); } }} />
+            </div>
+            {pairHits.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {pairHits.map((p) => <Chip key={p} on={pair === p} onClick={() => { setPair(p); setQ(""); }}>{PAIR_LABEL[p] ? PAIR_LABEL[p] + " · " + p : p}</Chip>)}
+            </div>}
+            {qn && pairHits.length === 0 && <div style={{ marginTop: 8 }}><button onClick={() => { setPair(qn); setQ(""); }} style={{ ...btn.ghost, fontSize: 12.5 }}>Utiliser « {qn} »</button></div>}
+          </>)}
+        </div>
+
+        {/* 3. Direction + prix + risque */}
+        <div style={card}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setDirection("long")} style={big(direction === "long", C.teal)}>↗ Long</button>
+            <button onClick={() => setDirection("short")} style={big(direction === "short", "#F97316")}>↘ Short</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, marginTop: 12 }}>
+            {[["Entrée", entryPrice, setEntryPrice], ["Stop loss", stopLoss, setStopLoss], ["Take profit", takeProfit, setTakeProfit]].map(([l, v, set]) => (
+              <div key={l}><div style={lab}>{l}</div><input type="text" inputMode="decimal" value={String(v ?? "").replace(".", ",")} onChange={(e) => set(autoPrice(e.target.value, pair))} placeholder={PRICE_FMT[pair] ? (PRICE_FMT[pair][0] ? "0".repeat(PRICE_FMT[pair][0]) : "0") + "," + "0".repeat(PRICE_FMT[pair][1]) : ""} style={inp} aria-label={l} /></div>))}
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginTop: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={lab}>Risque</div>
+              <input type="number" inputMode="decimal" step="any" value={riskVal} onChange={(e) => setRiskVal(e.target.value)} style={inp} aria-label="Risque" />
+            </div>
+            <div style={{ display: "flex", gap: 3, padding: 3, borderRadius: 11, border: `1px solid ${C.border}`, height: 44, boxSizing: "border-box" }}>
+              {[["usd", "$"], ["lots", "Lots"]].map(([k, l]) => <button key={k} onClick={() => setRiskMode(k)} style={{ minWidth: 48, borderRadius: 8, border: "none", background: riskMode === k ? C.purpleDim : "transparent", color: riskMode === k ? C.purpleBright : C.textMuted, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>{l}</button>)}
+            </div>
+          </div>
+          <div className="tnum" style={{ fontSize: 12, color: C.textMuted, marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {slPips != null && <span>SL {slPips.toFixed(1)} pips</span>}
+            {riskMode === "usd" && lots != null && <span>≈ {lots} lots</span>}
+            {riskMode === "lots" && riskUsd != null && <span>≈ {fmtUsd(riskUsd)} de risque</span>}
+            {rr != null && <span style={{ color: C.text, fontWeight: 700 }}>R:R 1:{rr.toFixed(2)}</span>}
+          </div>
+        </div>
+
+        {/* 4. Setups par timeframe */}
+        <div style={card}>
+          <div style={lab}>Setup</div>
+          {tfRows.map((row, i) => {
+            const rq = (rowQ[i] || "").trim().toLowerCase();
+            const hits = rq ? setupNames.filter((n) => n.toLowerCase().includes(rq) && !row.setups.includes(n)).slice(0, 8) : [];
+            const upd = (fn) => setTfRows((rs) => rs.map((r, j) => j === i ? fn(r) : r));
+            return (
+              <div key={i} style={{ padding: i ? "12px 0 0" : 0, marginTop: i ? 12 : 0, borderTop: i ? `1px solid ${C.border}` : "none" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <select value={row.tf} onChange={(e) => upd((r) => ({ ...r, tf: e.target.value }))} aria-label="Timeframe" style={{ ...inp, width: 86, flexShrink: 0, fontWeight: 800 }}>
+                    {[...new Set([...tfList, row.tf].filter(Boolean))].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+                    <Search size={14} color={C.textMuted} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)" }} />
+                    <input value={rowQ[i] || ""} onChange={(e) => setRowQ((m) => ({ ...m, [i]: e.target.value }))} placeholder="SIBI, OB+, FVG…" aria-label="Rechercher un setup" style={{ ...inp, paddingLeft: 32 }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && hits[0]) { upd((r) => ({ ...r, setups: [...r.setups, hits[0]] })); setRowQ((m) => ({ ...m, [i]: "" })); } }} />
+                  </div>
+                  {tfRows.length > 1 && <button onClick={() => setTfRows((rs) => rs.filter((_, j) => j !== i))} aria-label="Retirer cette timeframe" style={{ ...btn.ghost, padding: "8px 10px" }}>✕</button>}
+                </div>
+                {hits.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                  {hits.map((h) => <Chip key={h} onClick={() => { upd((r) => ({ ...r, setups: [...r.setups, h] })); setRowQ((m) => ({ ...m, [i]: "" })); }}>+ {h}</Chip>)}
+                </div>}
+                {row.setups.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                  {row.setups.map((st) => <span key={st} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 999, background: C.purpleDim, color: C.purpleBright, fontSize: 12.5, fontWeight: 700 }}>
+                    <b style={{ color: C.text }}>{row.tf}</b> {st}
+                    <button onClick={() => upd((r) => ({ ...r, setups: r.setups.filter((x) => x !== st) }))} aria-label={"Retirer " + st} style={{ background: "none", border: "none", color: C.purpleBright, cursor: "pointer", padding: 0, fontSize: 13 }}>✕</button></span>)}
+                </div>}
+              </div>);
+          })}
+          <button onClick={() => setTfRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 13, cursor: "pointer", padding: "10px 0 0" }}>+ Ajouter une timeframe</button>
+        </div>
+
+        {/* 5. Photos */}
+        <div style={card}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+            <ImageUploadBox label="Avant le trade" value={shotBefore} onChange={setShotBefore} />
+            <ImageUploadBox label="Après le trade" value={shotAfter} onChange={setShotAfter} />
+          </div>
+        </div>
+
+        {/* 6. Confiance + résultat */}
+        <div style={card}>
+          <div style={lab}>Niveau de confiance</div>
+          <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ ...inp, fontWeight: 800 }} aria-label="Niveau de confiance">
+            <option value="">—</option>
+            {GRADES.map((g, i) => <optgroup key={i} label={g[0][0]}>{g.map((x) => <option key={x} value={x}>{x}</option>)}</optgroup>)}
+          </select>
+          <div style={{ ...lab, marginTop: 14 }}>Résultat</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[["open", "En cours", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary]].map(([v, l, col]) =>
+              <button key={v} onClick={() => setStatus(v)} style={{ ...big(status === v, col), fontSize: 13, padding: "11px 4px" }}>{l}</button>)}
+          </div>
+          {(status === "win" || status === "loss") && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+            <input type="number" inputMode="decimal" step="0.1" value={rIn} onChange={(e) => setRIn(e.target.value)} placeholder={status === "win" ? (rr ? rr.toFixed(2) : "R") : "1"} aria-label="R" style={{ ...inp, width: 100 }} />
+            <span style={{ color: C.textMuted, fontWeight: 700 }}>R</span>
+            {rFinal != null && <span className="tnum" style={{ marginLeft: "auto", fontSize: 18, fontWeight: 900, color: rFinal >= 0 ? C.teal : C.red }}>{fmtR(rFinal)}{riskUsd ? " · " + fmtUsdSigned(rFinal * riskUsd) : ""}</span>}
+          </div>}
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optionnel)" rows={2} style={{ ...inp, marginTop: 12, resize: "vertical", fontFamily: "inherit" }} />
+        </div>
+      </div>
+
+      <div className="tf2-bar" style={{ position: "fixed", left: 0, right: 0, bottom: 0, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))", background: C.bg, borderTop: `1px solid ${C.border}`, zIndex: 40, display: "flex", justifyContent: "center" }}>
+        <button onClick={save} disabled={!canSave} style={{ ...btn.primary, width: "100%", maxWidth: 620, justifyContent: "center", padding: "14px", fontSize: 15, opacity: canSave ? 1 : 0.5 }}>{!pair ? "Choisis une paire" : isEdit ? "Enregistrer les modifications" : "Enregistrer le trade"}</button>
+      </div>
+    </div>
+  );
+}
+
 function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trades }) {
   const isEdit = !!initial;
   const [pair, setPair] = useState(initial?.pair || "EURUSD");
@@ -5178,7 +5423,7 @@ function AiCoach({ trades }) {
    SETTINGS PAGE
    ============================================================================ */
 
-const ALL_PAIRS = ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY", "AUDUSD", "USDCAD", "NZDUSD", "GBPJPY", "EURJPY", "USDCHF", "XAGUSD", "BTCUSD", "ETHUSD", "US30", "NAS100", "SPX500"];
+const ALL_PAIRS = [...new Set([...ALL_INSTRUMENTS, "US30"])];
 
 function SettingsSection({ title, children }) {
   return (
@@ -5400,6 +5645,18 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
 
         <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 4 }}>Ajouter une paire personnalisée</div>
         <AddItemInput placeholder="Ex: USDZAR, US30..." onAdd={addPair} />
+      </SettingsSection>
+
+      <SettingsSection title="⏱ Timeframes par défaut">
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>Les timeframes proposées dans le formulaire (setup).</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          {["M1", "M3", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"].map((tf) => {
+            const cur = settings.timeframes && settings.timeframes.length ? settings.timeframes : DEFAULT_TFS;
+            const on = cur.includes(tf);
+            return <button key={tf} onClick={() => { const next = on ? cur.filter((x) => x !== tf) : [...cur, tf]; const order = ["M1", "M3", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN"]; update({ timeframes: next.sort((a, b) => order.indexOf(a) - order.indexOf(b)) }); }}
+              style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textMuted }}>{tf}</button>;
+          })}
+        </div>
       </SettingsSection>
 
       {/* Tags personnalisés */}
@@ -5878,6 +6135,7 @@ function dbToSettings(r) {
     customErrors: r.custom_errors ?? [],
     hiddenErrors: r.hidden_errors ?? [],
     customPositives: r.custom_positives ?? [],
+    timeframes: r.timeframes ?? (() => { try { return JSON.parse(localStorage.getItem("emeieks_tfs") || "null"); } catch { return null; } })() ?? DEFAULT_TFS,
   };
 }
 
@@ -6196,6 +6454,7 @@ export default function TradingJournalApp() {
 
   const saveSettings = async (newSettings) => {
     setAppSettings(newSettings);
+    try { if (newSettings.timeframes) localStorage.setItem("emeieks_tfs", JSON.stringify(newSettings.timeframes)); } catch (e) {}
     try {
       await saveSettingsPatch({
           account_balance: newSettings.accountBalance,
@@ -6208,6 +6467,7 @@ export default function TradingJournalApp() {
           custom_errors: newSettings.customErrors,
           hidden_errors: newSettings.hiddenErrors,
           custom_positives: newSettings.customPositives,
+          timeframes: newSettings.timeframes,
           updated_at: new Date().toISOString(),
       });
     } catch (e) { console.error("Erreur settings:", e); }
@@ -6356,7 +6616,7 @@ export default function TradingJournalApp() {
                 <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} appSettings={appSettings} onRetroSave={(id, data) => patchTrade(id, data, 800)} onPatch={(id, data) => patchTrade(id, data)} />
               )}
               {view === "tradeForm" && (
-                <TradeForm initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} trades={accountTrades} />
+                <TradeFormV2 initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} trades={accountTrades} />
               )}
               {view === "stats" && <AdvancedStats trades={accountTrades} onOpenTrade={openTradeDetail} onVerdict={updateVerdict} />}
               {view === "calculator" && <ForexCalculator />}
