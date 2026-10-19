@@ -960,7 +960,7 @@ function BackLink({ onClick, children }) {
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid },
-  { id: "trades", label: "Journal", short: "Journal", icon: NotebookPen },
+  { id: "trades", label: "Mes trades", short: "Trades", icon: NotebookPen },
   { id: "plan", label: "Plan", short: "Plan", icon: BookOpen },
   { id: "previsions", label: "Prévisions", short: "Prévis.", icon: TrendingUp },
   { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3 },
@@ -1587,7 +1587,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
   return (
     <div className="fade-in">
       {quickTrade && <QuickTradeModal key={quickTrade.id} trade={quickTrade} onClose={() => setQuickId(null)} onPatch={onPatch} onOpenFull={onOpenFull} />}
-      <PageHeader title="Journal" action={
+      <PageHeader title="Mes trades" action={
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => exportToCsv(filtered)} style={btn.ghost} title="Exporter CSV" aria-label="Exporter CSV"><Download size={14} /></button>
         </div>
@@ -1615,13 +1615,13 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
       {/* Panneau filtres refait */}
       {(() => { const topPairs = Object.entries(trades.reduce((m, t) => { m[t.pair] = (m[t.pair] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 4).map((x) => x[0]);
         const icts = [...new Set(trades.map((t) => t.ictModel).filter(Boolean))].slice(0, 4);
-        const chip = (on, label, fn, col) => <button key={label} onClick={fn} style={{ flexShrink: 0, height: 30, padding: "0 11px", borderRadius: 15, border: `1px solid ${on ? (col || C.purpleBright) : C.border}`, background: on ? (col ? col + "22" : C.purpleDim) : "transparent", color: on ? (col || C.purpleBright) : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{label}</button>;
+        const chip = (on, label, fn, col) => <button key={typeof label === "string" ? label : label.props.children[1]} onClick={fn} style={{ flexShrink: 0, height: 30, padding: "0 11px", borderRadius: 15, border: `1px solid ${on ? (col || C.purpleBright) : C.border}`, background: on ? (col ? col + "22" : C.purpleDim) : "transparent", color: on ? (col || C.purpleBright) : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{label}</button>;
         const setRes = (v) => { const nv = filterResult === v ? "all" : v; setFilterResult(nv); setPendingResult(nv); };
         const setPair = (v) => { const nv = filterPair === v ? "all" : v; setFilterPair(nv); setPendingPair(nv); };
         return <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 10, paddingBottom: 2 }}>
           {chip(filterResult === "win", "Win", () => setRes("win"), C.teal)}
           {chip(filterResult === "loss", "Loss", () => setRes("loss"), C.red)}
-          {topPairs.map((pp) => chip(filterPair === pp, pp, () => setPair(pp)))}
+          {topPairs.map((pp) => chip(filterPair === pp, <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><PairLogo pair={pp} size={16} />{pp}</span>, () => setPair(pp)))}
           {icts.map((m) => chip(qIct === m, m, () => setQIct(qIct === m ? "" : m), "#F5B544"))}
         </div>; })()}
       {showFilters && (
@@ -3244,7 +3244,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
             <div className="tnum" style={{ fontSize: 18, fontWeight: 900, color: potGain != null ? C.teal : C.textMuted }}>{potGain != null ? fmtUsdSigned(potGain) : "—"}</div>
           </div>
           <div style={{ flex: 1, minWidth: 0, textAlign: "right" }}>
-            <div style={{ fontSize: 14, fontWeight: 900 }}>{pair} <span style={{ color: direction === "long" ? C.teal : "#F97316", fontSize: 12 }}>{direction === "long" ? "Long" : "Short"}</span>{rr != null && <span style={{ color: C.textMuted, fontSize: 12, fontWeight: 700 }}> · 1:{rr.toFixed(2)}</span>}</div>
+            <div style={{ fontSize: 14, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}><PairLogo pair={pair} size={20} />{pair} <span style={{ color: direction === "long" ? C.teal : "#F97316", fontSize: 12 }}>{direction === "long" ? "Long" : "Short"}</span>{rr != null && <span style={{ color: C.textMuted, fontSize: 12, fontWeight: 700 }}> · 1:{rr.toFixed(2)}</span>}</div>
             <div className="tnum" style={{ fontSize: 12, color: C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>E {fmtP(en)} · <span style={{ color: C.red }}>SL {fmtP(sl)}</span> · <span style={{ color: C.teal }}>TP {fmtP(tp)}</span></div>
           </div>
         </div>}
@@ -5522,6 +5522,55 @@ function AiCoach({ trades }) {
 
 const ALL_PAIRS = [...new Set([...ALL_INSTRUMENTS, "US30"])];
 
+// ── Logos automatiques (drapeaux superposés façon TradingView) ──
+function FlagFill({ cur, id }) {
+  const W = 30;
+  const uj = (sc) => <g transform={`scale(${sc})`}><rect width="30" height="30" fill="#1f3a93" /><path d="M0 0L30 30M30 0L0 30" stroke="#fff" strokeWidth="6" /><path d="M0 0L30 30M30 0L0 30" stroke="#d6293b" strokeWidth="2" /><path d="M15 0V30M0 15H30" stroke="#fff" strokeWidth="9" /><path d="M15 0V30M0 15H30" stroke="#d6293b" strokeWidth="5" /></g>;
+  switch (cur) {
+    case "USD": return <g><rect width={W} height={W} fill="#fff" />{[0, 1, 2, 3, 4, 5, 6].map((i) => <rect key={i} y={i * (W / 6.5)} width={W} height={W / 13} fill="#e8414d" />)}<rect width="15" height="15" fill="#1f4e9c" />{[[3, 3], [7.5, 3], [12, 3], [5, 6.5], [10, 6.5], [3, 10], [7.5, 10], [12, 10]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="1" fill="#fff" />)}</g>;
+    case "EUR": return <g><rect width={W} height={W} fill="#1d5bbf" />{Array.from({ length: 12 }, (_, i) => { const a = i / 12 * Math.PI * 2; return <circle key={i} cx={15 + Math.cos(a) * 8} cy={15 + Math.sin(a) * 8} r="1.5" fill="#ffd43b" />; })}</g>;
+    case "GBP": return uj(1);
+    case "JPY": return <g><rect width={W} height={W} fill="#fff" /><circle cx="15" cy="15" r="7" fill="#d6293b" /></g>;
+    case "CHF": return <g><rect width={W} height={W} fill="#e03131" /><path d="M15 7V23M7 15H23" stroke="#fff" strokeWidth="5" /></g>;
+    case "CAD": return <g><rect width={W} height={W} fill="#fff" /><rect width="7.5" height={W} fill="#e03131" /><rect x="22.5" width="7.5" height={W} fill="#e03131" /><path d="M15 6.5l1.4 2.7 1.6-.8-.6 3.7 2.5-2.5.6 1.4 2.5-.5-.8 2.8 1.1.5-3.9 3.2.5 1.5-3.7-.6.1 4.1h-1.6l.1-4.1-3.7.6.5-1.5-3.9-3.2 1.1-.5-.8-2.8 2.5.5.6-1.4 2.5 2.5-.6-3.7 1.6.8z" fill="#e03131" /></g>;
+    case "AUD": return <g><rect width={W} height={W} fill="#1f3a93" />{uj(0.5)}{[[22, 8], [26, 14], [22, 22], [18, 15], [8, 23]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r={i === 4 ? 2 : 1.3} fill="#fff" />)}</g>;
+    case "NZD": return <g><rect width={W} height={W} fill="#1f3a93" />{uj(0.5)}{[[22, 8], [26, 14], [22, 23], [18, 15]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="1.6" fill="#e03131" stroke="#fff" strokeWidth=".5" />)}</g>;
+    default: return null;
+  }
+}
+const FLAG_CURS = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD"];
+const ASSET_BADGE = {
+  XAUUSD: ["#E8B931", "Au", "#5c4400"], XAGUSD: ["#C9CED6", "Ag", "#3a3f47"], USOIL: ["#1f2329", "OIL", "#f5a524"],
+  BTCUSD: ["#F7931A", "₿", "#fff"], ETHUSD: ["#627EEA", "Ξ", "#fff"], NAS100: ["#2D7FF9", "NQ", "#fff"], SPX500: ["#E5484D", "ES", "#fff"],
+  US30: ["#0E9F6E", "YM", "#fff"], DXY: ["#16A34A", "$", "#fff"],
+};
+function AutoPairLogo({ pair, size = 22 }) {
+  const uid0 = React.useId ? React.useId().replace(/:/g, "") : String(Math.random()).slice(2);
+  const b = pair.slice(0, 3), q = pair.slice(3, 6);
+  if (pair.length === 6 && FLAG_CURS.includes(b) && FLAG_CURS.includes(q)) {
+    return (<svg width={size} height={size} viewBox="0 0 40 40" style={{ flexShrink: 0, display: "block" }}>
+      <defs><clipPath id={"cq" + uid0}><circle cx="15" cy="15" r="15" /></clipPath><clipPath id={"cb" + uid0}><circle cx="15" cy="15" r="15" /></clipPath></defs>
+      <g transform="translate(13.5 1) scale(0.85)"><g clipPath={`url(#cq${uid0})`}><FlagFill cur={q} /></g></g>
+      <g transform="translate(1 13.5) scale(0.85)"><circle cx="15" cy="15" r="16.5" fill={C.card} /><g clipPath={`url(#cb${uid0})`}><FlagFill cur={b} /></g></g>
+    </svg>);
+  }
+  const bd = ASSET_BADGE[pair];
+  if (bd) return <span style={{ width: size, height: size, borderRadius: "50%", background: bd[0], color: bd[2], display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: size * (bd[1].length > 2 ? 0.3 : bd[1].length > 1 ? 0.38 : 0.55), fontWeight: 900, flexShrink: 0 }}>{bd[1]}</span>;
+  return null;
+}
+// Retire le fond blanc (remplissage depuis les bords, garde le blanc intérieur des drapeaux)
+async function removeWhiteBg(src) {
+  const img = await new Promise((ok, ko) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => ok(i); i.onerror = ko; i.src = src; });
+  const w = img.naturalWidth, h = img.naturalHeight; const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const cx = cv.getContext("2d"); cx.drawImage(img, 0, 0); const d = cx.getImageData(0, 0, w, h); const a = d.data;
+  const isW = (k) => a[k + 3] > 0 && a[k] > 225 && a[k + 1] > 225 && a[k + 2] > 225;
+  const seen = new Uint8Array(w * h); const st = [];
+  for (let x = 0; x < w; x++) { st.push(x, (h - 1) * w + x); } for (let y = 0; y < h; y++) { st.push(y * w, y * w + w - 1); }
+  while (st.length) { const i = st.pop(); if (seen[i]) continue; seen[i] = 1; const k = i * 4; if (!isW(k)) continue; a[k + 3] = 0; const x = i % w, y = (i / w) | 0;
+    if (x > 0) st.push(i - 1); if (x < w - 1) st.push(i + 1); if (y > 0) st.push(i - w); if (y < h - 1) st.push(i + w); }
+  cx.putImageData(d, 0, 0); return cv.toDataURL("image/png");
+}
+
 // ── Logos des actifs (collés dans Réglages) ──
 const PAIR_LOGO_KEY = "emeieks_pair_logos";
 function pairLogosGet() { try { return JSON.parse(localStorage.getItem(PAIR_LOGO_KEY) || "{}"); } catch { return {}; } }
@@ -5529,8 +5578,8 @@ function pairLogoSet(pair, url) { const m = pairLogosGet(); if (url) m[pair] = u
 function usePairLogos() { const [m, setM] = useState(pairLogosGet); useEffect(() => { const h = () => setM(pairLogosGet()); window.addEventListener("pairlogos", h); return () => window.removeEventListener("pairlogos", h); }, []); return m; }
 function PairLogo({ pair, size = 22, radius }) {
   const m = usePairLogos(); const src = m[pair];
-  if (!src) return null;
-  return <img src={src} alt="" style={{ width: size, height: size, borderRadius: radius ?? size * 0.28, objectFit: "cover", flexShrink: 0, display: "block" }} />;
+  if (!src) return <AutoPairLogo pair={pair} size={size} />;
+  return <img src={src} alt="" style={{ width: size, height: size, borderRadius: radius ?? size * 0.28, objectFit: "contain", flexShrink: 0, display: "block" }} />;
 }
 const ASSET_CATS = [
   ["Forex", (p) => /^[A-Z]{6}$/.test(p) && !["XAUUSD", "XAGUSD", "BTCUSD", "ETHUSD"].includes(p)],
@@ -5560,8 +5609,8 @@ function PairLogosSettings() {
     try { const items = await navigator.clipboard.read(); for (const it of items) { const t = it.types.find((x) => x.startsWith("image/")); if (t) { const b = await it.getType(t); return put(pair, new File([b], pair + ".png", { type: t })); } } setMsg("Aucune image dans le presse-papier."); }
     catch (e) { setMsg("Presse-papier refusé : utilise « Fichier »."); }
   };
-  const Logo = ({ p, size }) => m[p] ? <img src={m[p]} alt="" style={{ width: size, height: size, borderRadius: size * 0.26, objectFit: "cover", flexShrink: 0 }} />
-    : <span style={{ width: size, height: size, borderRadius: size * 0.26, background: C.inputBg || C.bg, border: `1px solid ${C.border}`, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.3, fontWeight: 800, color: C.textMuted, flexShrink: 0 }}>{p.slice(0, 3)}</span>;
+  const Logo = ({ p, size }) => m[p] ? <img src={m[p]} alt="" style={{ width: size, height: size, borderRadius: size * 0.26, objectFit: "contain", flexShrink: 0 }} />
+    : (ASSET_BADGE[p] || (p.length === 6 && FLAG_CURS.includes(p.slice(0, 3)) && FLAG_CURS.includes(p.slice(3)))) ? <AutoPairLogo pair={p} size={size} /> : <span style={{ width: size, height: size, borderRadius: size * 0.26, background: C.inputBg || C.bg, border: `1px solid ${C.border}`, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.3, fontWeight: 800, color: C.textMuted, flexShrink: 0 }}>{p.slice(0, 3)}</span>;
   return (<div>
     <div style={{ position: "relative" }}>
       <Search size={14} color={C.textMuted} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
@@ -5589,14 +5638,16 @@ function PairLogosSettings() {
           <button onClick={() => paste(open)} style={{ ...btn.primary, flex: 1, justifyContent: "center" }}><Clipboard size={14} /> Coller</button>
           <button onClick={() => fileRef.current?.click()} style={{ ...btn.ghost, flex: 1, justifyContent: "center" }}><Upload size={14} /> Fichier</button>
         </div>
-        {m[open] && <button onClick={() => pairLogoSet(open, null)} style={{ background: "none", border: "none", color: C.red, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Retirer le logo</button>}
+        {m[open] && <button onClick={async () => { setBusy(true); setMsg(""); try { const out = await removeWhiteBg(m[open]); pairLogoSet(open, out); try { const blob = await (await fetch(out)).blob(); const url = await uploadToStorage(new File([blob], open + ".png", { type: "image/png" })); if (url) pairLogoSet(open, url); } catch (e) {} } catch (e) { setMsg("Impossible de traiter cette image."); } setBusy(false); }} style={{ ...btn.ghost, alignSelf: "stretch", justifyContent: "center" }}>Retirer le fond blanc</button>}
+        {m[open] && <button onClick={() => pairLogoSet(open, null)} style={{ background: "none", border: "none", color: C.red, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Retirer le logo (revenir au logo auto)</button>}
       </div>
     </div>}
   </div>);
 }
 function PrevPairIcon({ pair, fallback, color }) {
   const m = usePairLogos();
-  if (m[pair]) return <img src={m[pair]} alt="" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />;
+  if (m[pair]) return <img src={m[pair]} alt="" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "contain", flexShrink: 0 }} />;
+  if (ASSET_BADGE[pair] || (pair.length === 6 && FLAG_CURS.includes(pair.slice(0, 3)) && FLAG_CURS.includes(pair.slice(3)))) return <AutoPairLogo pair={pair} size={38} />;
   return <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}15`, border: `1.5px solid ${color}40`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{fallback}</div>;
 }
 function SettingsSection({ title, children, icon: Icon }) {
@@ -6744,7 +6795,7 @@ export default function TradingJournalApp() {
     return initial + closed.reduce((s, t) => s + (t.resultUsd || 0), 0);
   }, [accountTrades, initialBalance]);
 
-  const titles = { dashboard: "Dashboard", trades: "Journal", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
+  const titles = { dashboard: "Dashboard", trades: "Mes trades", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
