@@ -26,11 +26,11 @@ const PRICE_FMT = {
   GBPCHF: [1, 4], GBPAUD: [1, 4], GBPCAD: [1, 4], GBPNZD: [1, 4],
   AUDCAD: [0, 4], AUDCHF: [0, 4], AUDNZD: [1, 4], NZDCAD: [0, 4], NZDCHF: [0, 4], CADCHF: [0, 4],
   USDJPY: [3, 2], EURJPY: [3, 2], GBPJPY: [3, 2], AUDJPY: [3, 2], NZDJPY: [2, 2], CADJPY: [3, 2], CHFJPY: [3, 2],
-  XAUUSD: [4, 2], XAGUSD: [2, 3], USOIL: [2, 2], BTCUSD: [5, 2], ETHUSD: [4, 2], NAS100: [5, 2], SPX500: [4, 2],
+  XAUUSD: [4, 2], XAGUSD: [2, 3], USOIL: [2, 2], UKOIL: [2, 2], BTCUSD: [5, 2], ETHUSD: [4, 2], NAS100: [5, 2], SPX500: [4, 2], US30: [5, 1], GER40: [5, 1], FRA40: [4, 1], UK100: [4, 1],
 };
 const ALL_INSTRUMENTS = Object.keys(PRICE_FMT);
-const PAIR_ALIASES = { NQ: "NAS100", NASDAQ: "NAS100", ES: "SPX500", SP500: "SPX500", GOLD: "XAUUSD", OR: "XAUUSD", SILVER: "XAGUSD", ARGENT: "XAGUSD", OIL: "USOIL", CRUDE: "USOIL", WTI: "USOIL", PETROLE: "USOIL", BTC: "BTCUSD", BITCOIN: "BTCUSD", ETH: "ETHUSD", ETHEREUM: "ETHUSD" };
-const PAIR_LABEL = { NAS100: "NQ", SPX500: "ES", USOIL: "Crude oil", XAUUSD: "Gold", XAGUSD: "Silver", BTCUSD: "BTC", ETHUSD: "ETH" };
+const PAIR_ALIASES = { NQ: "NAS100", NASDAQ: "NAS100", ES: "SPX500", SP500: "SPX500", GOLD: "XAUUSD", OR: "XAUUSD", SILVER: "XAGUSD", ARGENT: "XAGUSD", OIL: "USOIL", CRUDE: "USOIL", WTI: "USOIL", PETROLE: "USOIL", BRENT: "UKOIL", DAX: "GER40", CAC: "FRA40", FTSE: "UK100", DOW: "US30", YM: "US30", BTC: "BTCUSD", BITCOIN: "BTCUSD", ETH: "ETHUSD", ETHEREUM: "ETHUSD" };
+const PAIR_LABEL = { NAS100: "NQ", SPX500: "ES", US30: "Dow", GER40: "DAX", FRA40: "CAC", UK100: "FTSE", USOIL: "Crude oil", UKOIL: "Brent", XAUUSD: "Gold", XAGUSD: "Silver", BTCUSD: "BTC", ETHUSD: "ETH" };
 // Tape seulement les chiffres : la virgule se place toute seule (EURUSD 11229 → 1,1229)
 function autoPrice(raw, pair) {
   const t = String(raw).replace(",", ".").replace(/[^0-9.]/g, "");
@@ -3055,11 +3055,11 @@ const GRADES = [["A+", "A", "A-"], ["B+", "B", "B-"], ["C+", "C", "C-"], ["D+", 
 const gradeToLevel = (g) => !g ? 0 : g[0] === "A" ? 5 : g[0] === "B" ? 4 : g[0] === "C" ? 3 : g[0] === "D" ? 2 : 1;
 function pipInfo(pair, entry) {
   const ep = Number(entry) || 1;
-  const dec = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.1 : pair === "XAGUSD" ? 0.01 : ["US30", "NAS100", "SPX500", "BTCUSD", "ETHUSD"].includes(pair) ? 1 : 0.0001;
+  const dec = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.1 : pair === "XAGUSD" ? 0.01 : ["US30", "NAS100", "SPX500", "GER40", "FRA40", "UK100", "BTCUSD", "ETHUSD"].includes(pair) ? 1 : 0.0001;
   let val = 10;
-  if (pair === "USOIL") return { dec: 0.01, val: 10 };
+  if (pair === "USOIL" || pair === "UKOIL") return { dec: 0.01, val: 10 };
   if (pair === "BTCUSD" || pair === "ETHUSD") return { dec: 1, val: 1 };
-  if (pair === "XAUUSD") val = 10; else if (pair === "XAGUSD") val = 50; else if (["US30", "NAS100", "SPX500"].includes(pair)) val = 1;
+  if (pair === "XAUUSD") val = 10; else if (pair === "XAGUSD") val = 50; else if (["US30", "NAS100", "SPX500", "GER40", "FRA40", "UK100"].includes(pair)) val = 1;
   else if (pair.endsWith("USD") && !pair.startsWith("USD")) val = 10; else if (pair.endsWith("JPY")) val = 1000 / ep;
   else if (pair.startsWith("USD") || pair.endsWith("CAD") || pair.endsWith("CHF")) val = 10 / ep;
   return { dec, val };
@@ -5683,10 +5683,21 @@ function FlagFill({ cur, id }) {
 }
 const FLAG_CURS = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD"];
 const ASSET_BADGE = {
-  XAUUSD: ["#E8B931", "Au", "#5c4400"], XAGUSD: ["#C9CED6", "Ag", "#3a3f47"], USOIL: ["#1f2329", "OIL", "#f5a524"],
-  BTCUSD: ["#F7931A", "₿", "#fff"], ETHUSD: ["#627EEA", "Ξ", "#fff"], NAS100: ["#2D7FF9", "NQ", "#fff"], SPX500: ["#E5484D", "ES", "#fff"],
-  US30: ["#0E9F6E", "YM", "#fff"], DXY: ["#16A34A", "$", "#fff"],
+  XAUUSD: ["#D4A017", "bars"], XAGUSD: ["#A9AEB8", "bars"], USOIL: ["#16181d", "drop"], UKOIL: ["#16181d", "drop"],
+  BTCUSD: ["#F7931A", "btc"], ETHUSD: ["#454A75", "eth"],
+  NAS100: ["#1497D4", "100"], SPX500: ["#B3132B", "500"], US30: ["#27A5E0", "30"], FRA40: ["#2E7D6B", "40"], GER40: ["#3367D6", "40"], UK100: ["#1F3A93", "100"],
+  DXY: ["#16A34A", "$"],
 };
+function AssetBadgeSvg({ bd, size }) {
+  const [bg, k] = bd;
+  let inner;
+  if (k === "bars") inner = <g fill="#fff"><path d="M6.5 22h7.6l1.6-4.6H8.1z" /><path d="M15.9 22h7.6l-1.6-4.6h-7.6z" /><path d="M10.8 16.4h8.4l-1.6-4.6h-5.2z" /></g>;
+  else if (k === "drop") inner = <path d="M15 7.5c-2.9 4-5 6.9-5 9.6a5 5 0 0 0 10 0c0-2.7-2.1-5.6-5-9.6z" fill="#fff" />;
+  else if (k === "btc") inner = <text x="15" y="20.5" textAnchor="middle" fontSize="15" fontWeight="800" fill="#fff" fontFamily="Arial, sans-serif">₿</text>;
+  else if (k === "eth") inner = <g fill="#fff"><path d="M15 6l-5.2 9L15 18l5.2-3z" opacity=".95" /><path d="M15 19.2l-5.2-3.1L15 24l5.2-7.9z" opacity=".75" /></g>;
+  else inner = <text x="15" y={k.length > 2 ? 18.6 : 19.6} textAnchor="middle" fontSize={k.length > 2 ? 9.5 : k.length > 1 ? 12 : 15} fontWeight="800" fill="#fff" fontFamily="Arial, sans-serif">{k}</text>;
+  return <svg width={size} height={size} viewBox="0 0 30 30" style={{ flexShrink: 0, display: "block" }}><circle cx="15" cy="15" r="15" fill={bg} />{inner}</svg>;
+}
 function AutoPairLogo({ pair, size = 22 }) {
   const uid0 = React.useId ? React.useId().replace(/:/g, "") : String(Math.random()).slice(2);
   const b = pair.slice(0, 3), q = pair.slice(3, 6);
@@ -5698,7 +5709,7 @@ function AutoPairLogo({ pair, size = 22 }) {
     </svg>);
   }
   const bd = ASSET_BADGE[pair];
-  if (bd) return <span style={{ width: size, height: size, borderRadius: "50%", background: bd[0], color: bd[2], display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: size * (bd[1].length > 2 ? 0.3 : bd[1].length > 1 ? 0.38 : 0.55), fontWeight: 900, flexShrink: 0 }}>{bd[1]}</span>;
+  if (bd) return <AssetBadgeSvg bd={bd} size={size} />;
   return null;
 }
 // Retire le fond blanc (remplissage depuis les bords, garde le blanc intérieur des drapeaux)
@@ -5726,9 +5737,9 @@ function PairLogo({ pair, size = 22, radius }) {
   return <img src={src} alt="" style={{ width: size, height: size, borderRadius: radius ?? size * 0.28, objectFit: "contain", flexShrink: 0, display: "block" }} />;
 }
 const ASSET_CATS = [
-  ["Forex", (p) => /^[A-Z]{6}$/.test(p) && !["XAUUSD", "XAGUSD", "BTCUSD", "ETHUSD"].includes(p)],
-  ["Indices", (p) => ["NAS100", "SPX500", "US30", "DXY"].includes(p)],
-  ["Matières premières", (p) => ["XAUUSD", "XAGUSD", "USOIL"].includes(p)],
+  ["Forex", (p) => /^[A-Z]{6}$/.test(p) && !["XAUUSD", "XAGUSD", "BTCUSD", "ETHUSD", "UKOIL"].includes(p)],
+  ["Indices", (p) => ["NAS100", "SPX500", "US30", "GER40", "FRA40", "UK100", "DXY"].includes(p)],
+  ["Matières premières", (p) => ["XAUUSD", "XAGUSD", "USOIL", "UKOIL"].includes(p)],
   ["Crypto", (p) => ["BTCUSD", "ETHUSD"].includes(p)],
 ];
 const assetCat = (p) => (ASSET_CATS.find(([, f]) => f(p)) || ["Autres"])[0];
