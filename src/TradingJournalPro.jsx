@@ -1018,7 +1018,7 @@ function MobileNav({ view, setView, onNewTrade }) {
   );
 }
 
-function Sidebar({ view, setView, onNewTrade }) {
+function Sidebar({ view, setView, onNewTrade, totalPnl = 0, totalR = 0 }) {
   return (
     <>
       <aside className="desktop-only sidebar-full" style={getS().aside}>
@@ -1052,12 +1052,10 @@ function Sidebar({ view, setView, onNewTrade }) {
         </nav>
 
         <div className="sidebar-footer" style={getS().footer}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <div style={{ flexShrink: 0 }}><EmeieksLogo size={30} /></div>
-            <div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.sidebarText, letterSpacing: -0.3 }}>Emeieks</div>
-              <div style={{ fontSize: 10, color: C.sidebarTextDim, letterSpacing: 0.3 }}>Trade Journal</div>
-            </div>
+          <div>
+            <div style={{ fontSize: 10.5, color: C.sidebarTextDim, letterSpacing: 0.6, fontWeight: 700, textTransform: "uppercase" }}>Profit total</div>
+            <div className="tnum" style={{ fontSize: 20, fontWeight: 900, color: totalPnl >= 0 ? C.teal : C.red, letterSpacing: -0.5, marginTop: 2 }}>{fmtUsdSigned(totalPnl)}</div>
+            <div className="tnum" style={{ fontSize: 11.5, color: C.sidebarTextDim, fontWeight: 600 }}>{fmtR(totalR)}</div>
           </div>
         </div>
         </aside>
@@ -1613,17 +1611,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
       </div>
 
       {/* Panneau filtres refait */}
-      {(() => { const topPairs = Object.entries(trades.reduce((m, t) => { m[t.pair] = (m[t.pair] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 4).map((x) => x[0]);
-        const icts = [...new Set(trades.map((t) => t.ictModel).filter(Boolean))].slice(0, 4);
-        const chip = (on, label, fn, col) => <button key={typeof label === "string" ? label : label.props.children[1]} onClick={fn} style={{ flexShrink: 0, height: 30, padding: "0 11px", borderRadius: 15, border: `1px solid ${on ? (col || C.purpleBright) : C.border}`, background: on ? (col ? col + "22" : C.purpleDim) : "transparent", color: on ? (col || C.purpleBright) : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{label}</button>;
-        const setRes = (v) => { const nv = filterResult === v ? "all" : v; setFilterResult(nv); setPendingResult(nv); };
-        const setPair = (v) => { const nv = filterPair === v ? "all" : v; setFilterPair(nv); setPendingPair(nv); };
-        return <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 10, paddingBottom: 2 }}>
-          {chip(filterResult === "win", "Win", () => setRes("win"), C.teal)}
-          {chip(filterResult === "loss", "Loss", () => setRes("loss"), C.red)}
-          {topPairs.map((pp) => chip(filterPair === pp, <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><PairLogo pair={pp} size={16} />{pp}</span>, () => setPair(pp)))}
-          {icts.map((m) => chip(qIct === m, m, () => setQIct(qIct === m ? "" : m), "#F5B544"))}
-        </div>; })()}
+
       {showFilters && (
         <Card style={{ padding: 18, marginBottom: 14, borderRadius: 14 }}>
 
@@ -1863,14 +1851,16 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull }) {
   const [after, setAfter] = useState(trade.screenshotAfter || null);
   const [st, setSt] = useState(trade.status === "open" ? "open" : trade.status === "breakeven" ? "breakeven" : Number(trade.resultR) < 0 ? "loss" : "win");
   const [note, setNote] = useState(trade.retroRating ?? null);
+  const [rIn, setRIn] = useState(trade.resultR != null && trade.status !== "open" ? String(Math.abs(trade.resultR)) : "");
   const pf = (v) => String(v ?? "").replace(".", ",");
+  const enN = entry === "" ? null : Number(entry), slN = sl === "" ? null : Number(sl), tpN = tp === "" ? null : Number(tp);
+  const rrN = enN != null && slN != null && tpN != null && enN !== slN ? Math.abs(tpN - enN) / Math.abs(enN - slN) : null;
+  const riskN = Number(trade.riskUsd) || null;
+  const liveR = st === "win" ? (rIn !== "" ? Math.abs(Number(rIn)) : rrN) : st === "loss" ? -(rIn !== "" ? Math.abs(Number(rIn)) : 1) : null;
+  const liveUsd = liveR != null && riskN ? liveR * riskN : null;
   const save = () => {
     const en = entry === "" ? null : Number(entry), s = sl === "" ? null : Number(sl), t = tp === "" ? null : Number(tp);
-    const rr = en != null && s != null && t != null && en !== s ? Math.round(Math.abs(t - en) / Math.abs(en - s) * 100) / 100 : null;
-    let resultR = trade.resultR ?? null;
-    if (st === "open") resultR = null; else if (st === "breakeven") resultR = 0;
-    else if (st === "win") resultR = resultR != null && resultR > 0 ? resultR : rr;
-    else if (st === "loss") resultR = resultR != null && resultR < 0 ? resultR : -1;
+    let resultR = st === "open" ? null : st === "breakeven" ? 0 : liveR != null ? Math.round(liveR * 100) / 100 : null;
     const risk = Number(trade.riskUsd) || null;
     onPatch(trade.id, { entryPrice: en, stopLoss: s, takeProfit: t, direction: dir, screenshotBefore: before, screenshotAfter: after,
       status: st === "win" || st === "loss" ? "closed" : st, resultR, resultUsd: resultR == null ? null : risk ? Math.round(resultR * risk * 100) / 100 : trade.resultUsd ?? null, retroRating: note });
@@ -1904,6 +1894,15 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull }) {
         <div style={{ display: "flex", gap: 6 }}>
           {[["open", "En cours", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red]].map(([v, l, col]) => <button key={v} onClick={() => setSt(v)} style={big(st === v, col)}>{l}</button>)}
         </div>
+        {(st === "win" || st === "loss") && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 14, border: `1px solid ${st === "win" ? C.teal : C.red}55`, background: `${st === "win" ? C.teal : C.red}12`, marginTop: -4 }}>
+          <input type="number" inputMode="decimal" step="0.1" value={rIn} onChange={(e) => setRIn(e.target.value)} placeholder={st === "win" ? (rrN ? rrN.toFixed(2) : "R") : "1"} aria-label="R" style={{ ...inp, width: 90 }} />
+          <span style={{ color: C.textMuted, fontWeight: 800 }}>R</span>
+          <div style={{ marginLeft: "auto", textAlign: "right" }}>
+            <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700 }}>{st === "win" ? "TU GAGNES" : "TU PERDS"}</div>
+            <div className="tnum" style={{ fontSize: 22, fontWeight: 900, color: st === "win" ? C.teal : C.red }}>{liveUsd != null ? fmtUsdSigned(liveUsd) : liveR != null ? fmtR(liveR) : "—"}</div>
+            {liveUsd != null && <div className="tnum" style={{ fontSize: 11.5, color: C.textMuted }}>{fmtR(liveR)} · risque {fmtUsd(riskN)}</div>}
+          </div>
+        </div>}
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Note du trade {note ? <b style={{ color: C.text }}>· {note}/10</b> : ""}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4 }}>
@@ -1928,11 +1927,12 @@ function TradeRow({ t, onOpen }) {
   const statusLabels = { win: "Win", loss: "Loss", breakeven: "BE", open: "Ouvert" };
   return (
     <div className="row-hover" onClick={() => onOpen(t.id)} style={{ display: "grid", gridTemplateColumns: "100px 80px 60px 1fr 90px 70px 80px", padding: "10px 18px", borderBottom: `1px solid ${C.border}`, alignItems: "center", cursor: "pointer", fontSize: 13, minWidth: 560 }}>
-      <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}><PairLogo pair={t.pair} size={20} />{t.pair}</div>
+      <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 4, height: 24, borderRadius: 2, background: cur === "win" ? C.teal : cur === "loss" ? C.red : C.textMuted, flexShrink: 0, opacity: cur === "open" ? 0.4 : 1 }} /><PairLogo pair={t.pair} size={20} />{t.pair}</div>
       <div style={{ color: C.textMuted, fontSize: 11.5 }}>{fmtDate(t.entryTime)}</div>
       <div style={{ fontSize: 12, fontWeight: 600, color: t.direction === "long" ? "#2D7DD2" : "#F97316" }}>{t.direction === "long" ? "Long" : "Short"}</div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-        {setupTags.slice(0, 2).map(tag => <TagBadge key={tag} name={tag} size="sm" />)}
+        {(() => { const ts = t.rules?.tfSetups; const items = Array.isArray(ts) && ts.length ? ts.flatMap((r) => (r.setups || []).map((x) => [x, r.tf])) : setupTags.map((x) => [x, (t.tags || []).find((g) => ["M1","M3","M5","M15","M30","H1","H4","D1","W1","MN"].includes(g)) || ""]);
+          return items.slice(0, 3).map(([n, tf]) => <span key={n + tf} style={{ fontSize: 11, fontWeight: 700, color: C.text, background: C.inputBg || C.bg, border: `1px solid ${C.border}`, padding: "2px 8px", borderRadius: 6 }}>{n}{tf ? <span style={{ color: C.purpleBright, marginLeft: 5 }}>{tf}</span> : null}</span>); })()}
         {dxyTags.length > 0 && <>
           <span style={{ color: C.border, fontSize: 14, fontWeight: 300 }}>╱</span>
           {dxyTags.slice(0, 1).map(tag => <span key={tag} style={{ fontSize: 10.5, fontWeight: 600, color: C.amber, background: `${C.amber}15`, border: `1px solid ${C.amber}40`, padding: "2px 7px", borderRadius: 5 }}>DXY·{tag}</span>)}
@@ -4785,6 +4785,100 @@ const STATS_TABS = [
   { id: "week", label: "Semaine" },
 ];
 
+// ── Statistiques (version simple) ──
+function SimpleStats({ trades }) {
+  const [period, setPeriod] = useState("tout");
+  const [cat, setCat] = useState("Forex");
+  const closed = useMemo(() => {
+    const days = period === "7j" ? 7 : period === "30j" ? 30 : period === "90j" ? 90 : null;
+    const cut = days ? Date.now() - days * 864e5 : 0;
+    return trades.filter((t) => t.status !== "open" && t.resultR != null && (!days || new Date(t.entryTime).getTime() >= cut));
+  }, [trades, period]);
+  const agg = (l) => { const n = l.length, w = l.filter((t) => t.resultR > 0).length, r = l.reduce((a, t) => a + (Number(t.resultR) || 0), 0), usd = l.reduce((a, t) => a + (Number(t.resultUsd) || 0), 0);
+    const gw = l.filter((t) => t.resultR > 0).reduce((a, t) => a + t.resultR, 0), gl = -l.filter((t) => t.resultR < 0).reduce((a, t) => a + t.resultR, 0);
+    return { n, w, l: l.filter((t) => t.resultR < 0).length, wr: n ? w / n * 100 : 0, r, usd, avg: n ? r / n : 0, pf: gl ? gw / gl : null }; };
+  const group = (fn) => { const m = {}; closed.forEach((t) => { (fn(t) || []).forEach((k) => { if (k) (m[k] = m[k] || []).push(t); }); }); return Object.entries(m).map(([k, l]) => ({ k, ...agg(l) })).sort((a, b) => b.r - a.r); };
+  const T = agg(closed);
+  const setupsOfT = (t) => { const ts = t.rules?.tfSetups; if (Array.isArray(ts) && ts.length) return ts.flatMap((r) => (r.setups || []).map((x) => x + (r.tf ? " " + r.tf : ""))); return (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")); };
+  const pairs = group((t) => [t.pair]);
+  const setups = group(setupsOfT);
+  const sessions = group((t) => [getSession(t.entryTime)]);
+  const DAYS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+  const days = group((t) => [DAYS[new Date(t.entryTime).getDay()]]).sort((a, b) => ((DAYS.indexOf(a.k) + 6) % 7) - ((DAYS.indexOf(b.k) + 6) % 7));
+  const mistakes = group((t) => t.mistakes || []).sort((a, b) => a.r - b.r);
+  const cats = ASSET_CATS.map(([c]) => c).filter((c) => pairs.some((p) => assetCat(p.k) === c));
+  const curCat = cats.includes(cat) ? cat : cats[0];
+  const best = (a) => a.filter((x) => x.n >= 2 && x.r > 0)[0], worst = (a) => [...a].filter((x) => x.n >= 2 && x.r < 0).sort((p, q) => p.r - q.r)[0];
+  const retenir = [["Meilleure paire", best(pairs)], ["Meilleur setup", best(setups)], ["Meilleure session", best(sessions)], ["Pire paire", worst(pairs)], ["Pire setup", worst(setups)]].filter((x) => x[1]);
+  const col = (v) => v > 0 ? C.teal : v < 0 ? C.red : C.textSecondary;
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 14, overflow: "hidden" };
+  const H = ({ children, right }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px 10px" }}><span style={{ fontSize: 14, fontWeight: 800 }}>{children}</span>{right}</div>;
+  const Table = ({ rows, logo, empty }) => rows.length === 0 ? <div style={{ padding: "6px 16px 16px", fontSize: 12.5, color: C.textMuted }}>{empty || "Pas encore de trades."}</div> : (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 46px 56px 70px", gap: 8, padding: "6px 16px", fontSize: 10.5, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4, borderTop: `1px solid ${C.border}` }}><span /><span style={{ textAlign: "right" }}>Trades</span><span style={{ textAlign: "right" }}>Win</span><span style={{ textAlign: "right" }}>Total</span></div>
+      {rows.map((r) => (
+        <div key={r.k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 46px 56px 70px", gap: 8, alignItems: "center", padding: "10px 16px", borderTop: `1px solid ${C.border}` }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}><span style={{ width: 3, height: 22, borderRadius: 2, background: col(r.r), flexShrink: 0 }} />{logo && <PairLogo pair={r.k} size={20} />}<span style={{ fontSize: 13.5, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.k}</span></span>
+          <span className="tnum" style={{ textAlign: "right", fontSize: 13, color: C.textSecondary }}>{r.n}</span>
+          <span className="tnum" style={{ textAlign: "right", fontSize: 13, color: C.textSecondary }}>{r.wr.toFixed(0)}%</span>
+          <span className="tnum" style={{ textAlign: "right", fontSize: 14, fontWeight: 800, color: col(r.r) }}>{fmtR(r.r)}</span>
+        </div>))}
+    </div>);
+  const Bars = ({ rows }) => { const mx = Math.max(0.01, ...rows.map((r) => Math.abs(r.r))); return (
+    <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+      {rows.map((r) => <div key={r.k}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}><span style={{ fontWeight: 700 }}>{r.k} <span style={{ color: C.textMuted, fontWeight: 500 }}>· {r.n} trades · {r.wr.toFixed(0)}%</span></span><span className="tnum" style={{ fontWeight: 800, color: col(r.r) }}>{fmtR(r.r)}</span></div>
+        <div style={{ height: 6, borderRadius: 3, background: C.inputBg || C.bg, overflow: "hidden" }}><div style={{ width: Math.abs(r.r) / mx * 100 + "%", height: "100%", background: col(r.r), borderRadius: 3 }} /></div>
+      </div>)}
+      {rows.length === 0 && <div style={{ fontSize: 12.5, color: C.textMuted }}>Pas encore de trades.</div>}
+    </div>); };
+  return (
+    <div className="fade-in" style={{ maxWidth: 820, margin: "0 auto" }}>
+      <PageHeader title="Statistiques" />
+      <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+        {["7j", "30j", "90j", "tout"].map((p) => <button key={p} onClick={() => setPeriod(p)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: period === p ? C.purpleDim : "transparent", color: period === p ? C.purpleBright : C.textSecondary, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{p === "tout" ? "Tout" : p}</button>)}
+      </div>
+
+      <div style={{ ...card, padding: 18 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Résultat</div>
+        <div className="tnum" style={{ fontSize: 44, fontWeight: 900, letterSpacing: -1.4, color: col(T.r), lineHeight: 1.05, marginTop: 4 }}>{fmtR(T.r)}</div>
+        <div className="tnum" style={{ fontSize: 14, color: col(T.usd), fontWeight: 700 }}>{fmtUsdSigned(T.usd)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 8, marginTop: 14 }}>
+          {[["Trades", String(T.n), `${T.w}W · ${T.l}L`], ["Winrate", T.n ? T.wr.toFixed(0) + "%" : "—", ""], ["R moyen", T.n ? fmtR(T.avg) : "—", "par trade"], ["Profit factor", T.pf != null ? T.pf.toFixed(2) : "—", "gains ÷ pertes"]].map(([l, v, sub]) => (
+            <div key={l} style={{ padding: "10px", borderRadius: 12, border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600 }}>{l}</div>
+              <div className="tnum" style={{ fontSize: 17, fontWeight: 800, marginTop: 2 }}>{v}</div>
+              {sub && <div style={{ fontSize: 10.5, color: C.textMuted }}>{sub}</div>}
+            </div>))}
+        </div>
+      </div>
+
+      {retenir.length > 0 && <div style={card}>
+        <H>À retenir</H>
+        {retenir.map(([l, x]) => <div key={l} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderTop: `1px solid ${C.border}` }}>
+          <span style={{ width: 7, height: 7, borderRadius: 4, background: col(x.r), flexShrink: 0 }} />
+          <span style={{ fontSize: 12.5, color: C.textMuted, width: 130, flexShrink: 0 }}>{l}</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.k}</span>
+          <span className="tnum" style={{ fontSize: 14, fontWeight: 800, color: col(x.r) }}>{fmtR(x.r)}</span>
+        </div>)}
+      </div>}
+
+      <div style={card}>
+        <H>Par actif</H>
+        {cats.length > 1 && <div style={{ display: "flex", gap: 6, padding: "0 16px 10px", flexWrap: "wrap" }}>
+          {cats.map((c) => <button key={c} onClick={() => setCat(c)} style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `1px solid ${curCat === c ? C.purple : C.border}`, background: curCat === c ? C.purpleDim : "transparent", color: curCat === c ? C.purpleBright : C.textSecondary }}>{c}</button>)}
+        </div>}
+        <Table rows={pairs.filter((p) => assetCat(p.k) === curCat)} logo />
+      </div>
+
+      <div style={card}><H>Par setup</H><Table rows={setups} empty="Ajoute tes setups dans le formulaire pour les voir ici." /></div>
+      <div style={card}><H>Par session</H><Bars rows={sessions} /></div>
+      <div style={card}><H>Par jour</H><Bars rows={days} /></div>
+      {mistakes.length > 0 && <div style={card}><H>Erreurs fréquentes</H><Table rows={mistakes} /></div>}
+    </div>
+  );
+}
+
 function AdvancedStats({ trades, onOpenTrade, onVerdict }) {
   const [tab, setTab] = useState(() => { try { return localStorage.getItem("stats_tab") || "overview"; } catch { return "overview"; } });
   const pick = (id) => { setTab(id); try { localStorage.setItem("stats_tab", id); } catch {} };
@@ -5574,7 +5668,8 @@ async function removeWhiteBg(src) {
 // ── Logos des actifs (collés dans Réglages) ──
 const PAIR_LOGO_KEY = "emeieks_pair_logos";
 function pairLogosGet() { try { return JSON.parse(localStorage.getItem(PAIR_LOGO_KEY) || "{}"); } catch { return {}; } }
-function pairLogoSet(pair, url) { const m = pairLogosGet(); if (url) m[pair] = url; else delete m[pair]; try { localStorage.setItem(PAIR_LOGO_KEY, JSON.stringify(m)); } catch {} try { window.dispatchEvent(new Event("pairlogos")); } catch {} }
+function pairLogoSet(pair, url) { const m = pairLogosGet(); if (url) m[pair] = url; else delete m[pair]; try { localStorage.setItem(PAIR_LOGO_KEY, JSON.stringify(m)); } catch {} try { window.dispatchEvent(new Event("pairlogos")); } catch {}
+  if (!url || !String(url).startsWith("data:")) { clearTimeout(pairLogoSet._t); pairLogoSet._t = setTimeout(() => { saveSettingsPatch({ pair_logos: pairLogosGet() }).catch(() => {}); }, 800); } }
 function usePairLogos() { const [m, setM] = useState(pairLogosGet); useEffect(() => { const h = () => setM(pairLogosGet()); window.addEventListener("pairlogos", h); return () => window.removeEventListener("pairlogos", h); }, []); return m; }
 function PairLogo({ pair, size = 22, radius }) {
   const m = usePairLogos(); const src = m[pair];
@@ -6606,6 +6701,10 @@ export default function TradingJournalApp() {
           try { localStorage.setItem("trading_plan_text", r.trading_plan); } catch {}
         }
 
+        // Logos des actifs
+        if (r.pair_logos && typeof r.pair_logos === "object") {
+          try { localStorage.setItem(PAIR_LOGO_KEY, JSON.stringify({ ...pairLogosGet(), ...r.pair_logos })); window.dispatchEvent(new Event("pairlogos")); } catch {}
+        }
         // Prévisions biais
         if (r.previsions_biases) {
           try { localStorage.setItem("previsions_data", JSON.stringify(r.previsions_biases)); } catch {}
@@ -6800,7 +6899,7 @@ export default function TradingJournalApp() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
       <GlobalStyle />
-      <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} />
+      <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} totalPnl={accountTrades.filter((t) => t.status !== "open").reduce((a, t) => a + (Number(t.resultUsd) || 0), 0)} totalR={accountTrades.filter((t) => t.status !== "open").reduce((a, t) => a + (Number(t.resultR) || 0), 0)} />
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column" }}>
         <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} onRefresh={() => loadData(false)} cumulMode={cumulMode} setCumulMode={setCumulMode} />
 
@@ -6848,7 +6947,7 @@ export default function TradingJournalApp() {
               {view === "tradeForm" && (
                 <TradeFormV2 initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} trades={accountTrades} />
               )}
-              {view === "stats" && <AdvancedStats trades={accountTrades} onOpenTrade={openTradeDetail} onVerdict={updateVerdict} />}
+              {view === "stats" && <SimpleStats trades={accountTrades} />}
               {view === "calculator" && <ForexCalculator />}
               {view === "plan" && <PlanDeTrading />}
               {view === "previsions" && <Previsions pairs={["DXY", ...(appSettings?.pairs || PAIRS)]} />}
