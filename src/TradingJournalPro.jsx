@@ -6,11 +6,11 @@ import {
   Trash2, Edit3, Trophy, Clock, Save, Info, ChevronDown,
   Sparkles, CheckCircle2, AlertCircle, Brain, Calculator,
   Settings,
-  BookOpen, Newspaper, RefreshCw,
+  BookOpen, Newspaper, RefreshCw, MoreHorizontal, CalendarDays,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, Cell, PieChart, Pie,
+  BarChart, Bar, Cell,
 } from "recharts";
 
 /* ============================================================================
@@ -77,6 +77,7 @@ const TAG_CATALOG = [
 // ── Heure de New York (gère l'heure d'été / d'hiver automatiquement) ──
 const NY_FMT = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour12: false, weekday: "short", hour: "2-digit", minute: "2-digit" });
 const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const localYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 function nyNow(date) {
   const parts = NY_FMT.formatToParts(date);
   const g = (t) => parts.find((x) => x.type === t)?.value;
@@ -153,8 +154,8 @@ function KillzoneBanner() {
 
   // Vérif news économiques - dans useMemo pour éviter re-renders
   const newsAlert = useMemo(() => {
-    const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
-    const todayStr = now.toISOString().slice(0, 10);
+    const tomorrowStr = localYMD(new Date(now.getTime() + 86400000));
+    const todayStr = localYMD(now);
     try {
       const saved = JSON.parse(localStorage.getItem("previsions_news") || "[]");
       const today = saved.find(n => n.date === todayStr);
@@ -219,17 +220,6 @@ function KillzoneBanner() {
           <span style={{ fontSize: 11, color: C.sidebarTextDim }}>Marché fermé — Weekend</span>
         ) : null}
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
-          {KILLZONES.map(kz => {
-            const isAct = !isWeekend && isInZone(kz);
-            const short = kz.short;
-            return (
-              <span key={kz.name} className="tnum" style={{ fontSize: 9.5, fontWeight: isAct ? 700 : 400, color: isAct ? kz.color : "rgba(255,255,255,0.2)", letterSpacing: 0.5 }}>
-                {short}
-              </span>
-            );
-          })}
-        </div>
       </div>
     </>
   );
@@ -716,7 +706,7 @@ function GlobalStyle() {
 
 function Card({ children, style, hover, ...rest }) {
   return (
-    <div className={hover ? "card-int" : ""} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, ...style }} {...rest}>
+    <div className={hover ? "card-int" : ""} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, ...style }} {...rest}>
       {children}
     </div>
   );
@@ -724,7 +714,7 @@ function Card({ children, style, hover, ...rest }) {
 
 function CardLabel({ children, info }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.textSecondary, fontWeight: 500 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.text, fontWeight: 700, letterSpacing: -0.1 }}>
       {children}
       {info && <Info size={12} color={C.textMuted} />}
     </div>
@@ -734,35 +724,12 @@ function CardLabel({ children, info }) {
 function PageHeader({ title, action }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: C.text, letterSpacing: -0.3 }}>{title}</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: C.text, letterSpacing: -0.5 }}>{title}</h1>
       {action}
     </div>
   );
 }
 
-function StatTile({ label, value, valueColor, sub, delta, deltaPositive, compact, small }) {
-  const pad = small ? "8px 10px" : compact ? "9px 11px" : "12px 14px";
-  const labelSize = small ? 9.5 : compact ? 10 : 11.5;
-  const valueSize = small ? 13.5 : compact ? 15 : 19;
-  return (
-    <Card hover style={{ padding: pad, minWidth: 0, overflow: "hidden" }}>
-      <div style={{ fontSize: labelSize, color: C.textSecondary, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
-      <div className="tnum" style={{ fontWeight: 600, fontSize: valueSize, color: valueColor || C.text, letterSpacing: -0.2, marginTop: small ? 2 : 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {value}
-      </div>
-      {(sub || delta) && !compact && !small && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-          {delta && (
-            <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 10.5, fontWeight: 600, color: deltaPositive ? C.teal : C.red }}>
-              {deltaPositive ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}{delta}
-            </span>
-          )}
-          {sub && <span style={{ fontSize: 10.5, color: C.textMuted }}>{sub}</span>}
-        </div>
-      )}
-    </Card>
-  );
-}
 
 function TagBadge({ name, size = "md", onRemove }) {
   const cat = TAG_CATALOG.find((t) => t.name === name)?.category || "other";
@@ -940,68 +907,12 @@ const btn = {
 };
 
 /* Crochet SVG réutilisable */
-function CheckSVG({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="#7C5CFC" strokeWidth="1.8"/>
-      <path d="M7 12.5l3.5 3.5 6.5-7" stroke="#7C5CFC" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-}
+
 
 /* Select avec crochet positionné à l'intérieur à droite */
-function SelectWithCheck({ value, onChange, children, style }) {
-  const hasValue = value && value !== "" && !value.startsWith("—");
-  const [focused, setFocused] = useState(false);
-  return (
-    <div style={{ position: "relative" }}>
-      <select
-        value={value}
-        onChange={onChange}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          ...style,
-          paddingRight: hasValue ? 36 : undefined,
-          borderColor: focused ? (C.focusBorder) : (C.border),
-          boxShadow: focused ? (C.focusShadow) : "none",
-        }}>
-        {children}
-      </select>
-      {hasValue && (
-        <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", display: "flex", alignItems: "center" }}>
-          <CheckSVG size={16} />
-        </span>
-      )}
-    </div>
-  );
-}
 
-function InputWithCheck({ value, style, ...props }) {
-  const hasValue = value && value !== "";
-  const [focused, setFocused] = useState(false);
-  return (
-    <div style={{ position: "relative" }}>
-      <input
-        value={value}
-        onFocus={(e) => { setFocused(true); props.onFocus && props.onFocus(e); }}
-        onBlur={(e) => { setFocused(false); props.onBlur && props.onBlur(e); }}
-        style={{
-          ...style,
-          paddingRight: hasValue ? 36 : undefined,
-          borderColor: focused ? (C.focusBorder) : (C.border),
-          boxShadow: focused ? (C.focusShadow) : "none",
-        }}
-        {...props}
-      />
-      {hasValue && (
-        <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", display: "flex", alignItems: "center" }}>
-          <CheckSVG size={16} />
-        </span>
-      )}
-    </div>
-  );
-}
+
+
 
 function Field({ label, children, hint, value }) {
   return (
@@ -1027,7 +938,7 @@ function BackLink({ onClick, children }) {
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid },
-  { id: "trades", label: "Trade Log", short: "Trades", icon: NotebookPen },
+  { id: "trades", label: "Journal", short: "Journal", icon: NotebookPen },
   { id: "plan", label: "Plan", short: "Plan", icon: BookOpen },
   { id: "previsions", label: "Prévisions", short: "Prévis.", icon: TrendingUp },
   { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3 },
@@ -1035,81 +946,53 @@ const NAV_ITEMS = [
 ];
 
 function MobileNav({ view, setView, onNewTrade }) {
+  const [more, setMore] = useState(false);
+  const MAIN = [NAV_ITEMS[0], NAV_ITEMS[1], null, NAV_ITEMS.find(i => i.id === "stats")];
+  const EXTRA = [
+    { id: "plan", label: "Plan de trading", icon: BookOpen },
+    { id: "previsions", label: "Prévisions", icon: TrendingUp },
+    { id: "calendar", label: "Calendrier", icon: CalendarDays },
+    { id: "calculator", label: "Calculatrice", icon: Calculator },
+    { id: "coach", label: "IA Coach", icon: Brain },
+    { id: "settings", label: "Réglages", icon: Settings },
+  ];
+  const extraActive = EXTRA.some(x => x.id === view);
+  const go = (id) => { setMore(false); setView(id); };
+  const Item = ({ active, label, icon, onClick }) => (
+    <button onClick={onClick} style={{ background: "none", border: "none", flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", padding: "0 2px", color: active ? "#9D8FFF" : "rgba(255,255,255,0.45)" }}>
+      <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 30, borderRadius: 10, background: active ? "rgba(157,143,255,0.14)" : "transparent" }}>
+        {React.createElement(icon, { size: 21, strokeWidth: active ? 2.1 : 1.7 })}
+      </div>
+      <span style={{ fontSize: 10.5, fontWeight: active ? 700 : 500 }}>{label}</span>
+    </button>
+  );
   return (
-    <nav className="mobile-only" data-mobile="1" style={{
-      position: "fixed",
-      bottom: 0, left: 0, right: 0,
-      zIndex: 999,
-      display: "flex", justifyContent: "space-around", alignItems: "flex-end",
-      paddingTop: 10,
-      paddingBottom: "env(safe-area-inset-bottom, 0px)",
-      background: THEMES.dark.sidebar,
-      borderTop: "1px solid rgba(255,255,255,0.08)",
-      boxShadow: "0 -2px 20px rgba(0,0,0,0.4)",
-    }}>
-      {NAV_ITEMS.slice(0, 3).map((it) => {
-        const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
-        return (
-          <button key={it.id} onClick={() => setView(it.id)} style={{
-            background: "none", border: "none",
-            display: "flex", flexDirection: "column", alignItems: "center",
-            gap: 3, cursor: "pointer", padding: "0 4px", minWidth: 52,
-            color: active ? "#9D8FFF" : "rgba(255,255,255,0.4)",
-          }}>
-            <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32 }}>
-              {active && <div style={{ position: "absolute", inset: -3, borderRadius: 10, background: "rgba(157,143,255,0.14)" }} />}
-              {it.id === "dashboard" ? (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ position: "relative" }}>
-                  <path d="M3 9.5L12 3L21 9.5V20C21 20.55 20.55 21 20 21H15V15H9V21H4C3.45 21 3 20.55 3 20V9.5Z"
-                    fill={active ? "rgba(157,143,255,0.2)" : "transparent"}
-                    stroke={active ? "#9D8FFF" : "rgba(255,255,255,0.4)"}
-                    strokeWidth={active ? "2" : "1.7"}
-                    strokeLinejoin="round" strokeLinecap="round"/>
-                </svg>
-              ) : React.createElement(it.icon, { size: 22, strokeWidth: active ? 2 : 1.7, style: { position: "relative" } })}
-            </div>
-            <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400, letterSpacing: 0.1 }}>{it.short}</span>
-          </button>
-        );
-      })}
-
-      {/* Bouton + central */}
-      <button onClick={onNewTrade} style={{
-        background: "none", border: "none",
-        display: "flex", flexDirection: "column", alignItems: "center",
-        gap: 3, cursor: "pointer", padding: "0 4px", minWidth: 52,
-        marginTop: -10,
-      }}>
-        <div style={{
-          width: 46, height: 46, borderRadius: "50%",
-          background: `linear-gradient(135deg, ${THEMES.dark.purple}, #5B3FE0)`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 2px 12px rgba(139,124,246,0.35)",
-          border: "2px solid rgba(255,255,255,0.12)",
-        }}>
-          <Plus size={24} strokeWidth={2.2} color="#fff" />
+    <>
+      {more && (
+        <div className="mobile-only" onClick={() => setMore(false)} style={{ position: "fixed", inset: 0, zIndex: 998, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", left: 10, right: 10, bottom: "calc(74px + env(safe-area-inset-bottom, 0px))", background: THEMES.dark.sidebar, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, padding: 8, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+            {EXTRA.map(x => (
+              <button key={x.id} onClick={() => go(x.id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 6px", borderRadius: 12, border: "none", cursor: "pointer", background: view === x.id ? "rgba(157,143,255,0.16)" : "rgba(255,255,255,0.04)", color: view === x.id ? "#C4BBFF" : "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: 600 }}>
+                {React.createElement(x.icon, { size: 22, strokeWidth: 1.8 })}{x.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", fontWeight: 400 }}>Ajouter</span>
-      </button>
-
-      {NAV_ITEMS.slice(3).map((it) => {
-        const active = view === it.id;
-        return (
-          <button key={it.id} onClick={() => setView(it.id)} style={{
-            background: "none", border: "none",
-            display: "flex", flexDirection: "column", alignItems: "center",
-            gap: 3, cursor: "pointer", padding: "0 4px", minWidth: 52,
-            color: active ? "#9D8FFF" : "rgba(255,255,255,0.4)",
-          }}>
-            <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32 }}>
-              {active && <div style={{ position: "absolute", inset: -3, borderRadius: 10, background: "rgba(157,143,255,0.14)" }} />}
-              {React.createElement(it.icon, { size: 22, strokeWidth: active ? 2 : 1.7, style: { position: "relative" } })}
+      )}
+      <nav className="mobile-only" data-mobile="1" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 999, display: "flex", alignItems: "flex-end", padding: "8px 6px", paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))", background: THEMES.dark.sidebar, borderTop: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 -2px 20px rgba(0,0,0,0.4)" }}>
+        {MAIN.map((it, i) => it ? (
+          <Item key={it.id} label={it.short} icon={it.icon} onClick={() => go(it.id)}
+            active={!more && (view === it.id || ((view === "tradeForm" || view === "tradeDetail") && it.id === "trades"))} />
+        ) : (
+          <button key="add" onClick={() => { setMore(false); onNewTrade(); }} aria-label="Ajouter un trade" style={{ background: "none", border: "none", flex: 1, display: "flex", justifyContent: "center", cursor: "pointer", marginTop: -14 }}>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${THEMES.dark.purple}, #5B3FE0)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(139,124,246,0.4)", border: "2px solid rgba(255,255,255,0.12)" }}>
+              <Plus size={26} strokeWidth={2.3} color="#fff" />
             </div>
-            <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400, letterSpacing: 0.1 }}>{it.short}</span>
           </button>
-        );
-      })}
-    </nav>
+        ))}
+        <Item label="Plus" icon={MoreHorizontal} active={more || extraActive} onClick={() => setMore(v => !v)} />
+      </nav>
+    </>
   );
 }
 
@@ -1125,8 +1008,8 @@ function Sidebar({ view, setView, onNewTrade }) {
           </div>
         </div>
 
-        <button onClick={onNewTrade} className="new-trade-btn" style={getS().newTradeBtn} title="Add Trade">
-          <Plus size={15} strokeWidth={2.4} /> <span className="new-trade-label">Add Trade</span>
+        <button onClick={onNewTrade} className="new-trade-btn" style={getS().newTradeBtn} title="Nouveau trade">
+          <Plus size={15} strokeWidth={2.4} /> <span className="new-trade-label">Nouveau trade</span>
         </button>
 
         <nav style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 1 }}>
@@ -1279,7 +1162,7 @@ function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, a
         )}
 
         {/* Calendrier */}
-        <button onClick={onCalendar} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="Calendrier">
+        <button className="desktop-only" onClick={onCalendar} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="Calendrier">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.sidebarTextDim} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
@@ -1293,7 +1176,7 @@ function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, a
         </button>
 
         {/* IA Coach */}
-        <button onClick={onCoach} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="IA Coach">
+        <button className="desktop-only" onClick={onCoach} style={{ ...btn.icon, background: C.sidebarHover, borderColor: C.sidebarBorder }} title="IA Coach">
           <Brain size={15} strokeWidth={1.8} color={C.sidebarTextDim} />
         </button>
       </div>
@@ -1327,9 +1210,9 @@ function computeStats(trades, initialBalance = 10000) {
   });
 
   const now = new Date();
-  const startOfDay = new Date(now); startOfDay.setUTCHours(0, 0, 0, 0);
-  const startOfWeek = new Date(startOfDay); startOfWeek.setUTCDate(startOfDay.getUTCDate() - ((startOfDay.getUTCDay() + 6) % 7));
-  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
+  const startOfWeek = new Date(startOfDay); startOfWeek.setDate(startOfDay.getDate() - ((startOfDay.getDay() + 6) % 7));
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const sumSince = (since) => closed.filter((t) => new Date(t.entryTime) >= since).reduce((s, t) => s + (t.resultUsd || 0), 0);
   const profitToday = sumSince(startOfDay);
@@ -1356,19 +1239,6 @@ function groupBy(trades, keyFn) {
   return Object.values(map).map((g) => ({ ...g, count: g.trades.length, winRate: g.trades.length ? (g.wins / g.trades.length) * 100 : 0 }));
 }
 
-function MiniBarRow({ label, pnl, maxAbsPnl }) {
-  const pct = maxAbsPnl ? (Math.abs(pnl) / maxAbsPnl) * 100 : 0;
-  const positive = pnl >= 0;
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0" }}>
-      <span style={{ fontSize: 12, color: C.textSecondary, fontWeight: 500, width: 84, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-      <div style={{ flex: 1, height: 6, borderRadius: 3, background: C.bg, overflow: "hidden" }}>
-        <div style={{ width: `${Math.max(pct, 3)}%`, height: "100%", background: positive ? C.teal : C.red, borderRadius: 3 }} />
-      </div>
-      <span className="tnum" style={{ fontSize: 12, fontWeight: 700, color: positive ? C.teal : C.red, width: 64, textAlign: "right", flexShrink: 0 }}>{fmtUsdSigned(pnl)}</span>
-    </div>
-  );
-}
 
 function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalance = 10000 }) {
   const [period, setPeriod] = useState("30j");
@@ -1392,53 +1262,18 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
     });
     return Object.keys(m).sort().map((k) => ({ label: fmtDate(k + "T12:00:00"), pnl: Math.round(m[k] * 100) / 100 }));
   }, [stats.closed]);
-  const byPair = useMemo(() => groupBy(stats.closed, (t) => t.pair).sort((a, b) => b.pnl - a.pnl).slice(0, 5), [stats.closed]);
-  const bySetup = useMemo(() => {
-    if (!stats?.closed) return [];
-    const map = {};
-    stats.closed.forEach(t => {
-      const pdTags = (t.tags || []).filter(tag => TAG_CATALOG.find(tc => tc.name === tag && tc.category === "setup"));
-      const keys = pdTags.length > 0 ? pdTags : (t.setup ? [t.setup] : []);
-      keys.forEach(key => {
-        if (!map[key]) map[key] = { key, pnl: 0, wins: 0, trades: [] };
-        map[key].pnl += t.resultUsd || 0;
-        if (t.resultR > 0) map[key].wins += 1;
-        map[key].trades.push(t);
-      });
-    });
-    return Object.values(map).sort((a, b) => b.pnl - a.pnl).slice(0, 5);
-  }, [stats?.closed]);
-  const bySession = useMemo(() => groupBy(stats.closed, (t) => getSession(t.entryTime)).sort((a, b) => b.pnl - a.pnl), [stats.closed]);
-
-  const byTag = useMemo(() => {
-    const setupTagNames = TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name);
-    const map = {};
-    stats.closed.forEach((t) => {
-      (t.tags || []).forEach((tag) => {
-        if (!setupTagNames.includes(tag)) return;
-        if (!map[tag]) map[tag] = { wins: 0, total: 0 };
-        map[tag].total++;
-        if (t.resultR > 0) map[tag].wins++;
-      });
-    });
-    return Object.entries(map)
-      .map(([key, v]) => ({ key, winRate: v.total ? (v.wins / v.total) * 100 : 0, count: v.total }))
-      .filter((g) => g.count >= 2)
-      .sort((a, b) => b.winRate - a.winRate)
-      .slice(0, 8);
-  }, [stats.closed]);
-
-  const maxAbsPair = Math.max(...byPair.map((g) => Math.abs(g.pnl)), 1);
-  const maxAbsSetup = Math.max(...bySetup.map((g) => Math.abs(g.pnl)), 1);
-  const maxAbsSession = Math.max(...bySession.map((g) => Math.abs(g.pnl)), 1);
-
-  const winLossData = [
-    { name: "Gagnants", value: stats.wins.length, color: C.teal },
-    { name: "Perdants", value: stats.losses.length, color: C.red },
-  ];
-
-  const recentTrades = filteredTrades.slice(0, 6);
+  const recentTrades = filteredTrades.slice(0, 5);
   const PERIODS = ["7j", "30j", "90j", "tout"];
+  const totalR = stats.closed.reduce((s, t) => s + (Number(t.resultR) || 0), 0);
+  const [goal, setGoal] = useState(() => { try { return JSON.parse(localStorage.getItem("emeieks_goals") || "null") || { monthR: 10, maxTrades: 2, stopR: 2 }; } catch (e) { return { monthR: 10, maxTrades: 2, stopR: 2 }; } });
+  const saveGoal = (g) => { setGoal(g); try { localStorage.setItem("emeieks_goals", JSON.stringify(g)); } catch (e) {} };
+  const now0 = new Date();
+  const monthR = trades.filter((t) => t.status === "closed" && t.entryTime && new Date(t.entryTime).getMonth() === now0.getMonth() && new Date(t.entryTime).getFullYear() === now0.getFullYear()).reduce((s, t) => s + (Number(t.resultR) || 0), 0);
+  const todayT = trades.filter((t) => t.entryTime && new Date(t.entryTime).toDateString() === now0.toDateString());
+  const todayR = todayT.filter((t) => t.status === "closed").reduce((s, t) => s + (Number(t.resultR) || 0), 0);
+  const tooMany = todayT.length >= goal.maxTrades, stopHit = todayR <= -goal.stopR;
+  const editGoal = () => { const m = window.prompt("Objectif du mois (en R) :", goal.monthR); if (m === null) return; const mx = window.prompt("Maximum de trades par jour :", goal.maxTrades); if (mx === null) return; const st = window.prompt("Stop journalier (en R, ex. 2 pour −2R) :", goal.stopR); if (st === null) return;
+    saveGoal({ monthR: Math.max(1, parseFloat(m) || 10), maxTrades: Math.max(1, parseInt(mx) || 2), stopR: Math.max(0.5, parseFloat(st) || 2) }); };
 
   return (
     <div className="fade-in">
@@ -1455,22 +1290,28 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
               }}>{p}</button>
             ))}
           </div>
-          <button onClick={() => setView("coach")} style={{ ...btn.ghost, fontSize: 12 }}><Brain size={13} /> IA Coach</button>
-          <button onClick={() => exportToCsv(filteredTrades)} style={btn.ghost}><Download size={13} /> Export</button>
+          <button onClick={() => setView("coach")} title="IA Coach" aria-label="IA Coach" style={{ ...btn.ghost, padding: "7px 9px" }}><Brain size={15} /></button>
+          <button onClick={() => exportToCsv(filteredTrades)} title="Exporter CSV" aria-label="Exporter CSV" style={{ ...btn.ghost, padding: "7px 9px" }}><Download size={15} /></button>
         </div>
       } />
 
-      {/* KPI — 8 métriques, grille parfaitement paire, aucun trou */}
-      <div className="grid-kpi-8" style={{ marginBottom: 14 }}>
-        <StatTile compact label="Profit total" value={fmtUsdSigned(stats.totalPnl)} valueColor={stats.totalPnl >= 0 ? C.teal : C.red} />
-        <StatTile compact label="Avg R" value={fmtR(stats.avgRR)} valueColor={stats.avgRR >= 0 ? C.teal : C.red} />
-        <StatTile compact label="Avg Win" value={stats.wins.length ? fmtUsdSigned(stats.avgWin) : "—"} valueColor={C.teal} />
-        <StatTile compact label="Avg Loss" value={stats.losses.length ? fmtUsdSigned(stats.avgLoss) : "—"} valueColor={stats.losses.length ? C.red : C.textMuted} />
-        <StatTile compact label="Winrate" value={fmtPct(stats.winRate)} sub={`${stats.wins.length}G / ${stats.losses.length}P`} />
-        <StatTile compact label="Drawdown" value={`-${stats.maxDD.toFixed(1)}%`} valueColor={C.red} />
-        <StatTile compact label="Trades" value={stats.closed.length} />
-        <StatTile compact label="Capital actuel" value={fmtUsd(stats.currentBalance)} />
-      </div>
+      {/* Résumé — un seul bloc clair */}
+      <Card style={{ padding: "18px 18px 14px", marginBottom: 14, background: `linear-gradient(135deg, ${C.card}, ${stats.totalPnl >= 0 ? "rgba(45,212,191,0.07)" : "rgba(244,63,94,0.07)"})` }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Résultat · {period === "tout" ? "tout" : period}</div>
+        <div className="tnum" style={{ fontSize: 48, fontWeight: 900, letterSpacing: -1.5, color: totalR >= 0 ? C.teal : C.red, lineHeight: 1.05, marginTop: 4 }}>{fmtR(totalR)}</div>
+        <div className="tnum" style={{ fontSize: 14, color: C.textSecondary, fontWeight: 600, marginTop: 2 }}><b style={{ color: stats.totalPnl >= 0 ? C.teal : C.red }}>{fmtUsdSigned(stats.totalPnl)}</b> · Capital {fmtUsd(stats.currentBalance)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 14 }}>
+          {[["Winrate", fmtPct(stats.winRate), `${stats.wins.length}G · ${stats.losses.length}P`, C.text],
+            ["R moyen", fmtR(stats.avgRR), "par trade", stats.avgRR >= 0 ? C.teal : C.red],
+            ["Trades", String(stats.closed.length), `DD -${stats.maxDD.toFixed(1)}%`, C.text]].map(([l, v, sub, col]) => (
+            <div key={l} style={{ padding: "10px 10px 9px", borderRadius: 12, background: "transparent", border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600 }}>{l}</div>
+              <div className="tnum" style={{ fontSize: 18, fontWeight: 800, color: col, marginTop: 2 }}>{v}</div>
+              <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 1 }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {/* Ligne 2 — courbe d'équité large */}
       <Card style={{ padding: "18px 20px 8px", marginBottom: 14 }}>
@@ -1518,79 +1359,9 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
         )}
       </Card>
 
-      {/* Ligne 3 — Win/Loss + Profit par paire/setup/session */}
-      <div className="dashboard-grid4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
-        <Card style={{ padding: 16 }}>
-          <CardLabel info>Win / Loss</CardLabel>
-          <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 8 }}>
-            <ResponsiveContainer width={110} height={110}>
-              <PieChart>
-                <Pie data={winLossData} dataKey="value" innerRadius={34} outerRadius={52} paddingAngle={3} startAngle={90} endAngle={-270}>
-                  {winLossData.map((d, i) => <Cell key={i} fill={d.color} stroke="none" />)}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Texte centré adaptatif */}
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-              <span className="tnum" style={{ fontSize: stats.winRate >= 100 ? 13 : stats.winRate >= 10 ? 16 : 18, fontWeight: 800, color: C.text, lineHeight: 1 }}>
-                {fmtPct(stats.winRate)}
-              </span>
-            </div>
-          </div>
-          <div style={{ display: "flex", justifyContent: "center", gap: 14, fontSize: 11, marginTop: 6 }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 4, color: C.textSecondary }}><span style={{ width: 7, height: 7, borderRadius: 2, background: C.teal }} /> {stats.wins.length}W</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4, color: C.textSecondary }}><span style={{ width: 7, height: 7, borderRadius: 2, background: C.red }} /> {stats.losses.length}L</span>
-          </div>
-        </Card>
-
-        <Card style={{ padding: 16 }}>
-          <CardLabel info>Profit par paire</CardLabel>
-          <div style={{ marginTop: 8 }}>
-            {byPair.length === 0 ? <div style={{ fontSize: 12, color: C.textMuted, padding: "10px 0" }}>Pas de données</div> :
-              byPair.map((g) => <MiniBarRow key={g.key} label={g.key} pnl={g.pnl} maxAbsPnl={maxAbsPair} />)}
-          </div>
-        </Card>
-
-        <Card style={{ padding: 16 }}>
-          <CardLabel info>Profit par setup</CardLabel>
-          <div style={{ marginTop: 8 }}>
-            {bySetup.length === 0 ? <div style={{ fontSize: 12, color: C.textMuted, padding: "10px 0" }}>Pas de données</div> :
-              bySetup.map((g) => <MiniBarRow key={g.key} label={g.key} pnl={g.pnl} maxAbsPnl={maxAbsSetup} />)}
-          </div>
-        </Card>
-
-        <Card style={{ padding: 16 }}>
-          <CardLabel info>Profit par session</CardLabel>
-          <div style={{ marginTop: 8 }}>
-            {bySession.length === 0 ? <div style={{ fontSize: 12, color: C.textMuted, padding: "10px 0" }}>Pas de données</div> :
-              bySession.map((g) => <MiniBarRow key={g.key} label={g.key} pnl={g.pnl} maxAbsPnl={maxAbsSession} />)}
-          </div>
-        </Card>
-      </div>
-
-      {/* Win rate par PD Array */}
-      {byTag.length > 0 && (
-        <Card style={{ padding: "14px 18px", marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Win rate par setup</span>
-            <span style={{ fontSize: 11, color: C.textMuted }}>min. 2 trades</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {byTag.map((g) => (
-              <div key={g.key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 110, fontSize: 11.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.key}</div>
-                <div style={{ flex: 1, height: 6, borderRadius: 3, background: C.border, overflow: "hidden" }}>
-                  <div style={{ width: `${g.winRate}%`, height: "100%", borderRadius: 3, background: g.winRate >= 60 ? C.teal : g.winRate >= 40 ? "#D89A2E" : C.red }} />
-                </div>
-                <div className="tnum" style={{ width: 44, textAlign: "right", fontSize: 12, fontWeight: 700, color: g.winRate >= 60 ? C.teal : g.winRate >= 40 ? "#D89A2E" : C.red }}>
-                  {g.winRate.toFixed(0)}%
-                </div>
-                <div style={{ width: 30, fontSize: 10.5, color: C.textMuted, textAlign: "right" }}>{g.count}T</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      <button onClick={() => setView("stats")} style={{ width: "100%", marginBottom: 14, padding: "12px 16px", borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, color: C.purpleBright, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>Voir toutes les statistiques</span><span>→</span>
+      </button>
 
       {/* Ligne 4 — Trades récents */}
       <Card style={{ padding: 0, overflow: "hidden" }}>
@@ -1620,19 +1391,12 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
 
         <div className="mobile-only">
           {recentTrades.map((t) => (
-            <div key={t.id} className="row-hover" onClick={() => onOpenTrade(t.id)} style={{ padding: "11px 16px", borderBottom: `1px solid ${C.border}`, cursor: "pointer" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontWeight: 700, fontSize: 13 }}>{t.pair}</span>
-                  <DirBadge direction={t.direction} />
-                  <span style={{ fontSize: 11, color: C.textMuted }}>{t.setup}</span>
-                </div>
-                <span className="tnum" style={{ fontWeight: 700, fontSize: 12.5, color: t.resultUsd >= 0 ? C.teal : C.red }}>{fmtUsdSigned(t.resultUsd)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 10.5, color: C.textMuted }}>{fmtDate(t.entryTime)}</span>
-                <ResultBadge resultR={t.resultR} status={t.status} size="sm" onStatusChange={(newStatus, newR) => onStatusChange(t.id, newStatus, newR)} />
-              </div>
+            <div key={t.id} className="row-hover" onClick={() => onOpenTrade(t.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 16px", borderBottom: `1px solid ${C.border}`, cursor: "pointer" }}>
+              <span style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: t.status !== "closed" ? C.textMuted : (t.resultR || 0) >= 0 ? C.teal : C.red }} />
+              <span style={{ fontWeight: 700, fontSize: 13.5 }}>{t.pair}</span>
+              <DirBadge direction={t.direction} />
+              <span style={{ fontSize: 11.5, color: C.textMuted, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fmtDate(t.entryTime)}{t.ictModel ? " · " + t.ictModel : ""}</span>
+              <span className="tnum" style={{ fontWeight: 800, fontSize: 14, color: t.status !== "closed" ? C.textMuted : (t.resultR || 0) >= 0 ? C.teal : C.red }}>{t.status !== "closed" ? "En cours" : fmtR(t.resultR)}</span>
             </div>
           ))}
         </div>
@@ -1691,6 +1455,7 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [filterSetup, setFilterSetup] = useState("all");
+  const [qIct, setQIct] = useState("");
 
   // États pending (synchrones avec les appliqués — filtre en temps réel)
   const [pendingSearch, setPendingSearch] = useState("");
@@ -1776,9 +1541,10 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
       if (filterNegative) {
         if (!(t.mistakes || []).includes(filterNegative)) return false;
       }
+      if (qIct && t.ictModel !== qIct) return false;
       return true;
     });
-  }, [trades, filterPair, filterSetup, filterSession, filterTags, filterResult, filterOte, dateFrom, dateTo, search, filterExcludeTags, filterPositive, filterNegative]);
+  }, [trades, filterPair, filterSetup, filterSession, filterTags, filterResult, filterOte, dateFrom, dateTo, search, filterExcludeTags, filterPositive, filterNegative, qIct]);
 
   const activeFilterCount = [filterPair !== "all", filterSetup !== "all", filterSession !== "all", filterTags.length > 0, filterResult !== "all", filterOte !== "all", dateFrom, dateTo, filterPositive, filterNegative].filter(Boolean).length;
 
@@ -1795,10 +1561,9 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
 
   return (
     <div className="fade-in">
-      <PageHeader title="Trade Log" action={
+      <PageHeader title="Journal" action={
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => exportToCsv(filtered)} style={btn.ghost}><Download size={14} /> Export CSV</button>
-          <button onClick={onNew} style={btn.primary}><Plus size={14} /> Add Trade</button>
+          <button onClick={() => exportToCsv(filtered)} style={btn.ghost} title="Exporter CSV" aria-label="Exporter CSV"><Download size={14} /></button>
         </div>
       } />
 
@@ -1822,6 +1587,17 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
       </div>
 
       {/* Panneau filtres refait */}
+      {(() => { const topPairs = Object.entries(trades.reduce((m, t) => { m[t.pair] = (m[t.pair] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 4).map((x) => x[0]);
+        const icts = [...new Set(trades.map((t) => t.ictModel).filter(Boolean))].slice(0, 4);
+        const chip = (on, label, fn, col) => <button key={label} onClick={fn} style={{ flexShrink: 0, height: 30, padding: "0 11px", borderRadius: 15, border: `1px solid ${on ? (col || C.purpleBright) : C.border}`, background: on ? (col ? col + "22" : C.purpleDim) : "transparent", color: on ? (col || C.purpleBright) : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{label}</button>;
+        const setRes = (v) => { const nv = filterResult === v ? "all" : v; setFilterResult(nv); setPendingResult(nv); };
+        const setPair = (v) => { const nv = filterPair === v ? "all" : v; setFilterPair(nv); setPendingPair(nv); };
+        return <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 10, paddingBottom: 2 }}>
+          {chip(filterResult === "win", "Win", () => setRes("win"), C.teal)}
+          {chip(filterResult === "loss", "Loss", () => setRes("loss"), C.red)}
+          {topPairs.map((pp) => chip(filterPair === pp, pp, () => setPair(pp)))}
+          {icts.map((m) => chip(qIct === m, m, () => setQIct(qIct === m ? "" : m), "#F5B544"))}
+        </div>; })()}
       {showFilters && (
         <Card style={{ padding: 18, marginBottom: 14, borderRadius: 14 }}>
 
@@ -2004,7 +1780,7 @@ function TradesList({ trades, onOpen, onNew, onStatusChange, onHome }) {
                     <span style={{ fontSize: 8, color: C.textMuted, transform: isOpen ? "rotate(0)" : "rotate(-90deg)", display: "inline-block", transition: "transform 0.2s" }}>▼</span>
                     <div style={{ textAlign: "left" }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary, textTransform: "capitalize", letterSpacing: 0.2 }}>{monthLabel}</div>
-                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{monthTrades.length} trades · {wins}W/{monthTrades.length - wins}L</div>
+                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{monthTrades.length} trades · {wins}W/{monthTrades.filter((x) => x.resultR < 0).length}L</div>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -2096,8 +1872,6 @@ function MobileTradeCard({ t, onOpen, isLast }) {
   const typeTag = (t.tags || []).find(tag => ["Swing","Day Trading","Scalping"].includes(tag));
   const pnlDisplay = isOpen ? "En cours" : isBE ? "BE" : fmtUsdSigned(t.resultUsd);
   const rDisplay = isOpen ? "" : isBE ? "0.00R" : fmtR(t.resultR);
-  const tfAlignment = t.tfAlignment;
-  const tfAlignmentSetup = t.tfAlignmentSetup;
 
   const sessionColor = sessionTag === "London Session" ? "#4A7FBF"
     : sessionTag === "New York Session" ? "#C0392B"
@@ -2113,7 +1887,6 @@ function MobileTradeCard({ t, onOpen, isLast }) {
   // Couleur des PD Arrays : gris-bleu neutre discret
   const pdColor = C.textSecondary;
   const pdBg = "rgba(200,208,228,0.07)";
-  const pdBorder = "rgba(200,208,228,0.15)";
 
   const DirectionLogo = () => (
     <div style={{
@@ -2136,119 +1909,21 @@ function MobileTradeCard({ t, onOpen, isLast }) {
     </div>
   );
 
+  const chips = [
+    ...tfTags.map(x => ({ x, c: C.purpleBright, b: C.purpleDim })),
+    ...(t.ictModel ? [{ x: t.ictModel, c: "#F5B544", b: "rgba(245,181,68,0.10)" }] : []),
+    ...setupTags.map(x => { const def = TAG_CATALOG.find(tc => tc.name === x); return { x, c: def?.color || pdColor, b: def?.color ? `${def.color}14` : pdBg }; }),
+    ...(t.oteFib ? [{ x: "OTE " + t.oteFib, c: "#818CF8", b: "rgba(129,140,248,0.10)" }] : []),
+  ];
   return (
-    <div style={{ marginBottom: isLast ? 0 : 10 }}>
-      <div
-        onClick={() => onOpen(t.id)}
-        onTouchStart={() => setPressed(true)}
-        onTouchEnd={() => setPressed(false)}
-        style={{
-          background: pressed ? C.cardHover : C.card,
-          borderRadius: 12, border: `1px solid ${C.border}`,
-          cursor: "pointer", transition: "background 0.1s", overflow: "hidden",
-        }}
-      >
-        {/* Barre colorée en haut */}
-        <div style={{ height: 3, background: accentColor }} />
-
-        <div style={{ padding: "13px 14px 13px" }}>
-
-          {/* Header : logo + paire + P&L */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
-              <DirectionLogo />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, lineHeight: 1.1 }}>{t.pair}</div>
-                {/* Ligne contexte : date · session · direction · type */}
-                <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                  <span style={{ color: C.text }}>{fmtDate(t.entryTime)}</span>
-                  {sessionTag && <>
-                    <span style={{ opacity: 0.4 }}>·</span>
-                    <span style={{ color: sessionColor, fontWeight: 600 }}>{sessionEmoji} {sessionShort}</span>
-                  </>}
-                  {typeTag && <>
-                    <span style={{ opacity: 0.4 }}>·</span>
-                    <span style={{ color: C.text, fontWeight: 500 }}>{typeTag}</span>
-                  </>}
-                </div>
-              </div>
-            </div>
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div className="tnum" style={{ fontSize: 20, fontWeight: 800, color: pnlColor, letterSpacing: -0.5, lineHeight: 1.1 }}>{pnlDisplay}</div>
-              <div className="tnum" style={{ fontSize: 12.5, fontWeight: 600, color: pnlColor, opacity: 0.8, marginTop: 2, lineHeight: 1 }}>{rDisplay}</div>
-            </div>
-          </div>
-
-          {/* Tableau prix — une seule carte avec séparateurs fins */}
-          <div style={{ borderRadius: 8, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: (tfTags.length > 0 || setupTags.length > 0 || tfAlignment || t.oteFib) ? 10 : 0 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr 1px 1fr 1px 1fr", background: C.inputBg }}>
-              {[
-                { label: "Entrée", value: t.entryPrice != null ? String(t.entryPrice) : null, color: C.text },
-                null, // séparateur
-                { label: "SL", value: t.stopLoss != null ? String(t.stopLoss) : null, color: C.red },
-                null,
-                { label: "TP", value: t.takeProfit != null ? String(t.takeProfit) : null, color: C.teal },
-                null,
-                { label: "Risque", value: t.riskUsd != null ? `$${Math.abs(t.riskUsd).toFixed(0)}` : null, color: C.textSecondary },
-              ].map((item, i) => {
-                if (item === null) return <div key={i} style={{ width: 1, background: C.border, alignSelf: "stretch" }} />;
-                return (
-                  <div key={item.label} style={{ padding: "8px 8px" }}>
-                    <div style={{ fontSize: 8.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{item.label}</div>
-                    <div className="tnum" style={{ fontSize: 12, fontWeight: 700, color: item.value ? item.color : C.textMuted }}>{item.value ?? "—"}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Tags hiérarchisés */}
-          {(tfTags.length > 0 || setupTags.length > 0 || tfAlignment || t.oteFib) && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-
-              {/* Ligne 1 : TF trade (violet) + PD Arrays (turquoise) */}
-              {(tfTags.length > 0 || setupTags.length > 0) && (
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
-                  {/* TF — violet */}
-                  {tfTags.map(tf => (
-                    <span key={tf} style={{ fontSize: 11, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, border: `1px solid rgba(149,128,255,0.25)`, padding: "2px 8px", borderRadius: 5 }}>{tf}</span>
-                  ))}
-                  {/* PD Arrays paire */}
-                  {setupTags.map(tag => {
-                    const def = TAG_CATALOG.find(tc => tc.name === tag);
-                    const color = def?.color || pdColor;
-                    const bg = def?.color ? `${def.color}10` : pdBg;
-                    const border = def?.color ? `${def.color}30` : pdBorder;
-                    return <span key={tag} style={{ fontSize: 11, fontWeight: 500, color, background: bg, border: `1px solid ${border}`, padding: "2px 8px", borderRadius: 5 }}>{tag}</span>;
-                  })}
-                  {/* Séparateur + DXY tags */}
-                  {(t.dxyTags || []).length > 0 && <>
-                    <span style={{ color: C.border, fontSize: 13, fontWeight: 300 }}>╱</span>
-                    {(t.dxyTags || []).map(tag => (
-                      <span key={"dxy_"+tag} style={{ fontSize: 11, fontWeight: 600, color: C.amber, background: `${C.amber}12`, border: `1px solid ${C.amber}35`, padding: "2px 8px", borderRadius: 5 }}>DXY·{tag}</span>
-                    ))}
-                  </>}
-                </div>
-              )}
-
-              {/* Ligne 2 : TF supérieur (violet) + setup supérieur (turquoise) */}
-              {tfAlignment && (
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, border: `1px solid rgba(149,128,255,0.25)`, padding: "2px 8px", borderRadius: 5 }}>{tfAlignment}</span>
-                  {tfAlignmentSetup && (
-                    <span style={{ fontSize: 11, fontWeight: 500, color: pdColor, background: pdBg, border: `1px solid ${pdBorder}`, padding: "2px 8px", borderRadius: 5 }}>{tfAlignmentSetup}</span>
-                  )}
-                </div>
-              )}
-
-              {/* Ligne 3 : OTE (turquoise fort) */}
-              {t.oteFib && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#818CF8", background: "rgba(129,140,248,0.10)", border: "1px solid rgba(129,140,248,0.25)", padding: "2px 8px", borderRadius: 5, alignSelf: "flex-start" }}>OTE {t.oteFib}</span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+    <div onClick={() => onOpen(t.id)} onTouchStart={() => setPressed(true)} onTouchEnd={() => setPressed(false)}
+      style={{ marginBottom: isLast ? 0 : 6, background: pressed ? C.cardHover : C.card, borderRadius: 12, border: `1px solid ${C.border}`, borderLeft: `3px solid ${accentColor}`, cursor: "pointer", padding: "10px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: -0.3 }}>{t.pair}</span>
+      <DirBadge direction={t.direction} />
+      <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {fmtDate(t.entryTime)}{t.ictModel ? <span style={{ color: "#F5B544", fontWeight: 700 }}> · {t.ictModel}</span> : null}
+      </span>
+      <span className="tnum" style={{ fontSize: 15, fontWeight: 800, color: pnlColor, whiteSpace: "nowrap" }}>{isOpen ? "En cours" : isBE ? "BE" : rDisplay}</span>
     </div>
   );
 }
@@ -3194,6 +2869,47 @@ function LiveCalcStat({ label, value, color }) {
 
 
 
+// ── Briques du formulaire (au niveau du module pour que les champs ne perdent jamais le focus) ──
+function Chip({ on, onClick, children, color, title }) {
+  const col = color || C.purpleBright;
+  return (
+    <button type="button" title={title} onClick={onClick} className="chip" style={{
+      padding: "8px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: on ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap",
+      border: `1px solid ${on ? col : C.border}`, background: on ? `${col}1F` : "transparent", color: on ? col : C.textSecondary,
+    }}>{children}</button>
+  );
+}
+function Chips({ children }) { return <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{children}</div>; }
+function Group({ label, hint, children, right }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, letterSpacing: 0.2 }}>{label}</span>
+        {right}
+      </div>
+      {children}
+      {hint && <span style={{ fontSize: 11.5, color: C.red, fontWeight: 600 }}>{hint}</span>}
+    </div>
+  );
+}
+function Section({ title, icon, sub, open, onToggle, children }) {
+  const collapsible = typeof onToggle === "function";
+  const shown = !collapsible || open;
+  return (
+    <section style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: collapsible && !open ? "14px 16px" : 16, display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+      <div onClick={collapsible ? onToggle : undefined} style={{ display: "flex", alignItems: "center", gap: 10, cursor: collapsible ? "pointer" : "default", userSelect: "none" }}>
+        <span style={{ width: 26, height: 26, borderRadius: 8, background: C.purpleDim, color: C.purpleBright, fontSize: 12.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{icon}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: -0.2 }}>{title}</div>
+          {collapsible && sub && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
+        </div>
+        {collapsible && <ChevronDown size={18} color={C.textMuted} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />}
+      </div>
+      {shown && children}
+    </section>
+  );
+}
+
 function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trades }) {
   const isEdit = !!initial;
   const [pair, setPair] = useState(initial?.pair || "EURUSD");
@@ -3234,8 +2950,8 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trade
   const [drawOnLiquidity, setDrawOnLiquidity] = useState(initial?.drawOnLiquidity || "");
   const [displacement, setDisplacement] = useState(initial?.displacement || false);
   const [smt, setSmt] = useState(initial?.smt || false);
-  const [showCalcModal, setShowCalcModal] = useState(false);
-  const [calcPct, setCalcPct] = useState("1");
+  
+  
 
   const accountBalance = appSettings?.accountBalance || 10000;
   const sessionTags = TAG_CATALOG.filter((t) => t.category === "session");
@@ -3247,7 +2963,7 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trade
   ];
 
   // Calcul pip live
-  const pipDecimal = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.01 : ["US30","NAS100","SPX500","BTCUSD","ETHUSD"].includes(pair) ? 1 : 0.0001;
+  const pipDecimal = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.1 : pair === "XAGUSD" ? 0.01 : ["US30","NAS100","SPX500","BTCUSD","ETHUSD"].includes(pair) ? 1 : 0.0001;
   const pipValuePerLot = (() => {
       const ep = parseFloat(entryPrice) || 1;
       if (pair === "XAUUSD") return 10;
@@ -3323,7 +3039,8 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trade
   }, [entryPrice, stopLoss, takeProfit, exitPrice, positionSize, pair, direction, riskPct, accountBalance, pipDecimal, pipValuePerLot]);
 
   // Auto-fill résultat depuis calcul live (si non rempli manuellement)
-  const [resultManualOverride, setResultManualOverride] = useState(false);
+  // En modification : on garde le résultat enregistré (commission, sortie partielle…) au lieu de le recalculer
+  const [resultManualOverride, setResultManualOverride] = useState(!!initial && initial.resultUsd != null);
   React.useEffect(() => {
     if (!resultManualOverride && liveCalc?.autoResultUsd !== null && liveCalc?.autoResultUsd !== undefined) {
       setResultUsd(String(liveCalc.autoResultUsd));
@@ -3337,11 +3054,27 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trade
 
   const numRisk = riskUsd === "" ? null : Number(riskUsd);
   const numResult = resultUsd === "" ? null : Number(resultUsd);
-  const autoR = numRisk && numRisk !== 0 && numResult !== null ? numResult / numRisk : null;
+  // R depuis les prix si le risque $ n'est pas saisi
+  const priceR = (() => {
+    const en = Number(entryPrice), sl = Number(stopLoss);
+    if (entryPrice === "" || stopLoss === "" || !isFinite(en) || !isFinite(sl) || en === sl) return null;
+    const ex = exitPrice !== "" ? Number(exitPrice) : status === "loss" ? sl : status === "breakeven" ? en : takeProfit !== "" ? Number(takeProfit) : null;
+    if (ex == null || !isFinite(ex) || !["win", "loss", "breakeven", "closed"].includes(status)) return null;
+    const d = direction === "long" ? 1 : -1;
+    return Math.round(((ex - en) * d) / ((en - sl) * d) * 100) / 100;
+  })();
+  const autoR = numRisk && numRisk !== 0 && numResult !== null ? numResult / numRisk : priceR;
   const effectiveR = resultRManual ? (resultRValue === "" ? null : Number(resultRValue)) : autoR;
 
   const toggleTag = (name) => setTags((prev) => prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]);
-  const canSave = pair && entryPrice !== "" && positionSize !== "";
+  // ── Mode express (nouveau trade) ──
+  const [quick, setQuick] = useState(!isEdit || (initial?.entryPrice == null && initial?.positionSize == null));
+  const lastRisk = (trades || []).find((t) => Number(t.riskUsd) > 0)?.riskUsd;
+  const [qRisk, setQRisk] = useState(String(initial?.riskUsd ?? lastRisk ?? 100));
+  const [qR, setQR] = useState("");
+  const qRval = status === "breakeven" ? 0 : qR === "" ? null : (status === "loss" ? -1 : 1) * Math.abs(Number(qR));
+  const timeOk = !!entryTime && !isNaN(new Date(entryTime).getTime());
+  const canSave = timeOk && (quick ? !!pair && (status === "open" || qRval != null) : (pair && entryPrice !== "" && positionSize !== ""));
 
   const handleExtracted = (result) => {
     setExtractedMeta(result);
@@ -3356,8 +3089,8 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trade
     if (!canSave) return;
     // Normalise win/loss → closed avec le bon signe sur resultR
     let finalStatus = status;
-    let finalResultR = effectiveR;
-    let finalResultUsd = numResult;
+    let finalResultR = quick ? (status === "open" ? null : qRval) : effectiveR;
+    let finalResultUsd = quick ? (finalResultR == null ? null : Math.round(finalResultR * Number(qRisk || 0) * 100) / 100) : numResult;
     if (status === "win") {
       finalStatus = "closed";
       if (finalResultR !== null && finalResultR < 0) finalResultR = Math.abs(finalResultR);
@@ -3367,19 +3100,22 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trade
       if (finalResultR !== null && finalResultR > 0) finalResultR = -Math.abs(finalResultR);
       if (finalResultUsd !== null && finalResultUsd > 0) finalResultUsd = -Math.abs(finalResultUsd);
     }
+    const sessTags = ["London Session", "New York Session", "Asia Session", "Hors session"];
+    const autoSess = getSession(new Date(entryTime).toISOString());
+    const finalTags = tags.some((t) => sessTags.includes(t)) || autoSess === "Hors session" ? tags : [...tags, autoSess];
     onSave({
       id: initial?.id || uid(),
       pair, direction,
       entryTime: new Date(entryTime).toISOString(),
-      entryPrice: Number(entryPrice),
+      entryPrice: entryPrice === "" ? null : Number(entryPrice),
       stopLoss: stopLoss === "" ? null : Number(stopLoss),
       takeProfit: takeProfit === "" ? null : Number(takeProfit),
       exitPrice: exitPrice === "" ? null : Number(exitPrice),
-      positionSize: Number(positionSize),
-      riskUsd: numRisk, resultUsd: finalResultUsd,
+      positionSize: positionSize === "" ? null : Number(positionSize),
+      riskUsd: quick ? (qRisk === "" ? null : Number(qRisk)) : numRisk, resultUsd: finalResultUsd,
       resultPips: resultPips === "" ? null : Number(resultPips),
-      resultR: finalResultR, resultRManual,
-      status: finalStatus, notes, tags, screenshotBefore, screenshotAfter,
+      resultR: finalResultR, resultRManual: quick ? true : resultRManual,
+      status: finalStatus, notes, tags: finalTags, screenshotBefore, screenshotAfter,
       dxyBias, dxyScreenshotBefore, dxyScreenshotAfter, dxyTags,
       mssConfirmed, tfAlignment, tfAlignmentSetup, confidenceLevel, oteFib,
       maxR: maxR === "" ? null : Number(maxR),
@@ -3388,741 +3124,329 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trade
     });
   };
 
+  // ── Nouveau formulaire : 3 étapes, puces, une seule calculatrice ──
+  const ictFilled = [htfBias, pdZone, ictModel, sweptLiquidity, drawOnLiquidity, oteFib, confidenceLevel, mssConfirmed, displacement, smt, liquiditySweep].filter(Boolean).length + (tags || []).filter((t) => (allSetupTags || []).some((x) => x.name === t)).length;
+  const ictSummary = ictFilled ? [ictModel, ictFilled + " élément" + (ictFilled > 1 ? "s" : "")].filter(Boolean).join(" · ") : "";
+  const [openIct, setOpenIct] = useState(!!isEdit && ictFilled > 0);
+  const [openMedia, setOpenMedia] = useState(!!(initial?.notes || initial?.screenshotBefore || initial?.screenshotAfter));
+  const [showDxy, setShowDxy] = useState(!!(initial?.dxyBias || (initial?.dxyTags || []).length));
+  const [showMore, setShowMore] = useState(false);
+  const SESSIONS = ["London Session", "New York Session", "Asia Session", "Hors session"];
+  const currentSession = tags.find((t) => SESSIONS.includes(t));
+  const tfs = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"];
+  const types = ["Scalping", "Day Trading", "Swing"];
+  const setOneTag = (group, v) => setTags((prev) => [...prev.filter((t) => !group.includes(t)), ...(v ? [v] : [])]);
+  const curTf = tags.find((t) => tfs.includes(t)) || "";
+  const curType = tags.find((t) => types.includes(t)) || "";
+  const kzName = entryTime ? killzoneLabel(entryTime) : "";
+  const sbName = entryTime ? silverBulletAt(entryTime)?.name : null;
+  const wantZone = direction === "long" ? "Discount" : "Premium";
+  const htfOk = htfBias ? (htfBias === "Bullish") === (direction === "long") : null;
+  const isClosed = status === "win" || status === "loss" || status === "breakeven" || status === "closed";
+  const pctRisk = riskPct === "" ? null : Number(riskPct);
+
+  const inp = { ...inputStyle, padding: "11px 13px", fontSize: 14 };
+
   return (
-    <div className="fade-in" style={{ maxWidth: 720 }}>
-      <BackLink onClick={onCancel}>Annuler</BackLink>
-      <PageHeader title={isEdit ? "Modifier le trade" : "Nouveau trade"} />
+    <div className="fade-in" style={{ paddingBottom: 110 }}>
+      <style>{`
+        .tf-grid { display: grid; grid-template-columns: 1fr; gap: 12px; max-width: 760px; margin: 0 auto; }
+        .tf-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 10px; }
+        .chip { transition: background .12s, border-color .12s, color .12s; }
+        @media (max-width: 600px) { .tf-bar { bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; padding-bottom: 10px !important; } }
+        @media (min-width: 601px) { .tf-bar { left: 220px !important; } }
+        @media (min-width: 601px) and (max-width: 1024px) { .tf-bar { left: 72px !important; } }
+      `}</style>
 
-      {/* Identification — nouvelle structure demandée */}
-      <Card style={{ padding: "20px 18px", marginBottom: 14, borderRadius: 20, border: "1px solid rgba(148,163,184,0.16)" }}>
-        <CardLabel>Identification</CardLabel>
-        <div className="form-grid-2" style={{ marginTop: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+        <div>
+          <BackLink onClick={onCancel}>Annuler</BackLink>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: "4px 0 0", letterSpacing: -0.4 }}>{isEdit ? "Modifier le trade" : "Nouveau trade"}</h1>
+        </div>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 999, border: `1px solid ${C.border}`, fontSize: 12.5, fontWeight: 600 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: appSettings?.activeAccountColor || C.teal }} />{appSettings?.activeAccountName || "Compte"}
+        </span>
+      </div>
 
-          <Field label="Date et heure">
-            <div style={{ width: "100%", overflow: "hidden", minWidth: 0 }}>
+      {quick ? (() => {
+        const used = {}; (trades || []).forEach((t) => { used[t.pair] = (used[t.pair] || 0) + 1; });
+        const allPairs = appSettings?.pairs || PAIRS;
+        const topPairs = [...allPairs].sort((a, b) => (used[b] || 0) - (used[a] || 0)).slice(0, 6);
+        if (!topPairs.includes(pair)) topPairs[topPairs.length - 1] = pair;
+        const big = (on, col) => ({ flex: 1, padding: "14px 6px", borderRadius: 14, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}1A` : "transparent", color: on ? col : C.textMuted, fontSize: 15, fontWeight: 800, cursor: "pointer" });
+        const rOpts = status === "loss" ? ["0.5", "1"] : ["1", "1.5", "2", "3", "4"];
+        const qUsd = qRval == null ? null : qRval * Number(qRisk || 0);
+        const row = { display: "flex", gap: 8 };
+        return (
+          <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", gap: 7, overflowX: "auto", paddingBottom: 2 }}>
+              {topPairs.map((p) => <Chip key={p} on={pair === p} onClick={() => setPair(p)}>{p}</Chip>)}
+              <select value={pair} onChange={(e) => setPair(e.target.value)} aria-label="Autre paire" style={{ ...inputStyle, width: 48, padding: "6px", fontSize: 12, borderRadius: 999, flexShrink: 0 }}>
+                {allPairs.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div style={row}>
+              <button onClick={() => setDirection("long")} style={big(direction === "long", C.teal)}>↗ Long</button>
+              <button onClick={() => setDirection("short")} style={big(direction === "short", "#F97316")}>↘ Short</button>
+            </div>
+            <div style={row}>
+              {[["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary], ["open", "En cours", C.purpleBright]].map(([v, l, col]) =>
+                <button key={v} onClick={() => { setStatus(v); if (v === "loss" && !qR) setQR("1"); if (v === "win" && qR === "1" && status === "loss") setQR(""); }} style={{ ...big(status === v || (v === "win" && status === "closed"), col), fontSize: 13.5, padding: "12px 4px" }}>{l}</button>)}
+            </div>
+            {(status === "win" || status === "loss") && (
+              <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
+                {rOpts.map((v) => <Chip key={v} on={qR === v} color={status === "loss" ? C.red : C.teal} onClick={() => setQR(v)}>{status === "loss" ? "-" : "+"}{v}R</Chip>)}
+                <input type="number" step="0.1" inputMode="decimal" placeholder="R" value={rOpts.includes(qR) ? "" : qR} onChange={(e) => setQR(e.target.value)} aria-label="R" style={{ ...inputStyle, width: 64, padding: "8px 10px", fontSize: 13.5, borderRadius: 999 }} />
+                {qUsd != null && <span className="tnum" style={{ marginLeft: "auto", fontSize: 18, fontWeight: 900, color: qUsd >= 0 ? C.teal : C.red }}>{fmtUsdSigned(qUsd)}</span>}
+              </div>
+            )}
+            <Chips>{ICT_MODELS.map((m) => <Chip key={m} on={ictModel === m} onClick={() => setIctModel(ictModel === m ? "" : m)}>{m}</Chip>)}</Chips>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12.5, color: C.textMuted }}>
+              <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} aria-label="Date" style={{ ...inputStyle, width: "auto", padding: "7px 10px", fontSize: 12.5 }} />
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>1R =
+                <input type="number" inputMode="decimal" value={qRisk} onChange={(e) => setQRisk(e.target.value)} aria-label="Risque en dollars" style={{ ...inputStyle, width: 72, padding: "7px 9px", fontSize: 12.5 }} />$</span>
+              {kzName && <span style={{ fontWeight: 700, color: kzName === "Hors killzone" ? C.amber : C.teal }}>{kzName}</span>}
+            </div>
+            <button onClick={() => setQuick(false)} style={{ background: "none", border: "none", color: C.purpleBright, fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "4px 0", alignSelf: "flex-start" }}>+ Détails (prix, PD Arrays, captures, notes)</button>
+          </div>
+        );
+      })() : (
+      <div className="tf-grid">
+        {!isEdit && <button onClick={() => setQuick(true)} style={{ background: "none", border: "none", color: C.purpleBright, fontSize: 13, fontWeight: 700, cursor: "pointer", padding: 0, justifySelf: "start" }}>← Mode express</button>}
+        <Section title="Trade" icon="1">
+          <div className="form-grid-2">
+            <Group label="Date et heure">
               <input type="datetime-local" value={entryTime} onChange={(e) => {
                 setEntryTime(e.target.value);
-                // Auto-détection killzone depuis l'heure d'entrée
-                if (e.target.value) {
-                  const detected = getSession(e.target.value);
-                  const sessions = ["London Session","New York Session","Asia Session","Hors session"];
-                  setTags(prev => [...prev.filter(t => !sessions.includes(t)), ...(detected !== "Hors session" ? [detected] : [])]);
-                }
-              }} style={{ ...inputStyle }} />
-            </div>
-          </Field>
-
-          <Field label="Paire">
-            <select value={pair} onChange={(e) => setPair(e.target.value)} style={inputStyle}>
-              {(appSettings?.pairs || PAIRS).map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </Field>
-
-          <Field label="Compte">
-            <div style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.border}`, cursor: "default" }}>
-              <div style={{ width: 9, height: 9, borderRadius: "50%", background: appSettings?.activeAccountColor || C.teal, flexShrink: 0, boxShadow: `0 0 6px ${appSettings?.activeAccountColor || C.teal}60` }} />
-              <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{appSettings?.activeAccountName || "Compte principal"}</span>
-              <span style={{ fontSize: 10, color: C.textMuted, marginLeft: "auto", background: C.bg, padding: "2px 6px", borderRadius: 4 }}>auto</span>
-            </div>
-          </Field>
-
-          <Field label="Direction" value={direction}>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setDirection("long")} style={{
-                flex: 1, padding: "13px 12px", borderRadius: 14,
-                border: `1.5px solid ${direction === "long" ? C.teal : C.border}`,
-                background: direction === "long" ? "rgba(45,212,191,0.08)" : C.inputBg,
-                color: direction === "long" ? C.teal : C.textMuted,
-                fontSize: 15, fontWeight: 700, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                transition: "all 0.15s",
-                boxShadow: direction === "long" ? "0 0 0 3px rgba(45,212,191,0.10)" : "none",
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <polyline points="3,17 9,11 13,15 21,7" stroke={direction === "long" ? C.teal : C.textMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <polyline points="16,7 21,7 21,12" stroke={direction === "long" ? C.teal : C.textMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Long
-              </button>
-              <button onClick={() => setDirection("short")} style={{
-                flex: 1, padding: "13px 12px", borderRadius: 14,
-                border: `1.5px solid ${direction === "short" ? "#F97316" : C.border}`,
-                background: direction === "short" ? "rgba(249,115,22,0.08)" : C.inputBg,
-                color: direction === "short" ? "#F97316" : C.textMuted,
-                fontSize: 15, fontWeight: 700, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                transition: "all 0.15s",
-                boxShadow: direction === "short" ? "0 0 0 3px rgba(249,115,22,0.10)" : "none",
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <polyline points="3,7 9,13 13,9 21,17" stroke={direction === "short" ? "#F97316" : C.textMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <polyline points="16,17 21,17 21,12" stroke={direction === "short" ? "#F97316" : C.textMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Short
-              </button>
-            </div>
-          </Field>
-
-          <Field label="Session">
-            {(() => {
-              const sessions = ["London Session","New York Session","Asia Session","Hors session"];
-              const currentSession = tags.find(t => sessions.includes(t));
-              const autoSession = entryTime ? getSession(entryTime) : null;
-              const sessionColors = { "London Session": "#4A7FBF", "New York Session": "#C0392B", "Asia Session": "#E67E22" };
-              const sessionEmojis = { "London Session": "🇬🇧", "New York Session": "🗽", "Asia Session": "🌏" };
-              return (
-                <div>
-                  <div style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 8, cursor: "default", minHeight: 44 }}>
-                    {currentSession && currentSession !== "Hors session" ? (
-                      <>
-                        <span style={{ fontSize: 14 }}>{sessionEmojis[currentSession] || "🕐"}</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: sessionColors[currentSession] || C.text }}>{currentSession}</span>
-                        <span style={{ fontSize: 9.5, color: C.teal, background: C.tealDim, padding: "1px 5px", borderRadius: 4, marginLeft: "auto" }}>auto</span>
-                      </>
-                    ) : (
-                      <span style={{ fontSize: 13, color: C.textMuted }}>— Hors killzone / à saisir —</span>
-                    )}
-                  </div>
-                  {/* Override manuel si besoin */}
-                  <select value={currentSession || ""} onChange={(e) => {
-                    setTags(prev => [...prev.filter(t => !sessions.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
-                  }} style={{ ...inputStyle, marginTop: 6, fontSize: 11, color: C.textMuted }}>
-                    <option value="">Modifier manuellement…</option>
-                    <option value="Asia Session">🌏 Asia Session</option>
-                    <option value="London Session">🇬🇧 London Session</option>
-                    <option value="New York Session">🗽 New York Session</option>
-                    <option value="Hors session">Hors session</option>
-                  </select>
-                </div>
-              );
-            })()}
-          </Field>
-
-          <Field label="Type de trade">
-            <SelectWithCheck value={tags.find(t => ["Swing","Day Trading","Scalping"].includes(t)) || ""} onChange={(e) => {
-              const types = ["Swing","Day Trading","Scalping"];
-              setTags(prev => [...prev.filter(t => !types.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
-            }} style={inputStyle}>
-              <option value="">— Sélectionner —</option>
-              <option value="Swing">Swing</option>
-              <option value="Day Trading">Day Trading</option>
-              <option value="Scalping">Scalping</option>
-            </SelectWithCheck>
-          </Field>
-
-          <Field label="Timeframe">
-            <SelectWithCheck value={tags.find(t => ["M1","M5","M15","M30","H1","H4","D1","W1"].includes(t)) || ""} onChange={(e) => {
-              const tfs = ["M1","M5","M15","M30","H1","H4","D1","W1"];
-              setTags(prev => [...prev.filter(t => !tfs.includes(t)), ...(e.target.value ? [e.target.value] : [])]);
-            }} style={inputStyle}>
-              <option value="">— Sélectionner —</option>
-              {["M1","M5","M15","M30","H1","H4","D1","W1"].map(tf => <option key={tf} value={tf}>{tf}</option>)}
-            </SelectWithCheck>
-          </Field>
-        </div>
-
-        {/* PD Arrays — menu déroulant multi-sélection */}
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>
-            PD Arrays <span style={{ fontSize: 10, fontWeight: 400, textTransform: "none", color: C.textMuted }}>(multi-sélection)</span>
+                if (e.target.value) { const d = getSession(e.target.value); setOneTag(SESSIONS, d !== "Hors session" ? d : ""); }
+              }} style={inp} />
+            </Group>
+            <Group label="Paire">
+              <select value={pair} onChange={(e) => setPair(e.target.value)} style={{ ...inp, fontWeight: 700 }}>
+                {(appSettings?.pairs || PAIRS).map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </Group>
           </div>
-          {/* Puces sélectionnées */}
-          {tags.filter(t => allSetupTags.some(s => s.name === t)).length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-              {tags.filter(t => allSetupTags.some(s => s.name === t)).map((tagName) => {
-                const tagDef = TAG_CATALOG.find(t => t.name === tagName);
-                const color = tagDef?.color || C.purpleBright;
-                const bg = tagDef?.color ? `${tagDef.color}18` : C.purpleDim;
-                return (
-                  <div key={tagName} style={{ display: "flex", alignItems: "center", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${color}50`, fontSize: 12, fontWeight: 600, color }}>
-                    <span style={{ padding: "5px 10px", background: bg }}>{tagName}</span>
-                    <button onClick={() => toggleTag(tagName)} style={{ padding: "5px 8px", background: `${color}18`, border: "none", borderLeft: `1px solid ${color}30`, cursor: "pointer", color, fontSize: 15, lineHeight: 1, display: "flex", alignItems: "center" }}>×</button>
-                  </div>
-                );
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 999, background: kzName === "Hors killzone" ? C.amberDim : C.tealDim, color: kzName === "Hors killzone" ? C.amber : C.teal }}>
+              {kzName || "—"}{sbName ? ` · ⚡ ${sbName}` : ""}
+            </span>
+            <select value={currentSession || ""} onChange={(e) => setOneTag(SESSIONS, e.target.value)} aria-label="Changer la session" style={{ ...inputStyle, width: "auto", padding: "6px 10px", fontSize: 12, borderRadius: 999 }}>
+              <option value="">Session auto</option>
+              {SESSIONS.map((s) => <option key={s} value={s}>{s.replace(" Session", "")}</option>)}
+            </select>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[["long", "Long", C.teal, "3,17 9,11 13,15 21,7", "16,7 21,7 21,12"], ["short", "Short", "#F97316", "3,7 9,13 13,9 21,17", "16,17 21,17 21,12"]].map(([v, l, col, p1, p2]) => {
+              const on = direction === v;
+              return (
+                <button key={v} onClick={() => setDirection(v)} style={{ padding: "13px", borderRadius: 14, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}14` : "transparent", color: on ? col : C.textMuted, fontSize: 15, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><polyline points={p1} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /><polyline points={p2} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>{l}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="tf-2">
+            <Group label="Entrée"><input type="number" step="any" inputMode="decimal" placeholder="1.08450" value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} style={{ ...inp, fontWeight: 700 }} /></Group>
+            <Group label="Stop loss"><input type="number" step="any" inputMode="decimal" placeholder="1.08200" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} style={{ ...inp, color: C.red, fontWeight: 700 }} /></Group>
+            <Group label="Take profit"><input type="number" step="any" inputMode="decimal" placeholder="1.09100" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} style={{ ...inp, color: C.teal, fontWeight: 700 }} /></Group>
+            <Group label="Taille (lots)"><input type="number" step="0.01" inputMode="decimal" placeholder="0.50" value={positionSize} onChange={(e) => setPositionSize(e.target.value)} style={inp} /></Group>
+          </div>
+
+          {/* Une seule calculatrice : % de risque → $ → lot */}
+          <div style={{ padding: 14, borderRadius: 14, background: C.inputBg, border: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600 }}>Risque</span>
+              {["0.5", "1", "2"].map((v) => <Chip key={v} on={riskPct === v} onClick={() => setRiskPct(v)}>{v}%</Chip>)}
+              <input type="number" step="0.1" value={riskPct} onChange={(e) => setRiskPct(e.target.value)} aria-label="Risque en %" style={{ ...inputStyle, width: 72, padding: "7px 9px", fontSize: 13 }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div className="tnum" style={{ fontSize: 14, color: C.text }}>
+                {pctRisk != null && liveCalc.riskUsdFromPct != null ? <><b style={{ color: C.red }}>${liveCalc.riskUsdFromPct}</b>{liveCalc.suggestedLot != null ? <> → <b style={{ color: C.purpleBright }}>{liveCalc.suggestedLot} lot</b></> : <span style={{ color: C.textMuted }}> · ajoute entrée et SL</span>}</> : <span style={{ color: C.textMuted }}>Choisis un % de risque</span>}
+              </div>
+              {liveCalc.riskUsdFromPct != null && (
+                <button onClick={() => { setRiskUsd(String(liveCalc.riskUsdFromPct)); if (liveCalc.suggestedLot != null) setPositionSize(String(liveCalc.suggestedLot)); }} style={{ ...btn.primary, padding: "8px 14px" }}>Appliquer</button>
+              )}
+            </div>
+            {(liveCalc.riskPips != null || liveCalc.theoreticalRR) && (
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+                {liveCalc.riskPips != null && <LiveCalcStat label="SL pips" value={liveCalc.riskPips.toFixed(1)} color={C.red} />}
+                {liveCalc.rewardPips != null && <LiveCalcStat label="TP pips" value={liveCalc.rewardPips.toFixed(1)} color={C.teal} />}
+                {liveCalc.theoreticalRR && <LiveCalcStat label="R:R" value={`1:${liveCalc.theoreticalRR.toFixed(2)}`} color={C.purpleBright} />}
+                {liveCalc.potentialLossUsd != null && <LiveCalcStat label="Perte max" value={`$${liveCalc.potentialLossUsd.toFixed(0)}`} color={C.red} />}
+                {liveCalc.potentialGainUsd != null && <LiveCalcStat label="Gain max" value={`$${liveCalc.potentialGainUsd.toFixed(0)}`} color={C.teal} />}
+              </div>
+            )}
+          </div>
+
+          <Group label="Risque ($)"><input type="number" step="any" placeholder="100" value={riskUsd} onChange={(e) => setRiskUsd(e.target.value)} style={inp} /></Group>
+
+                  </Section>
+
+        <Section title="Résultat" icon="2">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+            {[["open", "Ouvert", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary]].map(([v, l, col]) => {
+              const on = status === v || (v === "win" && status === "closed" && (effectiveR || 0) > 0) || (v === "loss" && status === "closed" && (effectiveR || 0) < 0);
+              return <button key={v} onClick={() => setStatus(v)} style={{ padding: "12px 4px", borderRadius: 12, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}1A` : "transparent", color: on ? col : C.textMuted, fontSize: 13, fontWeight: on ? 800 : 500, cursor: "pointer" }}>{l}</button>;
+            })}
+          </div>
+
+          {isClosed && (
+            <>
+              <Group label="Prix de sortie" right={<span style={{ fontSize: 11, color: C.textMuted }}>= TP par défaut</span>}>
+                <input type="number" step="any" inputMode="decimal" placeholder="auto = TP" value={exitPrice} onChange={(e) => setExitPrice(e.target.value)} style={inp} />
+              </Group>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ padding: "14px", borderRadius: 14, background: C.inputBg, border: `1px solid ${C.border}`, textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>Résultat</div>
+                  <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: numResult == null ? C.textMuted : numResult >= 0 ? C.teal : C.red, marginTop: 2 }}>{numResult == null ? "—" : fmtUsdSigned(numResult)}</div>
+                </div>
+                <div style={{ padding: "14px", borderRadius: 14, background: C.inputBg, border: `1px solid ${C.border}`, textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>En R</div>
+                  <div className="tnum" style={{ fontSize: 22, fontWeight: 800, color: effectiveR == null ? C.textMuted : effectiveR >= 0 ? C.teal : C.red, marginTop: 2 }}>{effectiveR == null ? "—" : fmtR(effectiveR)}</div>
+                </div>
+              </div>
+              <button onClick={() => setShowMore((v) => !v)} style={{ background: "none", border: "none", color: C.purpleBright, fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: 0, alignSelf: "flex-start" }}>{showMore ? "− Masquer les détails" : "+ Détails (saisie manuelle, R max)"}</button>
+              {showMore && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: C.textSecondary, cursor: "pointer" }}>
+                    <input type="checkbox" checked={resultManualOverride} onChange={(e) => setResultManualOverride(e.target.checked)} /> Saisir le résultat à la main
+                  </label>
+                  {resultManualOverride && (
+                    <div className="form-grid-2">
+                      <Group label="Résultat ($)"><input type="number" step="any" value={resultUsd} onChange={(e) => setResultUsd(e.target.value)} style={inp} /></Group>
+                      <Group label="Résultat (pips)"><input type="number" step="any" value={resultPips} onChange={(e) => setResultPips(e.target.value)} style={inp} /></Group>
+                    </div>
+                  )}
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: C.textSecondary, cursor: "pointer" }}>
+                    <input type="checkbox" checked={resultRManual} onChange={(e) => setResultRManual(e.target.checked)} /> Corriger le R
+                  </label>
+                  {resultRManual && <input type="number" step="0.01" placeholder="Ex : 2.5" value={resultRValue} onChange={(e) => setResultRValue(e.target.value)} style={{ ...inp, maxWidth: 160 }} />}
+                  <Group label="R max atteint" right={<span style={{ fontSize: 11, color: C.textMuted }}>pour le simulateur de TP</span>}>
+                    <input type="number" step="0.1" placeholder="Ex : 2.8" value={maxR} onChange={(e) => setMaxR(e.target.value)} style={{ ...inp, maxWidth: 160 }} />
+                  </Group>
+                </div>
+              )}
+            </>
+          )}
+
+                  </Section>
+
+        <Section title="Contexte ICT" icon="3" sub={ictSummary || "Facultatif — modèle, PD Arrays, liquidité…"} open={openIct} onToggle={() => setOpenIct((v) => !v)}>
+          <Group label="Modèle ICT">
+            <Chips>{ICT_MODELS.map((m) => <Chip key={m} on={ictModel === m} onClick={() => setIctModel(ictModel === m ? "" : m)}>{m}</Chip>)}</Chips>
+          </Group>
+
+          <Group label="Biais HTF" hint={htfOk === false ? "⚠️ Contre ton biais HTF" : null}>
+            <Chips>
+              <Chip on={htfBias === "Bullish"} color={C.teal} onClick={() => setHtfBias(htfBias === "Bullish" ? "" : "Bullish")}>↑ Bullish</Chip>
+              <Chip on={htfBias === "Bearish"} color={C.red} onClick={() => setHtfBias(htfBias === "Bearish" ? "" : "Bearish")}>↓ Bearish</Chip>
+            </Chips>
+          </Group>
+
+          <Group label="Zone d'entrée" hint={pdZone && pdZone !== "Equilibrium" && pdZone !== wantZone ? `⚠️ ${direction === "long" ? "Long en premium" : "Short en discount"}` : null}>
+            <Chips>
+              {[["Discount", C.teal], ["Equilibrium", C.textSecondary], ["Premium", C.red]].map(([z, col]) => (
+                <Chip key={z} on={pdZone === z} color={col} onClick={() => setPdZone(pdZone === z ? "" : z)}>{z === "Equilibrium" ? "Équilibre" : z}</Chip>
+              ))}
+            </Chips>
+          </Group>
+
+          <Group label="PD Arrays">
+            <Chips>{allSetupTags.map((t) => <Chip key={t.name} on={tags.includes(t.name)} onClick={() => toggleTag(t.name)}>{t.name}</Chip>)}</Chips>
+          </Group>
+
+          <Group label="Liquidité prise">
+            <Chips>{[...LIQ_POINTS, "Aucune"].map((m) => <Chip key={m} on={sweptLiquidity === m} color={C.amber} onClick={() => setSweptLiquidity(sweptLiquidity === m ? "" : m)}>{m}</Chip>)}</Chips>
+          </Group>
+
+          <Group label="Draw on liquidity">
+            <Chips>{[...LIQ_POINTS, "FVG HTF", "OB HTF"].map((m) => <Chip key={m} on={drawOnLiquidity === m} color={C.teal} onClick={() => setDrawOnLiquidity(drawOnLiquidity === m ? "" : m)}>{m}</Chip>)}</Chips>
+          </Group>
+
+          <Group label="Confirmations">
+            <Chips>
+              <Chip on={mssConfirmed} color={C.teal} onClick={() => setMssConfirmed(!mssConfirmed)}>MSS</Chip>
+              <Chip on={displacement} color={C.teal} onClick={() => setDisplacement(!displacement)}>Displacement</Chip>
+              <Chip on={smt} color={C.teal} onClick={() => setSmt(!smt)}>SMT</Chip>
+              <Chip on={liquiditySweep} color={C.teal} onClick={() => setLiquiditySweep(!liquiditySweep)}>Sweep</Chip>
+            </Chips>
+          </Group>
+
+          <Group label="OTE">
+            <Chips>{["0.5", "0.618", "0.7", "0.79"].map((f) => <Chip key={f} on={oteFib === f} color={C.teal} onClick={() => setOteFib(oteFib === f ? "" : f)}>{f}</Chip>)}</Chips>
+          </Group>
+
+          <div className="form-grid-2">
+            <Group label="Timeframe d'entrée">
+              <Chips>{tfs.slice(0, 6).map((tf) => <Chip key={tf} on={curTf === tf} onClick={() => setOneTag(tfs, curTf === tf ? "" : tf)}>{tf}</Chip>)}</Chips>
+            </Group>
+            <Group label="Type">
+              <Chips>{types.map((ty) => <Chip key={ty} on={curType === ty} onClick={() => setOneTag(types, curType === ty ? "" : ty)}>{ty}</Chip>)}</Chips>
+            </Group>
+          </div>
+
+          <Group label="Confiance avant le trade" right={<span className="tnum" style={{ fontSize: 13, fontWeight: 800, color: confidenceLevel ? C.purpleBright : C.textMuted }}>{confidenceLevel ? `${confidenceLevel}/10` : "—"}</span>}>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+                const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
+                const filled = n <= confidenceLevel;
+                return <button key={n} onClick={() => setConfidenceLevel(n === confidenceLevel ? 0 : n)} aria-label={`Confiance ${n}`} style={{ flex: 1, height: 26, borderRadius: 6, border: `1px solid ${filled ? col : C.border}`, background: filled ? col : "transparent", cursor: "pointer", fontSize: 10, fontWeight: 700, color: filled ? "#fff" : C.textMuted }}>{n}</button>;
               })}
             </div>
-          )}
-          {/* Liste cliquable */}
-          <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}` }}>
-            {allSetupTags.map((t, i) => {
-              const selected = tags.includes(t.name);
-              const color = t.color || C.purpleBright;
-              return (
-                <button key={t.name} onClick={() => toggleTag(t.name)} style={{
-                  width: "100%", textAlign: "left", padding: "11px 14px",
-                  background: selected ? (t.color ? `${t.color}12` : C.purpleDim) : (C.inputBg || C.card),
-                  border: "none", borderBottom: i < allSetupTags.length - 1 ? `1px solid ${C.border}` : "none",
-                  color: selected ? color : C.text, fontSize: 13, fontWeight: selected ? 600 : 400,
-                  cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
-                  transition: "background 0.1s",
-                }}>
-                  <span>{t.name}</span>
-                  {selected && (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="1.8"/>
-                      <path d="M7 12.5l3.5 3.5 6.5-7" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+          </Group>
 
-        {/* Timeframe alignement + Setup associé */}
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>Timeframe alignement (optionnel)</div>
-          <div className="form-grid-2">
-            <SelectWithCheck value={tfAlignment} onChange={(e) => setTfAlignment(e.target.value)} style={{ ...inputStyle, color: tfAlignment ? C.text : C.textMuted }}>
-              <option value="">— TF dans le même sens —</option>
-              {["M1","M5","M15","M30","H1","H4","D1","W1"].map(tf => <option key={tf} value={tf}>{tf}</option>)}
-            </SelectWithCheck>
-            {tfAlignment && (
-              <SelectWithCheck value={tfAlignmentSetup} onChange={(e) => setTfAlignmentSetup(e.target.value)} style={{ ...inputStyle, color: tfAlignmentSetup ? C.text : C.textMuted }}>
-                <option value="">— Setup {tfAlignment} —</option>
-                {allSetupTags.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
-              </SelectWithCheck>
-            )}
-          </div>
-          {tfAlignment && tfAlignmentSetup && (
-            <div style={{ marginTop: 8, padding: "7px 12px", background: C.purpleDim, borderRadius: 8, fontSize: 12, color: C.purpleBright, display: "flex", alignItems: "center", gap: 6 }}>
-              ✅ <strong>{tfAlignmentSetup}</strong> confirmé en <strong>{tfAlignment}</strong>
-            </div>
-          )}
+          <PreTradeContext trades={(trades || []).filter((t) => t.id !== initial?.id)} pair={pair} direction={direction} tags={tags} ictModel={ictModel} entryTime={entryTime} />
+        </Section>
 
-          {/* Zone OTE — retracement Fibonacci */}
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>Zone OTE (Fibonacci)</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {["0.5", "0.618", "0.7", "0.79"].map(fib => (
-                <button key={fib} onClick={() => setOteFib(fib === oteFib ? "" : fib)} style={{
-                  flex: "1 1 60px", padding: "9px 6px", borderRadius: 8, cursor: "pointer",
-                  border: `1.5px solid ${oteFib === fib ? C.teal : C.border}`,
-                  background: oteFib === fib ? C.tealDim : (C.inputBg || C.card),
-                  color: oteFib === fib ? C.teal : C.textMuted,
-                  fontSize: 13, fontWeight: oteFib === fib ? 700 : 400,
-                  transition: "all 0.12s",
-                }}>
-                  {fib}
-                </button>
-              ))}
-            </div>
-            {oteFib && (
-              <div style={{ marginTop: 8, padding: "6px 12px", background: C.tealDim, borderRadius: 7, fontSize: 12, color: C.teal, display: "flex", alignItems: "center", gap: 5 }}>
-                ✅ OTE sur le niveau <strong>{oteFib}</strong> ({oteFib === "0.5" ? "50%" : oteFib === "0.618" ? "61.8% — Golden Ratio" : oteFib === "0.7" ? "70%" : "79% — Premium"})
+        <Section title="Captures & notes" icon="4" sub={[screenshotBefore && "avant", screenshotAfter && "après", notes && "notes"].filter(Boolean).join(" · ") || "Facultatif"} open={openMedia} onToggle={() => setOpenMedia((v) => !v)}>
+          <Group label="">
+            {screenshotBefore ? (
+              <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}` }}>
+                <img src={screenshotBefore} alt="Avant" style={{ width: "100%", display: "block", maxHeight: 240, objectFit: "contain", background: C.bg }} />
+                <button onClick={() => { setScreenshotBefore(null); setExtractedMeta(null); }} aria-label="Retirer" style={{ position: "absolute", top: 8, right: 8, background: "rgba(15,17,23,0.85)", border: "none", borderRadius: 8, color: "#fff", padding: 6, cursor: "pointer", display: "flex" }}><X size={13} /></button>
+              </div>
+            ) : <SmartCaptureBox value={screenshotBefore} onChange={setScreenshotBefore} onExtracted={handleExtracted} />}
+          </Group>
+
+          <ImageUploadBox label="Screenshot après" value={screenshotAfter} onChange={setScreenshotAfter} />
+
+          <Group label="Notes">
+            <textarea rows={4} placeholder="Contexte, ce que tu as vu, ce que tu as ressenti…" value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inp, resize: "vertical", lineHeight: 1.55 }} />
+          </Group>
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
+            <button onClick={() => setShowDxy((v) => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13.5, fontWeight: 700, width: "100%" }}>
+              <span style={{ color: C.amber }}>DXY</span>
+              {dxyBias && <span style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 500 }}>{dxyBias}{dxyTags.length ? ` · ${dxyTags.length} PD Array` : ""}</span>}
+              <ChevronDown size={15} style={{ marginLeft: "auto", transform: showDxy ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+            </button>
+            {showDxy && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12 }}>
+                <Chips>{[["Bullish", C.teal], ["Bearish", C.red], ["Neutre", C.textSecondary]].map(([b, col]) => <Chip key={b} on={dxyBias === b} color={col} onClick={() => setDxyBias(dxyBias === b ? "" : b)}>{b}</Chip>)}</Chips>
+                <Chips>{TAG_CATALOG.filter((t) => t.category === "setup").map((t) => <Chip key={t.name} on={dxyTags.includes(t.name)} color={C.amber} onClick={() => setDxyTags((prev) => prev.includes(t.name) ? prev.filter((x) => x !== t.name) : [...prev, t.name])}>{t.name}</Chip>)}</Chips>
+                <div className="form-grid-2">
+                  <ImageUploadBox label="DXY avant" value={dxyScreenshotBefore} onChange={setDxyScreenshotBefore} />
+                  <ImageUploadBox label="DXY après" value={dxyScreenshotAfter} onChange={setDxyScreenshotAfter} />
+                </div>
               </div>
             )}
           </div>
-        </div>
-      </Card>
+                </Section>
+      </div>
+      )}
 
-      {/* Contexte ICT */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <CardLabel>Contexte ICT</CardLabel>
-          {entryTime && (() => { const kz = killzoneLabel(entryTime); const sb = silverBulletAt(entryTime); return (
-            <span style={{ fontSize: 11, color: kz === "Hors killzone" ? C.amber : C.teal, fontWeight: 700 }}>{kz}{sb ? ` · ⚡ ${sb.name}` : ""}</span>); })()}
-        </div>
-        {(() => {
-          const seg = (val, set, opts) => (
-            <div style={{ display: "flex", gap: 6 }}>
-              {opts.map(([v, l, col]) => { const on = val === v; return (
-                <button key={v} onClick={() => set(on ? "" : v)} style={{ flex: 1, padding: "9px 6px", borderRadius: 8, fontSize: 12.5, fontWeight: on ? 700 : 500, cursor: "pointer", border: `1.5px solid ${on ? col : C.border}`, background: on ? col + "1A" : "transparent", color: on ? col : C.textSecondary }}>{l}</button>); })}
-            </div>);
-          const wantZone = direction === "long" ? "Discount" : "Premium";
-          const htfOk = htfBias ? (htfBias === "Bullish") === (direction === "long") : null;
-          return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-              <Field label="Biais HTF (Daily / H4)">
-                {seg(htfBias, setHtfBias, [["Bullish", "↑ Bullish", C.teal], ["Bearish", "↓ Bearish", C.red]])}
-                {htfOk === false && <span style={{ fontSize: 11.5, color: C.red, fontWeight: 600 }}>⚠️ Ce trade va contre ton biais HTF</span>}
-              </Field>
-              <Field label="Zone d'entrée dans le dealing range">
-                {seg(pdZone, setPdZone, [["Discount", "Discount", C.teal], ["Equilibrium", "Équilibre", C.textSecondary], ["Premium", "Premium", C.red]])}
-                {pdZone && pdZone !== "Equilibrium" && pdZone !== wantZone && <span style={{ fontSize: 11.5, color: C.red, fontWeight: 600 }}>⚠️ {direction === "long" ? "Long en premium" : "Short en discount"}</span>}
-              </Field>
-              <div className="form-grid-2">
-                <Field label="Modèle ICT">
-                  <SelectWithCheck value={ictModel} onChange={(e) => setIctModel(e.target.value)} style={inputStyle}>
-                    <option value="">— Sélectionner —</option>
-                    {ICT_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </SelectWithCheck>
-                </Field>
-                <Field label="Liquidité prise avant l'entrée">
-                  <SelectWithCheck value={sweptLiquidity} onChange={(e) => setSweptLiquidity(e.target.value)} style={inputStyle}>
-                    <option value="">— Sélectionner —</option>
-                    {LIQ_POINTS.map((m) => <option key={m} value={m}>{m}</option>)}
-                    <option value="Aucune">Aucune</option>
-                  </SelectWithCheck>
-                </Field>
-                <Field label="Draw on liquidity (cible)">
-                  <SelectWithCheck value={drawOnLiquidity} onChange={(e) => setDrawOnLiquidity(e.target.value)} style={inputStyle}>
-                    <option value="">— Sélectionner —</option>
-                    {[...LIQ_POINTS, "FVG HTF", "OB HTF"].map((m) => <option key={m} value={m}>{m}</option>)}
-                  </SelectWithCheck>
-                </Field>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["Displacement", displacement, setDisplacement], ["SMT divergence", smt, setSmt]].map(([l, v, set]) => (
-                  <button key={l} onClick={() => set(!v)} style={{ flex: 1, minWidth: 130, padding: "10px 12px", borderRadius: 9, cursor: "pointer", border: `1.5px solid ${v ? C.teal : C.border}`, background: v ? C.tealDim : "transparent", color: v ? C.teal : C.textSecondary, fontSize: 12.5, fontWeight: 600 }}>{v ? "✓ " : ""}{l}</button>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-      </Card>
-
-      <PreTradeContext trades={(trades || []).filter((t) => t.id !== initial?.id)} pair={pair} direction={direction} tags={tags} ictModel={ictModel} entryTime={entryTime} />
-
-      {/* Prix et taille — avec TP/SL colorés, exit = TP par défaut, risque % live */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <CardLabel>Prix et taille</CardLabel>
-          <button onClick={() => setShowCalcModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.purpleDim, border: `1px solid rgba(139,124,246,0.3)`, borderRadius: 7, padding: "6px 11px", cursor: "pointer", color: C.purpleBright, fontSize: 12, fontWeight: 600 }}>
-            <Calculator size={14} /> Calculatrice
+      {/* Barre fixe en bas : navigation + enregistrer */}
+      <div className="tf-bar" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 900, padding: "10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px)", background: `${C.bg}F2`, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderTop: `1px solid ${C.border}` }}>
+        <div style={{ maxWidth: 1600, margin: "0 auto", display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ flex: 1, fontSize: 12, color: C.textMuted, minWidth: 0 }}>{!canSave ? (quick ? "Choisis le R" : "Entrée et taille requises") : ""}</span>
+          <button onClick={handleSubmit} disabled={!canSave} style={{ ...btn.primary, padding: "12px 20px", fontSize: 14, fontWeight: 800, borderRadius: 12, opacity: canSave ? 1 : 0.45, cursor: canSave ? "pointer" : "not-allowed" }}>
+            <Save size={15} /> {isEdit ? "Enregistrer" : "Enregistrer le trade"}
           </button>
         </div>
-
-        {/* Modal calculatrice */}
-        {showCalcModal && (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-            <div style={{ background: C.card, borderRadius: "16px 16px 0 0", padding: "24px 20px 32px", width: "100%", maxWidth: 480, border: `1px solid ${C.border}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Calculatrice de position</div>
-                <button onClick={() => setShowCalcModal(false)} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer" }}><X size={18} /></button>
-              </div>
-
-              {(() => {
-                const accountBalance = appSettings?.accountBalance || 10000;
-                const pairKey = (pair.includes("JPY") ? "JPY" : pair === "XAUUSD" ? "XAU" : "USD");
-                const pipDecimal = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.01 : ["US30","NAS100","SPX500","BTCUSD","ETHUSD"].includes(pair) ? 1 : 0.0001;
-                const pipValuePerLot = (() => {
-                const ep = parseFloat(entryPrice) || 1;
-                if (pair === "XAUUSD") return 10;
-                if (pair === "XAGUSD") return 50;
-                if (["US30","NAS100","SPX500"].includes(pair)) return 1;
-                if (pair.endsWith("USD") && !pair.startsWith("USD")) return 10;
-                if (pair === "USDJPY") return 1000 / ep;
-                if (pair.startsWith("USD")) return 10 / ep;
-                if (pair.endsWith("JPY")) return 1000 / ep;
-                if (pair.endsWith("CAD")) return 10 / ep;
-                if (pair.endsWith("CHF")) return 10 / ep;
-                return 10;
-              })();
-                const riskUsdCalc = (accountBalance * Number(calcPct || 0)) / 100;
-                const numEntry = entryPrice !== "" ? Number(entryPrice) : null;
-                const numSL = stopLoss !== "" ? Number(stopLoss) : null;
-                const numTP = takeProfit !== "" ? Number(takeProfit) : null;
-                const slPips = numEntry && numSL ? Math.abs((numEntry - numSL) / pipDecimal) : null;
-                const tpPips = numEntry && numTP ? Math.abs((numTP - numEntry) / pipDecimal) : null;
-                const suggestedLot = slPips && slPips > 0 ? Math.round((riskUsdCalc / (slPips * pipValuePerLot)) * 100) / 100 : null;
-                const rratio = slPips && tpPips ? (tpPips / slPips).toFixed(2) : null;
-                const potentialGain = suggestedLot && tpPips ? (tpPips * pipValuePerLot * suggestedLot).toFixed(0) : null;
-
-                const apply = () => {
-                  if (suggestedLot !== null) setPositionSize(String(suggestedLot));
-                  if (riskUsdCalc) setRiskUsd(String(riskUsdCalc.toFixed(2)));
-                  setShowCalcModal(false);
-                };
-
-                return (
-                  <div>
-                    <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", marginBottom: 16, fontSize: 12, color: C.textMuted }}>
-                      Compte : <strong style={{ color: C.text }}>${accountBalance.toLocaleString()}</strong> · Paire : <strong style={{ color: C.text }}>{pair}</strong>
-                    </div>
-
-                    <div style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 6 }}>Risque (%)</div>
-                      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                        {["0.5", "1", "1.5", "2"].map(pct => (
-                          <button key={pct} onClick={() => setCalcPct(pct)} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: `2px solid ${calcPct === pct ? C.purple : C.border}`, background: calcPct === pct ? C.purpleDim : "transparent", color: calcPct === pct ? C.purpleBright : C.textSecondary, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{pct}%</button>
-                        ))}
-                      </div>
-                      <input type="number" step="0.1" value={calcPct} onChange={e => setCalcPct(e.target.value)} placeholder="% personnalisé" style={{ ...inputStyle }} />
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
-                      {[
-                        { label: "Risque $", value: `$${riskUsdCalc.toFixed(0)}`, color: C.red },
-                        { label: "Taille lot", value: suggestedLot !== null ? `${suggestedLot}L` : "—", color: C.purpleBright, highlight: true },
-                        { label: "R:R", value: rratio ? `1:${rratio}` : "—", color: rratio >= 1.5 ? C.teal : C.red },
-                        { label: "SL pips", value: slPips ? slPips.toFixed(1) : "—", color: C.textSecondary },
-                        { label: "TP pips", value: tpPips ? tpPips.toFixed(1) : "—", color: C.textSecondary },
-                        { label: "Gain pot.", value: potentialGain ? `$${potentialGain}` : "—", color: C.teal },
-                      ].map(x => (
-                        <div key={x.label} style={{ padding: "10px 12px", background: x.highlight ? C.purpleDim : C.bg, borderRadius: 8, border: `1px solid ${x.highlight ? "rgba(139,124,246,0.3)" : C.border}`, textAlign: "center" }}>
-                          <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>{x.label}</div>
-                          <div className="tnum" style={{ fontSize: 15, fontWeight: 800, color: x.color }}>{x.value}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {!numEntry && <div style={{ fontSize: 12, color: C.amber, marginBottom: 12, textAlign: "center" }}>⚠ Remplis Entry, SL et TP pour calculer la taille de lot</div>}
-
-                    <button onClick={apply} style={{ width: "100%", background: C.purple, border: "none", borderRadius: 10, color: "#fff", padding: "13px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                      Appliquer — {suggestedLot !== null ? `${suggestedLot} lot · $${riskUsdCalc.toFixed(0)} risque` : `$${riskUsdCalc.toFixed(0)} risque`}
-                    </button>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        )}
-
-        <div className="form-grid-2" style={{ marginTop: 0 }}>
-          <Field label="Entrée" hint="Prix d'entrée">
-            <InputWithCheck type="number" step="any" placeholder="1.08450" value={entryPrice}
-              onChange={(e) => setEntryPrice(e.target.value)}
-              style={{ ...inputStyle, color: C.text, fontWeight: 600 }} />
-          </Field>
-          <Field label="Stop Loss">
-            <InputWithCheck type="number" step="any" placeholder="1.08200" value={stopLoss}
-              onChange={(e) => setStopLoss(e.target.value)}
-              style={{ ...inputStyle, color: C.red, fontWeight: 700 }} />
-          </Field>
-          <Field label="Take Profit">
-            <InputWithCheck type="number" step="any" placeholder="1.09100" value={takeProfit}
-              onChange={(e) => setTakeProfit(e.target.value)}
-              style={{ ...inputStyle, color: "#5B8DEF", fontWeight: 700 }} />
-          </Field>
-          <Field label="Prix de sortie" hint="= TP par défaut">
-            <InputWithCheck type="number" step="any" placeholder="auto = TP" value={exitPrice}
-              onChange={(e) => { setExitPrice(e.target.value); }}
-              style={{ ...inputStyle }} />
-          </Field>
-          <Field label="Taille de position (lots)">
-            <InputWithCheck type="number" step="0.01" placeholder="0.50" value={positionSize}
-              onChange={(e) => setPositionSize(e.target.value)}
-              style={inputStyle} />
-          </Field>
-          <Field label="Risque ($)">
-            <input type="number" step="any" placeholder="100" value={riskUsd}
-              onChange={(e) => setRiskUsd(e.target.value)}
-              style={inputStyle} />
-          </Field>
-        </div>
-
-        {/* Calculatrice risque live % → $ */}
-        <div style={{ marginTop: 14, padding: "12px 14px", background: C.inputBg || C.card, border: `1px solid ${C.border}`, borderRadius: 8 }}>
-          <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Calculatrice de risque — compte ${accountBalance.toLocaleString()}</div>
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div style={{ flex: "0 0 120px" }}>
-              <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 4 }}>% de risque</div>
-              <input type="number" step="0.1" placeholder="1.0" value={riskPct}
-                onChange={(e) => setRiskPct(e.target.value)}
-                style={{ ...inputStyle }} />
-            </div>
-            {liveCalc?.riskUsdFromPct !== null && (
-              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", paddingBottom: 2 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: C.textMuted }}>Risque en $</div>
-                  <div className="tnum" style={{ fontSize: 15, fontWeight: 800, color: C.red }}>${liveCalc.riskUsdFromPct}</div>
-                </div>
-                {liveCalc.suggestedLot !== null && (
-                  <div>
-                    <div style={{ fontSize: 10, color: C.textMuted }}>Lot suggéré</div>
-                    <div className="tnum" style={{ fontSize: 15, fontWeight: 800, color: C.purpleBright }}>{liveCalc.suggestedLot}</div>
-                  </div>
-                )}
-              </div>
-            )}
-            {liveCalc?.riskUsdFromPct !== null && (
-              <button
-                onClick={() => { setRiskUsd(String(liveCalc.riskUsdFromPct)); if (liveCalc.suggestedLot !== null) setPositionSize(String(liveCalc.suggestedLot)); }}
-                style={{ ...btn.ghost, fontSize: 11.5, padding: "7px 11px" }}>
-                Appliquer
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Résumé calcul auto */}
-        {liveCalc && (liveCalc.riskPips !== null || liveCalc.rewardPips !== null) && (
-          <div style={{ marginTop: 10, padding: "10px 14px", background: C.inputBg || C.card, border: `1px solid ${C.border}`, borderRadius: 8 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-              {liveCalc.riskPips !== null && <LiveCalcStat label="SL pips" value={liveCalc.riskPips.toFixed(1)} color={C.red} />}
-              {liveCalc.rewardPips !== null && <LiveCalcStat label="TP pips" value={liveCalc.rewardPips.toFixed(1)} color="#5B8DEF" />}
-              {liveCalc.theoreticalRR && <LiveCalcStat label="R:R" value={`1:${liveCalc.theoreticalRR.toFixed(2)}`} color={C.purpleBright} />}
-              {liveCalc.potentialLossUsd !== null && <LiveCalcStat label="Perte max" value={`$${liveCalc.potentialLossUsd.toFixed(0)}`} color={C.red} />}
-              {liveCalc.potentialGainUsd !== null && <LiveCalcStat label="Gain max" value={`$${liveCalc.potentialGainUsd.toFixed(0)}`} color={C.teal} />}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* Résultat — auto calculé depuis exit price */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <CardLabel>Résultat</CardLabel>
-          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: C.textSecondary, cursor: "pointer" }}>
-            <input type="checkbox" checked={resultManualOverride} onChange={(e) => setResultManualOverride(e.target.checked)} />
-            Saisir manuellement
-          </label>
-        </div>
-
-        {!resultManualOverride && liveCalc?.autoResultUsd !== null ? (
-          <div style={{ padding: "12px 14px", background: C.bg, borderRadius: 8, border: `1px solid ${C.border}`, display: "flex", gap: 20 }}>
-            <div>
-              <div style={{ fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Résultat $</div>
-              <div className="tnum" style={{ fontSize: 18, fontWeight: 800, color: (liveCalc.autoResultUsd || 0) >= 0 ? C.teal : C.red, marginTop: 3 }}>
-                {liveCalc.autoResultUsd >= 0 ? "+" : ""}{liveCalc.autoResultUsd?.toFixed(2)}$
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Pips</div>
-              <div className="tnum" style={{ fontSize: 18, fontWeight: 800, color: (liveCalc.autoResultPips || 0) >= 0 ? C.teal : C.red, marginTop: 3 }}>
-                {liveCalc.autoResultPips >= 0 ? "+" : ""}{liveCalc.autoResultPips?.toFixed(1)}
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: C.textMuted, alignSelf: "flex-end", paddingBottom: 2 }}>calculé depuis sortie vs entrée</div>
-          </div>
-        ) : (
-          <div className="form-grid-2">
-            <Field label="Résultat en $"><input type="number" step="any" value={resultUsd} onChange={(e) => setResultUsd(e.target.value)} style={inputStyle} placeholder="245.50" /></Field>
-            <Field label="Résultat en pips"><input type="number" step="any" value={resultPips} onChange={(e) => setResultPips(e.target.value)} style={inputStyle} placeholder="32.5" /></Field>
-          </div>
-        )}
-
-        <div style={{ marginTop: 12, padding: "10px 14px", background: C.bg, borderRadius: 8, border: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Résultat en R</div>
-            {!resultRManual && <div className="tnum" style={{ fontSize: 16, fontWeight: 800, color: autoR != null ? (autoR >= 0 ? C.teal : C.red) : C.text }}>{autoR !== null ? fmtR(autoR) : "—"} <span style={{ fontSize: 10, color: C.textMuted }}>auto</span></div>}
-            {resultRManual && <input type="number" step="0.01" placeholder="Ex: 2.5" value={resultRValue} onChange={(e) => setResultRValue(e.target.value)} style={{ ...inputStyle, maxWidth: 130, marginTop: 4 }} />}
-          </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: C.textSecondary, cursor: "pointer" }}>
-            <input type="checkbox" checked={resultRManual} onChange={(e) => setResultRManual(e.target.checked)} />
-            Modifier R
-          </label>
-        </div>
-        <div style={{ marginTop: 10 }}>
-          <Field label="R max atteint (optionnel)" hint="Le plus loin que le prix est allé en ta faveur, en R. Sert à simuler tes TP dans Stats › Exécution.">
-            <input type="number" step="0.1" placeholder="Ex: 2.8" value={maxR} onChange={(e) => setMaxR(e.target.value)} style={{ ...inputStyle, maxWidth: 160 }} />
-          </Field>
-        </div>
-      </Card>
-
-      {/* Screenshots */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
-        <CardLabel>Screenshots</CardLabel>
-        <div className="form-grid-2" style={{ marginTop: 10 }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>
-              Avant le trade
-              <span style={{ fontSize: 10, color: C.purpleBright, fontWeight: 500, marginLeft: 6 }}>✨ Autofill IA</span>
-            </div>
-            {screenshotBefore ? (
-              <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", border: `1.5px solid ${C.border}` }}>
-                <img src={screenshotBefore} alt="Avant" style={{ width: "100%", display: "block", maxHeight: 220, objectFit: "contain", background: C.bg }} />
-                <button onClick={() => { setScreenshotBefore(null); setExtractedMeta(null); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(15,17,23,0.9)", border: `1px solid ${C.border}`, borderRadius: 5, color: "#fff", padding: 5, cursor: "pointer", display: "flex" }}><X size={12} /></button>
-              </div>
-            ) : (
-              <SmartCaptureBox value={screenshotBefore} onChange={setScreenshotBefore} onExtracted={handleExtracted} />
-            )}
-          </div>
-          <ImageUploadBox label="Après le trade" value={screenshotAfter} onChange={setScreenshotAfter} />
-        </div>
-      </Card>
-
-      {/* DXY — corrélation */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
-        <CardLabel>DXY — Corrélation</CardLabel>
-        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2, marginBottom: 14 }}>Analyse la direction du Dollar Index pour confirmer ton biais</div>
-
-        {/* Biais DXY */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Biais DXY</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {["Bullish", "Bearish", "Neutre"].map((b) => {
-              const active = dxyBias === b;
-              const color = b === "Bullish" ? C.teal : b === "Bearish" ? C.red : C.textSecondary;
-              return (
-                <button key={b} onClick={() => setDxyBias(active ? "" : b)} style={{
-                  flex: 1, padding: "10px 8px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                  border: `2px solid ${active ? color : C.border}`,
-                  background: active ? `${color}18` : "transparent",
-                  color: active ? color : C.textSecondary,
-                }}>{b}</button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* PD Arrays DXY — menu déroulant */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>PD Arrays DXY</div>
-          <select value="" onChange={(e) => { if (e.target.value && !dxyTags.includes(e.target.value)) setDxyTags(prev => [...prev, e.target.value]); }} style={{ ...inputStyle, marginBottom: dxyTags.length > 0 ? 10 : 0 }}>
-            <option value="">+ Ajouter un PD Array DXY…</option>
-            {TAG_CATALOG.filter(t => t.category === "setup").map(t => (
-              <option key={t.name} value={t.name} disabled={dxyTags.includes(t.name)}>{dxyTags.includes(t.name) ? "✓ " : ""}{t.name}</option>
-            ))}
-          </select>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {dxyTags.map(tagName => {
-              const tagDef = TAG_CATALOG.find(t => t.name === tagName);
-              const color = tagDef?.color || "#D89A2E";
-              return (
-                <div key={tagName} style={{ display: "flex", alignItems: "center", gap: 0, borderRadius: 8, overflow: "hidden", border: `1px solid ${color}50`, fontSize: 12, fontWeight: 600, color }}>
-                  <span style={{ padding: "6px 10px", background: `${color}18` }}>{tagName}</span>
-                  <span style={{ padding: "6px 8px", background: `${color}28`, borderLeft: `1px solid ${color}40`, display: "flex", alignItems: "center" }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke={C.purple} strokeWidth="1.8"/>
-                      <path d="M7 12.5l3.5 3.5 6.5-7" stroke={C.purple} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </span>
-                  <button onClick={() => setDxyTags(prev => prev.filter(x => x !== tagName))} style={{ padding: "6px 8px", background: "transparent", border: "none", borderLeft: `1px solid ${color}30`, cursor: "pointer", color: C.textMuted, fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center" }}>×</button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Screenshots DXY */}
-        <div className="form-grid-2">
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>DXY avant</div>
-            <ImageUploadBox label="Screenshot DXY avant" value={dxyScreenshotBefore} onChange={setDxyScreenshotBefore} />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>DXY après</div>
-            <ImageUploadBox label="Screenshot DXY après" value={dxyScreenshotAfter} onChange={setDxyScreenshotAfter} />
-          </div>
-        </div>
-      </Card>
-
-      {/* Checklist rapide */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
-        <CardLabel>Checklist</CardLabel>
-        <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-          {[
-            { key: "sweep", label: "Sweep de liquidité", val: liquiditySweep, set: setLiquiditySweep },
-            { key: "mss", label: "MSS confirmé", val: mssConfirmed, set: setMssConfirmed },
-          ].map((item) => (
-            <button key={item.key} onClick={() => item.set(!item.val)} style={{
-              flex: 1, minWidth: 140, display: "flex", alignItems: "center", gap: 10,
-              padding: "12px 16px", borderRadius: 10, cursor: "pointer",
-              border: `2px solid ${item.val ? C.teal : C.border}`,
-              background: item.val ? C.tealDim : "transparent",
-            }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${item.val ? C.teal : C.border}`, background: item.val ? C.teal : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}>
-                {item.val && <CheckCircle2 size={14} color={C.sidebar} strokeWidth={2.5} />}
-              </div>
-              <span style={{ fontSize: 13, fontWeight: 600, color: item.val ? C.teal : C.textSecondary }}>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      {/* Notes uniquement */}
-      <Card style={{ padding: 16, marginBottom: 18 }}>
-        <CardLabel>Notes personnelles</CardLabel>
-        <textarea rows={4} placeholder="Contexte du marché, ce que tu as bien fait, ce à améliorer…" value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, resize: "vertical", marginTop: 10 }} />
-      </Card>
-
-      {/* Niveau de confiance avant trade */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
-        <CardLabel>Niveau de confiance</CardLabel>
-        <div style={{ marginTop: 14 }}>
-          {/* Score centré + label */}
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: 14, flexShrink: 0,
-              background: confidenceLevel === 0 ? C.bg :
-                confidenceLevel <= 3 ? C.redDim : confidenceLevel <= 5 ? C.amberDim : confidenceLevel <= 7 ? C.tealDim : C.purpleDim,
-              border: `2px solid ${confidenceLevel === 0 ? C.border :
-                confidenceLevel <= 3 ? C.red : confidenceLevel <= 5 ? C.amber : confidenceLevel <= 7 ? C.teal : C.purpleBright}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <span className="tnum" style={{
-                fontSize: confidenceLevel === 0 ? 22 : 20, fontWeight: 800,
-                color: confidenceLevel === 0 ? C.textMuted :
-                  confidenceLevel <= 3 ? C.red : confidenceLevel <= 5 ? C.amber : confidenceLevel <= 7 ? C.teal : C.purpleBright,
-              }}>{confidenceLevel === 0 ? "—" : confidenceLevel}</span>
-            </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 3 }}>
-                {confidenceLevel === 0 ? "Non évalué" :
-                 confidenceLevel <= 3 ? "Setup douteux" :
-                 confidenceLevel <= 5 ? "Quelques doutes" :
-                 confidenceLevel <= 7 ? "Setup valide" : "A+ Setup"}
-              </div>
-              <div style={{ fontSize: 12, color: C.textMuted }}>
-                {confidenceLevel === 0 ? "Tape un chiffre de 1 à 10" :
-                 confidenceLevel <= 3 ? "⚠️ À éviter normalement" :
-                 confidenceLevel <= 5 ? "🟡 À prendre avec précaution" :
-                 confidenceLevel <= 7 ? "🟢 Confiance suffisante" : "🔥 Exécution immédiate"}
-              </div>
-            </div>
-          </div>
-
-          {/* Segments cliquables */}
-          <div style={{ display: "flex", gap: 4 }}>
-            {[1,2,3,4,5,6,7,8,9,10].map(n => {
-              const filled = n <= confidenceLevel;
-              const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
-              return (
-                <button key={n} onClick={() => setConfidenceLevel(n === confidenceLevel ? 0 : n)} style={{
-                  flex: 1, height: 32, borderRadius: 6,
-                  border: `1.5px solid ${filled ? col : C.border}`,
-                  cursor: "pointer",
-                  background: filled ? col : C.inputBg || C.card,
-                  transition: "all 0.12s",
-                  display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
-                }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: filled ? "rgba(255,255,255,0.9)" : C.textMuted, lineHeight: 1 }}>{n}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
-            <span style={{ fontSize: 10, color: C.textMuted }}>Très faible</span>
-            <span style={{ fontSize: 10, color: C.textMuted }}>Parfait</span>
-          </div>
-        </div>
-      </Card>
-
-      {/* Résultat du trade — une seule ligne */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
-        <CardLabel>Résultat du trade</CardLabel>
-        <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-          {[
-            { v: "open",      label: "Ouvert",  svgIcon: "lock",  color: C.purple,        bg: C.purpleDim },
-            { v: "win",       label: "Gagné",   svgIcon: "check", color: C.teal,          bg: C.tealDim },
-            { v: "loss",      label: "Perdu",   svgIcon: "x",     color: C.red,           bg: C.redDim },
-            { v: "breakeven", label: "BE",      svgIcon: "minus", color: C.textSecondary, bg: "rgba(107,115,136,0.12)" },
-          ].map(opt => {
-            const active = status === opt.v;
-            const ic = active ? opt.color : C.textMuted;
-            const SvgIcon = () => {
-              if (opt.svgIcon === "lock") return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ic} strokeWidth="2" strokeLinecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>;
-              if (opt.svgIcon === "check") return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ic} strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M7 12.5l3.5 3.5 6.5-7"/></svg>;
-              if (opt.svgIcon === "x") return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ic} strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 8l8 8M16 8l-8 8"/></svg>;
-              return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ic} strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>;
-            };
-            return (
-              <button key={opt.v} onClick={() => setStatus(opt.v)} style={{
-                flex: 1, padding: "10px 4px", borderRadius: 10,
-                border: `2px solid ${active ? opt.color : C.border}`,
-                background: active ? opt.bg : (C.inputBg || C.card),
-                cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
-                transition: "all 0.15s",
-              }}>
-                <SvgIcon />
-                <span style={{ fontSize: 11, fontWeight: active ? 700 : 400, color: active ? opt.color : C.textMuted }}>
-                  {opt.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </Card>
-
-      <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={handleSubmit} disabled={!canSave} style={{ ...btn.primary, padding: "11px 20px", fontSize: 13, opacity: canSave ? 1 : 0.5, cursor: canSave ? "pointer" : "not-allowed" }}>
-          <Save size={14} /> {isEdit ? "Enregistrer les modifications" : "Enregistrer le trade"}
-        </button>
-        <button onClick={onCancel} style={{ ...btn.ghost, padding: "11px 18px" }}>Annuler</button>
       </div>
-      {!canSave && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 8 }}>Renseigne au minimum la paire, le prix d'entrée et la taille de position.</div>}
     </div>
   );
 }
@@ -4162,14 +3486,14 @@ function RankList({ groups, limit, emptyText }) {
 }
 
 function DataTable({ columns, rows }) {
-  const minW = Math.max(columns.length * 90, 480);
+  const minW = columns.length * 58;
   return (
     <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
       <table style={{ width: "100%", minWidth: minW, borderCollapse: "collapse", fontSize: 12.5 }}>
         <thead>
           <tr style={{ borderBottom: `1px solid ${C.border}` }}>
             {columns.map((c) => (
-              <th key={c.key} style={{ textAlign: c.align || "left", padding: "8px 10px", fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap" }}>{c.label}</th>
+              <th key={c.key} style={{ textAlign: c.align || "left", padding: "8px 6px", fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap" }}>{c.label}</th>
             ))}
           </tr>
         </thead>
@@ -4177,7 +3501,7 @@ function DataTable({ columns, rows }) {
           {rows.map((row, i) => (
             <tr key={i} className="row-hover" style={{ borderBottom: `1px solid ${C.border}` }}>
               {columns.map((c) => (
-                <td key={c.key} style={{ padding: "9px 10px", textAlign: c.align || "left", color: c.color ? c.color(row) : C.text, whiteSpace: "nowrap" }}>
+                <td key={c.key} style={{ padding: "9px 6px", textAlign: c.align || "left", color: c.color ? c.color(row) : C.text, whiteSpace: "nowrap" }}>
                   {c.render ? c.render(row) : row[c.key]}
                 </td>
               ))}
@@ -4194,7 +3518,7 @@ function StatsHeatmap({ trades }) {
     const map = {};
     trades.forEach((t) => {
       const d = new Date(t.entryTime);
-      const key = d.toISOString().slice(0, 10);
+      const key = localYMD(d);
       if (!map[key]) map[key] = 0;
       map[key] += t.resultUsd || 0;
     });
@@ -4216,8 +3540,8 @@ function StatsHeatmap({ trades }) {
     const col = [];
     for (let d = 0; d < 7; d++) {
       const date = new Date(gridStart);
-      date.setUTCDate(gridStart.getUTCDate() + w * 7 + d);
-      const key = date.toISOString().slice(0, 10);
+      date.setDate(gridStart.getDate() + w * 7 + d);
+      const key = localYMD(date);
       const pnl = byDay[key];
       col.push({ date, key, pnl });
     }
@@ -4267,7 +3591,17 @@ function StatsHeatmap({ trades }) {
 }
 
 function OverviewStats({ trades }) {
+  const [sub, setSub] = useState("apercu");
   const closed = useMemo(() => trades.filter((t) => t.status !== "open"), [trades]);
+  const sumR = (arr) => arr.reduce((s, t) => s + (Number(t.resultR) || 0), 0);
+  const retenir = useMemo(() => {
+    const grp = (fn) => { const m = {}; closed.forEach((t) => { const k = fn(t); if (!k) return; (m[k] = m[k] || []).push(t); }); return Object.entries(m).map(([k, l]) => ({ k, n: l.length, r: sumR(l) })).filter((x) => x.n >= 2); };
+    const best = (a) => { const x = [...a].sort((p, q) => q.r - p.r)[0]; return x && x.r > 0 ? x : null; };
+    const worst = (a) => { const x = [...a].sort((p, q) => p.r - q.r)[0]; return x && x.r < 0 ? x : null; };
+    const mist = {}; closed.forEach((t) => [...new Set([...(t.mistakes || []), ...(t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "mistake"))])].forEach((m) => { (mist[m] = mist[m] || []).push(t); }));
+    const wm = Object.entries(mist).map(([k, l]) => ({ k, n: l.length, r: sumR(l) })).sort((a, b) => a.r - b.r)[0];
+    return [["Meilleure session", best(grp((t) => getSession(t.entryTime)))], ["Meilleure paire", best(grp((t) => t.pair))], ["Meilleur modèle ICT", best(grp((t) => t.ictModel))], ["Pire paire", worst(grp((t) => t.pair))], ["Pire erreur", wm && wm.r < 0 ? wm : null]].filter((x) => x[1]);
+  }, [closed]);
 
   const byPair = useMemo(() => groupBy(closed, (t) => t.pair), [closed]);
   const bySetup = useMemo(() => {
@@ -4321,8 +3655,10 @@ function OverviewStats({ trades }) {
       winRate: g.winRate,
       pnl: g.pnl,
       avgR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0) / g.trades.length,
-    })).sort((a, b) => b.pnl - a.pnl);
+      totR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0),
+    })).sort((a, b) => b.totR - a.totR);
   }, [bySetup]);
+  const ictFull = useMemo(() => groupBy(closed.filter((t) => t.ictModel), (t) => t.ictModel).map((g) => ({ key: g.key, count: g.count, winRate: g.winRate, avgR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0) / g.trades.length, totR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0) })).sort((a, b) => b.totR - a.totR), [closed]);
 
   const pairFull = useMemo(() => {
     return [...byPair].map((g) => ({
@@ -4331,7 +3667,8 @@ function OverviewStats({ trades }) {
       winRate: g.winRate,
       pnl: g.pnl,
       avgR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0) / g.trades.length,
-    })).sort((a, b) => b.pnl - a.pnl);
+      totR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0),
+    })).sort((a, b) => b.totR - a.totR);
   }, [byPair]);
 
   const mistakeFreq = useMemo(() => {
@@ -4372,8 +3709,40 @@ function OverviewStats({ trades }) {
     );
   }
 
+  const TABS = [["apercu", "Aperçu"], ["setups", "Setups"], ["horaires", "Horaires"]];
   return (
     <div className="fade-in">
+      <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+        {TABS.map(([k, l]) => <button key={k} onClick={() => setSub(k)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: sub === k ? C.purpleDim : "transparent", color: sub === k ? C.purpleBright : C.textSecondary, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{l}</button>)}
+      </div>
+
+      {sub === "apercu" && <>
+      <Card style={{ padding: 0, marginBottom: 14, overflow: "hidden" }}>
+        <div style={{ padding: "14px 18px 6px" }}><CardLabel>À retenir</CardLabel></div>
+        {retenir.length === 0 && <div style={{ padding: "6px 18px 16px", fontSize: 12.5, color: C.textMuted }}>Pas encore assez de trades.</div>}
+        {retenir.map(([l, x], i) => (
+          <div key={l} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderTop: `1px solid ${C.border}` }}>
+            <span style={{ width: 7, height: 7, borderRadius: 4, background: x.r >= 0 ? C.teal : C.red, flexShrink: 0 }} />
+            <span style={{ fontSize: 12.5, color: C.textMuted, width: 128, flexShrink: 0 }}>{l}</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.k}</span>
+            <span className="tnum" style={{ fontSize: 14, fontWeight: 800, color: x.r >= 0 ? C.teal : C.red }}>{fmtR(x.r)}</span>
+          </div>))}
+      </Card>
+      </>}
+
+      {sub === "setups" && <>
+      {ictFull.length > 0 && <Card style={{ padding: 18, marginBottom: 14 }}>
+        <CardLabel>Performance par modèle ICT</CardLabel>
+        <div style={{ marginTop: 12 }} className="table-scroll">
+          <DataTable columns={[
+              { key: "key", label: "Modèle" },
+              { key: "count", label: "Trades", align: "right" },
+              { key: "winRate", label: "Winrate", align: "right", render: (r) => fmtPct(r.winRate) },
+              { key: "avgR", label: "R moy.", align: "right", render: (r) => fmtR(r.avgR), color: (r) => r.avgR >= 0 ? C.teal : C.red },
+              { key: "totR", label: "Total", align: "right", render: (r) => fmtR(r.totR), color: (r) => r.totR >= 0 ? C.teal : C.red },
+            ]} rows={ictFull} />
+        </div>
+      </Card>}
 
       {/* Tableau setup complet — winrate, trades, profit, average R réunis (priorité tableau pro) */}
       <Card style={{ padding: 18, marginBottom: 14 }}>
@@ -4384,8 +3753,8 @@ function OverviewStats({ trades }) {
               { key: "key", label: "Setup" },
               { key: "count", label: "Trades", align: "right" },
               { key: "winRate", label: "Winrate", align: "right", render: (r) => fmtPct(r.winRate) },
-              { key: "avgR", label: "Average R", align: "right", render: (r) => fmtR(r.avgR), color: (r) => r.avgR >= 0 ? C.teal : C.red },
-              { key: "pnl", label: "Profit", align: "right", render: (r) => fmtUsdSigned(r.pnl), color: (r) => r.pnl >= 0 ? C.teal : C.red },
+              { key: "avgR", label: "R moy.", align: "right", render: (r) => fmtR(r.avgR), color: (r) => r.avgR >= 0 ? C.teal : C.red },
+              { key: "totR", label: "Total", align: "right", render: (r) => fmtR(r.totR), color: (r) => r.totR >= 0 ? C.teal : C.red },
             ]}
             rows={setupFull}
           />
@@ -4401,14 +3770,17 @@ function OverviewStats({ trades }) {
               { key: "key", label: "Paire" },
               { key: "count", label: "Trades", align: "right" },
               { key: "winRate", label: "Winrate", align: "right", render: (r) => fmtPct(r.winRate) },
-              { key: "avgR", label: "Avg R", align: "right", render: (r) => fmtR(r.avgR), color: (r) => r.avgR >= 0 ? C.teal : C.red },
-              { key: "pnl", label: "Profit", align: "right", render: (r) => fmtUsdSigned(r.pnl), color: (r) => r.pnl >= 0 ? C.teal : C.red },
+              { key: "avgR", label: "R moy.", align: "right", render: (r) => fmtR(r.avgR), color: (r) => r.avgR >= 0 ? C.teal : C.red },
+              { key: "totR", label: "Total", align: "right", render: (r) => fmtR(r.totR), color: (r) => r.totR >= 0 ? C.teal : C.red },
             ]}
             rows={pairFull}
           />
         </div>
       </Card>
 
+      </>}
+
+      {sub === "horaires" && <>
       {/* Profit par session — directement sous Profit par paire */}
       <Card style={{ padding: 18, marginBottom: 14 }}>
         <CardLabel>Profit par session</CardLabel>
@@ -4422,7 +3794,7 @@ function OverviewStats({ trades }) {
         <Card style={{ padding: 18 }}>
           <CardLabel>Profit par heure (Thaïlande)</CardLabel>
           <ResponsiveContainer width="100%" height={170}>
-            <BarChart data={byHour} margin={{ top: 10, right: 4, left: -22, bottom: 0 }}>
+            <BarChart data={byHour} margin={{ top: 10, right: 4, left: -6, bottom: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="key" tick={{ fill: C.textMuted, fontSize: 8.5 }} axisLine={{ stroke: C.border }} tickLine={false} interval={2} />
               <YAxis tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} width={42} />
@@ -4434,7 +3806,7 @@ function OverviewStats({ trades }) {
         <Card style={{ padding: 18 }}>
           <CardLabel>Profit par jour de la semaine</CardLabel>
           <ResponsiveContainer width="100%" height={170}>
-            <BarChart data={byDay} margin={{ top: 10, right: 4, left: -22, bottom: 0 }}>
+            <BarChart data={byDay} margin={{ top: 10, right: 4, left: -6, bottom: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="key" tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={{ stroke: C.border }} tickLine={false} tickFormatter={(v) => v.slice(0, 3)} />
               <YAxis tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} width={42} />
@@ -4445,11 +3817,14 @@ function OverviewStats({ trades }) {
         </Card>
       </div>
 
+      </>}
+
+      {sub === "apercu" && <>
       {/* Distribution des gains/pertes en pleine largeur */}
       <Card style={{ padding: 18, marginBottom: 14 }}>
         <CardLabel>Distribution des gains et pertes</CardLabel>
         <ResponsiveContainer width="100%" height={190}>
-          <BarChart data={distribution} margin={{ top: 10, right: 4, left: -22, bottom: 0 }}>
+          <BarChart data={distribution} margin={{ top: 10, right: 4, left: -6, bottom: 0 }}>
             <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="label" tick={{ fill: C.textMuted, fontSize: 8.5 }} axisLine={{ stroke: C.border }} tickLine={false} angle={-25} textAnchor="end" height={50} />
               <YAxis tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} width={28} allowDecimals={false} />
@@ -4466,6 +3841,9 @@ function OverviewStats({ trades }) {
         <StatsHeatmap trades={closed} />
       </Card>
 
+      </>}
+
+      {sub === "setups" && <>
       {/* Analyse des tags — PD Arrays séparés des TF */}
       <Card style={{ padding: 18, marginBottom: 14 }}>
         <CardLabel>PD Arrays — Performance</CardLabel>
@@ -4509,6 +3887,9 @@ function OverviewStats({ trades }) {
         </div>
       </Card>
 
+      </>}
+
+      {sub === "apercu" && <>
       {/* Tableau des erreurs fréquentes */}
       <Card style={{ padding: 18 }}>
         <CardLabel>Erreurs les plus fréquentes</CardLabel>
@@ -4530,6 +3911,7 @@ function OverviewStats({ trades }) {
           </div>
         )}
       </Card>
+      </>}
     </div>
   );
 }
@@ -5531,7 +4913,7 @@ function Previsions({ pairs = ["DXY", "EURUSD", "GBPUSD"] }) {
 
   const removeNews = (id) => saveNews(news.filter(n => n.id !== id));
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localYMD(new Date());
   const upcomingNews = news.filter(n => n.date >= todayStr);
   const pastNews = news.filter(n => n.date < todayStr);
 
@@ -6501,6 +5883,10 @@ function dbToSettings(r) {
 
 // ── Écriture Supabase tolérante : si une colonne manque dans la base, on la retire et on réessaie ──
 const MISSING_COLS = { trades: new Set(), settings: new Set() };
+// Trades supprimés : mémorisés 60 jours pour qu'ils ne réapparaissent jamais (autre appareil, envoi en retard)
+const TOMB_KEY = "emeieks_deleted_v1";
+function tombGet() { try { const m = JSON.parse(localStorage.getItem(TOMB_KEY) || "{}"); const lim = Date.now() - 60 * 864e5; Object.keys(m).forEach((k) => { if (m[k] < lim) delete m[k]; }); return m; } catch { return {}; } }
+function tombAdd(id) { try { const m = tombGet(); m[String(id)] = Date.now(); localStorage.setItem(TOMB_KEY, JSON.stringify(m)); } catch {} }
 async function sbWrite(table, path, method, row, prefer) {
   for (let i = 0; i < 8; i++) {
     const body = { ...row };
@@ -6509,6 +5895,9 @@ async function sbWrite(table, path, method, row, prefer) {
     catch (e) {
       const m = String(e.message).match(/'([a-z0-9_]+)' column/i);
       if (m && m[1] in body) { MISSING_COLS[table].add(m[1]); console.warn("Colonne absente dans Supabase :", table + "." + m[1]); continue; }
+      // Colonne obligatoire laissée vide (ex. trade express sans prix) : on met 0
+      const nn = String(e.message).match(/null value in column "([a-z0-9_]+)"/i);
+      if (nn && nn[1] in row && row[nn[1]] == null) { row = { ...row, [nn[1]]: 0 }; continue; }
       // Type différent dans la base (ex. updated_at en date) : on retire les colonnes « techniques » une par une
       if (/invalid input syntax|out of range/i.test(String(e.message))) {
         const c = ["updated_at", "account_id", "max_r"].find((k) => k in body);
@@ -6635,12 +6024,26 @@ export default function TradingJournalApp() {
   };
 
   // ── Pull initial depuis Supabase + merge par updatedAt ──
-  const loadData = React.useCallback(async (silent = false) => {
+  const loadingRef = React.useRef(null);
+  const lastSigRef = React.useRef("");
+  const loadData = React.useCallback((silent = false) => {
+    if (loadingRef.current) return loadingRef.current; // un seul rafraîchissement à la fois
+    loadingRef.current = loadDataInner(silent).finally(() => { loadingRef.current = null; });
+    return loadingRef.current;
+  }, []); // eslint-disable-line
+  const loadDataInner = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
       // Charge directement depuis Supabase — source de vérité
       const rows = await sbFetch("/trades?order=entry_time.desc");
       let remote = (rows || []).map(dbToTrade);
+      // Un trade supprimé ici qui revient du serveur : on le cache et on relance sa suppression
+      const tomb = tombGet();
+      const back = remote.filter((t) => tomb[String(t.id)]);
+      if (back.length) {
+        remote = remote.filter((t) => !tomb[String(t.id)]);
+        back.forEach((t) => sbFetch(`/trades?id=eq.${encodeURIComponent(t.id)}`, { method: "DELETE", prefer: "return=minimal" }).catch(() => {}));
+      }
       // SÉCURITÉ : base vide mais trades présents sur ce téléphone → on ne les efface jamais,
       // on les renvoie vers Supabase (cas d'un projet en pause, recréé ou d'envois ratés)
       try {
@@ -6649,7 +6052,7 @@ export default function TradingJournalApp() {
         const mine = local.length ? local : backup;
         if (mine.length && local.length) localStorage.setItem(LS_KEY + "_backup", JSON.stringify(local));
         const remoteIds = new Set(remote.map((t) => String(t.id)));
-        const missing = mine.filter((t) => t && t.id != null && !remoteIds.has(String(t.id)));
+        const missing = mine.filter((t) => t && t.id != null && !remoteIds.has(String(t.id)) && !tomb[String(t.id)]);
         if (remote.length === 0 && missing.length) {
           const pm = pendGet(); missing.forEach((t) => { if (!pm[t.id]) pm[t.id] = { ...t, updatedAt: t.updatedAt || Date.now() }; }); pendSet(pm);
           console.warn(missing.length + " trade(s) du téléphone renvoyé(s) vers Supabase");
@@ -6663,9 +6066,8 @@ export default function TradingJournalApp() {
         if (!x._deleted) remote.push(x);
       });
       remote.sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
-      setTrades(remote);
       // Migration unique : cases « À améliorer / Points positifs / Règles » qui n'existaient que sur ce téléphone
-      try {
+      if (!localStorage.getItem("emeieks_migrated_v1")) try {
         const migrated = [];
         remote = remote.map((t) => {
           const lsNeg = JSON.parse(localStorage.getItem(`ameliorer_${t.id}`) || "null");
@@ -6684,11 +6086,16 @@ export default function TradingJournalApp() {
           const ok = (await flushPending()) === 0;
           if (ok) remote.forEach((t) => { localStorage.removeItem(`ameliorer_${t.id}`); localStorage.removeItem(`positifs_${t.id}`); Object.keys(t.rules || {}).forEach((g) => localStorage.removeItem(`rules_${t.id}_${g}`)); });
         }
+        if (!migrated.length || (Object.keys(pendGet()).length === 0)) localStorage.setItem("emeieks_migrated_v1", "1");
       } catch (e) { console.error("Migration locale:", e); }
-      setTrades(remote);
+      // Rien n'a changé depuis le dernier rafraîchissement : on évite un rendu et une grosse écriture locale
+      const sig = remote.map((t) => t.id + ":" + (t.updatedAt || "") + ":" + t.status + ":" + t.resultR).join("|");
+      const same = sig === lastSigRef.current;
+      lastSigRef.current = sig;
+      if (!same) setTrades(remote);
       if (Object.keys(pendGet()).length) flushPending();
       // Sauvegarde locale pour fallback offline
-      try { localStorage.setItem(LS_KEY, JSON.stringify(remote)); } catch {}
+      if (!same) try { localStorage.setItem(LS_KEY, JSON.stringify(remote)); } catch {}
       // Settings
       const settingsRows = await sbFetch("/settings?id=eq.main");
       const setPend = setPendGet();
@@ -6732,7 +6139,7 @@ export default function TradingJournalApp() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  };
 
   React.useEffect(() => {
     // Pull initial
@@ -6851,17 +6258,20 @@ export default function TradingJournalApp() {
     setTrades(list);
     writeLocal(list);
     clearTimeout(retroTimers.current[id]);
+    { const m = pendGet(); m[id] = nt; pendSet(m); } // en file tout de suite : un rafraîchissement ne l'efface plus
     if (debounce) retroTimers.current[id] = setTimeout(() => persist(nt, true), debounce);
     else persist(nt);
   };
 
   // ── Supprimer un trade ──
   const deleteTrade = async (id) => {
+    clearTimeout(retroTimers.current[id]);
     const newTrades = tradesRef.current.filter(t => t.id !== id);
     setTrades(newTrades);
     writeLocal(newTrades);
     setView("trades");
     showToast("Trade supprimé");
+    tombAdd(id);
     const m = pendGet(); m[id] = { id, _deleted: true, updatedAt: Date.now() }; pendSet(m);
     try {
       await sbFetch(`/trades?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" });
@@ -6883,9 +6293,9 @@ export default function TradingJournalApp() {
   // Filtre trades par compte actif — les autres comptes sont isolés
   const [cumulMode, setCumulMode] = useState(false);
   const effectiveAccountId = activeAccountId || accounts[0]?.id || null;
-  const accountTrades = cumulMode || !effectiveAccountId
+  const accountTrades = useMemo(() => cumulMode || !effectiveAccountId
     ? trades
-    : trades.filter(t => !t.accountId || t.accountId === effectiveAccountId);
+    : trades.filter(t => !t.accountId || t.accountId === effectiveAccountId), [trades, cumulMode, effectiveAccountId]);
   const initialBalance = cumulMode
     ? (accounts.reduce((s2, a) => s2 + (Number(a.balance) || 0), 0) || appSettings?.accountBalance || 10000)
     : (Number(activeAccount?.balance) || appSettings?.accountBalance || 10000);
@@ -6895,7 +6305,7 @@ export default function TradingJournalApp() {
     return initial + closed.reduce((s, t) => s + (t.resultUsd || 0), 0);
   }, [accountTrades, initialBalance]);
 
-  const titles = { dashboard: "Dashboard", trades: "Trade Log", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
+  const titles = { dashboard: "Dashboard", trades: "Journal", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
