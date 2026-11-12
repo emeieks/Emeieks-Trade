@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, Cell, ReferenceLine,
+  BarChart, Bar, Cell, ReferenceLine, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from "recharts";
 
 /* ============================================================================
@@ -986,7 +986,7 @@ const NAV_ITEMS = [
   { id: "plan", label: "Plan", short: "Plan", icon: BookOpen },
   { id: "previsions", label: "Prévisions", short: "Prévis.", icon: TrendingUp },
   { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3 },
-  { id: "backtest", label: "Backtesting", short: "Backtest", icon: LineChart },
+  { id: "playbooks", label: "Playbooks", short: "Playbooks", icon: Target },
   { id: "settings", label: "Réglages", short: "Réglages", icon: Settings },
 ];
 
@@ -995,9 +995,9 @@ function MobileNav({ view, setView, onNewTrade }) {
   const MAIN = [NAV_ITEMS[0], NAV_ITEMS[1], null, NAV_ITEMS.find(i => i.id === "stats")];
   const EXTRA = [
     { id: "plan", label: "Plan de trading", icon: BookOpen },
+    { id: "playbooks", label: "Playbooks", icon: Target },
     { id: "previsions", label: "Prévisions", icon: TrendingUp },
     { id: "calendar", label: "Calendrier", icon: CalendarDays },
-    { id: "backtest", label: "Backtesting", icon: LineChart },
     { id: "calculator", label: "Calculatrice", icon: Calculator },
     { id: "coach", label: "IA Coach", icon: Brain },
     { id: "settings", label: "Réglages", icon: Settings },
@@ -1060,7 +1060,7 @@ function Sidebar({ view, setView, onNewTrade, totalPnl = 0, totalR = 0 }) {
 
         <nav style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 1 }}>
           {NAV_ITEMS.map((it) => {
-            const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
+            const active = view === it.id || (view === "backtest" && it.id === "settings") || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
             const Icon = it.icon;
             return (
               <button key={it.id} className="nav-btn nav-item-row" onClick={() => setView(it.id)} title={it.label} style={{
@@ -5075,7 +5075,7 @@ function SimpleStats({ trades }) {
 
       {/* Distribution des R */}
       {T.n > 0 && <div style={card}>
-        <H sub="Combien de trades dans chaque tranche de R">Répartition des résultats</H>
+        <H>Répartition des résultats</H>
         <div style={{ height: 130, padding: "0 8px 10px" }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={X.dist} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
@@ -5108,7 +5108,7 @@ function SimpleStats({ trades }) {
       <div style={card}><H>Par setup</H><Table rows={setups} empty="Ajoute tes setups dans le formulaire pour les voir ici." /></div>
       {T.n > 0 && <div className="grid-2" style={{ gap: 14 }}>
         <div style={card}><H>Par session</H><Bars rows={sessions} flag /></div>
-        <div style={card}><H sub="Résultat total par jour de la semaine">Par jour</H>{(() => { const W = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((k) => days.find((d) => d.k === k) || { k, r: 0, n: 0, wr: 0 }); const mx = Math.max(0.01, ...W.map((d) => Math.abs(d.r))); return (
+        <div style={card}><H>Par jour</H>{(() => { const W = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((k) => days.find((d) => d.k === k) || { k, r: 0, n: 0, wr: 0 }); const mx = Math.max(0.01, ...W.map((d) => Math.abs(d.r))); return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, padding: "4px 14px 14px", alignItems: "end" }}>
             {W.map((d) => <div key={d.k} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0 }}>
               <span className="tnum" style={{ fontSize: 10, fontWeight: 700, color: d.n ? col(d.r) : C.textMuted, whiteSpace: "nowrap" }}>{d.n ? (d.r > 0 ? "+" : "") + d.r.toFixed(1) : "—"}</span>
@@ -5122,7 +5122,7 @@ function SimpleStats({ trades }) {
             </div>)}
           </div>); })()}</div>
       </div>}
-      {hours.some((h) => h.n) && <div style={card}><H sub="Résultat en R selon l'heure d'entrée (heure de ton téléphone)">Par heure</H>
+      {hours.some((h) => h.n) && <div style={card}><H>Par heure</H>
         <div style={{ height: 140, padding: "0 8px 10px" }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={hours} margin={{ top: 6, right: 4, left: 4, bottom: 0 }}>
@@ -5134,6 +5134,7 @@ function SimpleStats({ trades }) {
           </ResponsiveContainer>
         </div>
       </div>}
+      <HourHeatmap trades={closed} useUsd={useUsd} />
       {mistakes.length > 0 && <div style={card}><H>Erreurs fréquentes</H><Table rows={mistakes} /></div>}
     </div>
   );
@@ -5623,7 +5624,7 @@ function Previsions({ pairs = ["DXY", "EURUSD", "GBPUSD"] }) {
 
       {/* Biais par paire */}
       {pairs.map(pair => {
-        const pairColor = pair === "DXY" ? C.amber : pair.includes("EUR") ? "#4A9EFF" : pair.includes("GBP") ? C.teal : pair.includes("JPY") ? "#F59E0B" : pair.includes("AUD") ? "#10B981" : pair.includes("CAD") ? "#EF4444" : pair.includes("CHF") ? "#8B5CF6" : pair.includes("NZD") ? "#06B6D4" : pair.startsWith("XAU") ? "#F59E0B" : C.purpleBright;
+        const pairColor = pair === "DXY" ? C.teal : pair.includes("EUR") ? "#4A9EFF" : pair.includes("GBP") ? C.teal : pair.includes("JPY") ? "#F59E0B" : pair.includes("AUD") ? "#10B981" : pair.includes("CAD") ? "#EF4444" : pair.includes("CHF") ? "#8B5CF6" : pair.includes("NZD") ? "#06B6D4" : pair.startsWith("XAU") ? "#F59E0B" : C.purpleBright;
         const pairEmoji = pair === "DXY" ? <BarChart3 size={17} color={pairColor} /> : pair.startsWith("XAU") ? <Coins size={17} color={pairColor} /> : <span style={{ fontSize: 11.5, fontWeight: 600, color: pairColor, letterSpacing: 0.3 }}>{pair.slice(0, 2)}</span>;
         // Calcule le biais dominant
         const allBiases = TIMEFRAMES_PREV.map(tf => biases[`${pair}_${tf}`]).filter(Boolean);
@@ -6179,7 +6180,7 @@ function AccountLogo({ acc, size = 30 }) {
 const RULES_KEY = "trading_rules";
 const SESSIONS_ALL = ["Asia Session", "London Session", "New York Session", "Hors session"];
 const SESSION_SHORT = { "Asia Session": "Asie", "London Session": "Londres", "New York Session": "New York", "Hors session": "Hors session" };
-const DEFAULT_RULES = { maxRiskPct: 1, maxTradesDay: 2, maxLossDayPct: 2, maxConsecLoss: 2, sessions: ["London Session", "New York Session"], slRequired: true };
+const DEFAULT_RULES = { maxRiskPct: 1, maxTradesDay: 2, maxLossDayPct: 2, maxLossWeekPct: 4, maxLossMonthPct: 8, maxConsecLoss: 2, sessions: ["London Session", "New York Session"], slRequired: true };
 function loadRules() { try { return { ...DEFAULT_RULES, ...(JSON.parse(localStorage.getItem(RULES_KEY) || "null") || {}) }; } catch { return { ...DEFAULT_RULES }; } }
 function saveRules(r) { try { localStorage.setItem(RULES_KEY, JSON.stringify(r)); } catch {} saveSettingsPatch({ trading_rules: r }).catch(() => {}); }
 const dayKey = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -6235,46 +6236,10 @@ function PlanRules({ trades = [], balance }) {
   const stopNow = (rules.maxTradesDay && rep.today.n >= rules.maxTradesDay) || (maxLoss && rep.today.pnl <= -maxLoss);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
-      <div style={{ background: stopNow ? C.redDim : C.card, border: `1px solid ${stopNow ? C.red + "55" : C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>Aujourd'hui</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: stopNow ? C.red : C.text, marginTop: 3 }}>{stopNow ? "Stop : ton plan dit d'arrêter pour aujourd'hui" : "Tu peux encore trader selon ton plan"}</div>
-        </div>
-        <div className="tnum" style={{ fontSize: 13, color: C.textSecondary, textAlign: "right" }}>
-          {rep.today.n}{rules.maxTradesDay ? ` / ${rules.maxTradesDay}` : ""} trades<br />
-          <span style={{ color: moneyCol(rep.today.pnl) }}>{fmtUsdSigned(rep.today.pnl)}</span>{maxLoss ? <span style={{ color: C.textMuted }}> · limite −{fmtUsd(maxLoss)}</span> : null}
-        </div>
-      </div>
 
-      <ASection title="Mes règles" sub="Vérifiées automatiquement sur chaque trade clôturé." right={<button onClick={() => setEdit((v) => !v)} style={{ ...btn.ghost, fontSize: 12 }}><Edit3 size={13} /> {edit ? "Fermer" : "Modifier"}</button>}>
-        {edit ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div className="form-grid-2" style={{ gap: 10 }}>
-              <NumRule label="Risque max par trade" suffix="%" step={0.25} value={rules.maxRiskPct} onChange={(v) => set({ maxRiskPct: v })} />
-              <NumRule label="Trades max par jour" value={rules.maxTradesDay} onChange={(v) => set({ maxTradesDay: v })} />
-              <NumRule label="Perte max par jour" suffix="%" step={0.5} value={rules.maxLossDayPct} onChange={(v) => set({ maxLossDayPct: v })} />
-              <NumRule label="Stop après X pertes d'affilée" value={rules.maxConsecLoss} onChange={(v) => set({ maxConsecLoss: v })} />
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: C.textSecondary, fontWeight: 600, marginBottom: 6 }}>Sessions autorisées</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {SESSIONS_ALL.map((s) => { const on = (rules.sessions || []).includes(s); return <button key={s} onClick={() => set({ sessions: on ? rules.sessions.filter((x) => x !== s) : [...(rules.sessions || []), s] })} style={chipBtn(on)}>{SESSION_SHORT[s]}</button>; })}
-              </div>
-            </div>
-            <button onClick={() => set({ slRequired: !rules.slRequired })} style={{ ...chipBtn(rules.slRequired, C.teal), alignSelf: "flex-start" }}>{rules.slRequired ? "✓ " : ""}Stop loss obligatoire</button>
-            <div style={{ fontSize: 11.5, color: C.textMuted }}>Laisse une case vide pour désactiver la règle. Le % est calculé sur le solde de départ du compte ({fmtUsd(B)}).</div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {[rules.maxRiskPct && `Risque ≤ ${rules.maxRiskPct} %`, rules.maxTradesDay && `≤ ${rules.maxTradesDay} trades / jour`, rules.maxLossDayPct && `Perte jour ≤ ${rules.maxLossDayPct} %`, rules.maxConsecLoss && `Stop après ${rules.maxConsecLoss} pertes`, (rules.sessions || []).length && (rules.sessions.map((s) => SESSION_SHORT[s]).join(" · ")), rules.slRequired && "SL obligatoire"].filter(Boolean).map((l) => (
-              <span key={l} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, background: C.inputBg, border: `1px solid ${C.border}`, color: C.textSecondary }}>{l}</span>
-            ))}
-          </div>
-        )}
-      </ASection>
 
       {rep.n > 0 && (
-        <ASection title="Est-ce que tu respectes ton plan ?" sub={`${rep.n} trades clôturés vérifiés.`}>
+        <ASection title="Respect du plan">
           <div className="grid-kpi-4">
             <BigStat label="Plan respecté" value={`${rep.pct.toFixed(0)} %`} color={rep.pct >= 80 ? C.teal : rep.pct >= 60 ? C.amber : C.red} sub={`${rep.ok.n} trades sur ${rep.n}`} />
             <BigStat label="Quand tu le respectes" value={fmtUsdSigned(rep.ok.pnl)} color={moneyCol(rep.ok.pnl)} sub={`${fmtRs(rep.ok.avgR)} / trade · ${rep.ok.wr.toFixed(0)} % WR`} />
@@ -6381,7 +6346,7 @@ function coachPatterns(trades) {
 
 function CoachPatterns({ trades }) {
   const P = useMemo(() => coachPatterns(trades), [trades]);
-  if (!P || !P.all) return <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 14 }}>Le coach a besoin d'au moins 8 trades clôturés pour repérer tes habitudes.</div>;
+  if (!P || !P.all) return null;
   const Row = ({ x, bad }) => (
     <div style={{ padding: "11px 13px", borderRadius: 10, background: bad ? C.redDim : C.tealDim, border: `1px solid ${(bad ? C.red : C.teal) + "35"}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -6393,11 +6358,11 @@ function CoachPatterns({ trades }) {
   );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 18 }}>
-      <ASection title="Ce qui te coûte de l'argent" sub="Repéré automatiquement dans tes trades, sans IA.">
-        {P.bad.length ? <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{P.bad.map((x) => <Row key={x.key} x={x} bad />)}</div> : <div style={{ fontSize: 12.5, color: C.textMuted }}>Aucune mauvaise habitude nette pour l'instant.</div>}
+      <ASection title="Ce qui te coûte">
+        {P.bad.length ? <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{P.bad.map((x) => <Row key={x.key} x={x} bad />)}</div> : <div style={{ fontSize: 12.5, color: C.textMuted }}>—</div>}
       </ASection>
       {P.good.length > 0 && (
-        <ASection title="Là où tu es le meilleur" sub="À faire plus souvent.">
+        <ASection title="Tes points forts">
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{P.good.map((x) => <Row key={x.key} x={x} />)}</div>
         </ASection>
       )}
@@ -6511,6 +6476,255 @@ function MtImport({ trades = [], onImport, accountId }) {
         </div>
       )}
       {msg && <div style={{ fontSize: 12, color: msg.c }}>{msg.t}</div>}
+    </div>
+  );
+}
+
+/* ============================================================================
+   PRO : score /100 (radar) · « Tu peux trader » · check-list pré-session
+         · récap semaine · heatmap jour×heure · Playbooks · calendrier éco
+   ============================================================================ */
+const fmtUsd0 = (v) => (v < 0 ? "−" : "") + "$" + Math.abs(Math.round(v)).toLocaleString("en-US");
+const startOfWeek = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+const closedSorted = (trades) => byTime(closedOf(trades));
+
+/* ── Score /100 façon Zella : 5 axes ── */
+function proScore(trades, balance) {
+  const L = closedSorted(trades); if (L.length < 5) return null;
+  const B = Number(balance) || 10000;
+  const gw = L.filter((t) => rOf(t) > 0).reduce((s, t) => s + rOf(t), 0), gl = -L.filter((t) => rOf(t) < 0).reduce((s, t) => s + rOf(t), 0);
+  const pf = gl ? gw / gl : gw ? 3 : 1; const wr = L.filter((t) => rOf(t) > 0).length / L.length;
+  const W = L.filter((t) => rOf(t) > 0), Ls = L.filter((t) => rOf(t) < 0);
+  const ratio = Ls.length && W.length ? (gw / W.length) / (gl / Ls.length) : W.length ? 3 : 0;
+  let eq = B, pk = B, dd = 0; L.forEach((t) => { eq += usdOf(t); pk = Math.max(pk, eq); dd = Math.max(dd, (pk - eq) / pk); });
+  const chk = planCheck(L, loadRules(), B); const comp = chk.filter((x) => !x.v.length).length / chk.length;
+  const wk = {}; L.forEach((t) => { const k = startOfWeek(t.entryTime).toISOString(); wk[k] = (wk[k] || 0) + rOf(t); }); const Wv = Object.values(wk); const pos = Wv.filter((v) => v > 0).length / Wv.length;
+  const axes = [
+    { k: "Rentabilité", v: clamp01((pf - 0.8) / 1.7) * 100, txt: "PF " + pf.toFixed(2) },
+    { k: "Gain / perte", v: clamp01(ratio / 2.5) * 100, txt: ratio.toFixed(2) + " : 1" },
+    { k: "Winrate", v: clamp01((wr - 0.25) / 0.45) * 100, txt: Math.round(wr * 100) + " %" },
+    { k: "Risque", v: clamp01(1 - dd / 0.15) * 100, txt: "DD " + (dd * 100).toFixed(1) + " %" },
+    { k: "Régularité", v: pos * 100, txt: Math.round(pos * Wv.length) + "/" + Wv.length + " sem." },
+    { k: "Discipline", v: comp * 100, txt: Math.round(comp * 100) + " % plan" },
+  ];
+  return { score: Math.round(axes.reduce((s, a) => s + a.v, 0) / axes.length), axes, n: L.length };
+}
+
+function ScoreCard({ trades, balance }) {
+  const s = useMemo(() => proScore(trades, balance), [trades, balance]);
+  if (!s) return null;
+  const col = s.score >= 70 ? C.teal : s.score >= 50 ? C.amber : C.red;
+  const lab = s.score >= 80 ? "Excellent" : s.score >= 70 ? "Solide" : s.score >= 50 ? "En progrès" : "À risque";
+  const weak = [...s.axes].sort((a, b) => a.v - b.v)[0];
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ width: 250, height: 190, flexShrink: 0, margin: "0 auto" }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={s.axes} outerRadius="62%" margin={{ top: 6, right: 30, bottom: 6, left: 30 }}>
+            <PolarGrid stroke={C.border} />
+            <PolarAngleAxis dataKey="k" tick={{ fontSize: 9.5, fill: C.textMuted }} />
+            <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+            <Radar dataKey="v" stroke={col} fill={col} fillOpacity={0.25} strokeWidth={2} />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{ flex: 1, minWidth: 200 }}>
+        <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}>Score trader</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}><span className="tnum" style={{ fontSize: 40, fontWeight: 700, color: col, letterSpacing: -1 }}>{s.score}</span><span style={{ fontSize: 14, color: C.textMuted }}>/ 100</span><span style={{ fontSize: 14, fontWeight: 700, color: col, marginLeft: 6 }}>{lab}</span></div>
+        <div style={{ height: 7, borderRadius: 4, background: `linear-gradient(90deg, ${C.red}, ${C.amber}, ${C.teal})`, position: "relative", margin: "6px 0 10px", opacity: 0.85 }}><span style={{ position: "absolute", left: `calc(${s.score}% - 6px)`, top: -3, width: 12, height: 12, borderRadius: 6, background: C.text, border: `2px solid ${C.card}` }} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 14px" }}>
+          {s.axes.map((a) => <div key={a.k} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSecondary }}><span>{a.k}</span><span className="tnum" style={{ fontWeight: 700, color: a.v >= 70 ? C.teal : a.v >= 45 ? C.amber : C.red }}>{a.txt}</span></div>)}
+        </div>
+        
+      </div>
+    </div>
+  );
+}
+
+/* ── « Tu peux trader » : marge restante jour / semaine / mois ── */
+function CanTradeCard({ trades, balance, acc }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id); }, []);
+  const rules = loadRules(); const B = Number(balance) || 10000;
+  const ch = acc && acc.type === "challenge" && acc.challenge ? { ...CH_DEFAULT, ...acc.challenge } : null;
+  const L = closedSorted(trades);
+  const d0 = new Date(now); d0.setHours(0, 0, 0, 0); const w0 = startOfWeek(now); const m0 = new Date(d0.getFullYear(), d0.getMonth(), 1);
+  const sum = (from) => L.filter((t) => new Date(t.entryTime) >= from).reduce((s, t) => s + usdOf(t), 0);
+  const nToday = L.filter((t) => new Date(t.entryTime) >= d0).length;
+  const lim = [
+    { k: "Jour", pct: ch ? ch.maxDaily : rules.maxLossDayPct, pnl: sum(d0), reset: new Date(d0.getTime() + 864e5) },
+    { k: "Semaine", pct: rules.maxLossWeekPct, pnl: sum(w0), reset: new Date(w0.getTime() + 7 * 864e5) },
+    { k: "Mois", pct: rules.maxLossMonthPct, pnl: sum(m0), reset: new Date(m0.getFullYear(), m0.getMonth() + 1, 1) },
+  ].filter((x) => x.pct);
+  if (!lim.length && !rules.maxTradesDay) return null;
+  const riskPer = (B * (rules.maxRiskPct || 1)) / 100;
+  const rows = lim.map((x) => { const max = (B * x.pct) / 100; const left = Math.max(0, max + Math.min(0, x.pnl)); return { ...x, max, left, used: clamp01(-Math.min(0, x.pnl) / max) }; });
+  const left = rows.length ? Math.min(...rows.map((r) => r.left)) : Infinity;
+  const tradesLeft = Math.min(Number.isFinite(left) ? Math.floor(left / riskPer + 1e-9) : 99, rules.maxTradesDay ? Math.max(0, rules.maxTradesDay - nToday) : 99);
+  const ok = tradesLeft > 0;
+  const cd = (d) => { const ms = d - now; const h = Math.floor(ms / 36e5), m = Math.floor((ms % 36e5) / 6e4); return h >= 48 ? Math.floor(h / 24) + " j" : h + " h " + String(m).padStart(2, "0"); };
+  return (
+    <div style={{ background: ok ? `linear-gradient(135deg, ${C.tealDim}, transparent 60%), ${C.card}` : `linear-gradient(135deg, ${C.redDim}, transparent 60%), ${C.card}`, border: `1px solid ${(ok ? C.teal : C.red) + "55"}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: rows.length ? 12 : 0 }}>
+        <div style={{ width: 42, height: 42, borderRadius: 12, background: (ok ? C.teal : C.red) + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{ok ? "✓" : "✕"}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: ok ? C.teal : C.red }}>{ok ? "Tu peux trader" : "Stop pour aujourd'hui"}</div>
+          <div className="tnum" style={{ fontSize: 12.5, color: C.textSecondary }}>{ok ? <>Encore <b style={{ color: C.text }}>{tradesLeft >= 99 ? "∞" : tradesLeft} trade{tradesLeft > 1 ? "s" : ""}</b> à {fmtUsd0(riskPer)} de risque{Number.isFinite(left) ? <> · marge {fmtUsd0(left)}</> : null}</> : "Une limite de ton plan est atteinte."}</div>
+        </div>
+      </div>
+      {rows.length > 0 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${rows.length}, minmax(0,1fr))`, gap: 8 }}>
+        {rows.map((r) => <div key={r.k} style={{ padding: "9px 10px", borderRadius: 12, background: C.card, border: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.textMuted, fontWeight: 600 }}><span>{r.k}</span><span>reset {cd(r.reset)}</span></div>
+          <div className="tnum" style={{ fontSize: 15, fontWeight: 700, color: r.used >= 0.8 ? C.red : C.text, marginTop: 3 }}>{fmtUsd0(r.left)}<span style={{ fontSize: 11, color: C.textMuted, fontWeight: 500 }}> / {fmtUsd0(r.max)}</span></div>
+          <div style={{ height: 5, borderRadius: 3, background: C.border, marginTop: 6, overflow: "hidden" }}><div className="grow-x" style={{ width: r.used * 100 + "%", height: "100%", background: r.used >= 0.8 ? C.red : r.used >= 0.5 ? C.amber : C.teal }} /></div>
+        </div>)}
+      </div>}
+    </div>
+  );
+}
+
+/* ── Check-list pré-session (bloque « Nouveau trade » tant qu'elle n'est pas cochée) ── */
+const CHECK_DEFAULT = ["J'ai regardé le calendrier économique", "Je connais mon biais (HTF)", "Je suis reposé et concentré", "Je respecte mon risque max"];
+const checkKey = () => "check_" + dayKey(new Date().toISOString());
+function loadChecks() { try { return JSON.parse(localStorage.getItem(checkKey()) || "[]"); } catch { return []; } }
+function checklistDone() { const r = loadRules(); const items = r.checklist && r.checklist.length ? r.checklist : CHECK_DEFAULT; if (r.checklistOn === false) return true; const c = loadChecks(); return items.every((_, i) => c.includes(i)); }
+function ChecklistCard({ onDone, compact }) {
+  const r = loadRules(); const items = r.checklist && r.checklist.length ? r.checklist : CHECK_DEFAULT;
+  const [c, setC] = useState(loadChecks);
+  if (r.checklistOn === false) return null;
+  const tog = (i) => { const n = c.includes(i) ? c.filter((x) => x !== i) : [...c, i]; setC(n); try { localStorage.setItem(checkKey(), JSON.stringify(n)); } catch {} if (items.every((_, j) => n.includes(j))) onDone && onDone(); };
+  const all = items.every((_, i) => c.includes(i));
+  if (all && compact) return <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 14, background: C.tealDim, border: `1px solid ${C.teal}40`, marginBottom: 14, fontSize: 13, fontWeight: 600, color: C.teal }}>✓ Check-list du jour faite · bonne session</div>;
+  return (
+    <div style={{ background: C.card, border: `1px solid ${all ? C.teal + "55" : C.amber + "66"}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><span style={{ fontSize: 14.5, fontWeight: 700 }}>Check-list avant de trader</span><span className="tnum" style={{ fontSize: 12, fontWeight: 700, color: all ? C.teal : C.amber }}>{c.filter((i) => i < items.length).length}/{items.length}</span></div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {items.map((t, i) => { const on = c.includes(i); return <button key={i} onClick={() => tog(i)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", borderRadius: 11, border: `1px solid ${on ? C.teal + "55" : C.border}`, background: on ? C.tealDim : "transparent", color: C.text, fontSize: 13.5, fontWeight: 500, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+          <span style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${on ? C.teal : C.borderLight}`, background: on ? C.teal : "transparent", color: "#fff", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{on ? "✓" : ""}</span>{t}</button>; })}
+      </div>
+      {!all && <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>« Nouveau trade » se débloque quand tout est coché.</div>}
+    </div>
+  );
+}
+
+/* ── Récap de la semaine ── */
+function WeekRecap({ trades }) {
+  const L = closedSorted(trades); const w0 = startOfWeek(Date.now()); const p0 = new Date(w0.getTime() - 7 * 864e5);
+  const cur = L.filter((t) => new Date(t.entryTime) >= w0), prev = L.filter((t) => new Date(t.entryTime) >= p0 && new Date(t.entryTime) < w0);
+  if (!cur.length && !prev.length) return null;
+  const A = aggR(cur), P = aggR(prev); const best = cur.reduce((m, t) => (!m || rOf(t) > rOf(m) ? t : m), null);
+  const chk = planCheck(L, loadRules(), 10000).filter((x) => new Date(x.t.entryTime) >= w0); const comp = chk.length ? chk.filter((x) => !x.v.length).length / chk.length : null;
+  const d = A.sumR - P.sumR;
+  const Cell = ({ l, v, c, sub }) => <div style={{ minWidth: 0 }}><div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, color: c || C.text, marginTop: 2 }}>{v}</div>{sub && <div style={{ fontSize: 10.5, color: C.textMuted }}>{sub}</div>}</div>;
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><span style={{ fontSize: 14.5, fontWeight: 700 }}>Cette semaine</span><span className="tnum" style={{ fontSize: 12, fontWeight: 700, color: d >= 0 ? C.teal : C.red }}>{d >= 0 ? "▲" : "▼"} {fmtRs(d)} vs sem. passée</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 10 }}>
+        <Cell l="Résultat" v={fmtRs(A.sumR)} c={rCol(A.sumR)} sub={fmtUsdSigned(A.pnl)} />
+        <Cell l="Trades" v={A.n} sub={A.n ? A.wr.toFixed(0) + " % gagnés" : ""} />
+        <Cell l="Plan" v={comp == null ? "—" : Math.round(comp * 100) + " %"} c={comp == null ? null : comp >= 0.8 ? C.teal : comp >= 0.6 ? C.amber : C.red} sub="respecté" />
+        <Cell l="Meilleur" v={best ? fmtRs(rOf(best)) : "—"} c={C.teal} sub={best ? best.pair : ""} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Heatmap jour × heure (régularité) ── */
+function HourHeatmap({ trades, useUsd }) {
+  const L = closedSorted(trades); if (L.length < 5) return null;
+  const D = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]; const g = {}; let mx = 0.01; const hrs = new Set();
+  L.forEach((t) => { const d = new Date(t.entryTime); const k = ((d.getDay() + 6) % 7) + "|" + d.getHours(); const o = (g[k] = g[k] || { v: 0, n: 0 }); o.v += useUsd ? usdOf(t) : rOf(t); o.n++; hrs.add(d.getHours()); });
+  Object.values(g).forEach((o) => { mx = Math.max(mx, Math.abs(o.v)); });
+  const H = Array.from({ length: 24 }, (_, h) => h).filter((h) => h >= Math.min(...hrs) && h <= Math.max(...hrs));
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, marginBottom: 14, padding: "15px 14px 14px" }}>
+      <div style={{ fontSize: 14.5, fontWeight: 700 }}>Carte jour × heure</div>
+      <div style={{ height: 10 }} />
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: `34px repeat(${H.length}, minmax(22px, 1fr))`, gap: 3, minWidth: 34 + H.length * 25 }}>
+          <span />{H.map((h) => <span key={h} style={{ fontSize: 9.5, color: C.textMuted, textAlign: "center" }}>{h}h</span>)}
+          {D.map((dn, di) => <React.Fragment key={dn}><span style={{ fontSize: 11, color: C.textSecondary, fontWeight: 600, alignSelf: "center" }}>{dn}</span>
+            {H.map((h) => { const o = g[di + "|" + h]; const a = o ? 0.2 + 0.75 * Math.min(1, Math.abs(o.v) / mx) : 0; const c = o && o.v < 0 ? C.red : C.teal;
+              return <div key={h} title={o ? `${dn} ${h}h · ${o.n} trade(s) · ${useUsd ? fmtUsdSigned(o.v) : fmtRs(o.v)}` : ""} style={{ height: 24, borderRadius: 5, background: o ? `color-mix(in srgb, ${c} ${Math.round(a * 100)}%, transparent)` : C.cardHover }} />; })}
+          </React.Fragment>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Playbooks : une fiche par setup, avec règles et stats ── */
+const PB_KEY = "playbooks_v1";
+function loadPB() { try { return JSON.parse(localStorage.getItem(PB_KEY) || "{}"); } catch { return {}; } }
+function savePB(p) { try { localStorage.setItem(PB_KEY, JSON.stringify(p)); } catch {} saveSettingsPatch({ playbooks: p }).catch(() => {}); }
+function Playbooks({ trades }) {
+  const [pb, setPb] = useState(loadPB); const [open, setOpen] = useState(null); const [nw, setNw] = useState("");
+  const up = (k, patch) => { const n = { ...pb, [k]: { ...(pb[k] || {}), ...patch } }; setPb(n); savePB(n); };
+  const L = closedSorted(trades);
+  const setupsOf = (t) => { const ts = t.rules?.tfSetups; if (Array.isArray(ts) && ts.length) return [...new Set(ts.flatMap((r) => r.setups || []))]; return (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")); };
+  const names = [...new Set([...Object.keys(pb), ...L.flatMap(setupsOf)])].filter((k) => !(pb[k] && pb[k].hidden));
+  const stat = (k) => { const T = L.filter((t) => setupsOf(t).includes(k)); const a = aggR(T); const gw = T.filter((t) => rOf(t) > 0).reduce((s, t) => s + rOf(t), 0), gl = -T.filter((t) => rOf(t) < 0).reduce((s, t) => s + rOf(t), 0);
+    const by = (fn) => groupAgg(T, fn).filter((x) => x.n >= 2).sort((x, y) => y.sumR - x.sumR)[0];
+    return { ...a, T, pf: gl ? gw / gl : null, pair: by((t) => t.pair), ses: by((t) => { const x = getSession(t.entryTime); return x === "Hors session" ? null : SESSION_SHORT[x]; }), grades: groupAgg(T, (t) => t.rules?.grade || null) }; };
+  const rows = names.map((k) => ({ k, ...stat(k) })).sort((a, b) => b.sumR - a.sumR);
+  return (
+    <div className="fade-in" style={{ maxWidth: 860, margin: "0 auto" }}>
+      <PageHeader title="Playbooks" />
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <input value={nw} onChange={(e) => setNw(e.target.value)} placeholder="Nom du playbook" style={{ ...inputStyle, flex: 1 }} />
+        <button disabled={!nw.trim()} onClick={() => { up(nw.trim(), { rules: [], desc: "" }); setOpen(nw.trim()); setNw(""); }} style={{ ...btn.primary, opacity: nw.trim() ? 1 : 0.5 }}><Plus size={14} /> Créer</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+        {rows.map((r) => { const P = pb[r.k] || {}; const op = open === r.k; const c = r.sumR > 0 ? C.teal : r.sumR < 0 ? C.red : C.textMuted;
+          return <div key={r.k} style={{ gridColumn: op ? "1 / -1" : undefined, background: `linear-gradient(160deg, ${c}14, transparent 50%), ${C.card}`, border: `1px solid ${op ? C.purple + "77" : C.border}`, borderRadius: 18, overflow: "hidden" }}>
+            <button onClick={() => setOpen(op ? null : r.k)} style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: C.text, cursor: "pointer", padding: "14px 16px", fontFamily: "inherit" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><span style={{ fontSize: 16, fontWeight: 700 }}>{r.k}</span><span className="tnum" style={{ fontSize: 17, fontWeight: 700, color: c }}>{fmtRs(r.sumR)}</span></div>
+              {(P.tf || P.ses) && <div style={{ display: "flex", gap: 5, marginTop: 6 }}>{[P.tf, P.ses].filter(Boolean).map((x) => <span key={x} style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: C.purpleDim, color: C.purpleBright }}>{x}</span>)}</div>}
+              <div className="tnum" style={{ display: "flex", gap: 12, fontSize: 12, color: C.textSecondary, marginTop: 6, flexWrap: "wrap" }}><span>{r.n} trades</span><span>{r.n ? r.wr.toFixed(0) : 0} % WR</span><span>PF {r.pf != null ? r.pf.toFixed(2) : "—"}</span><span>{fmtRs(r.avgR)} / trade</span></div>
+            </button>
+            {op && <div style={{ padding: "0 16px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {[["tf", "Timeframe"], ["ses", "Session"], ["ctx", "Contexte HTF"], ["entry", "Entrée"], ["sl", "Stop"], ["tp", "Objectif"]].map(([f, l]) => <label key={f} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}<input value={P[f] || ""} onChange={(e) => up(r.k, { [f]: e.target.value })} style={{ ...inputStyle, padding: "8px 10px", fontSize: 13.5, fontWeight: 600, textTransform: "none", letterSpacing: 0 }} /></label>)}
+                </div>
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8, fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4 }}>Invalidation<input value={P.inv || ""} onChange={(e) => up(r.k, { inv: e.target.value })} style={{ ...inputStyle, padding: "8px 10px", fontSize: 13.5, fontWeight: 600, textTransform: "none", letterSpacing: 0 }} /></label>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, margin: "14px 0 6px", textTransform: "uppercase", letterSpacing: 0.4 }}>Conditions</div>
+                {(P.rules || []).map((x, i) => <div key={i} style={{ display: "flex", gap: 6, marginBottom: 5 }}><span style={{ color: C.purpleBright, fontWeight: 700, width: 18 }}>{i + 1}.</span><input value={x} onChange={(e) => { const n = [...P.rules]; n[i] = e.target.value; up(r.k, { rules: n }); }} style={{ ...inputStyle, flex: 1, padding: "7px 10px" }} /><button onClick={() => up(r.k, { rules: P.rules.filter((_, j) => j !== i) })} style={{ ...btn.icon }} aria-label="Supprimer"><X size={13} /></button></div>)}
+                <button onClick={() => up(r.k, { rules: [...(P.rules || []), ""] })} style={{ ...btn.ghost, marginTop: 4 }}><Plus size={13} /> Condition</button>
+              </div>
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {[["Meilleure paire", r.pair ? r.pair.label + " · " + fmtRs(r.pair.sumR) : "—"], ["Meilleure session", r.ses ? r.ses.label + " · " + fmtRs(r.ses.sumR) : "—"], ["Gain total", fmtUsdSigned(r.pnl)], ["Meilleur trade", r.T.length ? fmtRs(Math.max(...r.T.map(rOf))) : "—"]].map(([l, v]) => <div key={l} style={{ padding: "10px 11px", borderRadius: 12, background: C.cardHover, border: `1px solid ${C.border}` }}><div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 13.5, fontWeight: 700, marginTop: 3 }}>{v}</div></div>)}
+                </div>
+                {r.grades.length > 0 && <><div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "12px 0 6px" }}>Par note du trade</div>
+                  {r.grades.sort((a, b) => a.label.localeCompare(b.label)).map((g) => <div key={g.label} className="tnum" style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "6px 2px", borderTop: `1px solid ${C.border}` }}><b>{g.label}</b><span style={{ color: C.textSecondary }}>{g.n} · {g.wr.toFixed(0)} %</span><b style={{ color: rCol(g.sumR) }}>{fmtRs(g.sumR)}</b></div>)}</>}
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "12px 0 6px" }}>Derniers trades</div>
+                {r.T.slice(-5).reverse().map((t) => <div key={t.id} className="tnum" style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "6px 2px", borderTop: `1px solid ${C.border}` }}><span style={{ color: C.textSecondary }}>{new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · {t.pair}</span><b style={{ color: rCol(rOf(t)) }}>{fmtRs(rOf(t))}</b></div>)}
+                <button onClick={() => { up(r.k, { hidden: true }); setOpen(null); }} style={{ ...btn.ghost, marginTop: 12, color: C.textMuted, fontSize: 12 }}>Masquer ce playbook</button>
+              </div>
+            </div>}
+          </div>; })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Calendrier économique (widget TradingView) ── */
+function EcoCalendar() {
+  const ref = useRef(null);
+  const dark = C.bg === THEMES.dark.bg;
+  useEffect(() => {
+    const el = ref.current; if (!el) return; el.innerHTML = "";
+    const w = document.createElement("div"); w.className = "tradingview-widget-container__widget"; el.appendChild(w);
+    const s = document.createElement("script"); s.src = "https://s3.tradingview.com/external-embedding/embed-widget-events.js"; s.async = true;
+    s.innerHTML = JSON.stringify({ colorTheme: dark ? "dark" : "light", isTransparent: true, width: "100%", height: "520", locale: "fr", importanceFilter: "0,1", countryFilter: "us,eu,gb,jp,ch,au,ca,nz,cn,de,fr" });
+    el.appendChild(s);
+  }, [dark]);
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "14px 14px 6px", marginTop: 16 }}>
+      <div style={{ fontSize: 14.5, fontWeight: 700 }}>Calendrier économique</div>
+      <div style={{ height: 8 }} />
+      <div className="tradingview-widget-container" ref={ref} style={{ minHeight: 520 }} />
     </div>
   );
 }
@@ -6636,7 +6850,7 @@ function AddAccountForm({ accounts, onSaveAccounts }) {
   );
 }
 
-function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSaveAccounts, onSwitchAccount, trades = [], onImport }) {
+function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSaveAccounts, onSwitchAccount, trades = [], onImport, onOpenBacktest }) {
   
   
   
@@ -6670,6 +6884,10 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
 
         <AddAccountForm accounts={accounts} onSaveAccounts={onSaveAccounts} />
       </SettingsSection>
+
+      {onOpenBacktest && <SettingsSection title="Backtesting" icon={LineChart}>
+        <button onClick={onOpenBacktest} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: "12px 15px", fontSize: 14, borderRadius: 10 }}><LineChart size={15} /> Ouvrir le backtesting</button>
+      </SettingsSection>}
 
       {onImport && <SettingsSection title="Importer depuis MT4 / MT5" icon={Download}>
         <MtImport trades={trades} onImport={onImport} accountId={activeAccountId || accounts?.[0]?.id || null} />
@@ -7769,6 +7987,7 @@ export default function TradingJournalApp() {
 
   // PIN demandé uniquement quand on essaie d'ouvrir le formulaire d'ajout
   const openDraftTrade = (d) => { setEditingTrade({ ...d, _draft: true }); setView("tradeForm"); };
+  const [checkGate, setCheckGate] = useState(false); const [checkTick, setCheckTick] = useState(0);
   const openNewTrade = () => {
     if (!unlocked) {
       setPinTarget("newTrade");
@@ -7927,6 +8146,7 @@ export default function TradingJournalApp() {
         if (r.trading_plan) {
           try { localStorage.setItem("trading_plan_text", r.trading_plan); } catch {}
         }
+        if (r.playbooks && typeof r.playbooks === "object") { try { localStorage.setItem("playbooks_v1", JSON.stringify(r.playbooks)); } catch {} }
         if (r.trading_rules && typeof r.trading_rules === "object") {
           try { localStorage.setItem(RULES_KEY, JSON.stringify(r.trading_rules)); } catch {}
         }
@@ -8148,7 +8368,7 @@ export default function TradingJournalApp() {
     return initial + closed.reduce((s, t) => s + (t.resultUsd || 0), 0);
   }, [accountTrades, initialBalance]);
 
-  const titles = { backtest: "Backtesting", dashboard: "Dashboard", trades: "Mes trades", tradeDetail: "Détail du trade", tradeForm: editingTrade && !editingTrade._draft ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
+  const titles = { backtest: "Backtesting", dashboard: "Dashboard", trades: "Mes trades", tradeDetail: "Détail du trade", tradeForm: editingTrade && !editingTrade._draft ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier", playbooks: "Playbooks" };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
@@ -8194,7 +8414,7 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <Dashboard extra={<>{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} />}<HealthCard trades={accountTrades} balance={initialBalance} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
+              {view === "dashboard" && <Dashboard extra={<>{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} />}<ScoreCard trades={accountTrades} balance={initialBalance} /><WeekRecap trades={accountTrades} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
               {view === "backtest" && <BacktestView trades={trades} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
@@ -8204,12 +8424,13 @@ export default function TradingJournalApp() {
                 <TradeFormV2 initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} trades={accountTrades} />
               )}
               {view === "stats" && <SimpleStats trades={accountTrades} />}
+              {view === "playbooks" && <Playbooks trades={accountTrades} />}
               {view === "calculator" && <ForexCalculator balance={currentBalance} pairs={appSettings?.pairs || []} onCreateTrade={openDraftTrade} />}
               {view === "plan" && <PlanDeTrading trades={accountTrades} balance={initialBalance} />}
               {view === "previsions" && <Previsions pairs={["DXY", ...(appSettings?.pairs || PAIRS)]} />}
               {view === "coach" && <AiCoach trades={accountTrades} />}
-              {view === "settings" && <SettingsPage trades={trades} onImport={importTrades} settings={appSettings} setSettings={saveSettings} accounts={accounts} activeAccountId={activeAccountId} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} />}
-              {view === "calendar" && <TradingCalendar trades={accountTrades} onSelectDay={() => {}} />}
+              {view === "settings" && <SettingsPage trades={trades} onImport={importTrades} onOpenBacktest={() => setView("backtest")} settings={appSettings} setSettings={saveSettings} accounts={accounts} activeAccountId={activeAccountId} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} />}
+              {view === "calendar" && <><TradingCalendar trades={accountTrades} onSelectDay={() => {}} /><EcoCalendar /></>}
             </div>
           )}
         </main>
