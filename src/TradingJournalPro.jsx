@@ -5106,7 +5106,7 @@ function SimpleStats({ trades }) {
       </div>
 
       <div style={card}><H>Par setup</H><Table rows={setups} empty="Ajoute tes setups dans le formulaire pour les voir ici." /></div>
-      <div className="grid-2" style={{ gap: 14 }}>
+      {T.n > 0 && <div className="grid-2" style={{ gap: 14 }}>
         <div style={card}><H>Par session</H><Bars rows={sessions} flag /></div>
         <div style={card}><H sub="Résultat total par jour de la semaine">Par jour</H>{(() => { const W = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((k) => days.find((d) => d.k === k) || { k, r: 0, n: 0, wr: 0 }); const mx = Math.max(0.01, ...W.map((d) => Math.abs(d.r))); return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, padding: "4px 14px 14px", alignItems: "end" }}>
@@ -5121,7 +5121,7 @@ function SimpleStats({ trades }) {
               <span style={{ fontSize: 9.5, color: C.textMuted }}>{d.n ? d.wr.toFixed(0) + "%" : ""}</span>
             </div>)}
           </div>); })()}</div>
-      </div>
+      </div>}
       {hours.some((h) => h.n) && <div style={card}><H sub="Résultat en R selon l'heure d'entrée (heure de ton téléphone)">Par heure</H>
         <div style={{ height: 140, padding: "0 8px 10px" }}>
           <ResponsiveContainer width="100%" height="100%">
