@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, Cell,
+  BarChart, Bar, Cell, ReferenceLine,
 } from "recharts";
 
 /* ============================================================================
@@ -334,6 +334,19 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown, sans texte avant o
 Si une information n'est pas visible ou pas claire sur l'image, mets null pour la valeur et "none" pour sa confiance, plutôt que de deviner. Ne fournis aucune explication, uniquement le JSON.`;
 
 async function extractTradeFromScreenshot(file) {
+  // 1) Lecture locale (sans IA) de l'outil Long/Short de TradingView
+  try {
+    const url = await new Promise((r, j) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = j; fr.readAsDataURL(file); });
+    const res = await analyzeChartScreenshot(url, ALL_INSTRUMENTS);
+    const t = res.trades[0];
+    if (t) {
+      const cf = (ok) => (ok ? "high" : "medium");
+      return { pair: res.pair, pairConfidence: res.pair ? "high" : "none", direction: t.direction, directionConfidence: "high",
+        entryPrice: t.entryPrice, entryConfidence: cf(t.sure.entry), stopLoss: t.stopLoss, stopLossConfidence: cf(t.sure.sl), takeProfit: t.takeProfit, takeProfitConfidence: cf(t.sure.tp),
+        riskReward: t.riskReward ? "1:" + t.riskReward : null, timeframe: res.timeframe, dateTimeVisible: t.date, date: t.date, confidence: "high", alternatives: res.trades };
+    }
+  } catch (e) { /* on tente l'IA ensuite */ }
+  // 2) Repli : analyse IA
   const { base64, mediaType } = await fileToBase64(file);
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -506,18 +519,18 @@ const THEMES = {
     amber: "#D97706", amberDim: "rgba(217,119,6,0.10)",
   },
   dark: {
-    bg: "#0A0A0B", sidebar: "#111113",
-    sidebarText: "#FFFFFF", sidebarTextDim: "#8E8E93",
-    sidebarBorder: "rgba(255,255,255,0.07)", sidebarHover: "rgba(255,255,255,0.06)",
-    card: "#141416", cardHover: "#1B1B1E",
-    border: "#242427", borderLight: "#323236",
-    inputBg: "#111113",
-    focusBorder: "#6D5DFB", focusShadow: "0 0 0 3px rgba(109,93,251,0.14)",
-    text: "#FFFFFF", textSecondary: "#C7C7CC", textMuted: "#8E8E93",
-    teal: "#5BD38A", tealDim: "rgba(91,211,138,0.16)",
-    red: "#FF6B6B", redDim: "rgba(255,107,107,0.16)",
-    purple: "#7C5CFC", purpleDim: "rgba(124,92,252,0.16)", purpleBright: "#9580FF",
-    amber: "#F59E0B", amberDim: "rgba(245,158,11,0.12)",
+    bg: "#07080C", sidebar: "#0B0D13",
+    sidebarText: "#F4F5F8", sidebarTextDim: "#7D8293",
+    sidebarBorder: "rgba(255,255,255,0.06)", sidebarHover: "rgba(255,255,255,0.05)",
+    card: "#0F1118", cardHover: "#151824",
+    border: "#1D2030", borderLight: "#2B2F42",
+    inputBg: "#0B0D14",
+    focusBorder: "#7C6CFF", focusShadow: "0 0 0 3px rgba(124,108,255,0.18)",
+    text: "#F4F5F8", textSecondary: "#B6BACA", textMuted: "#7A8095",
+    teal: "#34D399", tealDim: "rgba(52,211,153,0.13)",
+    red: "#F87171", redDim: "rgba(248,113,113,0.13)",
+    purple: "#7C6CFF", purpleDim: "rgba(124,108,255,0.15)", purpleBright: "#A59BFF",
+    amber: "#FBBF24", amberDim: "rgba(251,191,36,0.12)",
   },
 };
 
@@ -553,7 +566,10 @@ function GlobalStyle() {
       * { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; max-width: 100%; overflow-x: hidden; }
       #root { min-height: 100vh; }
-      body { color: ${C.text}; background: ${C.bg}; }
+      body { color: ${C.text}; background: ${C.bg}; -webkit-font-smoothing: antialiased; }
+      body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(90% 50% at 50% -10%, ${C.purpleDim}, transparent 70%); }
+      #root > div { position: relative; z-index: 1; }
+      h1 { letter-spacing: -0.6px !important; }
       /* Nav mobile : position fixed collée en bas */
       nav.mobile-nav-fixed {
         position: fixed !important;
@@ -624,7 +640,12 @@ function GlobalStyle() {
       .card-int:hover { border-color: ${C.borderLight}; }
       .nav-btn { transition: background .12s ease, color .12s ease; }
       .icon-btn { transition: background .12s ease, color .12s ease, border-color .12s ease; cursor: pointer; }
-      .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+      .tnum { font-family: 'Inter', -apple-system, sans-serif; font-variant-numeric: tabular-nums; font-feature-settings: "tnum", "cv11"; letter-spacing: -0.01em; }
+      @keyframes growX { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+      @keyframes growY { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+      .grow-x { transform-origin: left center; animation: growX .7s cubic-bezier(.2,.8,.2,1) both; }
+      .grow-y { transform-origin: center bottom; animation: growY .6s cubic-bezier(.2,.8,.2,1) both; }
+      @media (prefers-reduced-motion: reduce) { .grow-x, .grow-y { animation: none; } }
       /* Applique tabular-nums à toutes les valeurs $ et R */
       [data-num] { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
       ::selection { background: ${C.purpleDim}; color: ${C.purpleBright}; }
@@ -685,6 +706,7 @@ function GlobalStyle() {
       /* ---- Sidebar : pleine sur desktop, compacte (icônes seules) sur tablette ---- */
       @media (min-width: 601px) and (max-width: 1024px) {
         .sidebar-full { width: 72px !important; padding-left: 10px !important; padding-right: 10px !important; }
+        .sidebar-spacer { width: 72px !important; }
         .sidebar-full .nav-label, .sidebar-full .brand-text, .sidebar-full .new-trade-label, .sidebar-full .sidebar-footer { display: none !important; }
         .sidebar-full .nav-item-row { justify-content: center !important; padding-left: 0 !important; padding-right: 0 !important; }
         .sidebar-full .new-trade-btn { padding: 10px !important; }
@@ -728,7 +750,7 @@ function GlobalStyle() {
 
 function Card({ children, style, hover, ...rest }) {
   return (
-    <div className={hover ? "card-int" : ""} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, ...style }} {...rest}>
+    <div className={hover ? "card-int" : ""} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 30px -18px rgba(0,0,0,0.6)", ...style }} {...rest}>
       {children}
     </div>
   );
@@ -920,12 +942,12 @@ const getInputStyle = () => ({
   transition: "border-color 0.15s, box-shadow 0.15s",
   outline: "none",
 });
-let inputStyle = getInputStyle();
+const inputStyle = new Proxy({}, { get: (_, k) => getInputStyle()[k], has: (_, k) => k in getInputStyle(), ownKeys: () => Reflect.ownKeys(getInputStyle()), getOwnPropertyDescriptor: (_, k) => ({ enumerable: true, configurable: true, value: getInputStyle()[k] }) });
 
 const btn = {
-  primary: { background: C.purple, color: "#fff", border: "none", borderRadius: 7, padding: "9px 15px", fontWeight: 600, fontSize: 12.5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 },
-  ghost: { background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, borderRadius: 7, padding: "8px 13px", fontSize: 12.5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500 },
-  icon: { background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, borderRadius: 7, padding: 7, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" },
+  get primary() { return { background: C.purple, color: "#fff", border: "none", borderRadius: 7, padding: "9px 15px", fontWeight: 600, fontSize: 12.5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }; },
+  get ghost() { return { background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, borderRadius: 7, padding: "8px 13px", fontSize: 12.5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500 }; },
+  get icon() { return { background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, borderRadius: 7, padding: 7, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }; },
 };
 
 /* Crochet SVG réutilisable */
@@ -964,6 +986,7 @@ const NAV_ITEMS = [
   { id: "plan", label: "Plan", short: "Plan", icon: BookOpen },
   { id: "previsions", label: "Prévisions", short: "Prévis.", icon: TrendingUp },
   { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3 },
+  { id: "backtest", label: "Backtesting", short: "Backtest", icon: LineChart },
   { id: "settings", label: "Réglages", short: "Réglages", icon: Settings },
 ];
 
@@ -974,6 +997,7 @@ function MobileNav({ view, setView, onNewTrade }) {
     { id: "plan", label: "Plan de trading", icon: BookOpen },
     { id: "previsions", label: "Prévisions", icon: TrendingUp },
     { id: "calendar", label: "Calendrier", icon: CalendarDays },
+    { id: "backtest", label: "Backtesting", icon: LineChart },
     { id: "calculator", label: "Calculatrice", icon: Calculator },
     { id: "coach", label: "IA Coach", icon: Brain },
     { id: "settings", label: "Réglages", icon: Settings },
@@ -1001,7 +1025,7 @@ function MobileNav({ view, setView, onNewTrade }) {
           </div>
         </div>
       )}
-      <nav className="mobile-only" data-mobile="1" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 999, display: "flex", alignItems: "flex-end", padding: "8px 6px", paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))", background: THEMES.dark.sidebar, borderTop: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 -2px 20px rgba(0,0,0,0.4)" }}>
+      <nav className="mobile-only" data-mobile="1" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 999, display: "flex", alignItems: "flex-end", padding: "8px 6px", paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))", background: "rgba(11,13,19,0.82)", backdropFilter: "saturate(160%) blur(18px)", WebkitBackdropFilter: "saturate(160%) blur(18px)", borderTop: "1px solid rgba(255,255,255,0.06)", boxShadow: "0 -10px 30px rgba(0,0,0,0.35)" }}>
         {MAIN.map((it, i) => it ? (
           <Item key={it.id} label={it.short} icon={it.icon} onClick={() => go(it.id)}
             active={!more && (view === it.id || ((view === "tradeForm" || view === "tradeDetail") && it.id === "trades"))} />
@@ -1067,7 +1091,7 @@ function Sidebar({ view, setView, onNewTrade, totalPnl = 0, totalR = 0 }) {
 function getS() { return {
   aside: {
     width: 220, flexShrink: 0, borderRight: `1px solid ${C.sidebarBorder}`, padding: "20px 14px",
-    display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh",
+    display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, bottom: 0, height: "100vh", overflowY: "auto", zIndex: 40, boxSizing: "border-box",
     background: C.sidebar,
   },
   brand: { display: "flex", alignItems: "center", gap: 9, paddingLeft: 4, marginBottom: 18 },
@@ -1260,7 +1284,7 @@ function groupBy(trades, keyFn) {
 }
 
 
-function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalance = 10000 }) {
+function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalance = 10000, extra = null }) {
   const [period, setPeriod] = useState("tout");
   const [eqMode, setEqMode] = useState("cum");
 
@@ -1299,14 +1323,13 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
     <div className="fade-in">
       <PageHeader title="Dashboard" action={
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ display: "flex", gap: 3, background: C.bg, borderRadius: 8, padding: 3, border: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", gap: 2, background: C.card, borderRadius: 11, padding: 3, border: `1px solid ${C.border}` }}>
             {PERIODS.map((p) => (
               <button key={p} onClick={() => setPeriod(p)} style={{
-                padding: "5px 11px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                background: period === p ? C.card : "transparent",
-                color: period === p ? C.text : C.textMuted,
-                border: period === p ? `1px solid ${C.border}` : "1px solid transparent",
-                boxShadow: period === p ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                padding: "6px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                background: period === p ? C.purpleDim : "transparent",
+                color: period === p ? C.purpleBright : C.textMuted,
+                border: "none",
               }}>{p === "tout" ? "Tout" : p}</button>
             ))}
           </div>
@@ -1316,7 +1339,7 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
       } />
 
       {/* Résumé — un seul bloc clair */}
-      <Card style={{ padding: "18px 18px 14px", marginBottom: 14, background: C.card }}>
+      <Card style={{ padding: "18px 18px 14px", marginBottom: 14, background: `radial-gradient(120% 90% at 0% 0%, ${totalR >= 0 ? C.tealDim : C.redDim}, transparent 60%), ${C.card}` }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Résultat · {period === "tout" ? "tout" : period}</div>
         <div className="tnum" style={{ fontSize: 38, fontWeight: 600, letterSpacing: -0.5, color: totalR >= 0 ? C.teal : C.red, lineHeight: 1.05, marginTop: 4 }}>{fmtR(totalR)}</div>
         <div className="tnum" style={{ fontSize: 14, color: C.textSecondary, fontWeight: 600, marginTop: 2 }}><b style={{ color: stats.totalPnl >= 0 ? C.teal : C.red }}>{fmtUsdSigned(stats.totalPnl)}</b> · Capital {fmtUsd(stats.currentBalance)}</div>
@@ -1324,7 +1347,7 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
           {[["Winrate", fmtPct(stats.winRate), `${stats.wins.length}G · ${stats.losses.length}P`, C.text],
             ["R moyen", fmtR(stats.avgRR), "par trade", stats.avgRR >= 0 ? C.teal : C.red],
             ["Trades", String(stats.closed.length), `DD -${stats.maxDD.toFixed(1)}%`, C.text]].map(([l, v, sub, col]) => (
-            <div key={l} style={{ padding: "10px 10px 9px", borderRadius: 12, background: "transparent", border: `1px solid ${C.border}` }}>
+            <div key={l} style={{ padding: "10px 11px 9px", borderRadius: 13, background: "rgba(255,255,255,0.025)", border: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600 }}>{l}</div>
               <div className="tnum" style={{ fontSize: 18, fontWeight: 600, color: col, marginTop: 2 }}>{v}</div>
               <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 1 }}>{sub}</div>
@@ -1333,6 +1356,7 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
         </div>
       </Card>
 
+      {extra}
       {/* Ligne 2 — courbe d'équité large */}
       <Card style={{ padding: "18px 20px 8px", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -2000,15 +2024,16 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
   const val = { fontSize: 15, fontWeight: 600, color: C.text, marginTop: 2 };
   const dt = (iso) => { if (!iso) return ""; const d = new Date(iso); const p2 = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
   return (
-    <div style={{ marginBottom: isLast ? 0 : 10, background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+    <div style={{ marginBottom: isLast ? 0 : 8, background: `linear-gradient(90deg, ${col}12, transparent 35%), ${C.card}`, borderRadius: 16, border: `1px solid ${C.border}`, borderLeft: `3px solid ${col}`, overflow: "hidden" }}>
       {zoom && <LightBox src={zoom.src} label={zoom.label} onClose={() => setZoom(null)} />}
       <div onClick={() => setOpen((v) => !v)} style={{ padding: "13px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 16, fontWeight: 600 }}>{t.pair}</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>{setups[0] && <span style={{ fontSize: 11, fontWeight: 600, color: C.purpleBright, background: C.purpleDim, padding: "2px 7px", borderRadius: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{setups[0]}</span>}</div>
           <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 7, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 5px", borderRadius: 4, background: t.direction === "long" ? C.teal : C.red, color: "#0A0A0B" }}>{t.direction === "long" ? "ACH." : "VEN."}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: t.direction === "long" ? C.tealDim : C.redDim, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "▲ ACHAT" : "▼ VENTE"}</span>
+            <span style={{ fontSize: 12, color: C.textMuted }}>{new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · {killzoneLabel(t.entryTime)}</span>
             {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>Lots</span></span>}
-            {!open && t.entryPrice != null && <span style={{ fontWeight: 600 }}>{fp(t.entryPrice)} <span style={{ color: C.textMuted }}>→</span> {exit != null ? fp(exit) : "…"}</span>}
+            {!open && t.entryPrice != null && t.positionSize == null && false && <span style={{ fontWeight: 600 }}>{fp(t.entryPrice)} <span style={{ color: C.textMuted }}>→</span> {exit != null ? fp(exit) : "…"}</span>}
           </div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -3058,8 +3083,42 @@ function pipInfo(pair, entry) {
   else if (pair.startsWith("USD") || pair.endsWith("CAD") || pair.endsWith("CHF")) val = 10 / ep;
   return { dec, val };
 }
+function ShotAutoFill({ onResult }) {
+  const [state, setState] = useState("idle"); const [res, setRes] = useState(null); const [msg, setMsg] = useState(""); const [url, setUrl] = useState(null);
+  const ref = useRef(null);
+  const go = async (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    setState("reading"); setMsg(""); setRes(null);
+    const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+    const up = uploadToStorage(file).catch(() => null);
+    try {
+      const r = await analyzeChartScreenshot(data, ALL_INSTRUMENTS); const u = (await up) || data; setUrl(u); setRes(r);
+      if (r.trades.length) { onResult(r.trades[0], r, u); setState("done"); setMsg((r.trades[0].direction === "long" ? "Long" : "Short") + " détecté · entrée " + r.trades[0].entryPrice + " · SL " + r.trades[0].stopLoss + " · TP " + r.trades[0].takeProfit); }
+      else { setState("fail"); setMsg("Pas d'outil Long/Short trouvé sur l'image."); }
+    } catch (e) { setState("fail"); setMsg("Lecture impossible : " + (e.message || e)); }
+  };
+  const col = state === "done" ? C.teal : state === "fail" ? C.red : C.border;
+  return (
+    <div onPaste={(e) => { const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); go(it.getAsFile()); } }}
+      onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); go(e.dataTransfer.files?.[0]); }} tabIndex={0}
+      style={{ background: C.card, border: `1.5px dashed ${col}`, borderRadius: 16, padding: "14px 16px", marginBottom: 12, outline: "none" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Sparkles size={18} color={C.purpleBright} className={state === "reading" ? "spin-slow" : ""} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{state === "reading" ? "Lecture du graphique…" : "Remplir depuis un screenshot"}</div>
+          <div style={{ fontSize: 12.5, color: state === "fail" ? C.red : C.textMuted, marginTop: 2 }}>{msg || "Outil Long/Short de TradingView : sens, entrée, SL, TP et date se remplissent seuls"}</div>
+        </div>
+        <button onClick={() => ref.current?.click()} style={{ ...btn.ghost, padding: "8px 12px", fontSize: 13 }}><Upload size={14} /> Choisir</button>
+        <input ref={ref} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { go(e.target.files?.[0]); e.target.value = ""; }} />
+      </div>
+      {res && res.trades.length > 1 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+        {res.trades.map((t, i) => <button key={i} onClick={() => onResult(t, res, url)} style={{ padding: "7px 11px", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: t.direction === "long" ? C.teal : C.red, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>{t.direction === "long" ? "Long" : "Short"} {t.entryPrice}{t.date ? " · " + t.date : ""}</button>)}
+      </div>}
+    </div>);
+}
+
 function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
-  const isEdit = !!initial;
+  const isEdit = !!initial && !initial._draft;
   const [entryTime, setEntryTime] = useState(toLocalInput(initial?.entryTime));
   const [pair, setPair] = useState(initial?.pair || "");
   const [q, setQ] = useState("");
@@ -3120,8 +3179,9 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
     const tags = [...new Set([...keep, ...tfTags, ...stTags, ...(sess === "Hors session" ? [] : [sess])])];
     const finalR = rFinal == null ? null : Math.round(rFinal * 100) / 100;
     const finalStatus = status === "win" || status === "loss" ? "closed" : status;
+    const { _draft, ...init0 } = initial || {};
     onSave({
-      ...(initial || {}),
+      ...init0,
       id: initial?.id || uid(), pair, direction,
       entryTime: new Date(entryTime).toISOString(),
       entryPrice: en, stopLoss: sl, takeProfit: tp,
@@ -3150,6 +3210,17 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
           <BackLink onClick={onCancel}>Annuler</BackLink>
           <h1 style={{ fontSize: 22, fontWeight: 600, margin: "4px 0 0", letterSpacing: -0.4 }}>{isEdit ? "Modifier le trade" : "Nouveau trade"}</h1>
         </div>
+
+        {/* 0. Remplir depuis un screenshot TradingView */}
+        {!isEdit && <ShotAutoFill onResult={(t, res, url) => {
+          if (res.pair) setPair(res.pair);
+          setDirection(t.direction);
+          if (t.entryPrice != null) setEntryPrice(String(t.entryPrice));
+          if (t.stopLoss != null) setStopLoss(String(t.stopLoss));
+          if (t.takeProfit != null) setTakeProfit(String(t.takeProfit));
+          if (t.date) setEntryTime((cur) => t.date + "T" + (String(cur || "").split("T")[1] || "09:30"));
+          if (url) setShotBefore(url);
+        }} />}
 
         {/* 1. Date */}
         <div style={card}>
@@ -4397,14 +4468,14 @@ function ASection({ title, sub, children, right }) {
   );
 }
 
-function AggTable({ rows, labelHead = "", empty = "Pas encore de données.", minN = 5, limit }) {
+function AggTable({ rows, labelHead = "", empty = "Pas encore de données.", minN = 5, limit, usd }) {
   const list = limit ? rows.slice(0, limit) : rows;
   if (!list.length) return <div style={{ fontSize: 12, color: C.textMuted }}>{empty}</div>;
-  const G = "minmax(0,1fr) 38px 48px 62px 66px";
+  const G = "minmax(0,1fr) 38px 48px 62px 66px" + (usd ? " 70px" : "");
   return (
     <div style={{ borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
       <div style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "7px 12px", background: C.inputBg, fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4 }}>
-        <div>{labelHead}</div><div style={{ textAlign: "right" }}>N</div><div style={{ textAlign: "right" }}>WR</div><div style={{ textAlign: "right" }}>Moy.</div><div style={{ textAlign: "right" }}>Total</div>
+        <div>{labelHead}</div><div style={{ textAlign: "right" }}>N</div><div style={{ textAlign: "right" }}>WR</div><div style={{ textAlign: "right" }}>Moy.</div><div style={{ textAlign: "right" }}>Total</div>{usd && <div style={{ textAlign: "right" }}>$</div>}
       </div>
       {list.map((r, i) => (
         <div key={r.label + i} style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "9px 12px", borderTop: `1px solid ${C.border}`, alignItems: "center", opacity: r.n < minN ? 0.5 : 1 }}>
@@ -4413,6 +4484,7 @@ function AggTable({ rows, labelHead = "", empty = "Pas encore de données.", min
           <div className="tnum" style={{ textAlign: "right", fontSize: 12, fontWeight: 600, color: r.wr >= 50 ? C.teal : C.red }}>{r.wr.toFixed(0)}%</div>
           <div className="tnum" style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: rCol(r.avgR) }}>{fmtRs(r.avgR)}</div>
           <div className="tnum" style={{ textAlign: "right", fontSize: 12.5, fontWeight: 600, color: rCol(r.sumR) }}>{fmtRs(r.sumR)}</div>
+          {usd && <div className="tnum" style={{ textAlign: "right", fontSize: 12.5, fontWeight: 700, color: rCol(r.pnl) }}>{fmtUsdSigned(r.pnl)}</div>}
         </div>
       ))}
       <div style={{ padding: "6px 12px", fontSize: 10, color: C.textMuted, borderTop: `1px solid ${C.border}` }}>Grisé = moins de {minN} trades, pas encore fiable</div>
@@ -4466,7 +4538,7 @@ function ErrorsTab({ trades }) {
         {d.withErr.n > 0 && (
           <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 9, background: d.withErr.sumR < 0 ? C.redDim : C.inputBg, border: `1px solid ${d.withErr.sumR < 0 ? C.red + "40" : C.border}`, fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>
             {d.withErr.sumR < 0
-              ? <>Sans les trades où tu as fait une erreur, tu serais à <b style={{ color: rCol(d.clean.sumR) }}>{fmtRs(d.clean.sumR)}</b> au lieu de <b>{fmtRs(d.total.sumR)}</b>.</>
+              ? <>Sans les trades où tu as fait une erreur, tu serais à <b style={{ color: rCol(d.clean.sumR) }}>{fmtRs(d.clean.sumR)}</b> au lieu de <b>{fmtRs(d.total.sumR)}</b>. Tes erreurs t'ont coûté <b style={{ color: C.red }}>{fmtUsdSigned(d.withErr.pnl)}</b>.</>
               : <>Tes trades avec erreur restent positifs ({fmtRs(d.withErr.sumR)}), mais rapportent {fmtRs(d.withErr.avgR)} par trade contre {fmtRs(d.clean.avgR)} pour les trades propres.</>}
           </div>
         )}
@@ -4478,7 +4550,7 @@ function ErrorsTab({ trades }) {
       </ASection>
 
       <ASection title="Erreur par erreur" sub="Triées de la plus coûteuse à la moins coûteuse.">
-        <AggTable rows={d.byErr} labelHead="Erreur" empty="Aucune erreur cochée." minN={3} />
+        <AggTable rows={d.byErr} labelHead="Erreur" empty="Aucune erreur cochée." minN={3} usd />
       </ASection>
 
       <ASection title="Règles respectées ou non" sub={`D'après l'onglet Retour › Règles respectées (${d.ruled} trades remplis).`}>
@@ -4486,7 +4558,7 @@ function ErrorsTab({ trades }) {
           <BigStat label="Toutes les règles respectées" value={fmtRs(d.allOk.avgR) + " / trade"} color={rCol(d.allOk.avgR)} sub={`${d.allOk.n} trades · ${d.allOk.wr.toFixed(0)}% WR`} />
           <BigStat label="Au moins une règle cassée" value={fmtRs(d.broken.avgR) + " / trade"} color={rCol(d.broken.avgR)} sub={`${d.broken.n} trades · ${d.broken.wr.toFixed(0)}% WR`} />
         </div>
-        <AggTable rows={d.byRuleBroken} labelHead="Règle cassée" empty="Aucune règle marquée « Non »." minN={3} />
+        <AggTable rows={d.byRuleBroken} labelHead="Règle cassée" empty="Aucune règle marquée « Non »." minN={3} usd />
       </ASection>
 
       <ASection title="Est-ce que tu progresses ?" sub="Part de tes trades avec au moins une erreur, mois par mois.">
@@ -4616,6 +4688,7 @@ function PsychoTab({ trades }) {
       <ASection title="Combien de trades par jour ?" sub="Si ton 3e trade perd en moyenne, une règle « max 2 trades par jour » te ferait gagner de l'argent.">
         <AggTable rows={d.num} labelHead="Numéro du trade" minN={3} />
       </ASection>
+      <CoachPatterns trades={trades} />
       <PerformanceReview trades={trades} />
     </div>
   );
@@ -4820,10 +4893,12 @@ const STATS_TABS = [
 function SimpleStats({ trades }) {
   const [period, setPeriod] = useState("tout");
   const [cat, setCat] = useState("Forex");
+  const [unit, setUnit] = useState("usd");
+  const [calM, setCalM] = useState(0);
   const closed = useMemo(() => {
     const days = period === "7j" ? 7 : period === "30j" ? 30 : period === "90j" ? 90 : null;
     const cut = days ? Date.now() - days * 864e5 : 0;
-    return trades.filter((t) => t.status !== "open" && t.resultR != null && (!days || new Date(t.entryTime).getTime() >= cut));
+    return trades.filter((t) => t.status !== "open" && t.resultR != null && (!days || new Date(t.entryTime).getTime() >= cut)).sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
   }, [trades, period]);
   const agg = (l) => { const n = l.length, w = l.filter((t) => t.resultR > 0).length, r = l.reduce((a, t) => a + (Number(t.resultR) || 0), 0), usd = l.reduce((a, t) => a + (Number(t.resultUsd) || 0), 0);
     const gw = l.filter((t) => t.resultR > 0).reduce((a, t) => a + t.resultR, 0), gl = -l.filter((t) => t.resultR < 0).reduce((a, t) => a + t.resultR, 0);
@@ -4833,78 +4908,232 @@ function SimpleStats({ trades }) {
   const setupsOfT = (t) => { const ts = t.rules?.tfSetups; if (Array.isArray(ts) && ts.length) return ts.flatMap((r) => (r.setups || []).map((x) => x + (r.tf ? " " + r.tf : ""))); const tf = (t.tags || []).find((g) => ["M1","M3","M5","M15","M30","H1","H4","D1","W1","D","W","MN"].includes(g)); return (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")).map((x) => x + (tf ? " " + tf : "")); };
   const pairs = group((t) => [t.pair]);
   const setups = group(setupsOfT);
-  const sessions = group((t) => [getSession(t.entryTime)]);
+  const sessions = group((t) => [getSession(t.entryTime)]).sort((a, b) => (a.k === "Hors session") - (b.k === "Hors session") || b.r - a.r);
   const DAYS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
   const days = group((t) => [DAYS[new Date(t.entryTime).getDay()]]).sort((a, b) => ((DAYS.indexOf(a.k) + 6) % 7) - ((DAYS.indexOf(b.k) + 6) % 7));
+  const hours = (() => { const g = group((t) => [String(new Date(t.entryTime).getHours())]); return Array.from({ length: 24 }, (_, h) => { const x = g.find((y) => y.k === String(h)); return { h: h + "h", r: x ? Math.round(x.r * 100) / 100 : 0, n: x ? x.n : 0, wr: x ? x.wr : 0 }; }); })();
+  const sides = group((t) => [t.direction === "long" ? "Long" : "Short"]);
   const mistakes = group((t) => t.mistakes || []).sort((a, b) => a.r - b.r);
   const cats = ASSET_CATS.map(([c]) => c).filter((c) => pairs.some((p) => assetCat(p.k) === c));
   const curCat = cats.includes(cat) ? cat : cats[0];
   const best = (a) => a.filter((x) => x.n >= 2 && x.r > 0)[0], worst = (a) => [...a].filter((x) => x.n >= 2 && x.r < 0).sort((p, q) => p.r - q.r)[0];
   const retenir = [["Meilleure paire", best(pairs)], ["Meilleur setup", best(setups)], ["Meilleure session", best(sessions)], ["Pire paire", worst(pairs)], ["Pire setup", worst(setups)]].filter((x) => x[1]);
   const col = (v) => v > 0 ? C.teal : v < 0 ? C.red : C.textSecondary;
-  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 14, overflow: "hidden" };
-  const H = ({ children, right }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px 10px" }}><span style={{ fontSize: 14, fontWeight: 600 }}>{children}</span>{right}</div>;
-  const Table = ({ rows, logo, empty }) => rows.length === 0 ? <div style={{ padding: "6px 16px 16px", fontSize: 12.5, color: C.textMuted }}>{empty || "Pas encore de trades."}</div> : (
+  const useUsd = unit === "usd" && closed.some((t) => t.resultUsd != null);
+
+  // Courbe, drawdown, séries, moyennes
+  const X = useMemo(() => {
+    let cr = 0, cu = 0, pk = 0, dd = 0, ddU = 0, pkU = 0, s = 0, bw = 0, bl = 0;
+    const curve = [{ i: 0, v: 0, d: "" }];
+    closed.forEach((t, i) => { cr += Number(t.resultR) || 0; cu += Number(t.resultUsd) || 0; pk = Math.max(pk, cr); pkU = Math.max(pkU, cu); dd = Math.max(dd, pk - cr); ddU = Math.max(ddU, pkU - cu);
+      const r = Number(t.resultR) || 0; s = r > 0 ? (s > 0 ? s + 1 : 1) : r < 0 ? (s < 0 ? s - 1 : -1) : s; bw = Math.max(bw, s); bl = Math.min(bl, s);
+      curve.push({ i: i + 1, v: Math.round((useUsd ? cu : cr) * 100) / 100, d: new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) }); });
+    const W = closed.filter((t) => t.resultR > 0), L = closed.filter((t) => t.resultR < 0);
+    const avgW = W.length ? W.reduce((a, t) => a + t.resultR, 0) / W.length : 0, avgL = L.length ? L.reduce((a, t) => a + t.resultR, 0) / L.length : 0;
+    const avgWu = W.length ? W.reduce((a, t) => a + (Number(t.resultUsd) || 0), 0) / W.length : 0, avgLu = L.length ? L.reduce((a, t) => a + (Number(t.resultUsd) || 0), 0) / L.length : 0;
+    const bestT = closed.reduce((m, t) => (!m || t.resultR > m.resultR ? t : m), null), worstT = closed.reduce((m, t) => (!m || t.resultR < m.resultR ? t : m), null);
+    const B = [["≤ −1R", (r) => r <= -1], ["−1 à 0", (r) => r > -1 && r < 0], ["0", (r) => r === 0], ["0 à 1R", (r) => r > 0 && r < 1], ["1 à 2R", (r) => r >= 1 && r < 2], ["2 à 3R", (r) => r >= 2 && r < 3], ["≥ 3R", (r) => r >= 3]];
+    const dist = B.map(([k, f]) => ({ k, n: closed.filter((t) => f(Number(t.resultR) || 0)).length, neg: k.startsWith("≤") || k.startsWith("−") }));
+    const peak = Math.max(0, ...curve.map((c) => c.v));
+    return { peak, curve, dd, ddU, bw, bl: -bl, avgW, avgL, avgWu, avgLu, bestT, worstT, dist };
+  }, [closed, useUsd]);
+
+  // Calendrier du mois
+  const cal = useMemo(() => {
+    const now = new Date(); const m = new Date(now.getFullYear(), now.getMonth() + calM, 1); const per = {};
+    trades.filter((t) => t.status !== "open" && t.resultR != null).forEach((t) => { const d = new Date(t.entryTime); if (d.getFullYear() === m.getFullYear() && d.getMonth() === m.getMonth()) { const k = d.getDate(); const o = (per[k] = per[k] || { r: 0, u: 0, n: 0 }); o.r += Number(t.resultR) || 0; o.u += Number(t.resultUsd) || 0; o.n++; } });
+    const first = (m.getDay() + 6) % 7, nd = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+    const cells = [...Array(first).fill(null), ...Array.from({ length: nd }, (_, i) => i + 1)];
+    const tot = Object.values(per).reduce((a, o) => ({ r: a.r + o.r, u: a.u + o.u, n: a.n + o.n, g: a.g + (o.r > 0 ? 1 : 0), d: a.d + 1 }), { r: 0, u: 0, n: 0, g: 0, d: 0 });
+    return { m, per, cells, tot, mx: Math.max(0.01, ...Object.values(per).map((o) => Math.abs(useUsd ? o.u : o.r))) };
+  }, [trades, calM, useUsd]);
+
+  const fmtV = (v) => (useUsd ? fmtUsdSigned(v) : fmtR(v));
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, marginBottom: 14, overflow: "hidden" };
+  const H = ({ children, right, sub }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "15px 16px 10px" }}><div><div style={{ fontSize: 14.5, fontWeight: 700, letterSpacing: -0.2 }}>{children}</div>{sub && <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>{sub}</div>}</div>{right}</div>;
+  const Seg = ({ v, set, opts }) => <div style={{ display: "flex", gap: 2, padding: 2, borderRadius: 9, background: C.inputBg || C.bg, border: `1px solid ${C.border}` }}>{opts.map(([k, l]) => <button key={k} onClick={() => set(k)} style={{ height: 26, padding: "0 10px", borderRadius: 7, border: "none", background: v === k ? C.purpleDim : "transparent", color: v === k ? C.purpleBright : C.textMuted, fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>)}</div>;
+  const Table = ({ rows, logo, empty }) => { const mx = Math.max(0.01, ...rows.map((r) => Math.abs(r.r))); return rows.length === 0 ? <div style={{ padding: "6px 16px 16px", fontSize: 12.5, color: C.textMuted }}>{empty || "Pas encore de trades."}</div> : (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 46px 56px 70px", gap: 8, padding: "6px 16px", fontSize: 10.5, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4, borderTop: `1px solid ${C.border}` }}><span /><span style={{ textAlign: "right" }}>Trades</span><span style={{ textAlign: "right" }}>Win</span><span style={{ textAlign: "right" }}>Total</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 40px 50px 74px", gap: 8, padding: "6px 16px", fontSize: 10.5, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4, borderTop: `1px solid ${C.border}` }}><span /><span style={{ textAlign: "right" }}>Trades</span><span style={{ textAlign: "right" }}>Win</span><span style={{ textAlign: "right" }}>Total</span></div>
       {rows.map((r) => (
-        <div key={r.k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 46px 56px 70px", gap: 8, alignItems: "center", padding: "10px 16px", borderTop: `1px solid ${C.border}` }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}><span style={{ width: 3, height: 22, borderRadius: 2, background: col(r.r), flexShrink: 0 }} />{logo && <PairLogo pair={r.k} size={20} />}<span style={{ fontSize: 13.5, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.k}</span></span>
-          <span className="tnum" style={{ textAlign: "right", fontSize: 13, color: C.textSecondary }}>{r.n}</span>
-          <span className="tnum" style={{ textAlign: "right", fontSize: 13, color: C.textSecondary }}>{r.wr.toFixed(0)}%</span>
-          <span className="tnum" style={{ textAlign: "right", fontSize: 14, fontWeight: 600, color: col(r.r) }}>{fmtR(r.r)}</span>
+        <div key={r.k} style={{ position: "relative", display: "grid", gridTemplateColumns: "minmax(0,1fr) 40px 50px 74px", gap: 8, alignItems: "center", padding: "11px 16px", borderTop: `1px solid ${C.border}` }}>
+          <div className="grow-x" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(Math.abs(r.r) / mx) * 100}%`, background: `linear-gradient(90deg, ${col(r.r)}14, transparent)`, pointerEvents: "none" }} />
+          <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, position: "relative" }}>{logo && <PairLogo pair={r.k} size={22} />}<span style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.k}</span></span>
+          <span className="tnum" style={{ position: "relative", textAlign: "right", fontSize: 13, color: C.textSecondary }}>{r.n}</span>
+          <span className="tnum" style={{ position: "relative", textAlign: "right", fontSize: 13, color: r.wr >= 50 ? C.teal : C.textSecondary }}>{r.wr.toFixed(0)}%</span>
+          <span className="tnum" style={{ position: "relative", textAlign: "right", fontSize: 14, fontWeight: 700, color: col(r.r) }}>{fmtR(r.r)}</span>
         </div>))}
-    </div>);
-  const Bars = ({ rows }) => { const mx = Math.max(0.01, ...rows.map((r) => Math.abs(r.r))); return (
-    <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+    </div>); };
+  const Bars = ({ rows, flag }) => { const mx = Math.max(0.01, ...rows.map((r) => Math.abs(r.r))); return (
+    <div style={{ padding: "2px 16px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
       {rows.map((r) => <div key={r.k}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}><span style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}><SessionFlag name={r.k} size={16} />{r.k} <span style={{ color: C.textMuted, fontWeight: 500 }}>· {r.n} trade{r.n > 1 ? "s" : ""} · {r.wr.toFixed(0)}%</span></span><span className="tnum" style={{ fontWeight: 600, color: col(r.r) }}>{fmtR(r.r)}</span></div>
-        <div style={{ height: 6, borderRadius: 3, background: C.inputBg || C.bg, overflow: "hidden" }}><div style={{ width: Math.abs(r.r) / mx * 100 + "%", height: "100%", background: col(r.r), borderRadius: 3 }} /></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, marginBottom: 5 }}><span style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 7 }}>{flag && r.k !== "Hors session" && <SessionFlag name={r.k} size={16} />}<span style={{ color: r.k === "Hors session" ? C.textMuted : undefined }}>{r.k}</span>{r.k === "Hors session" && <span style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 500, border: `1px solid ${C.border}`, borderRadius: 5, padding: "1px 5px" }}>hors killzones</span>} <span style={{ color: C.textMuted, fontWeight: 500 }}>· {r.n} trade{r.n > 1 ? "s" : ""} · {r.wr.toFixed(0)}%</span></span><span className="tnum" style={{ fontWeight: 700, color: col(r.r) }}>{fmtR(r.r)}</span></div>
+        <div style={{ height: 7, borderRadius: 4, background: C.inputBg || C.bg, overflow: "hidden" }}><div className="grow-x" style={{ width: Math.abs(r.r) / mx * 100 + "%", height: "100%", background: r.k === "Hors session" ? C.textMuted : `linear-gradient(90deg, ${col(r.r)}AA, ${col(r.r)})`, borderRadius: 4 }} /></div>
       </div>)}
       {rows.length === 0 && <div style={{ fontSize: 12.5, color: C.textMuted }}>Pas encore de trades.</div>}
     </div>); };
+  const Kpi = ({ l, v, sub, c }) => (
+    <div style={{ padding: "10px 11px", borderRadius: 13, background: C.card, border: `1px solid ${C.border}`, minWidth: 0 }}>
+      <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</div>
+      <div className="tnum" style={{ fontSize: 15.5, fontWeight: 700, marginTop: 4, color: c || C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v}</div>
+      {sub && <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
+    </div>);
+  const lineCol = (X.curve[X.curve.length - 1]?.v || 0) >= 0 ? C.teal : C.red;
+  const ring = (p, c) => { const R = 26, P = 2 * Math.PI * R; return <svg width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r={R} fill="none" stroke={C.redDim} strokeWidth="7" /><circle cx="32" cy="32" r={R} fill="none" stroke={c} strokeWidth="7" strokeLinecap="round" strokeDasharray={P} strokeDashoffset={P * (1 - p / 100)} transform="rotate(-90 32 32)" /></svg>; };
+  const long = sides.find((s) => s.k === "Long"), short = sides.find((s) => s.k === "Short");
+
   return (
-    <div className="fade-in" style={{ maxWidth: 820, margin: "0 auto" }}>
-      <PageHeader title="Statistiques" />
+    <div className="fade-in" style={{ maxWidth: 860, margin: "0 auto" }}>
+      <PageHeader title="Statistiques" action={<Seg v={unit} set={setUnit} opts={[["usd", "$"], ["r", "R"]]} />} />
       <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-        {["tout", "7j", "30j", "90j"].map((p) => <button key={p} onClick={() => setPeriod(p)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: period === p ? C.purpleDim : "transparent", color: period === p ? C.purpleBright : C.textSecondary, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{p === "tout" ? "Tout" : p}</button>)}
+        {["tout", "7j", "30j", "90j"].map((p) => <button key={p} onClick={() => setPeriod(p)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: period === p ? C.purpleDim : "transparent", color: period === p ? C.purpleBright : C.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{p === "tout" ? "Tout" : p}</button>)}
       </div>
 
-      <div style={{ ...card, padding: 18 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Résultat</div>
-        <div className="tnum" style={{ fontSize: 36, fontWeight: 600, letterSpacing: -0.5, color: col(T.r), lineHeight: 1.05, marginTop: 4 }}>{fmtR(T.r)}</div>
-        <div className="tnum" style={{ fontSize: 14, color: col(T.usd), fontWeight: 700 }}>{fmtUsdSigned(T.usd)}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 8, marginTop: 14 }}>
-          {[["Trades", String(T.n), `${T.w}W · ${T.l}L`], ["Winrate", T.n ? T.wr.toFixed(0) + "%" : "—", ""], ["R moyen", T.n ? fmtR(T.avg) : "—", "par trade"], ["Profit factor", T.pf != null ? T.pf.toFixed(2) : "—", "gains ÷ pertes"]].map(([l, v, sub]) => (
-            <div key={l} style={{ padding: "10px", borderRadius: 12, border: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600 }}>{l}</div>
-              <div className="tnum" style={{ fontSize: 17, fontWeight: 600, marginTop: 2 }}>{v}</div>
-              {sub && <div style={{ fontSize: 10.5, color: C.textMuted }}>{sub}</div>}
-            </div>))}
+      {T.n === 0 && <div style={{ ...card, padding: "28px 20px", textAlign: "center", background: `radial-gradient(100% 100% at 50% 0%, ${C.purpleDim}, transparent 70%), ${C.card}` }}>
+        <div style={{ width: 52, height: 52, borderRadius: 16, background: C.purpleDim, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}><BarChart3 size={24} color={C.purpleBright} /></div>
+        <div style={{ fontSize: 17, fontWeight: 700 }}>{period === "tout" ? "Tes stats arrivent ici" : "Aucun trade sur cette période"}</div>
+        <div style={{ fontSize: 13, color: C.textMuted, marginTop: 6, lineHeight: 1.5 }}>{period === "tout" ? "Clôture ton premier trade : courbe, winrate, calendrier et analyses se remplissent tout seuls." : "Choisis « Tout » ou une période plus longue."}</div>
+      </div>}
+      {/* Héros : résultat + courbe */}
+      <div style={{ ...card, background: `radial-gradient(120% 90% at 0% 0%, ${C.purpleDim}, transparent 60%), ${C.card}` }}>
+        <div style={{ padding: "18px 18px 4px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Résultat net</div>
+            <div className="tnum" style={{ fontSize: 38, fontWeight: 700, letterSpacing: -1, color: col(useUsd ? T.usd : T.r), lineHeight: 1.05, marginTop: 4 }}>{useUsd ? fmtUsdSigned(T.usd) : fmtR(T.r)}</div>
+            <div className="tnum" style={{ fontSize: 13.5, color: C.textSecondary, fontWeight: 600, marginTop: 2 }}>{useUsd ? fmtR(T.r) : fmtUsdSigned(T.usd)} · {T.n} trade{T.n > 1 ? "s" : ""}</div>
+          </div>
+          <div style={{ position: "relative", width: 64, height: 64, flexShrink: 0 }}>
+            {ring(T.wr, C.teal)}
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}><span className="tnum" style={{ fontSize: 14, fontWeight: 700 }}>{T.n ? T.wr.toFixed(0) : "—"}%</span><span style={{ fontSize: 9, color: C.textMuted }}>winrate</span></div>
+          </div>
+        </div>
+        <div style={{ height: 150, marginTop: 4 }}>
+          {X.curve.length > 1 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={X.curve} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+                <defs><linearGradient id="eqG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={lineCol} stopOpacity={0.35} /><stop offset="100%" stopColor={lineCol} stopOpacity={0} /></linearGradient></defs>
+                <XAxis dataKey="i" hide /><YAxis hide domain={["dataMin", "dataMax"]} />
+                <Tooltip cursor={{ stroke: C.border }} contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }} labelFormatter={(i) => X.curve[i]?.d || ""} formatter={(v) => [fmtV(v), "Cumul"]} />
+                <ReferenceLine y={0} stroke={C.textMuted} strokeDasharray="3 4" strokeOpacity={0.6} />
+                {X.peak > 0 && <ReferenceLine y={X.peak} stroke={C.teal} strokeDasharray="2 5" strokeOpacity={0.5} label={{ value: "Plus haut " + fmtV(X.peak), position: "insideTopLeft", fill: C.textMuted, fontSize: 10 }} />}
+                <Area type="monotone" dataKey="v" stroke={lineCol} strokeWidth={2.2} fill="url(#eqG)" dot={false} animationDuration={900} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, color: C.textMuted }}>La courbe apparaît après ton premier trade clôturé.</div>}
+        </div>
+        {X.curve.length > 1 && <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 16px 12px", fontSize: 10.5, color: C.textMuted }}><span>{X.curve[1].d}</span><span>{X.curve[X.curve.length - 1].d}</span></div>}
+      </div>
+
+      {/* KPI */}
+      {T.n > 0 && <><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+        {[["Profit factor", T.pf != null ? T.pf.toFixed(2) : "—", T.pf == null ? "pas encore de perte" : T.pf >= 1.5 ? "solide" : T.pf >= 1 ? "positif mais fragile" : "négatif", T.pf == null ? C.teal : T.pf >= 1.5 ? C.teal : T.pf >= 1 ? C.amber : C.red],
+          ["Espérance / trade", fmtR(T.avg), fmtUsdSigned(T.usd / T.n), col(T.avg)]].map(([l, v, sub, c]) => (
+          <div key={l} style={{ padding: "14px 15px", borderRadius: 16, background: `linear-gradient(160deg, ${c}1F, transparent 70%), ${C.card}`, border: `1px solid ${c}40` }}>
+            <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}>{l}</div>
+            <div className="tnum" style={{ fontSize: 28, fontWeight: 700, color: c, marginTop: 4, letterSpacing: -0.6 }}>{v}</div>
+            <div style={{ fontSize: 11.5, color: C.textSecondary, marginTop: 1 }}>{sub}</div>
+          </div>))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, marginBottom: 14 }}>
+        <Kpi l="Gain moyen" v={X.avgW ? fmtR(X.avgW) : "—"} sub={X.avgWu ? fmtUsdSigned(X.avgWu) : `${T.w} gagnants`} c={C.teal} />
+        <Kpi l="Perte moyenne" v={X.avgL ? fmtR(X.avgL) : "—"} sub={X.avgLu ? fmtUsdSigned(X.avgLu) : `${T.l} perdants`} c={C.red} />
+        <Kpi l="Drawdown max" v={useUsd ? (X.ddU ? "−" + fmtUsd(X.ddU) : "—") : (X.dd ? "−" + X.dd.toFixed(2) + "R" : "—")} sub="du plus haut au plus bas" c={X.dd ? C.red : null} />
+        <Kpi l="Séries" v={<><span style={{ color: C.teal }}>{X.bw}W</span> <span style={{ color: C.textMuted }}>/</span> <span style={{ color: C.red }}>{X.bl}L</span></>} sub="plus longues d'affilée" />
+        <Kpi l="Meilleur trade" v={X.bestT ? fmtR(X.bestT.resultR) : "—"} sub={X.bestT ? `${X.bestT.pair} · ${new Date(X.bestT.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}` : ""} c={C.teal} />
+        <Kpi l="Pire trade" v={X.worstT ? fmtR(X.worstT.resultR) : "—"} sub={X.worstT ? `${X.worstT.pair} · ${new Date(X.worstT.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}` : ""} c={C.red} />
+      </div></>}
+
+      {/* Long / Short */}
+      {(long || short) && <div style={{ ...card, padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
+          <span><span style={{ color: C.teal }}>▲ Long</span><br /><span className="tnum" style={{ fontWeight: 500, color: C.textSecondary }}>{long?.n || 0} · {long ? long.wr.toFixed(0) : 0}% · <b style={{ color: col(long?.r || 0) }}>{fmtR(long?.r || 0)}</b></span></span>
+          <span style={{ textAlign: "right" }}><span style={{ color: C.red }}>Short ▼</span><br /><span className="tnum" style={{ fontWeight: 500, color: C.textSecondary }}><b style={{ color: col(short?.r || 0) }}>{fmtR(short?.r || 0)}</b> · {short ? short.wr.toFixed(0) : 0}% · {short?.n || 0}</span></span>
+        </div>
+        <div style={{ display: "flex", height: 9, borderRadius: 5, overflow: "hidden", background: C.inputBg }}>
+          <div style={{ width: `${((long?.n || 0) / Math.max(1, T.n)) * 100}%`, background: C.teal }} /><div style={{ flex: 1, background: C.red, opacity: 0.85 }} />
+        </div>
+      </div>}
+
+      {/* Calendrier */}
+      <div style={card}>
+        <H sub={cal.tot.d ? `${cal.tot.n} trades · ${cal.tot.g}/${cal.tot.d} jours verts · ${fmtV(useUsd ? cal.tot.u : cal.tot.r)}` : "Aucun trade ce mois-ci"} right={<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button onClick={() => setCalM((v) => v - 1)} style={{ ...btn.icon, padding: 5 }} aria-label="Mois précédent"><ChevronLeft size={14} /></button>
+          <span style={{ fontSize: 12.5, fontWeight: 700, minWidth: 92, textAlign: "center", textTransform: "capitalize" }}>{cal.m.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</span>
+          <button onClick={() => setCalM((v) => Math.min(0, v + 1))} disabled={calM >= 0} style={{ ...btn.icon, padding: 5, opacity: calM >= 0 ? 0.4 : 1 }} aria-label="Mois suivant"><ChevronRight size={14} /></button>
+        </div>}>Calendrier</H>
+        <div style={{ padding: "0 12px 14px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>{["L", "M", "M", "J", "V", "S", "D"].map((d, i) => <div key={i} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 700, color: C.textMuted }}>{d}</div>)}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+            {cal.cells.map((d, i) => { const o = d && cal.per[d]; const v = o ? (useUsd ? o.u : o.r) : 0; const a = o ? 0.18 + 0.6 * Math.min(1, Math.abs(v) / cal.mx) : 0; const cc = v >= 0 ? C.teal : C.red;
+              return <div key={i} style={{ height: o ? 42 : 30, alignSelf: "center", borderRadius: 9, background: o ? `color-mix(in srgb, ${cc} ${Math.round(a * 100)}%, transparent)` : d ? (C.inputBg || C.bg) : "transparent", border: d ? `1px solid ${o ? cc + "55" : C.border}` : "none", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
+                {d && <span style={{ fontSize: o ? 10 : 10.5, fontWeight: 600, color: o ? C.text : C.textMuted, opacity: o ? 0.8 : 0.6 }}>{d}</span>}
+                {o && <span className="tnum" style={{ fontSize: 9.5, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>{useUsd ? (v >= 0 ? "+" : "−") + Math.abs(Math.round(v)) : (v > 0 ? "+" : "") + v.toFixed(1)}</span>}
+              </div>; })}
+          </div>
         </div>
       </div>
 
+      {/* Distribution des R */}
+      {T.n > 0 && <div style={card}>
+        <H sub="Combien de trades dans chaque tranche de R">Répartition des résultats</H>
+        <div style={{ height: 130, padding: "0 8px 10px" }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={X.dist} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+              <XAxis dataKey="k" tick={{ fontSize: 10, fill: C.textMuted }} axisLine={false} tickLine={false} interval={0} />
+              <Tooltip cursor={{ fill: C.inputBg }} contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }} formatter={(v) => [v + " trades", ""]} />
+              <Bar dataKey="n" radius={[6, 6, 0, 0]}>{X.dist.map((d) => <Cell key={d.k} fill={d.k === "0" ? C.textMuted : d.neg ? C.red : C.teal} />)}</Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>}
+
       {retenir.length > 0 && <div style={card}>
         <H>À retenir</H>
-        {retenir.map(([l, x]) => <div key={l} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderTop: `1px solid ${C.border}` }}>
-          <span style={{ width: 7, height: 7, borderRadius: 4, background: col(x.r), flexShrink: 0 }} />
-          <span style={{ fontSize: 12.5, color: C.textMuted, width: 130, flexShrink: 0 }}>{l}</span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.k}</span>
-          <span className="tnum" style={{ fontSize: 14, fontWeight: 600, color: col(x.r) }}>{fmtR(x.r)}</span>
-        </div>)}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8, padding: "0 14px 14px" }}>
+          {retenir.map(([l, x]) => <div key={l} style={{ padding: "11px 12px", borderRadius: 12, background: x.r > 0 ? C.tealDim : C.redDim, border: `1px solid ${col(x.r)}33` }}>
+            <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}><span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.k}</span><span className="tnum" style={{ fontSize: 14, fontWeight: 700, color: col(x.r) }}>{fmtR(x.r)}</span></div>
+          </div>)}
+        </div>
       </div>}
 
       <div style={card}>
         <H>Par actif</H>
         {cats.length > 1 && <div style={{ display: "flex", gap: 6, padding: "0 16px 10px", flexWrap: "wrap" }}>
-          {cats.map((c) => <button key={c} onClick={() => setCat(c)} style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `1px solid ${curCat === c ? C.purple : C.border}`, background: curCat === c ? C.purpleDim : "transparent", color: curCat === c ? C.purpleBright : C.textSecondary }}>{c}</button>)}
+          {cats.map((c) => <button key={c} onClick={() => setCat(c)} style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `1px solid ${curCat === c ? C.purple : C.border}`, background: curCat === c ? C.purpleDim : "transparent", color: curCat === c ? C.purpleBright : C.textMuted, fontFamily: "inherit" }}>{c}</button>)}
         </div>}
         <Table rows={pairs.filter((p) => assetCat(p.k) === curCat)} logo />
       </div>
 
       <div style={card}><H>Par setup</H><Table rows={setups} empty="Ajoute tes setups dans le formulaire pour les voir ici." /></div>
-      <div style={card}><H>Par session</H><Bars rows={sessions} /></div>
-      <div style={card}><H>Par jour</H><Bars rows={days} /></div>
+      <div className="grid-2" style={{ gap: 14 }}>
+        <div style={card}><H>Par session</H><Bars rows={sessions} flag /></div>
+        <div style={card}><H sub="Résultat total par jour de la semaine">Par jour</H>{(() => { const W = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((k) => days.find((d) => d.k === k) || { k, r: 0, n: 0, wr: 0 }); const mx = Math.max(0.01, ...W.map((d) => Math.abs(d.r))); return (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, padding: "4px 14px 14px", alignItems: "end" }}>
+            {W.map((d) => <div key={d.k} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0 }}>
+              <span className="tnum" style={{ fontSize: 10, fontWeight: 700, color: d.n ? col(d.r) : C.textMuted, whiteSpace: "nowrap" }}>{d.n ? (d.r > 0 ? "+" : "") + d.r.toFixed(1) : "—"}</span>
+              <div style={{ width: "100%", height: 90, display: "flex", flexDirection: "column", justifyContent: "center", position: "relative" }}>
+                <div style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 1, background: C.border }} />
+                <div style={{ height: 45, display: "flex", alignItems: "flex-end" }}>{d.r > 0 && <div className="grow-y" style={{ width: "100%", height: `${(d.r / mx) * 100}%`, borderRadius: "6px 6px 2px 2px", background: `linear-gradient(180deg, ${C.teal}, ${C.teal}88)` }} />}</div>
+                <div style={{ height: 45, display: "flex", alignItems: "flex-start" }}>{d.r < 0 && <div className="grow-y" style={{ width: "100%", height: `${(-d.r / mx) * 100}%`, borderRadius: "2px 2px 6px 6px", background: `linear-gradient(0deg, ${C.red}, ${C.red}88)`, transformOrigin: "center top" }} />}</div>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary }}>{d.k.slice(0, 3)}</span>
+              <span style={{ fontSize: 9.5, color: C.textMuted }}>{d.n ? d.wr.toFixed(0) + "%" : ""}</span>
+            </div>)}
+          </div>); })()}</div>
+      </div>
+      {hours.some((h) => h.n) && <div style={card}><H sub="Résultat en R selon l'heure d'entrée (heure de ton téléphone)">Par heure</H>
+        <div style={{ height: 140, padding: "0 8px 10px" }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={hours} margin={{ top: 6, right: 4, left: 4, bottom: 0 }}>
+              <XAxis dataKey="h" tick={{ fontSize: 9.5, fill: C.textMuted }} axisLine={false} tickLine={false} interval={2} />
+              <ReferenceLine y={0} stroke={C.border} />
+              <Tooltip cursor={{ fill: C.inputBg }} contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }} formatter={(v, _, p) => [`${fmtR(v)} · ${p.payload.n} trades · ${p.payload.wr.toFixed(0)}%`, p.payload.h]} labelFormatter={() => ""} />
+              <Bar dataKey="r" radius={[4, 4, 4, 4]}>{hours.map((d) => <Cell key={d.h} fill={d.r > 0 ? C.teal : d.r < 0 ? C.red : C.border} />)}</Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>}
       {mistakes.length > 0 && <div style={card}><H>Erreurs fréquentes</H><Table rows={mistakes} /></div>}
     </div>
   );
@@ -5017,7 +5246,7 @@ function TradingCalendar({ trades, onSelectDay }) {
                 <button key={i} onClick={() => setSelectedDay(data ? new Date(year, month, d) : null)} style={{
                   aspectRatio: "1", borderRadius: 7,
                   border: `1.5px solid ${isSelected ? C.purple : isToday ? C.purple : C.border}`,
-                  background: isSelected ? C.purpleDim : data ? (val >= 0 ? C.tealDim : C.redDim) : C.bg,
+                  background: isSelected ? C.purpleDim : data ? (val >= 0 ? C.tealDim : C.redDim) : C.cardHover,
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                   cursor: data ? "pointer" : "default", padding: 2, gap: 1,
                 }}>
@@ -5289,7 +5518,7 @@ function PerformanceReview({ trades }) {
    PLAN DE TRADING
    ============================================================================ */
 
-function PlanDeTrading() {
+function PlanDeTrading({ trades = [], balance }) {
   const STORAGE_KEY = "trading_plan_text";
   const [text, setText] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) || ""; } catch { return ""; }
@@ -5309,16 +5538,18 @@ function PlanDeTrading() {
   };
 
   return (
-    <div className="fade-in" style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 160px)" }}>
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <h1 style={{ fontSize: 24, fontWeight: 600, color: C.text, margin: 0 }}>Plan de trading</h1>
       </div>
+      <PlanRules trades={trades} balance={balance} />
+      <div style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary, margin: "4px 0 8px" }}>Mes notes de plan</div>
       <textarea
         value={text}
         onChange={handleChange}
         placeholder={"Écris ton plan de trading ici...\n\nExemple :\n— Ne trader que London et NY\n— Max 2 trades par jour\n— Stop loss obligatoire\n— Attendre la confirmation MSS\n..."}
         style={{
-          flex: 1, width: "100%",
+          minHeight: 260, width: "100%",
           background: C.card,
           border: `1px solid ${C.border}`,
           borderRadius: 14,
@@ -5942,6 +6173,348 @@ function AccountLogo({ acc, size = 30 }) {
   return <span style={{ width: size, height: size, borderRadius: size * 0.28, background: `${typeColors[acc?.type] || C.teal}22`, color: typeColors[acc?.type] || C.teal, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.4, fontWeight: 700, flexShrink: 0 }}>{(acc?.name || "?").slice(0, 1).toUpperCase()}</span>;
 }
 
+/* ============================================================================
+   DISCIPLINE : plan vérifié · coach (motifs) · santé du compte · challenge · import MT4/MT5
+   ============================================================================ */
+const RULES_KEY = "trading_rules";
+const SESSIONS_ALL = ["Asia Session", "London Session", "New York Session", "Hors session"];
+const SESSION_SHORT = { "Asia Session": "Asie", "London Session": "Londres", "New York Session": "New York", "Hors session": "Hors session" };
+const DEFAULT_RULES = { maxRiskPct: 1, maxTradesDay: 2, maxLossDayPct: 2, maxConsecLoss: 2, sessions: ["London Session", "New York Session"], slRequired: true };
+function loadRules() { try { return { ...DEFAULT_RULES, ...(JSON.parse(localStorage.getItem(RULES_KEY) || "null") || {}) }; } catch { return { ...DEFAULT_RULES }; } }
+function saveRules(r) { try { localStorage.setItem(RULES_KEY, JSON.stringify(r)); } catch {} saveSettingsPatch({ trading_rules: r }).catch(() => {}); }
+const dayKey = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const byTime = (arr) => [...arr].sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
+const usdOf = (t) => Number(t.resultUsd) || 0;
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+/* Chaque trade clôturé → liste des règles du plan cassées */
+function planCheck(trades, rules, balance) {
+  const B = Number(balance) || 10000; const out = []; const day = {}; let streak = 0;
+  byTime(closedOf(trades)).forEach((t) => {
+    const k = dayKey(t.entryTime); const d = (day[k] = day[k] || { n: 0, pnl: 0, streak: 0 });
+    const v = [];
+    if (rules.maxRiskPct && Number(t.riskUsd) > (B * rules.maxRiskPct) / 100 * 1.05) v.push("Risque > " + rules.maxRiskPct + " %");
+    if (rules.maxTradesDay && d.n >= rules.maxTradesDay) v.push("Plus de " + rules.maxTradesDay + " trades / jour");
+    if (rules.maxLossDayPct && d.pnl <= -(B * rules.maxLossDayPct) / 100) v.push("Perte max du jour déjà atteinte");
+    if (rules.maxConsecLoss && d.streak >= rules.maxConsecLoss) v.push("Après " + rules.maxConsecLoss + " pertes d'affilée");
+    if ((rules.sessions || []).length && !rules.sessions.includes(getSession(t.entryTime))) v.push("Hors de tes sessions");
+    if (rules.slRequired && !Number(t.stopLoss)) v.push("Sans stop loss");
+    out.push({ t, v });
+    d.n += 1; d.pnl += usdOf(t); d.streak = rOf(t) < 0 ? d.streak + 1 : rOf(t) > 0 ? 0 : d.streak; streak = d.streak;
+  });
+  return out;
+}
+
+const chipBtn = (on, col = C.purple) => ({ padding: "7px 11px", borderRadius: 8, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}18` : "transparent", color: on ? col : C.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" });
+const moneyCol = (v) => (v > 0.005 ? C.teal : v < -0.005 ? C.red : C.textSecondary);
+
+function NumRule({ label, value, onChange, suffix, step = 1 }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, color: C.textSecondary, fontWeight: 600 }}>
+      {label}
+      <div style={{ position: "relative" }}>
+        <input type="number" step={step} min={0} value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} style={{ ...inputStyle, width: "100%", paddingRight: 34, boxSizing: "border-box" }} />
+        {suffix && <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: C.textMuted }}>{suffix}</span>}
+      </div>
+    </label>
+  );
+}
+
+function PlanRules({ trades = [], balance }) {
+  const [rules, setRules] = useState(loadRules);
+  const [edit, setEdit] = useState(false);
+  const set = (p) => { const r = { ...rules, ...p }; setRules(r); saveRules(r); };
+  const rep = useMemo(() => {
+    const L = planCheck(trades, rules, balance); const ok = L.filter((x) => !x.v.length), ko = L.filter((x) => x.v.length);
+    const by = {}; ko.forEach((x) => x.v.forEach((r) => { (by[r] = by[r] || []).push(x.t); }));
+    const rows = Object.entries(by).map(([r, arr]) => ({ r, ...aggR(arr) })).sort((a, b) => a.pnl - b.pnl);
+    const today = dayKey(new Date().toISOString()); const T = closedOf(trades).filter((t) => dayKey(t.entryTime) === today);
+    return { n: L.length, ok: aggR(ok.map((x) => x.t)), ko: aggR(ko.map((x) => x.t)), rows, pct: L.length ? (ok.length / L.length) * 100 : 0, today: { n: T.length, pnl: T.reduce((s, t) => s + usdOf(t), 0) } };
+  }, [trades, rules, balance]);
+  const B = Number(balance) || 10000; const maxLoss = rules.maxLossDayPct ? (B * rules.maxLossDayPct) / 100 : null;
+  const stopNow = (rules.maxTradesDay && rep.today.n >= rules.maxTradesDay) || (maxLoss && rep.today.pnl <= -maxLoss);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
+      <div style={{ background: stopNow ? C.redDim : C.card, border: `1px solid ${stopNow ? C.red + "55" : C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>Aujourd'hui</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: stopNow ? C.red : C.text, marginTop: 3 }}>{stopNow ? "Stop : ton plan dit d'arrêter pour aujourd'hui" : "Tu peux encore trader selon ton plan"}</div>
+        </div>
+        <div className="tnum" style={{ fontSize: 13, color: C.textSecondary, textAlign: "right" }}>
+          {rep.today.n}{rules.maxTradesDay ? ` / ${rules.maxTradesDay}` : ""} trades<br />
+          <span style={{ color: moneyCol(rep.today.pnl) }}>{fmtUsdSigned(rep.today.pnl)}</span>{maxLoss ? <span style={{ color: C.textMuted }}> · limite −{fmtUsd(maxLoss)}</span> : null}
+        </div>
+      </div>
+
+      <ASection title="Mes règles" sub="Vérifiées automatiquement sur chaque trade clôturé." right={<button onClick={() => setEdit((v) => !v)} style={{ ...btn.ghost, fontSize: 12 }}><Edit3 size={13} /> {edit ? "Fermer" : "Modifier"}</button>}>
+        {edit ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="form-grid-2" style={{ gap: 10 }}>
+              <NumRule label="Risque max par trade" suffix="%" step={0.25} value={rules.maxRiskPct} onChange={(v) => set({ maxRiskPct: v })} />
+              <NumRule label="Trades max par jour" value={rules.maxTradesDay} onChange={(v) => set({ maxTradesDay: v })} />
+              <NumRule label="Perte max par jour" suffix="%" step={0.5} value={rules.maxLossDayPct} onChange={(v) => set({ maxLossDayPct: v })} />
+              <NumRule label="Stop après X pertes d'affilée" value={rules.maxConsecLoss} onChange={(v) => set({ maxConsecLoss: v })} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: C.textSecondary, fontWeight: 600, marginBottom: 6 }}>Sessions autorisées</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {SESSIONS_ALL.map((s) => { const on = (rules.sessions || []).includes(s); return <button key={s} onClick={() => set({ sessions: on ? rules.sessions.filter((x) => x !== s) : [...(rules.sessions || []), s] })} style={chipBtn(on)}>{SESSION_SHORT[s]}</button>; })}
+              </div>
+            </div>
+            <button onClick={() => set({ slRequired: !rules.slRequired })} style={{ ...chipBtn(rules.slRequired, C.teal), alignSelf: "flex-start" }}>{rules.slRequired ? "✓ " : ""}Stop loss obligatoire</button>
+            <div style={{ fontSize: 11.5, color: C.textMuted }}>Laisse une case vide pour désactiver la règle. Le % est calculé sur le solde de départ du compte ({fmtUsd(B)}).</div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {[rules.maxRiskPct && `Risque ≤ ${rules.maxRiskPct} %`, rules.maxTradesDay && `≤ ${rules.maxTradesDay} trades / jour`, rules.maxLossDayPct && `Perte jour ≤ ${rules.maxLossDayPct} %`, rules.maxConsecLoss && `Stop après ${rules.maxConsecLoss} pertes`, (rules.sessions || []).length && (rules.sessions.map((s) => SESSION_SHORT[s]).join(" · ")), rules.slRequired && "SL obligatoire"].filter(Boolean).map((l) => (
+              <span key={l} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, background: C.inputBg, border: `1px solid ${C.border}`, color: C.textSecondary }}>{l}</span>
+            ))}
+          </div>
+        )}
+      </ASection>
+
+      {rep.n > 0 && (
+        <ASection title="Est-ce que tu respectes ton plan ?" sub={`${rep.n} trades clôturés vérifiés.`}>
+          <div className="grid-kpi-4">
+            <BigStat label="Plan respecté" value={`${rep.pct.toFixed(0)} %`} color={rep.pct >= 80 ? C.teal : rep.pct >= 60 ? C.amber : C.red} sub={`${rep.ok.n} trades sur ${rep.n}`} />
+            <BigStat label="Quand tu le respectes" value={fmtUsdSigned(rep.ok.pnl)} color={moneyCol(rep.ok.pnl)} sub={`${fmtRs(rep.ok.avgR)} / trade · ${rep.ok.wr.toFixed(0)} % WR`} />
+            <BigStat label="Quand tu le casses" value={fmtUsdSigned(rep.ko.pnl)} color={moneyCol(rep.ko.pnl)} sub={`${fmtRs(rep.ko.avgR)} / trade · ${rep.ko.wr.toFixed(0)} % WR`} />
+            <BigStat label="Sans les écarts" value={fmtUsdSigned(rep.ok.pnl)} color={moneyCol(rep.ok.pnl)} sub={`au lieu de ${fmtUsdSigned(rep.ok.pnl + rep.ko.pnl)}`} />
+          </div>
+          {rep.rows.length > 0 && (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+              {rep.rows.map((x) => (
+                <div key={x.r} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: C.inputBg, border: `1px solid ${C.border}` }}>
+                  <AlertTriangle size={14} color={x.pnl < 0 ? C.red : C.amber} />
+                  <span style={{ flex: 1, fontSize: 13, color: C.text }}>{x.r}</span>
+                  <span className="tnum" style={{ fontSize: 12, color: C.textMuted }}>{x.n}×</span>
+                  <span className="tnum" style={{ width: 92, textAlign: "right", fontSize: 13, fontWeight: 700, color: moneyCol(x.pnl) }}>{fmtUsdSigned(x.pnl)}</span>
+                  <span className="tnum" style={{ width: 60, textAlign: "right", fontSize: 12, color: rCol(x.sumR) }}>{fmtRs(x.sumR)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </ASection>
+      )}
+    </div>
+  );
+}
+
+/* ── Note de santé du compte /10 ── */
+function healthScore(trades, balance) {
+  const L = byTime(closedOf(trades)); const B = Number(balance) || 10000;
+  if (L.length < 5) return null;
+  const gw = L.filter((t) => usdOf(t) > 0).reduce((s, t) => s + usdOf(t), 0), gl = -L.filter((t) => usdOf(t) < 0).reduce((s, t) => s + usdOf(t), 0);
+  const pf = gl ? gw / gl : gw ? 3 : 1;
+  let eq = B, peak = B, dd = 0; L.forEach((t) => { eq += usdOf(t); peak = Math.max(peak, eq); dd = Math.max(dd, (peak - eq) / peak); });
+  const chk = planCheck(L, loadRules(), B); const comp = chk.filter((x) => !x.v.length).length / chk.length;
+  const wk = {}; L.forEach((t) => { const d = new Date(t.entryTime); const j = new Date(d); j.setDate(d.getDate() - ((d.getDay() + 6) % 7)); const k = dayKey(j.toISOString()); wk[k] = (wk[k] || 0) + usdOf(t); });
+  const W = Object.values(wk); const pos = W.filter((v) => v > 0).length / W.length;
+  const parts = [
+    { l: "Profit factor", v: clamp01((pf - 0.8) / 1.2) * 2.5, txt: pf.toFixed(2) },
+    { l: "Drawdown max", v: clamp01(1 - dd / 0.15) * 2.5, txt: `${(dd * 100).toFixed(1)} %` },
+    { l: "Plan respecté", v: comp * 2.5, txt: `${(comp * 100).toFixed(0)} %` },
+    { l: "Semaines positives", v: pos * 2.5, txt: `${Math.round(pos * W.length)} / ${W.length}` },
+  ];
+  return { score: parts.reduce((s, p) => s + p.v, 0), parts, n: L.length };
+}
+
+function HealthCard({ trades, balance }) {
+  const h = useMemo(() => healthScore(trades, balance), [trades, balance]);
+  const [open, setOpen] = useState(false);
+  if (!h) return null;
+  const col = h.score >= 7 ? C.teal : h.score >= 5 ? C.amber : C.red;
+  const lab = h.score >= 8 ? "Excellent" : h.score >= 7 ? "Solide" : h.score >= 5 ? "Fragile" : "À risque";
+  const weak = [...h.parts].sort((a, b) => a.v - b.v)[0];
+  const R = 22, P = 2 * Math.PI * R;
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, marginBottom: 14, overflow: "hidden" }}>
+      <button onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", color: C.text, fontFamily: "inherit", textAlign: "left" }}>
+        <div style={{ position: "relative", width: 54, height: 54, flexShrink: 0 }}>
+          <svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r={R} fill="none" stroke={C.border} strokeWidth="5" /><circle cx="27" cy="27" r={R} fill="none" stroke={col} strokeWidth="5" strokeLinecap="round" strokeDasharray={P} strokeDashoffset={P * (1 - h.score / 10)} transform="rotate(-90 27 27)" style={{ transition: "stroke-dashoffset .8s" }} /></svg>
+          <span className="tnum" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>{h.score.toFixed(1)}</span>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}>Santé du compte</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: col }}>{lab}</div>
+          <div style={{ fontSize: 11.5, color: C.textSecondary, marginTop: 1 }}>Point faible : {weak.l.toLowerCase()} ({weak.txt})</div>
+        </div>
+        <ChevronDown size={16} color={C.textMuted} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+      </button>
+      {open && <div style={{ padding: "2px 16px 14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
+        {h.parts.map((p) => (
+          <div key={p.l}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: C.textSecondary, marginBottom: 4 }}><span>{p.l}</span><span className="tnum" style={{ color: C.text, fontWeight: 600 }}>{p.txt}</span></div>
+            <div style={{ height: 5, borderRadius: 3, background: C.border, overflow: "hidden" }}><div className="grow-x" style={{ width: `${(p.v / 2.5) * 100}%`, height: "100%", background: p.v >= 1.75 ? C.teal : p.v >= 1.1 ? C.amber : C.red }} /></div>
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
+}
+
+/* ── Coach : motifs qui te coûtent (sans IA, calculés sur tes trades) ── */
+function coachPatterns(trades) {
+  const L = byTime(closedOf(trades)); if (L.length < 8) return [];
+  const all = aggR(L); const out = [];
+  const add = (key, title, arr, hint) => { if (arr.length < 3) return; const a = aggR(arr); out.push({ key, title, hint, ...a, diff: a.avgR - all.avgR }); };
+  let s = 0; const after2 = [], revenge = [], third = [], big = []; const dayN = {};
+  const risks = L.map((t) => Number(t.riskUsd)).filter((x) => x > 0).sort((a, b) => a - b); const med = risks.length ? risks[Math.floor(risks.length / 2)] : 0;
+  L.forEach((t, i) => {
+    if (s >= 2) after2.push(t);
+    const p = L[i - 1]; if (p && rOf(p) < 0 && new Date(t.entryTime) - new Date(p.entryTime) < 60 * 60e3) revenge.push(t);
+    const k = dayKey(t.entryTime); dayN[k] = (dayN[k] || 0) + 1; if (dayN[k] >= 3) third.push(t);
+    if (med && Number(t.riskUsd) > med * 1.5) big.push(t);
+    s = rOf(t) < 0 ? s + 1 : rOf(t) > 0 ? 0 : s;
+  });
+  add("after2", "Après 2 pertes d'affilée", after2, "Fais une pause après 2 pertes.");
+  add("revenge", "Moins d'1 h après une perte", revenge, "Ressemble à du revenge trading.");
+  add("third", "3e trade du jour ou plus", third, "Tes premiers trades du jour sont les meilleurs ?");
+  add("big", "Risque plus gros que d'habitude", big, `Plus de 1,5× ton risque habituel (${fmtUsd(med)}).`);
+  const grp = (key, label, fn) => groupAgg(L, fn).filter((g) => g.n >= 4).forEach((g) => out.push({ key: key + g.label, title: `${label} : ${g.label}`, ...g, diff: g.avgR - all.avgR, hint: "" }));
+  grp("s", "Session", (t) => SESSION_SHORT[getSession(t.entryTime)] || null);
+  grp("p", "Paire", (t) => t.pair);
+  grp("st", "Setup", (t) => t.setup);
+  grp("d", "Jour", (t) => ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"][new Date(t.entryTime).getDay()]);
+  return { all, bad: out.filter((x) => x.diff < -0.15 && x.pnl < 0).sort((a, b) => a.pnl - b.pnl).slice(0, 6), good: out.filter((x) => x.diff > 0.15 && x.pnl > 0).sort((a, b) => b.pnl - a.pnl).slice(0, 4) };
+}
+
+function CoachPatterns({ trades }) {
+  const P = useMemo(() => coachPatterns(trades), [trades]);
+  if (!P || !P.all) return <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 14 }}>Le coach a besoin d'au moins 8 trades clôturés pour repérer tes habitudes.</div>;
+  const Row = ({ x, bad }) => (
+    <div style={{ padding: "11px 13px", borderRadius: 10, background: bad ? C.redDim : C.tealDim, border: `1px solid ${(bad ? C.red : C.teal) + "35"}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: C.text }}>{x.title}</span>
+        <span className="tnum" style={{ fontSize: 14, fontWeight: 700, color: moneyCol(x.pnl) }}>{fmtUsdSigned(x.pnl)}</span>
+      </div>
+      <div className="tnum" style={{ fontSize: 12, color: C.textSecondary, marginTop: 3 }}>{x.n} trades · {fmtRs(x.avgR)} / trade (moyenne {fmtRs(P.all.avgR)}) · {x.wr.toFixed(0)} % WR{x.hint ? ` · ${x.hint}` : ""}</div>
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 18 }}>
+      <ASection title="Ce qui te coûte de l'argent" sub="Repéré automatiquement dans tes trades, sans IA.">
+        {P.bad.length ? <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{P.bad.map((x) => <Row key={x.key} x={x} bad />)}</div> : <div style={{ fontSize: 12.5, color: C.textMuted }}>Aucune mauvaise habitude nette pour l'instant.</div>}
+      </ASection>
+      {P.good.length > 0 && (
+        <ASection title="Là où tu es le meilleur" sub="À faire plus souvent.">
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{P.good.map((x) => <Row key={x.key} x={x} />)}</div>
+        </ASection>
+      )}
+    </div>
+  );
+}
+
+/* ── Challenge prop firm : conditions + suivi ── */
+const CH_DEFAULT = { target: 10, maxDaily: 5, maxDD: 10, ddType: "static", minDays: 4, deadline: "", phase: "Phase 1" };
+function ChallengeFields({ v, set }) {
+  const c = { ...CH_DEFAULT, ...(v || {}) }; const up = (p) => set({ ...c, ...p });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "12px", borderRadius: 10, border: `1px solid ${C.amber}40`, background: C.amberDim }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.amber }}>Conditions du challenge</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{["Phase 1", "Phase 2", "Financé"].map((p) => <button key={p} type="button" onClick={() => up({ phase: p })} style={chipBtn(c.phase === p, C.amber)}>{p}</button>)}</div>
+      <div className="form-grid-2" style={{ gap: 10 }}>
+        <NumRule label="Objectif de profit" suffix="%" step={0.5} value={c.target} onChange={(x) => up({ target: x })} />
+        <NumRule label="Perte max par jour" suffix="%" step={0.5} value={c.maxDaily} onChange={(x) => up({ maxDaily: x })} />
+        <NumRule label="Drawdown max" suffix="%" step={0.5} value={c.maxDD} onChange={(x) => up({ maxDD: x })} />
+        <NumRule label="Jours de trading min" value={c.minDays} onChange={(x) => up({ minDays: x })} />
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>{[["static", "Drawdown fixe"], ["trailing", "Drawdown suiveur"]].map(([k, l]) => <button key={k} type="button" onClick={() => up({ ddType: k })} style={{ ...chipBtn(c.ddType === k, C.amber), flex: 1 }}>{l}</button>)}</div>
+      <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, color: C.textSecondary, fontWeight: 600 }}>Date limite (optionnel)
+        <input type="date" value={c.deadline || ""} onChange={(e) => up({ deadline: e.target.value })} style={{ ...inputStyle, boxSizing: "border-box" }} />
+      </label>
+    </div>
+  );
+}
+
+function challengeStatus(acc, trades) {
+  const c = { ...CH_DEFAULT, ...(acc.challenge || {}) }; const B = Number(acc.balance) || 10000;
+  const L = byTime(closedOf(trades)); let eq = B, peak = B, ddMax = 0; const days = {};
+  L.forEach((t) => { eq += usdOf(t); peak = Math.max(peak, eq); const k = dayKey(t.entryTime); days[k] = (days[k] || 0) + usdOf(t); ddMax = Math.max(ddMax, c.ddType === "trailing" ? peak - eq : B - eq); });
+  const profit = eq - B; const worstDay = Math.min(0, ...Object.values(days)); const today = days[dayKey(new Date().toISOString())] || 0;
+  const lim = { target: (B * (c.target || 0)) / 100, daily: (B * (c.maxDaily || 0)) / 100, dd: (B * (c.maxDD || 0)) / 100 };
+  const failed = (c.maxDaily && -worstDay >= lim.daily) ? "Perte max du jour dépassée" : (c.maxDD && ddMax >= lim.dd) ? "Drawdown max dépassé" : null;
+  const nDays = Object.keys(days).length; const left = c.deadline ? Math.ceil((new Date(c.deadline + "T23:59:59") - Date.now()) / 864e5) : null;
+  const passed = !failed && c.target && profit >= lim.target && nDays >= (c.minDays || 0);
+  return { c, B, profit, today, ddMax, ddNow: c.ddType === "trailing" ? peak - eq : Math.max(0, B - eq), lim, failed, passed, nDays, left, expired: left != null && left < 0 && !passed };
+}
+
+function ChallengeCard({ acc, trades }) {
+  const s = useMemo(() => challengeStatus(acc, trades), [acc, trades]);
+  const st = s.failed ? { t: "Échoué · " + s.failed, c: C.red } : s.passed ? { t: "Réussi 🎉", c: C.teal } : s.expired ? { t: "Délai dépassé", c: C.red } : { t: "En cours", c: C.amber };
+  const Bar = ({ label, cur, max, good, sub }) => { const p = max ? clamp01(cur / max) : 0; const col = good ? C.teal : p >= 0.8 ? C.red : p >= 0.5 ? C.amber : C.teal; return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSecondary, marginBottom: 5 }}><span>{label}</span><span className="tnum" style={{ color: C.text }}>{sub}</span></div>
+      <div style={{ height: 7, borderRadius: 4, background: C.border, overflow: "hidden" }}><div style={{ width: `${p * 100}%`, height: "100%", background: col, transition: "width .4s" }} /></div>
+    </div>); };
+  return (
+    <div style={{ background: C.card, border: `1px solid ${st.c}55`, borderRadius: 16, padding: "16px 18px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <Trophy size={18} color={C.amber} />
+        <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{acc.name} · {s.c.phase}</div><div style={{ fontSize: 12, color: C.textMuted }}>{s.nDays} / {s.c.minDays || 0} jours tradés{s.left != null ? ` · ${s.left >= 0 ? s.left + " j restants" : "délai passé"}` : ""}</div></div>
+        <span style={{ fontSize: 12, fontWeight: 700, color: st.c, background: st.c + "1A", padding: "4px 10px", borderRadius: 7 }}>{st.t}</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Bar label="Objectif de profit" cur={Math.max(0, s.profit)} max={s.lim.target} good sub={`${fmtUsdSigned(s.profit)} / ${fmtUsd(s.lim.target)}`} />
+        {s.c.maxDaily ? <Bar label="Perte du jour" cur={Math.max(0, -s.today)} max={s.lim.daily} sub={`${fmtUsdSigned(s.today)} · limite −${fmtUsd(s.lim.daily)}`} /> : null}
+        {s.c.maxDD ? <Bar label={s.c.ddType === "trailing" ? "Drawdown suiveur" : "Drawdown"} cur={s.ddNow} max={s.lim.dd} sub={`${fmtUsd(s.ddNow)} · reste ${fmtUsd(Math.max(0, s.lim.dd - s.ddNow))}`} /> : null}
+      </div>
+    </div>
+  );
+}
+
+/* ── Import de l'historique MT4 / MT5 (rapport HTML ou CSV) ── */
+function parseMtReport(text, accountId) {
+  let rows = [];
+  if (/<table|<tr/i.test(text)) {
+    const doc = new DOMParser().parseFromString(text, "text/html");
+    rows = [...doc.querySelectorAll("tr")].map((tr) => { const r = []; [...tr.children].forEach((td) => { const n = Number(td.getAttribute("colspan")) || 1; r.push(td.textContent.replace(/\s+/g, " ").trim()); for (let i = 1; i < n; i++) r.push(""); }); return r; });
+  } else {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim()); const d = [";", "\t", ","].find((x) => (lines[0] || "").includes(x)) || ",";
+    rows = lines.map((l) => l.split(d).map((c) => c.replace(/^"|"$/g, "").trim()));
+  }
+  const H = rows.findIndex((r) => r.some((c) => /^profit$/i.test(c)) && r.some((c) => /^(symbol|item|symbole)$/i.test(c)) && r.some((c) => /^type$/i.test(c)));
+  if (H < 0) throw new Error("Tableau des positions introuvable. Exporte « Historique » en rapport HTML (MT4/MT5).");
+  const h = rows[H].map((c) => c.toLowerCase());
+  const all = (re) => h.map((c, i) => (re.test(c) ? i : -1)).filter((i) => i >= 0);
+  const T = all(/^(time|open time|close time|heure)$/), PR = all(/^(price|prix)$/);
+  const ix = { sym: all(/^(symbol|item|symbole)$/)[0], type: all(/^type$/)[0], vol: all(/^(volume|size|lots?)$/)[0], sl: all(/^s ?\/ ?l$/)[0], tp: all(/^t ?\/ ?p$/)[0], ticket: all(/^(position|ticket|order)$/)[0], profit: all(/^profit$/).pop(), com: all(/^commission$/)[0], swap: all(/^swap$/)[0] };
+  const num = (v) => { const n = Number(String(v ?? "").replace(/\s/g, "").replace(",", ".")); return isNaN(n) ? null : n; };
+  const date = (v) => { const m = String(v || "").match(/(\d{4})[.\-/](\d{2})[.\-/](\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)).toISOString() : null; };
+  const out = [];
+  for (let i = H + 1; i < rows.length; i++) {
+    const r = rows[i]; const type = String(r[ix.type] || "").toLowerCase();
+    if (r.length < 6 || (/^(orders|ordres|deals|transactions|working orders)$/i.test(r[0]) && out.length)) { if (out.length && r.length < 6) break; continue; }
+    if (!/^(buy|sell)\b/.test(type)) continue;
+    const entryTime = date(r[T[0]]), exitTime = date(r[T[1]]); const en = num(r[PR[0]]), ex = num(r[PR[1]]); if (!entryTime || en == null || ex == null) continue;
+    const sl = num(r[ix.sl]) || null, tp = num(r[ix.tp]) || null; const gross = num(r[ix.profit]) || 0; const net = Math.round((gross + (num(r[ix.com]) || 0) + (num(r[ix.swap]) || 0)) * 100) / 100;
+    const move = Math.abs(ex - en); const risk = sl && move > 0 ? Math.round((Math.abs(gross) * Math.abs(en - sl)) / move * 100) / 100 : null;
+    const pair = String(r[ix.sym] || "").toUpperCase().replace(/[.\-_#].*$/, "").replace(/[^A-Z0-9]/g, "");
+    out.push({ id: `mt_${r[ix.ticket] || pair + entryTime}`, pair, direction: type.startsWith("buy") ? "long" : "short", entryTime, exitTime, entryPrice: en, exitPrice: ex, stopLoss: sl, takeProfit: tp, positionSize: num(r[ix.vol]), riskUsd: risk, resultUsd: net, resultR: risk ? Math.round((net / risk) * 100) / 100 : null, status: Math.abs(net) < 0.01 ? "breakeven" : "closed", tags: ["Import MT"], notes: "", accountId });
+  }
+  if (!out.length) throw new Error("Aucune position clôturée trouvée dans ce fichier.");
+  return out;
+}
+
+function MtImport({ trades = [], onImport, accountId }) {
+  const ref = useRef(null); const [msg, setMsg] = useState(null); const [prev, setPrev] = useState(null);
+  const read = (f) => { const r = new FileReader(); r.onload = (e) => { try { const L = parseMtReport(String(e.target.result || ""), accountId); const have = new Set(trades.map((t) => t.id)); const fresh = L.filter((t) => !have.has(t.id)); setPrev({ all: L.length, fresh }); setMsg(null); } catch (err) { setPrev(null); setMsg({ c: C.red, t: err.message }); } }; r.readAsText(f); };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>Dans MT4/MT5 : onglet <b>Historique</b> › clic droit › <b>Rapport</b> › HTML. Importe le fichier ici : les trades déjà importés sont ignorés. Ils vont dans le compte actif.</div>
+      <button onClick={() => ref.current?.click()} style={{ ...btn.ghost, justifyContent: "center" }}><Upload size={14} /> Choisir le rapport MT4 / MT5 (.html, .csv)</button>
+      <input ref={ref} type="file" accept=".htm,.html,.csv,.txt" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) read(f); e.target.value = ""; }} />
+      {prev && (
+        <div style={{ padding: "10px 12px", borderRadius: 9, background: C.inputBg, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ flex: 1, fontSize: 12.5, color: C.text }}>{prev.all} positions lues · <b>{prev.fresh.length} nouvelles</b></span>
+          {prev.fresh.length > 0 && <button onClick={() => { onImport(prev.fresh); setMsg({ c: C.teal, t: `${prev.fresh.length} trades importés ✓` }); setPrev(null); }} style={{ ...btn.primary, fontSize: 12 }}>Importer</button>}
+        </div>
+      )}
+      {msg && <div style={{ fontSize: 12, color: msg.c }}>{msg.t}</div>}
+    </div>
+  );
+}
+
 function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAccounts }) {
   const typeColors = { real: C.teal, demo: C.purple, challenge: C.amber };
   const typeLabels = { real: "Réel", demo: "Démo", challenge: "Challenge" };
@@ -5951,6 +6524,7 @@ function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAc
   const [editBalance, setEditBalance] = useState(String(acc.balance || ""));
   const [editBroker, setEditBroker] = useState(acc.broker || "");
   const [editType, setEditType] = useState(acc.type || "real");
+  const [editCh, setEditCh] = useState(acc.challenge || { ...CH_DEFAULT });
   const [confirmDel, setConfirmDel] = useState(false);
   const [editLogo, setEditLogo] = useState(acc.logo || null);
   const [logoMsg, setLogoMsg] = useState("");
@@ -5961,7 +6535,7 @@ function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAc
   };
 
   const saveEdit = () => {
-    onSaveAccounts(accounts.map(a => a.id === acc.id ? { ...a, name: editName, balance: Number(editBalance) || 0, broker: editBroker, type: editType, logo: editLogo || null } : a));
+    onSaveAccounts(accounts.map(a => a.id === acc.id ? { ...a, name: editName, balance: Number(editBalance) || 0, broker: editBroker, type: editType, logo: editLogo || null, challenge: editType === "challenge" ? editCh : a.challenge } : a));
     setEditing(false);
   };
 
@@ -6007,6 +6581,7 @@ function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAc
             <input type="number" value={editBalance} onChange={e => setEditBalance(e.target.value)} placeholder="Solde ($)" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
             <input value={editBroker} onChange={e => setEditBroker(e.target.value)} placeholder="Broker" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
           </div>
+          {editType === "challenge" && <ChallengeFields v={editCh} set={setEditCh} />}
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={saveEdit} style={{ ...btn.primary, flex: 1, fontSize: 12 }}>Sauvegarder</button>
             <button onClick={() => setEditing(false)} style={{ ...btn.ghost, fontSize: 12 }}>Annuler</button>
@@ -6022,16 +6597,17 @@ function AddAccountForm({ accounts, onSaveAccounts }) {
   const [newType, setNewType] = useState("demo");
   const [newBalance, setNewBalance] = useState("");
   const [newBroker, setNewBroker] = useState("");
+  const [newCh, setNewCh] = useState({ ...CH_DEFAULT });
 
   const handleAdd = () => {
     if (!newName) return;
-    const acc = { id: `acc_${Date.now()}`, name: newName, type: newType, balance: Number(newBalance) || 0, broker: newBroker };
+    const acc = { id: `acc_${Date.now()}`, name: newName, type: newType, balance: Number(newBalance) || 0, broker: newBroker, ...(newType === "challenge" ? { challenge: newCh } : {}) };
     onSaveAccounts([...(accounts || []), acc]);
     setShowForm(false); setNewName(""); setNewBalance(""); setNewBroker(""); setNewType("demo");
   };
 
   if (!showForm) return (
-    <button onClick={() => setShowForm(true)} style={{ ...btn.ghost, marginTop: 6, width: "100%", justifyContent: "center" }}>
+    <button onClick={() => setShowForm(true)} style={{ ...btn.primary, marginTop: 6, width: "100%", justifyContent: "center", padding: "12px 15px", fontSize: 14, borderRadius: 10 }}>
       <Plus size={13} /> Ajouter un compte démo / challenge
     </button>
   );
@@ -6050,6 +6626,7 @@ function AddAccountForm({ accounts, onSaveAccounts }) {
           <input type="number" value={newBalance} onChange={e => setNewBalance(e.target.value)} placeholder="Solde ($)" style={inputStyle} />
           <input value={newBroker} onChange={e => setNewBroker(e.target.value)} placeholder="Broker (optionnel)" style={inputStyle} />
         </div>
+        {newType === "challenge" && <ChallengeFields v={newCh} set={setNewCh} />}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button onClick={handleAdd} style={{ ...btn.primary, flex: 1 }}>Ajouter</button>
@@ -6059,7 +6636,7 @@ function AddAccountForm({ accounts, onSaveAccounts }) {
   );
 }
 
-function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSaveAccounts, onSwitchAccount }) {
+function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSaveAccounts, onSwitchAccount, trades = [], onImport }) {
   
   
   
@@ -6093,6 +6670,10 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
 
         <AddAccountForm accounts={accounts} onSaveAccounts={onSaveAccounts} />
       </SettingsSection>
+
+      {onImport && <SettingsSection title="Importer depuis MT4 / MT5" icon={Download}>
+        <MtImport trades={trades} onImport={onImport} accountId={activeAccountId || accounts?.[0]?.id || null} />
+      </SettingsSection>}
 
       {/* Paires tradées */}
       <SettingsSection title="Paires tradées" icon={LineChart}>
@@ -6185,100 +6766,190 @@ function calcPipValueUSD(pair) {
   return info.pipUSD ? info.pipUSD(rate) : 10;
 }
 
-function ForexCalculator() {
-  const [pair, setPair] = useState("EURUSD");
-  const [accountSize, setAccountSize] = useState("10000");
-  const [riskPct, setRiskPct] = useState("1");
-  const [slPips, setSlPips] = useState("");
-  const [tpPips, setTpPips] = useState("");
-  const [result, setResult] = useState(null);
+// ── Calculatrice de position : tous les actifs, taux en direct, saisie par prix ou en pips ──
+const CCYS = ["EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF", "JPY"];
+const CALC_FX = (() => { const o = []; for (let i = 0; i < CCYS.length; i++) for (let j = i + 1; j < CCYS.length; j++) o.push(CCYS[i] + CCYS[j]); return o; })();
+// contrat : unités par lot · pip : taille du pip · q : devise de cotation
+const CALC_SPECIAL = {
+  XAUUSD: { c: 100, pip: 0.1, q: "USD", lab: "Or" }, XAGUSD: { c: 5000, pip: 0.01, q: "USD", lab: "Argent" },
+  US30: { c: 1, pip: 1, q: "USD", lab: "Dow Jones" }, NAS100: { c: 1, pip: 1, q: "USD", lab: "Nasdaq" }, SPX500: { c: 1, pip: 1, q: "USD", lab: "S&P 500" },
+  GER40: { c: 1, pip: 1, q: "EUR", lab: "DAX" }, UK100: { c: 1, pip: 1, q: "GBP", lab: "FTSE" },
+  BTCUSD: { c: 1, pip: 1, q: "USD", lab: "Bitcoin" }, ETHUSD: { c: 1, pip: 1, q: "USD", lab: "Ethereum" },
+  USOIL: { c: 1000, pip: 0.01, q: "USD", lab: "Pétrole WTI" },
+};
+const CALC_ALL = [...CALC_FX, ...Object.keys(CALC_SPECIAL)];
+const specOf = (p) => CALC_SPECIAL[p] || { c: 100000, pip: p.includes("JPY") ? 0.01 : 0.0001, q: p.slice(3, 6) };
+const FX_FALLBACK = { USD: 1, EUR: 0.92, GBP: 0.79, AUD: 1.52, NZD: 1.66, CAD: 1.37, CHF: 0.88, JPY: 152 };
+const CALC_KEY = "calc_v2";
 
-  const calculate = () => {
-    const acc = parseFloat(accountSize);
-    const risk = parseFloat(riskPct);
-    const sl = parseFloat(slPips);
-    const tp = parseFloat(tpPips);
-    if (!acc || !risk || !sl) return;
+function useFxRates() {
+  const [st, setSt] = useState(() => { try { const c = JSON.parse(localStorage.getItem("fx_rates") || "null"); if (c && c.rates) return c; } catch {} return { rates: FX_FALLBACK, at: null, live: false }; });
+  useEffect(() => {
+    if (st.at && Date.now() - st.at < 6 * 3600e3) return;
+    fetch("https://open.er-api.com/v6/latest/USD").then((r) => r.json()).then((j) => { if (j && j.rates && j.rates.EUR) { const o = { rates: j.rates, at: Date.now(), live: true }; setSt(o); try { localStorage.setItem("fx_rates", JSON.stringify(o)); } catch {} } }).catch(() => {});
+  }, []);
+  return st;
+}
 
-    const riskUsd = (acc * risk) / 100;
-    const pipValuePerLot = calcPipValueUSD(pair);
-    const lotSize = riskUsd / (sl * pipValuePerLot);
-    const riskMoney = sl * pipValuePerLot * lotSize;
-    const rewardMoney = tp ? tp * pipValuePerLot * lotSize : null;
-    const rratio = tp ? tp / sl : null;
-    const pipVal = pipValuePerLot * lotSize;
+function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
+  const fx = useFxRates();
+  const saved = (() => { try { return JSON.parse(localStorage.getItem(CALC_KEY) || "{}"); } catch { return {}; } })();
+  const [pair, setPair] = useState(saved.pair || "EURUSD");
+  const [acc, setAcc] = useState(saved.acc || String(Math.round(Number(balance) || 10000)));
+  const [riskMode, setRiskMode] = useState(saved.riskMode || "pct");
+  const [risk, setRisk] = useState(saved.risk || "1");
+  const [mode, setMode] = useState(saved.mode || "pips");
+  const [sl, setSl] = useState(saved.sl || "");
+  const [tp, setTp] = useState(saved.tp || "");
+  const [entry, setEntry] = useState(""); const [slP, setSlP] = useState(""); const [tpP, setTpP] = useState("");
+  const [com, setCom] = useState(saved.com || "");
+  const [step, setStep] = useState(saved.step || "0.01");
+  const [pvOver, setPvOver] = useState("");
+  const [q, setQ] = useState("");
+  useEffect(() => { try { localStorage.setItem(CALC_KEY, JSON.stringify({ pair, acc, riskMode, risk, mode, sl, tp, com, step })); } catch {} }, [pair, acc, riskMode, risk, mode, sl, tp, com, step]);
+  useEffect(() => { setPvOver(""); }, [pair]);
 
-    setResult({
-      lotSize: lotSize.toFixed(2),
-      riskUsd: riskMoney.toFixed(2),
-      rewardUsd: rewardMoney?.toFixed(2),
-      rratio: rratio?.toFixed(2),
-      pipValue: pipVal.toFixed(2),
-      pipValuePerLot: pipValuePerLot.toFixed(2),
-    });
-  };
+  const sp = specOf(pair);
+  const usdPer = (ccy) => (ccy === "USD" ? 1 : 1 / (Number(fx.rates[ccy]) || FX_FALLBACK[ccy] || 1));
+  const pvAuto = sp.c * sp.pip * usdPer(sp.q);          // valeur d'1 pip pour 1 lot, en $
+  const pv = Number(pvOver) > 0 ? Number(pvOver) : pvAuto;
+  const n = (v) => { const x = parseFloat(String(v).replace(",", ".")); return isNaN(x) ? null : x; };
+  const A = n(acc) || 0;
+  const plan = (() => { try { return loadRules(); } catch { return {}; } })();
 
-  const reset = () => { setSlPips(""); setTpPips(""); setResult(null); };
+  const r = useMemo(() => {
+    let slPips = n(sl), tpPips = n(tp), dir = null;
+    if (mode === "prix") { const e = n(entry), s = n(slP), t = n(tpP); if (e != null && s != null) { slPips = Math.abs(e - s) / sp.pip; dir = s < e ? "long" : "short"; } else slPips = null; tpPips = e != null && t != null ? Math.abs(t - e) / sp.pip : null; }
+    const riskUsd = riskMode === "pct" ? (A * (n(risk) || 0)) / 100 : n(risk) || 0;
+    if (!slPips || !riskUsd || !pv) return null;
+    const c = n(com) || 0; const st = n(step) || 0.01;
+    const raw = riskUsd / (slPips * pv + c);
+    const lots = Math.floor(raw / st + 1e-9) * st;
+    const realRisk = lots * (slPips * pv + c);
+    const gain = tpPips ? lots * (tpPips * pv - c) : null;
+    return { slPips, tpPips, dir, riskUsd, raw, lots, realRisk, gain, rr: tpPips ? tpPips / slPips : null, pipLot: lots * pv, units: lots * sp.c, pct: A ? (realRisk / A) * 100 : null, bePips: lots && c ? c / pv : 0 };
+  }, [sl, tp, mode, entry, slP, tpP, riskMode, risk, A, pv, com, step, sp]);
 
-  const pairs = Object.keys(FOREX_PAIRS);
+  const dec = Math.max(0, Math.round(-Math.log10(sp.pip)) + 1);
+  const lvl = (k) => { const e = n(entry); if (e == null || !r || !r.dir) return null; const d = r.slPips * sp.pip * k; return (r.dir === "long" ? e + d : e - d).toFixed(dec); };
+  const quick = [...new Set([...(myPairs || []).filter((p) => CALC_ALL.includes(p)), "EURUSD", "GBPUSD", "XAUUSD", "NAS100"])].slice(0, 8);
+  const list = CALC_ALL.filter((p) => !q || p.includes(q.toUpperCase()) || (CALC_SPECIAL[p]?.lab || "").toLowerCase().includes(q.toLowerCase()));
+  const lotsTxt = r ? r.lots.toFixed(String(step).split(".")[1]?.length || 2) : "—";
+  const overPlan = r && plan.maxRiskPct && r.pct > plan.maxRiskPct + 1e-9;
+  const [copied, setCopied] = useState(false);
+  const copy = () => { if (!r) return; const t = lotsTxt; const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1400); };
+    try { navigator.clipboard.writeText(t).then(done, () => { const a = document.createElement("textarea"); a.value = t; document.body.appendChild(a); a.select(); document.execCommand("copy"); a.remove(); done(); }); } catch { done(); } };
+  const create = () => { if (!r || !onCreateTrade) return; const e = n(entry); const tpPrice = mode === "prix" ? n(tpP) : null;
+    onCreateTrade({ pair, direction: r.dir || "long", entryPrice: mode === "prix" ? e : "", stopLoss: mode === "prix" ? n(slP) : "", takeProfit: tpPrice ?? "", riskUsd: Math.round(r.realRisk * 100) / 100, positionSize: r.lots }); };
+
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 12 };
+  const lab = { fontSize: 12, fontWeight: 700, color: C.textSecondary, marginBottom: 6, display: "block" };
+  const inp = { ...inputStyle, width: "100%", boxSizing: "border-box", padding: "11px 12px", fontSize: 15 };
+  const seg = (v, set, opts) => <div style={{ display: "flex", gap: 2, padding: 2, borderRadius: 9, background: C.inputBg || C.bg, border: `1px solid ${C.border}` }}>{opts.map(([k, l]) => <button key={k} onClick={() => set(k)} style={{ height: 28, padding: "0 11px", borderRadius: 7, border: "none", background: v === k ? C.purpleDim : "transparent", color: v === k ? C.purpleBright : C.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>)}</div>;
+  const chip = (on) => ({ padding: "7px 11px", borderRadius: 9, border: `1.5px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 });
+  const Out = ({ l, v, c, sub }) => <div style={{ padding: "11px 12px", borderRadius: 12, background: C.inputBg || C.bg, border: `1px solid ${C.border}`, minWidth: 0 }}><div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, color: c || C.text, marginTop: 3 }}>{v}</div>{sub && <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 1 }}>{sub}</div>}</div>;
 
   return (
-    <div className="fade-in" style={{ maxWidth: 520 }}>
+    <div className="fade-in" style={{ maxWidth: 620, margin: "0 auto", paddingBottom: 170 }}>
+      <style>{`.calc-bar{position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:40}@media (min-width:601px){.calc-bar{left:calc(50% + 110px);right:auto;width:min(596px,calc(100% - 260px));transform:translateX(-50%);bottom:20px}}`}</style>
       <PageHeader title="Calculatrice de position" />
 
-      <Card style={{ padding: 20, marginBottom: 14 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label="Paire de devises">
-            <select value={pair} onChange={(e) => { setPair(e.target.value); setResult(null); }} style={inputStyle}>
-              {pairs.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </Field>
-
-          <div className="form-grid-2">
-            <Field label="Taille du compte ($)">
-              <input type="number" placeholder="10000" value={accountSize} onChange={(e) => { setAccountSize(e.target.value); setResult(null); }} style={inputStyle} />
-            </Field>
-            <Field label="Risque (%)">
-              <input type="number" step="0.1" placeholder="1" value={riskPct} onChange={(e) => { setRiskPct(e.target.value); setResult(null); }} style={inputStyle} />
-            </Field>
-            <Field label="Stop-Loss (pips)">
-              <input type="number" placeholder="20" value={slPips} onChange={(e) => { setSlPips(e.target.value); setResult(null); }} style={inputStyle} />
-            </Field>
-            <Field label="Take-Profit (pips) — optionnel">
-              <input type="number" placeholder="40" value={tpPips} onChange={(e) => { setTpPips(e.target.value); setResult(null); }} style={inputStyle} />
-            </Field>
+      {/* Résultat en direct */}
+      <div style={{ ...card, background: `radial-gradient(120% 100% at 100% 0%, ${C.purpleDim}, transparent 60%), ${C.card}`, border: `1px solid ${overPlan ? C.amber + "88" : C.border}` }}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Taille de position</div>
+            <div className="tnum" style={{ fontSize: 42, fontWeight: 700, letterSpacing: -1, lineHeight: 1.05, color: r ? C.text : C.textMuted }}>{lotsTxt}<span style={{ fontSize: 16, color: C.textMuted, fontWeight: 600 }}> lots</span></div>
+            <div className="tnum" style={{ fontSize: 12.5, color: C.textMuted }}>{r ? `${Math.round(r.units).toLocaleString("fr-FR")} unités · ${(r.lots * 10).toFixed(1)} mini · ${(r.lots * 100).toFixed(0)} micro` : "Entre ton stop pour calculer"}</div>
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><PairLogo pair={pair} size={30} /><span style={{ fontSize: 15, fontWeight: 700 }}>{pair}</span></div>
         </div>
+        {r && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 8, marginTop: 14 }}>
+          <Out l="Risque réel" v={"−" + fmtUsd(r.realRisk)} c={C.red} sub={r.pct != null ? r.pct.toFixed(2) + " % du compte" : ""} />
+          <Out l="Gain au TP" v={r.gain != null ? "+" + fmtUsd(r.gain) : "—"} c={C.teal} sub={r.rr ? "R:R 1:" + r.rr.toFixed(2) : "ajoute un TP"} />
+          <Out l="Valeur du pip" v={"$" + r.pipLot.toFixed(2)} sub={`$${pv.toFixed(2)} / lot`} />
+          <Out l="Stop" v={r.slPips.toFixed(1) + " pips"} sub={r.tpPips ? "TP " + r.tpPips.toFixed(1) + " pips" : r.dir ? (r.dir === "long" ? "Achat" : "Vente") : ""} />
+        </div>}
+        {r && r.lots === 0 && <div style={{ marginTop: 10, fontSize: 12, color: C.amber }}>Risque trop petit pour 1 pas de lot ({step}). Il faudrait {r.raw.toFixed(3)} lot.</div>}
+        {r && r.realRisk < r.riskUsd - 1 && r.lots > 0 && <div style={{ marginTop: 10, fontSize: 11.5, color: C.textMuted }}>Arrondi au pas de {step} : tu risques {fmtUsd(r.realRisk)} au lieu de {fmtUsd(r.riskUsd)}.</div>}
+        {overPlan && <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 9, background: C.amberDim, fontSize: 12, color: C.amber, display: "flex", gap: 6, alignItems: "center" }}><AlertTriangle size={13} /> Au-dessus de ton plan : risque max {plan.maxRiskPct} % par trade.</div>}
+        {r && r.rr != null && r.rr < 1.5 && <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 9, background: C.redDim, fontSize: 12, color: C.red, display: "flex", gap: 6, alignItems: "center" }}><AlertCircle size={13} /> R:R faible (1:{r.rr.toFixed(2)}). Vérifie ton TP.</div>}
+        {r && r.bePips > 0 && <div style={{ marginTop: 8, fontSize: 11.5, color: C.textMuted }}>Avec la commission, il faut {r.bePips.toFixed(1)} pips pour être à zéro.</div>}
+      </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-          <button onClick={calculate} style={{ ...btn.primary, flex: 1, justifyContent: "center" }}>Calculer</button>
-          <button onClick={reset} style={{ ...btn.ghost, padding: "9px 16px" }}>Réinitialiser</button>
+      {/* Échelle de prix */}
+      {r && r.dir && n(entry) != null && (() => { const e = n(entry); const tpk = r.tpPips ? r.tpPips / r.slPips : null; const top = Math.max(3, tpk || 0); const lv = [["Stop", -1, C.red], ["Entrée", 0, C.purpleBright], ["1R", 1, C.teal], ["2R", 2, C.teal], ["3R", 3, C.teal], ...(tpk && ![1, 2, 3].includes(Math.round(tpk * 100) / 100) ? [["TP", tpk, C.amber]] : [])].sort((x, y) => y[1] - x[1]);
+        const pos = (k) => ((top - k) / (top + 1)) * 100; const price = (k) => (r.dir === "long" ? e + r.slPips * sp.pip * k : e - r.slPips * sp.pip * k).toFixed(dec);
+        return <div style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><span style={{ fontSize: 13.5, fontWeight: 700 }}>Niveaux · {r.dir === "long" ? "Achat ▲" : "Vente ▼"}</span>{tpk && <span className="tnum" style={{ fontSize: 12, color: C.amber, fontWeight: 700 }}>TP = {tpk.toFixed(2)}R</span>}</div>
+          <div style={{ position: "relative", height: 230, marginLeft: 4 }}>
+            <div style={{ position: "absolute", left: 8, width: 6, top: `${pos(top)}%`, height: `${pos(0) - pos(top)}%`, borderRadius: 3, background: `linear-gradient(180deg, ${C.teal}, ${C.teal}33)` }} />
+            <div style={{ position: "absolute", left: 8, width: 6, top: `${pos(0)}%`, height: `${pos(-1) - pos(0)}%`, borderRadius: 3, background: `linear-gradient(180deg, ${C.red}33, ${C.red})` }} />
+            {lv.map(([l, k, c]) => <div key={l} style={{ position: "absolute", left: 0, right: 0, top: `${pos(k)}%`, transform: "translateY(-50%)", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 22, height: 22, borderRadius: 11, background: C.card, border: `3px solid ${c}`, boxSizing: "border-box", flexShrink: 0 }} />
+              <span style={{ width: 52, fontSize: 12.5, fontWeight: 700, color: c }}>{l}</span>
+              <span className="tnum" style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{k === 0 ? e.toFixed(dec) : price(k)}</span>
+              <span className="tnum" style={{ fontSize: 12.5, fontWeight: 600, color: k < 0 ? C.red : k > 0 ? C.teal : C.textMuted }}>{k === 0 ? "" : (k > 0 ? "+" : "−") + fmtUsd(Math.abs(k) * r.realRisk)}</span>
+            </div>)}
+          </div>
+        </div>; })()}
+
+      {/* Actif */}
+      <div style={card}>
+        <span style={lab}>Actif</span>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>{quick.map((p) => <button key={p} onClick={() => setPair(p)} style={chip(pair === p)}><PairLogo pair={p} size={16} />{p}</button>)}</div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher un actif (GBPJPY, or, nasdaq…)" style={inp} />
+        {q && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>{list.slice(0, 16).map((p) => <button key={p} onClick={() => { setPair(p); setQ(""); }} style={chip(pair === p)}>{p}{CALC_SPECIAL[p] ? <span style={{ fontWeight: 500, color: C.textMuted }}> · {CALC_SPECIAL[p].lab}</span> : null}</button>)}{!list.length && <span style={{ fontSize: 12, color: C.textMuted }}>Aucun actif.</span>}</div>}
+      </div>
+
+      {/* Compte et risque */}
+      <div style={card}>
+        <div className="form-grid-2" style={{ gap: 10 }}>
+          <label><span style={lab}>Solde du compte ($)</span><input type="number" inputMode="decimal" value={acc} onChange={(e) => setAcc(e.target.value)} style={inp} /></label>
+          <label><span style={{ ...lab, display: "flex", justifyContent: "space-between", alignItems: "center" }}>Risque {seg(riskMode, setRiskMode, [["pct", "%"], ["usd", "$"]])}</span><input type="number" inputMode="decimal" step="0.1" value={risk} onChange={(e) => setRisk(e.target.value)} style={inp} /></label>
         </div>
-      </Card>
+        {riskMode === "pct" && <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>{["0.25", "0.5", "1", "1.5", "2"].map((v) => <button key={v} onClick={() => setRisk(v)} style={chip(risk === v)}>{v.replace(".", ",")} %</button>)}{Number(balance) > 0 && Math.round(Number(balance)) !== Number(acc) && <button onClick={() => setAcc(String(Math.round(Number(balance))))} style={{ ...chip(false), marginLeft: "auto" }}>Solde actuel {fmtUsd(balance)}</button>}</div>}
+      </div>
 
-      {result && (
-        <Card style={{ padding: 20 }}>
-          <CardLabel>Résultats</CardLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
-            <CalcResult label="Taille de lot" value={result.lotSize} highlight />
-            <CalcResult label="Risque en $" value={`$${result.riskUsd}`} color={C.red} />
-            {result.rewardUsd && <CalcResult label="Gain potentiel" value={`$${result.rewardUsd}`} color={C.teal} />}
-            {result.rratio && <CalcResult label="Ratio R:R" value={`1:${result.rratio}`} color={parseFloat(result.rratio) >= 2 ? C.teal : C.textSecondary} />}
-            <CalcResult label="Valeur pip (lot)" value={`$${result.pipValue}`} />
-            <CalcResult label="Pip/lot standard" value={`$${result.pipValuePerLot}`} />
+      {/* Stop / TP */}
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><span style={{ ...lab, marginBottom: 0 }}>Stop et objectif</span>{seg(mode, setMode, [["pips", "En pips"], ["prix", "Par prix"]])}</div>
+        {mode === "pips" ? (
+          <div className="form-grid-2" style={{ gap: 10 }}>
+            <label><span style={lab}>Stop loss (pips)</span><input type="number" inputMode="decimal" value={sl} onChange={(e) => setSl(e.target.value)} placeholder="20" style={inp} /></label>
+            <label><span style={lab}>Take profit (pips)</span><input type="number" inputMode="decimal" value={tp} onChange={(e) => setTp(e.target.value)} placeholder="optionnel" style={inp} /></label>
           </div>
-
-          {parseFloat(result.rratio) < 1.5 && result.rratio && (
-            <div style={{ marginTop: 14, padding: "10px 12px", background: C.redDim, borderRadius: 8, fontSize: 12, color: C.red, display: "flex", alignItems: "center", gap: 7 }}>
-              <AlertCircle size={14} /> Ratio risque/récompense faible — vérifie ton TP avant d'entrer.
-            </div>
-          )}
-
-          <div style={{ marginTop: 14, padding: "10px 12px", background: C.bg, borderRadius: 8, fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>
-            Valeurs approximatives basées sur des taux standard. Vérifie toujours la valeur pip exacte de ton broker pour les paires croisées (JPY, CHF, CAD).
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8 }}>
+            <label><span style={lab}>Entrée</span><input type="number" inputMode="decimal" value={entry} onChange={(e) => setEntry(e.target.value)} style={inp} /></label>
+            <label><span style={{ ...lab, color: C.red }}>Stop</span><input type="number" inputMode="decimal" value={slP} onChange={(e) => setSlP(e.target.value)} style={inp} /></label>
+            <label><span style={{ ...lab, color: C.teal }}>TP</span><input type="number" inputMode="decimal" value={tpP} onChange={(e) => setTpP(e.target.value)} placeholder="opt." style={inp} /></label>
           </div>
-        </Card>
-      )}
+        )}
+        {mode === "pips" && n(sl) > 0 && <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.textMuted, alignSelf: "center" }}>TP à</span>{[1.5, 2, 3, 4].map((k) => <button key={k} onClick={() => setTp(String(Math.round(n(sl) * k * 10) / 10))} style={chip(n(tp) === Math.round(n(sl) * k * 10) / 10)}>{String(k).replace(".", ",")}R</button>)}</div>}
+      </div>
+
+      {/* Réglages broker */}
+      <details style={{ ...card, padding: "12px 16px" }}>
+        <summary style={{ fontSize: 13, fontWeight: 700, color: C.textSecondary, cursor: "pointer" }}>Réglages broker (commission, pas de lot, valeur du pip)</summary>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginTop: 12 }}>
+          <label><span style={lab}>Commission $/lot</span><input type="number" inputMode="decimal" value={com} onChange={(e) => setCom(e.target.value)} placeholder="ex. 7" style={inp} /></label>
+          <label><span style={lab}>Pas de lot</span><select value={step} onChange={(e) => setStep(e.target.value)} style={inp}>{["0.01", "0.1", "1"].map((v) => <option key={v} value={v}>{v}</option>)}</select></label>
+          <label><span style={lab}>Pip / lot ($)</span><input type="number" inputMode="decimal" value={pvOver} onChange={(e) => setPvOver(e.target.value)} placeholder={pvAuto.toFixed(2)} style={inp} /></label>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>
+          1 lot {pair} = {sp.c.toLocaleString("fr-FR")} unités · 1 pip = {sp.pip}. {fx.live ? `Taux de change en direct (${new Date(fx.at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}).` : "Taux de change approximatifs (hors ligne)."} {CALC_SPECIAL[pair] && !/USD$/.test(pair) ? "" : ""}{CALC_SPECIAL[pair] && ["US30", "NAS100", "SPX500", "GER40", "UK100", "BTCUSD", "ETHUSD", "USOIL"].includes(pair) ? " Pour les indices, la crypto et le pétrole, la taille du contrat change selon le broker : vérifie la valeur du pip et corrige-la ici." : ""}
+        </div>
+      </details>
+
+      <div className="calc-bar" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 10px 10px 14px", borderRadius: 16, background: C.card, border: `1px solid ${overPlan ? C.amber + "99" : C.purple + "55"}`, boxShadow: "0 10px 30px rgba(0,0,0,.35)", backdropFilter: "blur(12px)" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="tnum" style={{ fontSize: 18, fontWeight: 700, color: r ? C.text : C.textMuted, whiteSpace: "nowrap" }}>{lotsTxt} <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>lot{r && r.lots >= 2 ? "s" : ""} · {pair}</span></div>
+          <div className="tnum" style={{ fontSize: 12, color: C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r ? <><span style={{ color: C.red }}>−{fmtUsd(r.realRisk)}</span>{r.rr ? <> · 1:{r.rr.toFixed(2)} · <span style={{ color: C.teal }}>+{fmtUsd(r.gain)}</span></> : ""}</> : "Entre ton stop"}</div>
+        </div>
+        <button onClick={copy} disabled={!r} style={{ ...btn.ghost, height: 40, padding: "0 12px", opacity: r ? 1 : 0.5, color: copied ? C.teal : C.textSecondary }}>{copied ? <Check size={15} /> : <Clipboard size={15} />}{copied ? "Copié" : "Copier"}</button>
+        {onCreateTrade && <button onClick={create} disabled={!r} style={{ ...btn.primary, height: 40, padding: "0 13px", opacity: r ? 1 : 0.5 }}><Plus size={15} />Trade</button>}
+      </div>
     </div>
   );
 }
@@ -6616,6 +7287,480 @@ async function flushPending() {
   return left;
 }
 
+/* ============================================================================
+   LECTURE AUTOMATIQUE D'UN SCREENSHOT TRADINGVIEW (outil Long / Short Position)
+   Sans IA : on lit les couleurs des zones (vert = TP long, rouge = SL, bleu = TP short)
+   et on lit les étiquettes de prix de l'axe de droite avec un OCR (Tesseract.js).
+   ============================================================================ */
+let __tessP = null;
+function loadTesseract() {
+  if (typeof window !== "undefined" && window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (__tessP) return __tessP;
+  __tessP = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+    s.onload = () => res(window.Tesseract); s.onerror = () => { __tessP = null; rej(new Error("OCR indisponible (pas de connexion ?)")); };
+    document.head.appendChild(s);
+  });
+  return __tessP;
+}
+let __ocrWorker = null;
+async function getOcrWorker() {
+  if (__ocrWorker) return __ocrWorker;
+  const T = await loadTesseract();
+  const opts = (typeof window !== "undefined" && window.__TESS_OPTS) || {};
+  __ocrWorker = await T.createWorker("eng", 1, opts);
+  return __ocrWorker;
+}
+function loadImg(src) {
+  return new Promise((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = () => rej(new Error("Image illisible")); i.src = src; });
+}
+const MONTHS_FR = { jan: 0, janv: 0, janvier: 0, feb: 1, fev: 1, fevr: 1, févr: 1, février: 1, mar: 2, mars: 2, apr: 3, avr: 3, avril: 3, may: 4, mai: 4, jun: 5, juin: 5, jul: 6, juil: 6, juill: 6, juillet: 6, aug: 7, aou: 7, août: 7, aout: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11, déc: 11 };
+const MONTH_EN = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+
+function ymd(d) { const z = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()); }
+async function analyzeChartScreenshot(src, instruments = []) {
+  const img = await loadImg(src);
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d", { willReadFrequently: true }); ctx.drawImage(img, 0, 0);
+  const D = ctx.getImageData(0, 0, W, H).data;
+  const px = (x, y) => { const i = (y * W + x) * 4; return [D[i], D[i + 1], D[i + 2]]; };
+  const near = (c, r, g, b, t) => Math.abs(c[0] - r) < t && Math.abs(c[1] - g) < t && Math.abs(c[2] - b) < t;
+  // Étiquettes de l'axe (couleurs pleines)
+  const labelClass = (c) => {
+    if (near(c, 34, 171, 148, 40) || near(c, 8, 153, 129, 40)) return "teal";
+    if (near(c, 242, 54, 69, 45) || near(c, 247, 82, 95, 40)) return "red";
+    if (near(c, 41, 98, 255, 45) || near(c, 33, 150, 243, 40)) return "blue";
+    if (c[0] < 45 && c[1] < 45 && c[2] < 50) return "black";
+    return null;
+  };
+  // Zones pâles de l'outil position
+  const zoneClass = (c) => {
+    const [r, g, b] = c;
+    if (g > 215 && b > 205 && r < 225 && g - r > 14 && g >= b - 4) return "zg"; // vert d'eau (TP long)
+    if (r > 235 && g > 140 && g < 232 && b > 145 && b < 236 && r - g > 18 && Math.abs(g - b) < 22) return "zr"; // rose (SL)
+    if (b > 235 && r < 228 && b - r > 22 && b - g > 12 && g > 160) return "zb"; // bleu pâle (TP short)
+    return null;
+  };
+
+  // 1) Étiquettes à droite
+  const x0 = Math.floor(W * 0.8);
+  const rows = [];
+  for (let y = 0; y < H; y++) {
+    let best = null, cur = null, start = 0, last = 0, cnt = 0;
+    const close = () => { if (cur && last - start >= 36 && cnt > (last - start) * 0.3 && (!best || last - start > best.len)) best = { k: cur, a: start, b: last, len: last - start }; };
+    for (let x = x0; x <= W; x++) {
+      const k = x < W ? labelClass(px(x, y)) : null;
+      if (k && k === cur) { last = x; cnt++; continue; }
+      if (k && k !== cur) { close(); cur = k; start = x; last = x; cnt = 1; continue; }
+      if (cur && x - last > 14) { close(); cur = null; }
+    }
+    close();
+    rows.push(best);
+  }
+  const boxes = [];
+  for (let y = 0; y < H; y++) {
+    const r = rows[y]; if (!r) continue;
+    const last = boxes[boxes.length - 1];
+    const gapOk = (lb) => { for (let yy = lb.y1 + 1; yy < y; yy++) { let c = 0; for (let x = lb.a; x <= lb.b; x++) if (labelClass(px(x, yy)) === lb.k) c++; if (c < (lb.b - lb.a) * 0.12) return false; } return true; };
+    if (last && last.k === r.k && y - last.y1 <= 7 && Math.abs(last.a - r.a) < 12 && gapOk(last)) { last.y1 = y; last.a = Math.min(last.a, r.a); last.b = Math.max(last.b, r.b); }
+    else boxes.push({ k: r.k, y0: y, y1: y, a: r.a, b: r.b });
+  }
+  let labels = boxes.filter((b) => b.y1 - b.y0 >= 9 && b.y1 - b.y0 < 90 && b.b - b.a < W * 0.2);
+  const hts = labels.map((b) => b.y1 - b.y0 + 1).sort((a, b) => a - b);
+  const lh = hts.length ? hts[Math.floor(hts.length / 2)] : 18;
+  // étiquettes collées : on coupe ; étiquettes hautes (prix + compte à rebours) : 1re ligne seulement
+  const split = [];
+  labels.forEach((b) => {
+    const h = b.y1 - b.y0 + 1;
+    if (h > lh * 1.6 && b.k !== "black") { const n = Math.round(h / lh); for (let i = 0; i < n; i++) split.push({ ...b, y0: b.y0 + Math.round(i * h / n), y1: b.y0 + Math.round((i + 1) * h / n) - 1 }); }
+    else if (h > lh * 1.6) split.push({ ...b, y1: b.y0 + lh - 1, multi: true });
+    else split.push(b);
+  });
+  labels = split;
+
+  // 2) OCR des étiquettes
+  const worker = await getOcrWorker();
+  await worker.setParameters({ tessedit_char_whitelist: "0123456789.,", tessedit_pageseg_mode: "7" });
+  const S = 4, PAD = 20;
+  for (const L of labels) {
+    const w = L.b - L.a + 1, h = L.y1 - L.y0 + 1; if (w < 10 || h < 6) continue;
+    const c2 = document.createElement("canvas"); c2.width = w * S + PAD * 2; c2.height = h * S + PAD * 2;
+    const g2 = c2.getContext("2d"); g2.fillStyle = "#fff"; g2.fillRect(0, 0, c2.width, c2.height);
+    g2.imageSmoothingEnabled = true; g2.imageSmoothingQuality = "high"; g2.drawImage(cv, L.a, L.y0, w, h, PAD, PAD, w * S, h * S);
+    const id = g2.getImageData(0, 0, c2.width, c2.height); const d = id.data;
+    // texte blanc sur fond coloré → texte foncé sur fond clair (sans seuil : Tesseract binarise mieux)
+    for (let i = 0; i < d.length; i += 4) { const v = 255 - (d[i] + d[i + 1] + d[i + 2]) / 3; d[i] = d[i + 1] = d[i + 2] = v; }
+    for (let y = 0; y < c2.height; y++) for (let x = 0; x < c2.width; x++) if (x < PAD || y < PAD || x >= c2.width - PAD || y >= c2.height - PAD) { const i = (y * c2.width + x) * 4; d[i] = d[i + 1] = d[i + 2] = 255; }
+    g2.putImageData(id, 0, 0);
+    const { data } = await worker.recognize(c2);
+    const t = String(data.text || "").replace(/\s/g, "").replace(/,/g, ".");
+    const m = t.match(/\d+(\.\d+)?/); L.v = m ? parseFloat(m[0]) : null; L.txt = t;
+    L.yc = (L.y0 + L.y1) / 2;
+  }
+  // décimales : si l'OCR a raté la virgule, on la remet d'après les autres étiquettes
+  const withDot = labels.filter((l) => /\d\.\d/.test(l.txt || ""));
+  const intD = withDot.length ? withDot.map((l) => l.txt.match(/(\d+)\./)[1].length).sort((a, b) => a - b)[Math.floor(withDot.length / 2)] : null;
+  labels.forEach((l) => { const dg = String(l.txt || "").replace(/[^0-9]/g, ""); if (intD != null && l.v != null && !/\d\.\d/.test(l.txt) && dg.length > intD) { l.v = parseFloat(dg.slice(0, intD) + "." + dg.slice(intD)); l.fixed = true; } });
+  // cohérence : une étiquette doit tomber sur la droite prix ↔ hauteur, sinon on l'ignore
+  let cand = labels.filter((l) => l.v != null && isFinite(l.v));
+  if (cand.length >= 3) {
+    let bestIn = null;
+    for (let i = 0; i < cand.length; i++) for (let j = i + 1; j < cand.length; j++) {
+      const A = cand[i], B = cand[j]; if (A.yc === B.yc) continue; const sl = (B.v - A.v) / (B.yc - A.yc); if (sl >= 0) continue;
+      const tol = Math.abs(sl) * lh * 1.6; const inl = cand.filter((l) => Math.abs(l.v - (A.v + sl * (l.yc - A.yc))) <= tol);
+      if (!bestIn || inl.length > bestIn.length) bestIn = inl;
+    }
+    if (bestIn && bestIn.length >= 2) cand = bestIn;
+  }
+  const valued = cand;
+  // échelle prix ↔ y (moindres carrés)
+  let fit = null;
+  if (valued.length >= 2) {
+    const n = valued.length, sx = valued.reduce((s, l) => s + l.yc, 0), sy = valued.reduce((s, l) => s + l.v, 0);
+    const sxx = valued.reduce((s, l) => s + l.yc * l.yc, 0), sxy = valued.reduce((s, l) => s + l.yc * l.v, 0);
+    const a = (n * sxy - sx * sy) / (n * sxx - sx * sx || 1); const b = (sy - a * sx) / n; fit = (y) => a * y + b;
+  }
+  const priceAt = (y, kinds) => {
+    const exp = fit ? fit(y) : null;
+    const cands = valued.filter((l) => kinds.includes(l.k) && Math.abs(l.yc - y) < lh * 2.2);
+    if (cands.length) {
+      const pick = exp != null ? cands.sort((p, q) => Math.abs(p.v - exp) - Math.abs(q.v - exp))[0] : cands.sort((p, q) => Math.abs(p.yc - y) - Math.abs(q.yc - y))[0];
+      return { v: pick.v, sure: true };
+    }
+    return exp != null ? { v: exp, sure: false } : null;
+  };
+
+  // 3) Zones de l'outil position (grille grossière + composantes connexes)
+  const st = 3, gw = Math.ceil(W / st), gh = Math.ceil(H / st), grid = new Array(gw * gh).fill(null);
+  const xmax = labels.length ? Math.min(...labels.map((l) => l.a)) - 4 : W;
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) { const x = gx * st, y = gy * st; if (x >= xmax || y >= H) continue; grid[gy * gw + gx] = zoneClass(px(x, y)); }
+  const seen = new Uint8Array(gw * gh), comps = [];
+  for (let i = 0; i < grid.length; i++) {
+    if (!grid[i] || seen[i]) continue;
+    const k = grid[i]; const q = [i]; seen[i] = 1; let n = 0, ax = 1e9, bx = -1, ay = 1e9, by = -1;
+    while (q.length) { const j = q.pop(); n++; const gx = j % gw, gy = (j / gw) | 0; ax = Math.min(ax, gx); bx = Math.max(bx, gx); ay = Math.min(ay, gy); by = Math.max(by, gy);
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const nx = gx + dx, ny = gy + dy; if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue; const nj = ny * gw + nx; if (!seen[nj] && grid[nj] === k) { seen[nj] = 1; q.push(nj); } } }
+    if (n > 60) comps.push({ k, n, x0: ax * st, x1: bx * st, y0: ay * st, y1: by * st });
+  }
+  // fusion des morceaux d'une même zone coupés par les bougies
+  let merged = true;
+  while (merged) { merged = false;
+    for (let i = 0; i < comps.length && !merged; i++) for (let j = i + 1; j < comps.length && !merged; j++) {
+      const A = comps[i], B = comps[j]; if (A.k !== B.k) continue;
+      if (A.x0 <= B.x1 + 8 && B.x0 <= A.x1 + 8 && A.y0 <= B.y1 + 8 && B.y0 <= A.y1 + 8) { comps[i] = { k: A.k, n: A.n + B.n, x0: Math.min(A.x0, B.x0), x1: Math.max(A.x1, B.x1), y0: Math.min(A.y0, B.y0), y1: Math.max(A.y1, B.y1) }; comps.splice(j, 1); merged = true; }
+    } }
+  const big = comps.filter((c) => (c.x1 - c.x0) > 25 && (c.y1 - c.y0) > 8);
+  const ovx = (A, B) => Math.max(0, Math.min(A.x1, B.x1) - Math.max(A.x0, B.x0)) / Math.max(1, Math.min(A.x1 - A.x0, B.x1 - B.x0));
+  const trades = [];
+  const reds = big.filter((c) => c.k === "zr");
+  big.filter((c) => c.k === "zg").forEach((T) => {
+    const R = reds.filter((r) => ovx(T, r) > 0.5 && Math.abs(r.y0 - T.y1) < 12).sort((a, b) => Math.abs(a.y0 - T.y1) - Math.abs(b.y0 - T.y1))[0];
+    if (!R) return; trades.push({ direction: "long", x0: Math.min(T.x0, R.x0), x1: Math.max(T.x1, R.x1), yTP: T.y0, yE: (T.y1 + R.y0) / 2, ySL: R.y1 + st });
+  });
+  big.filter((c) => c.k === "zb").forEach((B) => {
+    const R = reds.filter((r) => ovx(B, r) > 0.5 && Math.abs(r.y1 - B.y0) < 12).sort((a, b) => Math.abs(a.y1 - B.y0) - Math.abs(b.y1 - B.y0))[0];
+    if (!R) return; trades.push({ direction: "short", x0: Math.min(B.x0, R.x0), x1: Math.max(B.x1, R.x1), ySL: R.y0, yE: (R.y1 + B.y0) / 2, yTP: B.y1 + st });
+  });
+
+  // 4) En-tête : paire, unité de temps, date de la capture
+  let pair = null, timeframe = null, shotDate = null;
+  try {
+    await worker.setParameters({ tessedit_char_whitelist: "", tessedit_pageseg_mode: "6" });
+    const hc = document.createElement("canvas"); const hh = Math.min(90, Math.floor(H * 0.12)), hw = Math.floor(W * 0.6);
+    hc.width = hw * 2; hc.height = hh * 2; const hg = hc.getContext("2d"); hg.drawImage(cv, 0, 0, hw, hh, 0, 0, hw * 2, hh * 2);
+    const { data } = await worker.recognize(hc); const txt = String(data.text || "");
+    const up = txt.toUpperCase().replace(/[^A-Z0-9·.\s:,]/g, " ");
+    const inst = [...instruments].sort((a, b) => b.length - a.length);
+    pair = inst.find((p) => up.includes(p)) || null;
+    if (!pair) { const tok = (up.match(/\b[A-Z]{4,6}\b/g) || []); for (const t of tok) { const hit = inst.find((p) => p.endsWith(t) && t.length >= 4); if (hit) { pair = hit; break; } } }
+    const tf = txt.match(/(?:^|[\s·•.\-])(\d{1,3}\s?(?:min|[mhHDWMS]))\s*[·•.\-]/); if (tf) timeframe = tf[1].replace(/\s/g, "").replace(/^(\d+)min$/, "$1m");
+    const dm = txt.match(/([A-Za-zéû]{3,5})\.?\s+(\d{1,2}),?\s+(20\d\d)/);
+    if (dm) { const mo = MONTH_EN[dm[1].toLowerCase().slice(0, 3)] ?? MONTHS_FR[dm[1].toLowerCase()]; if (mo != null) shotDate = new Date(+dm[3], mo, +dm[2]); }
+  } catch (e) {}
+
+  // 5) Axe du temps : date de l'entrée (bord gauche de l'outil)
+  let dateAt = null;
+  try {
+    await worker.setParameters({ tessedit_char_whitelist: "", tessedit_pageseg_mode: "11" });
+    // ligne du bas avec les mois : on cherche la bande de texte gris sous le graphique
+    const by0 = Math.floor(H * 0.84), bh = Math.floor(H * 0.12);
+    const bc = document.createElement("canvas"); bc.width = W * 2; bc.height = bh * 2; const bg = bc.getContext("2d"); bg.drawImage(cv, 0, by0, W, bh, 0, 0, W * 2, bh * 2);
+    const { data } = await worker.recognize(bc);
+    const words = (data.words || []).map((w) => ({ t: String(w.text || "").toLowerCase().replace(/[^a-zéûô0-9]/g, ""), x: (w.bbox.x0 + w.bbox.x1) / 4 })).filter((w) => w.t);
+    const marks = [];
+    words.forEach((w) => { if (/^(19|20)\d\d$/.test(w.t)) marks.push({ x: w.x, m: 0, y: +w.t }); else { const k = Object.keys(MONTHS_FR).find((k) => w.t === k || (w.t.length >= 3 && w.t.startsWith(k))); if (k != null) marks.push({ x: w.x, m: MONTHS_FR[k], y: null }); } });
+    marks.sort((a, b) => a.x - b.x);
+    if (marks.length >= 2) {
+      // années : on part d'une année lue sur l'axe, sinon de la date de la capture
+      let ai = marks.findIndex((m) => m.y != null);
+      if (ai < 0 && shotDate) { const sm = shotDate.getMonth(); ai = marks.map((m, i) => [i, m]).filter(([i, m]) => m.m <= sm).map(([i]) => i).pop() ?? 0; marks[ai].y = shotDate.getFullYear(); }
+      if (ai >= 0) {
+        for (let i = ai + 1; i < marks.length; i++) if (marks[i].y == null) marks[i].y = marks[i - 1].y + (marks[i].m <= marks[i - 1].m ? 1 : 0);
+        for (let i = ai - 1; i >= 0; i--) if (marks[i].y == null) marks[i].y = marks[i + 1].y - (marks[i].m >= marks[i + 1].m ? 1 : 0);
+        const pts = marks.map((m) => ({ x: m.x, t: new Date(m.y, m.m, 1).getTime() }));
+        dateAt = (x) => { let a = pts[0], b = pts[1]; for (let i = 0; i < pts.length - 1; i++) { if (x >= pts[i].x) { a = pts[i]; b = pts[i + 1]; } } const t = a.t + (x - a.x) * (b.t - a.t) / (b.x - a.x || 1); return new Date(t); };
+      }
+    }
+  } catch (e) {}
+
+  const dec = (v) => { const s = valued.map((l) => (String(l.txt).split(".")[1] || "").length); return s.length ? Math.max(...s) : 5; };
+  const nd = dec();
+  const round = (v) => v == null ? null : +v.toFixed(nd);
+  const out = trades.map((t) => {
+    const E = priceAt(t.yE, ["black"]), SL = priceAt(t.ySL, ["red"]), TP = priceAt(t.yTP, t.direction === "long" ? ["teal"] : ["blue"]);
+    const e = E && round(E.v), s = SL && round(SL.v), p = TP && round(TP.v);
+    const rr = e != null && s != null && p != null && Math.abs(e - s) > 0 ? Math.abs(p - e) / Math.abs(e - s) : null;
+    const d = dateAt ? dateAt(t.x0) : null;
+    return { direction: t.direction, entryPrice: e, stopLoss: s, takeProfit: p, riskReward: rr != null ? +rr.toFixed(2) : null,
+      sure: { entry: !!(E && E.sure), sl: !!(SL && SL.sure), tp: !!(TP && TP.sure) }, date: d && !isNaN(d) ? ymd(d) : null, x0: t.x0 };
+  }).filter((t) => t.entryPrice != null).sort((a, b) => b.x0 - a.x0);
+  return { pair, timeframe, shotDate: shotDate ? ymd(shotDate) : null, trades: out, labels: labels.map((l) => ({ k: l.k, v: l.v, t: l.txt, a: l.a, b: l.b, y0: l.y0, y1: l.y1 })) };
+}
+
+/* ============================================================================
+   BACKTESTING 2010 → 2025 — saisie express + lecture auto des screenshots
+   ============================================================================ */
+const BT_ACC = "__backtest__";
+const BT_YEARS = Array.from({ length: 16 }, (_, i) => 2010 + i);
+function btAddDays(d, n) { const x = new Date(d + "T12:00:00"); x.setDate(x.getDate() + n); return ymd(x); }
+function btClampDate(d) { if (!d) return d; if (d < "2010-01-01") return "2010-01-01"; if (d > "2025-12-31") return "2025-12-31"; return d; }
+function btAgg(list) {
+  const n = list.length, w = list.filter((t) => (t.resultR || 0) > 0).length, l = list.filter((t) => (t.resultR || 0) < 0).length;
+  const R = list.reduce((s, t) => s + (t.resultR || 0), 0);
+  const gw = list.filter((t) => t.resultR > 0).reduce((s, t) => s + t.resultR, 0), gl = Math.abs(list.filter((t) => t.resultR < 0).reduce((s, t) => s + t.resultR, 0));
+  let peak = 0, cur = 0, dd = 0; [...list].sort((a, b) => String(a.entryTime).localeCompare(String(b.entryTime))).forEach((t) => { cur += t.resultR || 0; peak = Math.max(peak, cur); dd = Math.min(dd, cur - peak); });
+  return { n, w, l, wr: w + l ? w / (w + l) * 100 : 0, R, avg: n ? R / n : 0, pf: gl ? gw / gl : (gw ? Infinity : 0), dd };
+}
+
+function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
+  const LSK = "bt_quick_v1";
+  const saved = (() => { try { return JSON.parse(localStorage.getItem(LSK) || "{}"); } catch { return {}; } })();
+  const [pair, setPair] = useState(saved.pair || (pairs && pairs[0]) || "EURUSD");
+  const [date, setDate] = useState(saved.date || "2015-01-05");
+  const [dir, setDir] = useState(saved.dir || "long");
+  const [rr, setRr] = useState(saved.rr || "2");
+  const [setup, setSetup] = useState(saved.setup || "");
+  const [px, setPx] = useState({ e: "", sl: "", tp: "" });
+  const [shot, setShot] = useState(null);
+  const [shotFile, setShotFile] = useState(null);
+  const [reading, setReading] = useState(false);
+  const [found, setFound] = useState(null);
+  const [yearF, setYearF] = useState("all");
+  const [pairF, setPairF] = useState("all");
+  const [showAll, setShowAll] = useState(false);
+  const fileRef = useRef(null);
+  useEffect(() => { try { localStorage.setItem(LSK, JSON.stringify({ pair, date, dir, rr, setup })); } catch {} }, [pair, date, dir, rr, setup]);
+
+  const bt = useMemo(() => trades.filter((t) => t.accountId === BT_ACC).sort((a, b) => String(b.entryTime).localeCompare(String(a.entryTime))), [trades]);
+  const setups = useMemo(() => { const m = {}; bt.forEach((t) => (t.tags || []).forEach((g) => { m[g] = (m[g] || 0) + 1; })); return Object.entries(m).sort((a, b) => b[1] - a[1]).map((x) => x[0]).slice(0, 8); }, [bt]);
+  const btPairs = useMemo(() => [...new Set([pair, ...(pairs || []), ...bt.map((t) => t.pair)])].filter(Boolean).slice(0, 10), [bt, pairs, pair]);
+  const filtered = bt.filter((t) => (yearF === "all" || String(t.entryTime).slice(0, 4) === String(yearF)) && (pairF === "all" || t.pair === pairF));
+  const A = btAgg(filtered);
+  const rrN = parseFloat(String(rr).replace(",", ".")) || 0;
+  const pxRR = (() => { const e = parseFloat(px.e), s = parseFloat(px.sl), p = parseFloat(px.tp); return e && s && p && Math.abs(e - s) > 0 ? Math.abs(p - e) / Math.abs(e - s) : null; })();
+
+  const applyFound = (t, res) => {
+    if (!t) return;
+    setDir(t.direction);
+    setPx({ e: t.entryPrice != null ? String(t.entryPrice) : "", sl: t.stopLoss != null ? String(t.stopLoss) : "", tp: t.takeProfit != null ? String(t.takeProfit) : "" });
+    if (t.riskReward) setRr(String(t.riskReward));
+    if (t.date) setDate(btClampDate(t.date));
+    if (res && res.pair) setPair(res.pair);
+  };
+  const readShot = async (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const url = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+    setShot(url); setShotFile(file); setReading(true); setFound(null);
+    try {
+      const res = await analyzeChartScreenshot(url, ALL_INSTRUMENTS);
+      setFound(res);
+      if (res.trades.length) { applyFound(res.trades[0], res); showToast(res.trades.length > 1 ? res.trades.length + " positions trouvées — la plus récente est appliquée" : "Screenshot lu ✓"); }
+      else showToast("Aucun outil Long/Short trouvé sur l'image", true);
+    } catch (e) { showToast("Lecture impossible : " + (e.message || e), true); }
+    setReading(false);
+  };
+
+  const add = async (kind) => {
+    const r = kind === "tp" ? (pxRR != null && px.tp ? +pxRR.toFixed(2) : rrN) : kind === "sl" ? -1 : 0;
+    if (kind === "tp" && !(r > 0)) { showToast("Indique le R:R", true); return; }
+    let shotUrl = null;
+    if (shotFile) { try { shotUrl = await uploadToStorage(shotFile); } catch {} }
+    const t = {
+      id: uid(), accountId: BT_ACC, pair, direction: dir, entryTime: date + "T12:00:00.000Z",
+      entryPrice: px.e ? parseFloat(px.e) : null, stopLoss: px.sl ? parseFloat(px.sl) : null, takeProfit: px.tp ? parseFloat(px.tp) : null,
+      resultR: r, resultUsd: null, status: kind === "be" ? "breakeven" : "closed", tags: setup ? [setup] : [], rules: { backtest: true, rr: pxRR || rrN },
+      screenshotBefore: shotUrl, notes: null,
+    };
+    onSave(t);
+    setPx({ e: "", sl: "", tp: "" }); setShot(null); setShotFile(null); setFound(null);
+    showToast((kind === "tp" ? "TP " + fmtR(r) : kind === "sl" ? "SL −1R" : "BE") + " · " + pair + " · " + date);
+  };
+
+  // raccourcis clavier (ordi)
+  useEffect(() => {
+    const h = (e) => {
+      if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      const k = e.key.toLowerCase();
+      if (k === "l") setDir("long"); else if (k === "s") setDir("short");
+      else if (k === "t") add("tp"); else if (k === "x") add("sl"); else if (k === "b") add("be");
+      else if (e.key === "ArrowRight") setDate((d) => btClampDate(btAddDays(d, 1))); else if (e.key === "ArrowLeft") setDate((d) => btClampDate(btAddDays(d, -1)));
+    };
+    window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
+  });
+
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, marginBottom: 12 };
+  const lab = { fontSize: 12.5, fontWeight: 600, color: C.textSecondary, marginBottom: 8 };
+  const inp = { width: "100%", boxSizing: "border-box", height: 44, padding: "0 12px", borderRadius: 11, border: `1px solid ${C.border}`, background: C.inputBg || C.bg, color: C.text, fontSize: 15, fontWeight: 600, outline: "none", fontFamily: "inherit" };
+  const chip = (on, col) => ({ padding: "8px 12px", borderRadius: 10, border: `1px solid ${on ? (col || C.purple) : C.border}`, background: on ? (col || C.purple) + "26" : "transparent", color: on ? (col || C.purpleBright) : C.textSecondary, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" });
+  const big = (col) => ({ flex: 1, height: 58, borderRadius: 14, border: "none", background: col, color: "#fff", fontSize: 16.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: 1.15 });
+
+  // courbe en R
+  const curve = useMemo(() => { let c = 0; return [...filtered].sort((a, b) => String(a.entryTime).localeCompare(String(b.entryTime))).map((t, i) => ({ i: i + 1, r: +(c += t.resultR || 0).toFixed(2), d: String(t.entryTime).slice(0, 10) })); }, [filtered]);
+  const byYear = BT_YEARS.map((y) => ({ y, ...btAgg(bt.filter((t) => String(t.entryTime).slice(0, 4) === String(y) && (pairF === "all" || t.pair === pairF))) }));
+  const groupRows = (fn) => { const m = {}; filtered.forEach((t) => { const k = fn(t); if (!k) return; (m[k] = m[k] || []).push(t); }); return Object.entries(m).map(([k, l]) => ({ k, ...btAgg(l) })).sort((a, b) => b.R - a.R); };
+  const WD = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+  const Row = ({ k, r, onClick }) => (
+    <div onClick={onClick} style={{ display: "grid", gridTemplateColumns: "1fr 44px 52px 70px", gap: 8, alignItems: "center", padding: "10px 0", borderTop: `1px solid ${C.border}`, cursor: onClick ? "pointer" : "default", opacity: r.n < 5 ? 0.45 : 1 }}>
+      <span style={{ fontSize: 14, fontWeight: 700 }}>{k}</span>
+      <span className="tnum" style={{ fontSize: 13, color: C.textMuted, textAlign: "center" }}>{r.n}</span>
+      <span className="tnum" style={{ fontSize: 13, fontWeight: 700, textAlign: "center", color: r.wr >= 50 ? C.teal : C.red }}>{r.n ? Math.round(r.wr) + "%" : "—"}</span>
+      <span className="tnum" style={{ fontSize: 14, fontWeight: 800, textAlign: "right", color: r.R >= 0 ? C.teal : C.red }}>{r.n ? fmtR(r.R) : "—"}</span>
+    </div>);
+  const Head = () => <div style={{ display: "grid", gridTemplateColumns: "1fr 44px 52px 70px", gap: 8, fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}><span /><span style={{ textAlign: "center" }}>N</span><span style={{ textAlign: "center" }}>WR</span><span style={{ textAlign: "right" }}>Total</span></div>;
+
+  return (
+    <div style={{ maxWidth: 760, margin: "0 auto", padding: "8px 0 120px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>Backtesting</h1>
+        <span style={{ fontSize: 13, color: C.textMuted }}>2010 → 2025 · {bt.length} trades</span>
+      </div>
+
+      {/* ── Saisie express ── */}
+      <div style={card}>
+        <div onPaste={(e) => { const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); readShot(it.getAsFile()); } }}
+          onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); readShot(e.dataTransfer.files?.[0]); }} tabIndex={0}
+          onClick={() => !shot && fileRef.current?.click()}
+          style={{ border: `1.5px dashed ${reading ? C.purple : C.border}`, borderRadius: 12, padding: shot ? 0 : "16px 12px", textAlign: "center", cursor: shot ? "default" : "pointer", overflow: "hidden", position: "relative", outline: "none", marginBottom: 14 }}>
+          {shot ? <>
+            <img src={shot} alt="Screenshot" style={{ width: "100%", maxHeight: 220, objectFit: "contain", display: "block" }} />
+            {reading && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, gap: 8 }}><Sparkles size={16} className="spin-slow" /> Lecture du graphique…</div>}
+            <button onClick={(e) => { e.stopPropagation(); setShot(null); setShotFile(null); setFound(null); }} aria-label="Retirer" style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 15, border: "none", background: "rgba(0,0,0,.6)", color: "#fff", cursor: "pointer" }}>✕</button>
+          </> : <div style={{ color: C.textSecondary, fontSize: 13.5 }}><Upload size={18} style={{ verticalAlign: -4, marginRight: 8 }} />Screenshot TradingView (colle, glisse ou touche) — tout se remplit seul</div>}
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { readShot(e.target.files?.[0]); e.target.value = ""; }} />
+        </div>
+        {found && found.trades.length > 1 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: -6, marginBottom: 12 }}>
+          {found.trades.map((t, i) => <button key={i} onClick={() => applyFound(t, found)} style={chip(px.e === String(t.entryPrice), t.direction === "long" ? C.teal : C.red)}>{t.direction === "long" ? "Long" : "Short"} {t.entryPrice}{t.date ? " · " + t.date : ""}</button>)}
+        </div>}
+
+        <div style={lab}>Paire</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>{btPairs.map((p) => <button key={p} onClick={() => setPair(p)} style={chip(pair === p)}>{PAIR_LABEL[p] || p}</button>)}</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <div style={lab}>Date</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => setDate((d) => btClampDate(btAddDays(d, -1)))} style={{ ...chip(false), padding: "0 12px" }} aria-label="Jour précédent">‹</button>
+              <input type="date" min="2010-01-01" max="2025-12-31" value={date} onChange={(e) => setDate(btClampDate(e.target.value))} style={{ ...inp, colorScheme: "dark", minWidth: 0 }} />
+              <button onClick={() => setDate((d) => btClampDate(btAddDays(d, 1)))} style={{ ...chip(false), padding: "0 12px" }} aria-label="Jour suivant">›</button>
+            </div>
+          </div>
+          <div>
+            <div style={lab}>Sens</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => setDir("long")} style={{ ...chip(dir === "long", C.teal), flex: 1, height: 44 }}>Long</button>
+              <button onClick={() => setDir("short")} style={{ ...chip(dir === "short", C.red), flex: 1, height: 44 }}>Short</button>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, marginTop: 12 }}>
+          {[["Entrée", "e"], ["Stop loss", "sl"], ["Take profit", "tp"]].map(([l, k]) => (
+            <div key={k}><div style={lab}>{l}</div><input inputMode="decimal" value={String(px[k]).replace(".", ",")} onChange={(e) => setPx((o) => ({ ...o, [k]: autoPrice(e.target.value, pair) }))} placeholder="optionnel" style={inp} /></div>))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10, marginTop: 12 }}>
+          <div><div style={lab}>R:R du TP</div><input inputMode="decimal" value={pxRR != null && px.tp ? pxRR.toFixed(2) : rr} onChange={(e) => setRr(e.target.value)} disabled={pxRR != null && !!px.tp} style={inp} /></div>
+          <div><div style={lab}>Setup (optionnel)</div>
+            <input list="bt-setups" value={setup} onChange={(e) => setSetup(e.target.value)} placeholder="FVG, OB, SIBI…" style={inp} />
+            <datalist id="bt-setups">{setups.map((s2) => <option key={s2} value={s2} />)}</datalist></div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <button onClick={() => add("tp")} style={big(C.teal)}><span>TP</span><span style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.9 }}>{fmtR(pxRR != null && px.tp ? pxRR : rrN)}</span></button>
+          <button onClick={() => add("sl")} style={big(C.red)}><span>SL</span><span style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.9 }}>−1R</span></button>
+          <button onClick={() => add("be")} style={big("#4B5563")}><span>BE</span><span style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.9 }}>0R</span></button>
+        </div>
+        <div className="desktop-only" style={{ fontSize: 11.5, color: C.textMuted, marginTop: 10, textAlign: "center" }}>Clavier : L / S = sens · T = TP · X = SL · B = BE · ← → = jour</div>
+      </div>
+
+      {/* ── Filtres ── */}
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, marginBottom: 6 }}>
+        <button onClick={() => setYearF("all")} style={chip(yearF === "all")}>Tout</button>
+        {BT_YEARS.map((y) => <button key={y} onClick={() => setYearF(y)} style={{ ...chip(yearF === y), flexShrink: 0 }}>{y}</button>)}
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        <button onClick={() => setPairF("all")} style={chip(pairF === "all")}>Toutes paires</button>
+        {[...new Set(bt.map((t) => t.pair))].map((p) => <button key={p} onClick={() => setPairF(p)} style={chip(pairF === p)}>{PAIR_LABEL[p] || p}</button>)}
+      </div>
+
+      {/* ── Résumé ── */}
+      <div style={card}>
+        <div style={{ fontSize: 13, color: C.textMuted, fontWeight: 600 }}>Résultat {yearF === "all" ? "2010 → 2025" : yearF}{pairF !== "all" ? " · " + pairF : ""}</div>
+        <div className="tnum" style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.2, color: A.R >= 0 ? C.teal : C.red }}>{fmtR(A.R)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 10 }}>
+          {[["Trades", A.n], ["Réussite", A.n ? Math.round(A.wr) + "%" : "—"], ["Moyenne", A.n ? fmtR(A.avg) : "—"], ["Profit factor", A.pf === Infinity ? "∞" : A.pf ? A.pf.toFixed(2) : "—"], ["Drawdown max", A.n ? fmtR(A.dd) : "—"], ["Gagnés / perdus", A.w + " / " + A.l]].map(([l, v]) => (
+            <div key={l}><div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, marginTop: 2 }}>{v}</div></div>))}
+        </div>
+        {curve.length > 1 && <div style={{ height: 160, marginTop: 14 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={curve} margin={{ top: 5, right: 4, left: -18, bottom: 0 }}>
+              <defs><linearGradient id="btg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={A.R >= 0 ? C.teal : C.red} stopOpacity={0.35} /><stop offset="100%" stopColor={A.R >= 0 ? C.teal : C.red} stopOpacity={0} /></linearGradient></defs>
+              <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="i" hide /><YAxis tick={{ fill: C.textMuted, fontSize: 11 }} tickFormatter={(v) => v + "R"} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }} formatter={(v) => [v + "R", "Cumul"]} labelFormatter={(i) => curve[i - 1] ? curve[i - 1].d : ""} />
+              <Area type="monotone" dataKey="r" stroke={A.R >= 0 ? C.teal : C.red} strokeWidth={2} fill="url(#btg)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>}
+      </div>
+
+      {/* ── Par année ── */}
+      <div style={card}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Par année</div>
+        <Head />
+        {byYear.map((r) => <Row key={r.y} k={String(r.y)} r={r} onClick={() => setYearF(yearF === r.y ? "all" : r.y)} />)}
+      </div>
+
+      {filtered.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 }}>
+        {[["Par paire", (t) => t.pair], ["Par sens", (t) => t.direction === "long" ? "Long" : "Short"], ["Par setup", (t) => (t.tags || [])[0] || "Sans setup"], ["Par jour", (t) => WD[new Date(t.entryTime).getUTCDay()]], ["Par mois", (t) => ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"][+String(t.entryTime).slice(5, 7) - 1]]].map(([title, fn]) => {
+          const rows = groupRows(fn); if (rows.length < 2) return null;
+          return <div key={title} style={{ ...card, marginBottom: 0 }}><div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{title}</div><Head />{rows.map((r) => <Row key={r.k} k={r.k} r={r} />)}</div>;
+        })}
+      </div>}
+
+      {/* ── Liste ── */}
+      <div style={{ ...card, marginTop: 12 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Trades</div>
+        {filtered.length === 0 && <div style={{ color: C.textMuted, fontSize: 13.5, padding: "12px 0" }}>Aucun trade de backtest pour l'instant.</div>}
+        {(showAll ? filtered : filtered.slice(0, 30)).map((t) => (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
+            <span style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: t.resultR > 0 ? C.teal : t.resultR < 0 ? C.red : C.textMuted }} />
+            <PairLogo pair={t.pair} size={24} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{PAIR_LABEL[t.pair] || t.pair} <span style={{ color: t.direction === "long" ? C.teal : C.red, fontWeight: 600 }}>{t.direction === "long" ? "Long" : "Short"}</span>{(t.tags || [])[0] ? <span style={{ color: C.textMuted, fontWeight: 500 }}> · {t.tags[0]}</span> : null}</div>
+              <div className="tnum" style={{ fontSize: 12, color: C.textMuted }}>{String(t.entryTime).slice(0, 10)}{t.entryPrice ? " · E " + t.entryPrice : ""}</div>
+            </div>
+            <span className="tnum" style={{ fontSize: 15, fontWeight: 800, color: t.resultR > 0 ? C.teal : t.resultR < 0 ? C.red : C.textMuted }}>{fmtR(t.resultR || 0)}</span>
+            <button onClick={() => { if (window.confirm("Supprimer ce trade de backtest ?")) onDelete(t.id); }} aria-label="Supprimer" style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", padding: 4 }}><Trash2 size={15} /></button>
+          </div>))}
+        {filtered.length > 30 && <button onClick={() => setShowAll((v) => !v)} style={{ ...btn.ghost, width: "100%", justifyContent: "center", marginTop: 8 }}>{showAll ? "Réduire" : "Voir les " + filtered.length + " trades"}</button>}
+      </div>
+    </div>
+  );
+}
+
 export default function TradingJournalApp() {
   const [view, setView] = useState("dashboard");
   const [unlocked, setUnlocked] = useState(() => {
@@ -6623,6 +7768,7 @@ export default function TradingJournalApp() {
   });
 
   // PIN demandé uniquement quand on essaie d'ouvrir le formulaire d'ajout
+  const openDraftTrade = (d) => { setEditingTrade({ ...d, _draft: true }); setView("tradeForm"); };
   const openNewTrade = () => {
     if (!unlocked) {
       setPinTarget("newTrade");
@@ -6781,6 +7927,9 @@ export default function TradingJournalApp() {
         if (r.trading_plan) {
           try { localStorage.setItem("trading_plan_text", r.trading_plan); } catch {}
         }
+        if (r.trading_rules && typeof r.trading_rules === "object") {
+          try { localStorage.setItem(RULES_KEY, JSON.stringify(r.trading_rules)); } catch {}
+        }
 
         // Logos des actifs
         if (r.pair_logos && typeof r.pair_logos === "object") {
@@ -6917,6 +8066,30 @@ export default function TradingJournalApp() {
     persist(merged);
   };
 
+  // ── Import MT4/MT5 : ajoute les positions, sans doublon ──
+  const importTrades = (list) => {
+    const have = new Set(tradesRef.current.map((t) => t.id)); const now = Date.now();
+    const fresh = list.filter((t) => !have.has(t.id)).map((t) => ({ ...t, accountId: t.accountId || effectiveAccountId, updatedAt: now }));
+    if (!fresh.length) return;
+    const next = [...fresh, ...tradesRef.current].sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
+    tradesRef.current = next; setTrades(next); writeLocal(next);
+    fresh.forEach((t) => persist(t, true));
+    showToast(`${fresh.length} trades importés ✓`);
+  };
+
+  // ── Backtesting : ajout / suppression sans changer d'écran ──
+  const saveBt = (t) => {
+    const merged = { ...t, accountId: BT_ACC, updatedAt: Date.now() };
+    const list = [merged, ...tradesRef.current.filter((x) => x.id !== t.id)];
+    tradesRef.current = list; setTrades(list); writeLocal(list); persist(merged, true);
+  };
+  const deleteBt = async (id) => {
+    const list = tradesRef.current.filter((t) => t.id !== id);
+    tradesRef.current = list; setTrades(list); writeLocal(list); tombAdd(id);
+    const m = pendGet(); m[id] = { id, _deleted: true, updatedAt: Date.now() }; pendSet(m);
+    try { await sbFetch(`/trades?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" }); const cur = pendGet(); delete cur[id]; pendSet(cur); } catch (e) {}
+  };
+
   // ── Modifier quelques champs d'un trade (statut, verdict, rétro) ──
   const retroTimers = React.useRef({});
   const patchTrade = (id, patch, debounce = 0) => {
@@ -6963,9 +8136,9 @@ export default function TradingJournalApp() {
   // Filtre trades par compte actif — les autres comptes sont isolés
   const [cumulMode, setCumulMode] = useState(false);
   const effectiveAccountId = activeAccountId || accounts[0]?.id || null;
-  const accountTrades = useMemo(() => cumulMode || !effectiveAccountId
-    ? trades
-    : trades.filter(t => !t.accountId || t.accountId === effectiveAccountId), [trades, cumulMode, effectiveAccountId]);
+  const accountTrades = useMemo(() => { const live = trades.filter((t) => t.accountId !== BT_ACC); return cumulMode || !effectiveAccountId
+    ? live
+    : live.filter(t => !t.accountId || t.accountId === effectiveAccountId); }, [trades, cumulMode, effectiveAccountId]);
   const initialBalance = cumulMode
     ? (accounts.reduce((s2, a) => s2 + (Number(a.balance) || 0), 0) || appSettings?.accountBalance || 10000)
     : (Number(activeAccount?.balance) || appSettings?.accountBalance || 10000);
@@ -6975,12 +8148,13 @@ export default function TradingJournalApp() {
     return initial + closed.reduce((s, t) => s + (t.resultUsd || 0), 0);
   }, [accountTrades, initialBalance]);
 
-  const titles = { dashboard: "Dashboard", trades: "Mes trades", tradeDetail: "Détail du trade", tradeForm: editingTrade ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
+  const titles = { backtest: "Backtesting", dashboard: "Dashboard", trades: "Mes trades", tradeDetail: "Détail du trade", tradeForm: editingTrade && !editingTrade._draft ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier" };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
       <GlobalStyle />
       <Sidebar view={view} setView={setView} onNewTrade={openNewTrade} totalPnl={accountTrades.filter((t) => t.status !== "open").reduce((a, t) => a + (Number(t.resultUsd) || 0), 0)} totalR={accountTrades.filter((t) => t.status !== "open").reduce((a, t) => a + (Number(t.resultR) || 0), 0)} />
+      <div className="desktop-only sidebar-spacer" style={{ width: 220, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column" }}>
         <TopBar title={titles[view]} isDark={isDark} onToggleTheme={toggleTheme} onCalendar={() => setView("calendar")} onCoach={() => setView("coach")} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={switchAccount} onHome={() => setView("dashboard")} currentBalance={currentBalance} onRefresh={() => loadData(false)} cumulMode={cumulMode} setCumulMode={setCumulMode} />
 
@@ -7020,7 +8194,8 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <Dashboard trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
+              {view === "dashboard" && <Dashboard extra={<>{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} />}<HealthCard trades={accountTrades} balance={initialBalance} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
+              {view === "backtest" && <BacktestView trades={trades} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
                 <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} appSettings={appSettings} onRetroSave={(id, data) => patchTrade(id, data, 800)} onPatch={(id, data) => patchTrade(id, data)} />
@@ -7029,11 +8204,11 @@ export default function TradingJournalApp() {
                 <TradeFormV2 initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} trades={accountTrades} />
               )}
               {view === "stats" && <SimpleStats trades={accountTrades} />}
-              {view === "calculator" && <ForexCalculator />}
-              {view === "plan" && <PlanDeTrading />}
+              {view === "calculator" && <ForexCalculator balance={currentBalance} pairs={appSettings?.pairs || []} onCreateTrade={openDraftTrade} />}
+              {view === "plan" && <PlanDeTrading trades={accountTrades} balance={initialBalance} />}
               {view === "previsions" && <Previsions pairs={["DXY", ...(appSettings?.pairs || PAIRS)]} />}
               {view === "coach" && <AiCoach trades={accountTrades} />}
-              {view === "settings" && <SettingsPage settings={appSettings} setSettings={saveSettings} accounts={accounts} activeAccountId={activeAccountId} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} />}
+              {view === "settings" && <SettingsPage trades={trades} onImport={importTrades} settings={appSettings} setSettings={saveSettings} accounts={accounts} activeAccountId={activeAccountId} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} />}
               {view === "calendar" && <TradingCalendar trades={accountTrades} onSelectDay={() => {}} />}
             </div>
           )}
