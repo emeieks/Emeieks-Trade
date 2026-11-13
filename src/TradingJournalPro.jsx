@@ -7379,7 +7379,45 @@ async function sbFetch(path, options = {}) {
 }
 
 // Upload une image vers Supabase Storage et retourne l'URL publique permanente
-async function uploadToStorage(file) {
+// Réduit une capture avant envoi (WebP, 1600 px max) : ~100–250 Ko au lieu de 0,5–2 Mo
+// ── Agrandir n'importe quelle photo du site en plein écran (clic sur une image ou un lien vers une capture) ──
+function PhotoZoom() {
+  const [src, setSrc] = useState(null); const [z, setZ] = useState(1);
+  useEffect(() => {
+    const isShot = (u) => /trade-screenshots|^data:image|^blob:|\.(png|jpe?g|webp)(\?|$)/i.test(u || "");
+    const h = (e) => {
+      if (e.target.closest && e.target.closest("[data-nozoom]")) return;
+      const a = e.target.closest && e.target.closest("a[href]");
+      if (a && isShot(a.getAttribute("href"))) { e.preventDefault(); e.stopPropagation(); setZ(1); setSrc(a.getAttribute("href")); return; }
+      const im = e.target.tagName === "IMG" ? e.target : null; if (!im) return;
+      const r = im.getBoundingClientRect(); if (r.width < 90 || r.height < 60) return;   // logos, drapeaux, icônes : ignorés
+      if (im.closest("button") && !im.closest("[data-zoom]")) { /* image dans un bouton : on agrandit quand même si c'est une capture */ if (!isShot(im.currentSrc || im.src)) return; }
+      e.preventDefault(); e.stopPropagation(); setZ(1); setSrc(im.currentSrc || im.src);
+    };
+    document.addEventListener("click", h, true); return () => document.removeEventListener("click", h, true);
+  }, []);
+  useEffect(() => { if (!src) return; const k = (e) => { if (e.key === "Escape") setSrc(null); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [src]);
+  if (!src) return null;
+  return (
+    <div data-nozoom onClick={() => setSrc(null)} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,.92)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", cursor: "zoom-out" }}>
+      <img src={src} alt="Photo agrandie" onClick={(e) => { e.stopPropagation(); setZ((v) => (v === 1 ? 2 : 1)); }}
+        style={{ maxWidth: z === 1 ? "100vw" : "none", maxHeight: z === 1 ? "100vh" : "none", width: z === 1 ? "auto" : "200vw", objectFit: "contain", cursor: z === 1 ? "zoom-in" : "zoom-out", display: "block", margin: "auto" }} />
+      <button onClick={(e) => { e.stopPropagation(); setSrc(null); }} aria-label="Fermer" style={{ position: "fixed", top: 14, right: 14, width: 40, height: 40, borderRadius: 20, border: "none", background: "rgba(255,255,255,.15)", color: "#fff", fontSize: 18, cursor: "pointer" }}>✕</button>
+      <div style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", color: "rgba(255,255,255,.6)", fontSize: 12 }}>Clic sur l'image = zoom ×2 · Échap ou ✕ = fermer</div>
+    </div>);
+}
+
+async function shrinkImage(file, maxW = 1400, q = 0.75) {
+  try {
+    const url = URL.createObjectURL(file); const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = url; });
+    const k = Math.min(1, maxW / img.naturalWidth); const cv = document.createElement("canvas"); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+    cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+    const b = await new Promise((r) => cv.toBlob(r, "image/webp", q)); if (!b || b.size >= file.size) return file;
+    return new File([b], "shot.webp", { type: "image/webp" });
+  } catch { return file; }
+}
+async function uploadToStorage(file0) {
+  const file = (file0 && file0.type && file0.type.startsWith("image/") && file0.type !== "image/gif") ? await shrinkImage(file0) : file0;   // toutes les photos (trades + backtest) sont compressées
   const ext = file.name ? file.name.split(".").pop() : "jpg";
   const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/trade-screenshots/${filename}`, {
@@ -7595,6 +7633,13 @@ async function flushPending() {
    Sans IA : on lit les couleurs des zones (vert = TP long, rouge = SL, bleu = TP short)
    et on lit les étiquettes de prix de l'axe de droite avec un OCR (Tesseract.js).
    ============================================================================ */
+// « 15 » → M15, « 60 » → H1, « 240 » → H4, « 1D » → D, « 1W » → W
+function tvTf(raw) {
+  let t = String(raw || "").trim().replace(/\s/g, "").replace(/min$/i, "m"); if (!t) return null;
+  if (/^\d+$/.test(t)) { const n = +t; return n >= 60 && n % 60 === 0 ? (n / 60 === 24 ? "D" : "H" + n / 60) : "M" + n; }
+  const m = t.match(/^(\d*)([mhHDdWwMS])$/); if (!m) return null; const n = m[1] || "1", u = m[2];
+  if (u === "m") return "M" + n; if (/h/i.test(u)) return "H" + n; if (/d/i.test(u)) return n === "1" ? "D" : n + "D"; if (/w/i.test(u)) return n === "1" ? "W" : n + "W"; if (u === "M") return "MN"; return null;
+}
 let __tessP = null;
 function loadTesseract() {
   if (typeof window !== "undefined" && window.Tesseract) return Promise.resolve(window.Tesseract);
@@ -7622,7 +7667,7 @@ const MONTHS_FR = { jan: 0, janv: 0, janvier: 0, feb: 1, fev: 1, fevr: 1, févr:
 const MONTH_EN = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
 
 function ymd(d) { const z = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()); }
-async function analyzeChartScreenshot(src, instruments = []) {
+async function analyzeChartScreenshot(src, instruments = [], baseDate = null) {
   const img = await loadImg(src);
   const W = img.naturalWidth, H = img.naturalHeight;
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
@@ -7778,13 +7823,15 @@ async function analyzeChartScreenshot(src, instruments = []) {
     const inst = [...instruments].sort((a, b) => b.length - a.length);
     pair = inst.find((p) => up.includes(p)) || null;
     if (!pair) { const tok = (up.match(/\b[A-Z]{4,6}\b/g) || []); for (const t of tok) { const hit = inst.find((p) => p.endsWith(t) && t.length >= 4); if (hit) { pair = hit; break; } } }
-    const tf = txt.match(/(?:^|[\s·•.\-])(\d{1,3}\s?(?:min|[mhHDWMS]))\s*[·•.\-]/); if (tf) timeframe = tf[1].replace(/\s/g, "").replace(/^(\d+)min$/, "$1m");
+    const tf = txt.match(/(?:^|[\s·•.\-])(\d{1,3}\s?(?:min|[mhHDWMS]))\s*[·•.\-]/); if (tf) timeframe = tvTf(tf[1]);
+    // format TradingView « EURUSD · 15 · OANDA » : un nombre seul = minutes
+    if (!timeframe) { const t2 = txt.match(/[A-Z]{3,}[\/]?[A-Z]*\s*[·•.\-–»,:|]{1,3}\s*(\d{1,3}[mhHDWM]?|[DWM])\s*[·•.\-–»,:|]{1,3}\s*[A-Z]/); if (t2) timeframe = tvTf(t2[1]); }
     const dm = txt.match(/([A-Za-zéû]{3,5})\.?\s+(\d{1,2}),?\s+(20\d\d)/);
     if (dm) { const mo = MONTH_EN[dm[1].toLowerCase().slice(0, 3)] ?? MONTHS_FR[dm[1].toLowerCase()]; if (mo != null) shotDate = new Date(+dm[3], mo, +dm[2]); }
   } catch (e) {}
 
   // 5) Axe du temps : date de l'entrée (bord gauche de l'outil)
-  let dateAt = null;
+  let dateAt = null, intraday = false;
   try {
     await worker.setParameters({ tessedit_char_whitelist: "", tessedit_pageseg_mode: "11" });
     // ligne du bas avec les mois : on cherche la bande de texte gris sous le graphique
@@ -7795,7 +7842,29 @@ async function analyzeChartScreenshot(src, instruments = []) {
     const marks = [];
     words.forEach((w) => { if (/^(19|20)\d\d$/.test(w.t)) marks.push({ x: w.x, m: 0, y: +w.t }); else { const k = Object.keys(MONTHS_FR).find((k) => w.t === k || (w.t.length >= 3 && w.t.startsWith(k))); if (k != null) marks.push({ x: w.x, m: MONTHS_FR[k], y: null }); } });
     marks.sort((a, b) => a.x - b.x);
-    if (marks.length >= 2) {
+    // graphique intraday : heures (21:00) + numéros de jour (31) + mois (Juin = le 1er)
+    const raw = (data.words || []).map((w) => ({ t: String(w.text || "").trim(), x: (w.bbox.x0 + w.bbox.x1) / 4 }));
+    const hrs = raw.filter((w) => /^\d{1,2}[:.]\d{2}$/.test(w.t)).map((w) => ({ x: w.x, h: +w.t.split(/[:.]/)[0], mi: +w.t.split(/[:.]/)[1] })).filter((w) => w.h < 24 && w.mi < 60);
+    if (hrs.length >= 2) {
+      const yr0 = (marks.find((m) => m.y != null) || {}).y || (baseDate ? +String(baseDate).slice(0, 4) : (shotDate ? shotDate.getFullYear() : new Date().getFullYear()));
+      const days = [];
+      raw.forEach((w) => { const t = w.t.toLowerCase().replace(/[^a-zéûô0-9]/g, "");
+        if (/^\d{1,2}$/.test(w.t) && +w.t >= 1 && +w.t <= 31) days.push({ x: w.x, d: +w.t, m: null });
+        else { const k = Object.keys(MONTHS_FR).find((k) => t === k || (t.length >= 3 && t.startsWith(k))); if (k != null) days.push({ x: w.x, d: 1, m: MONTHS_FR[k] }); } });
+      days.sort((a, b) => a.x - b.x);
+      if (days.length) {
+        let mi = days.findIndex((d) => d.m != null); const yr = yr0;
+        if (mi < 0) { const bd = baseDate ? new Date(baseDate + "T12:00:00") : (shotDate || new Date()); days[0].m = bd.getMonth(); mi = 0; }
+        days[mi].y = yr;
+        for (let i = mi + 1; i < days.length; i++) { const p = days[i - 1]; if (days[i].m == null) days[i].m = days[i].d < p.d ? (p.m + 1) % 12 : p.m; days[i].y = p.y + (days[i].m < p.m ? 1 : 0); }
+        for (let i = mi - 1; i >= 0; i--) { const n = days[i + 1]; if (days[i].m == null) days[i].m = days[i].d > n.d || n.d === 1 ? (n.m + 11) % 12 : n.m; days[i].y = n.y - (days[i].m > n.m ? 1 : 0); }
+        const pts = days.map((d) => ({ x: d.x, t: new Date(d.y, d.m, d.d, 0, 0).getTime() }));
+        hrs.forEach((h) => { const L = [...days].reverse().find((d) => d.x < h.x); const base = L ? new Date(L.y, L.m, L.d) : new Date(days[0].y, days[0].m, days[0].d - 1); pts.push({ x: h.x, t: new Date(base.getFullYear(), base.getMonth(), base.getDate(), h.h, h.mi).getTime() }); });
+        pts.sort((a, b) => a.x - b.x);
+        if (pts.length >= 2) { intraday = true; dateAt = (x) => { let a = pts[0], b = pts[1]; for (let i = 0; i < pts.length - 1; i++) if (x >= pts[i].x) { a = pts[i]; b = pts[i + 1]; } return new Date(a.t + (x - a.x) * (b.t - a.t) / (b.x - a.x || 1)); }; }
+      }
+    }
+    if (!dateAt && marks.length >= 2) {
       // années : on part d'une année lue sur l'axe, sinon de la date de la capture
       let ai = marks.findIndex((m) => m.y != null);
       if (ai < 0 && shotDate) { const sm = shotDate.getMonth(); ai = marks.map((m, i) => [i, m]).filter(([i, m]) => m.m <= sm).map(([i]) => i).pop() ?? 0; marks[ai].y = shotDate.getFullYear(); }
@@ -7811,13 +7880,31 @@ async function analyzeChartScreenshot(src, instruments = []) {
   const dec = (v) => { const s = valued.map((l) => (String(l.txt).split(".")[1] || "").length); return s.length ? Math.max(...s) : 5; };
   const nd = dec();
   const round = (v) => v == null ? null : +v.toFixed(nd);
+  // Lecture par les étiquettes de l'axe (entrée = noire, TP = verte/bleue, SL = rouge) : sûre même si des zones (FVG, OB…) recouvrent l'outil
+  const one = (k) => { const l = valued.filter((x) => x.k === k); return l.length === 1 ? l[0] : null; };
+  const lRed = one("red"), lTp = one("teal") || one("blue");
+  let lab = null;
+  if (lRed && lTp) {
+    const lo = Math.min(lRed.yc, lTp.yc), hi = Math.max(lRed.yc, lTp.yc);
+    const lE = valued.filter((x) => x.k === "black" && x.yc > lo && x.yc < hi).sort((a, b) => Math.abs(a.yc - (lo + hi) / 2) - Math.abs(b.yc - (lo + hi) / 2))[0];
+    if (lE) {
+      const dirL = lTp.v > lE.v ? "long" : "short";
+      if ((dirL === "long" && lRed.v < lE.v) || (dirL === "short" && lRed.v > lE.v)) {
+        const zx = comps.filter((c) => c.y0 <= Math.max(lE.yc, lTp.yc) + lh && c.y1 >= Math.min(lE.yc, lTp.yc) - lh && (c.k === (dirL === "long" ? "zg" : "zb")) && (c.x1 - c.x0) > 25).sort((a, b) => b.n - a.n)[0];
+        lab = { direction: dirL, e: lE.v, s: lRed.v, p: lTp.v, x0: zx ? zx.x0 : null };
+      }
+    }
+  }
+  if (!trades.length && lab) trades.push({ direction: lab.direction, x0: lab.x0, yE: 0, ySL: 0, yTP: 0, lab: true });
   const out = trades.map((t) => {
-    const E = priceAt(t.yE, ["black"]), SL = priceAt(t.ySL, ["red"]), TP = priceAt(t.yTP, t.direction === "long" ? ["teal"] : ["blue"]);
+    let E = priceAt(t.yE, ["black"]), SL = priceAt(t.ySL, ["red"]), TP = priceAt(t.yTP, t.direction === "long" ? ["teal"] : ["blue"]);
+    // une seule position avec ses 3 étiquettes visibles → les étiquettes priment
+    if (lab && lab.direction === t.direction && (t.lab || trades.length === 1)) { E = { v: lab.e, sure: true }; SL = { v: lab.s, sure: true }; TP = { v: lab.p, sure: true }; }
     const e = E && round(E.v), s = SL && round(SL.v), p = TP && round(TP.v);
     const rr = e != null && s != null && p != null && Math.abs(e - s) > 0 ? Math.abs(p - e) / Math.abs(e - s) : null;
-    const d = dateAt ? dateAt(t.x0) : null;
+    const d = dateAt && t.x0 != null ? dateAt(t.x0) : null; const z2 = (n) => String(n).padStart(2, "0");
     return { direction: t.direction, entryPrice: e, stopLoss: s, takeProfit: p, riskReward: rr != null ? +rr.toFixed(2) : null,
-      sure: { entry: !!(E && E.sure), sl: !!(SL && SL.sure), tp: !!(TP && TP.sure) }, date: d && !isNaN(d) ? ymd(d) : null, x0: t.x0 };
+      sure: { entry: !!(E && E.sure), sl: !!(SL && SL.sure), tp: !!(TP && TP.sure) }, date: d && !isNaN(d) ? ymd(d) : null, time: intraday && d && !isNaN(d) ? z2(d.getHours()) + ":" + z2(Math.round(d.getMinutes() / 5) * 5 % 60) : null, x0: t.x0 || 0 };
   }).filter((t) => t.entryPrice != null).sort((a, b) => b.x0 - a.x0);
   return { pair, timeframe, shotDate: shotDate ? ymd(shotDate) : null, trades: out, labels: labels.map((l) => ({ k: l.k, v: l.v, t: l.txt, a: l.a, b: l.b, y0: l.y0, y1: l.y1 })) };
 }
@@ -7845,6 +7932,11 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
   const [dir, setDir] = useState(saved.dir || "long");
   const [rr, setRr] = useState(saved.rr || "2");
   const [setup, setSetup] = useState(saved.setup || "");
+  const [tf, setTf] = useState(saved.tf || "M15");
+  const [tm, setTm] = useState("");
+  const [afterId, setAfterId] = useState(null); const [afterBusy, setAfterBusy] = useState(false); const afterRef = useRef(null);
+  const yearOf = String(date).slice(0, 4);
+  const setYear = (y) => setDate((d) => { const md = String(d).slice(4); const nd = y + (md === "-02-29" && (y % 4) ? "-02-28" : md); return btClampDate(nd); });
   const [px, setPx] = useState({ e: "", sl: "", tp: "" });
   const [shot, setShot] = useState(null);
   const [shotFile, setShotFile] = useState(null);
@@ -7854,7 +7946,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
   const [pairF, setPairF] = useState("all");
   const [showAll, setShowAll] = useState(false);
   const fileRef = useRef(null);
-  useEffect(() => { try { localStorage.setItem(LSK, JSON.stringify({ pair, date, dir, rr, setup })); } catch {} }, [pair, date, dir, rr, setup]);
+  useEffect(() => { try { localStorage.setItem(LSK, JSON.stringify({ pair, date, dir, rr, setup, tf })); } catch {} }, [pair, date, dir, rr, setup, tf]);
 
   const bt = useMemo(() => trades.filter((t) => t.accountId === BT_ACC).sort((a, b) => String(b.entryTime).localeCompare(String(a.entryTime))), [trades]);
   const setups = useMemo(() => { const m = {}; bt.forEach((t) => (t.tags || []).forEach((g) => { m[g] = (m[g] || 0) + 1; })); return Object.entries(m).sort((a, b) => b[1] - a[1]).map((x) => x[0]).slice(0, 8); }, [bt]);
@@ -7869,17 +7961,20 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
     setDir(t.direction);
     setPx({ e: t.entryPrice != null ? String(t.entryPrice) : "", sl: t.stopLoss != null ? String(t.stopLoss) : "", tp: t.takeProfit != null ? String(t.takeProfit) : "" });
     if (t.riskReward) setRr(String(t.riskReward));
-    if (t.date) setDate(btClampDate(t.date));
+    if (t.date) setDate(btClampDate(String(date).slice(0, 4) + String(t.date).slice(4)));   // l'année choisie prime
     if (res && res.pair) setPair(res.pair);
+    if (res && res.timeframe) setTf(tfFix(res.timeframe));
+    setTm(t.time || "");
   };
   const readShot = async (file) => {
     if (!file || !file.type.startsWith("image/")) return;
     const url = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
     setShot(url); setShotFile(file); setReading(true); setFound(null);
     try {
-      const res = await analyzeChartScreenshot(url, ALL_INSTRUMENTS);
+      const res = await analyzeChartScreenshot(url, ALL_INSTRUMENTS, date);
       setFound(res);
-      if (res.trades.length) { applyFound(res.trades[0], res); showToast(res.trades.length > 1 ? res.trades.length + " positions trouvées — la plus récente est appliquée" : "Screenshot lu ✓"); }
+      if (res.trades.length) { applyFound(res.trades[0], res); const t0 = res.trades[0]; const miss = [!res.pair && "paire", !res.timeframe && "timeframe", !t0.date && "date", t0.stopLoss == null && "SL", t0.takeProfit == null && "TP"].filter(Boolean);
+        showToast((res.trades.length > 1 ? res.trades.length + " positions trouvées — la plus récente est appliquée" : "Screenshot lu ✓") + (miss.length ? " · à vérifier : " + miss.join(", ") : ""), miss.length > 0); }
       else showToast("Aucun outil Long/Short trouvé sur l'image", true);
     } catch (e) { showToast("Lecture impossible : " + (e.message || e), true); }
     setReading(false);
@@ -7891,16 +7986,28 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
     let shotUrl = null;
     if (shotFile) { try { shotUrl = await uploadToStorage(shotFile); } catch {} }
     const t = {
-      id: uid(), accountId: BT_ACC, pair, direction: dir, entryTime: date + "T12:00:00.000Z",
+      id: uid(), accountId: BT_ACC, pair, direction: dir, entryTime: date + "T" + (tm || "12:00") + ":00.000Z", timeframe: tf,
       entryPrice: px.e ? parseFloat(px.e) : null, stopLoss: px.sl ? parseFloat(px.sl) : null, takeProfit: px.tp ? parseFloat(px.tp) : null,
-      resultR: r, resultUsd: null, status: kind === "be" ? "breakeven" : "closed", tags: setup ? [setup] : [], rules: { backtest: true, rr: pxRR || rrN },
+      resultR: r, resultUsd: null, status: kind === "be" ? "breakeven" : "closed", tags: [setup, tf].filter(Boolean), rules: { backtest: true, rr: pxRR || rrN, tfSetups: [{ tf, setups: setup ? [setup] : [] }] },
       screenshotBefore: shotUrl, notes: null,
     };
     onSave(t);
-    setPx({ e: "", sl: "", tp: "" }); setShot(null); setShotFile(null); setFound(null);
+    setPx({ e: "", sl: "", tp: "" }); setShot(null); setShotFile(null); setFound(null); setTm("");
     showToast((kind === "tp" ? "TP " + fmtR(r) : kind === "sl" ? "SL −1R" : "BE") + " · " + pair + " · " + date);
   };
 
+  // Coller n'importe où sur la page (Ctrl+V) ou avec le bouton « Coller »
+  const attachAfter = async (file) => {
+    const t = bt.find((x) => x.id === afterId); if (!t || !file || !file.type.startsWith("image/")) return;
+    setAfterBusy(true);
+    try { const u = await uploadToStorage(await shrinkImage(file)); onSave({ ...t, screenshotAfter: u }); showToast("Photo après trade ajoutée ✓"); setAfterId(null); }
+    catch (e) { showToast("Envoi impossible : " + (e.message || e), true); }
+    setAfterBusy(false);
+  };
+  useEffect(() => { const h = (e) => { const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); if (afterId) attachAfter(it.getAsFile()); else readShot(it.getAsFile()); } }; window.addEventListener("paste", h); return () => window.removeEventListener("paste", h); });
+  const pasteBtn = async (e) => { e.stopPropagation();
+    try { const items = await navigator.clipboard.read(); for (const it of items) { const ty = it.types.find((x) => x.startsWith("image/")); if (ty) { const b = await it.getType(ty); const f = new File([b], "capture.png", { type: ty }); if (afterId) attachAfter(f); else readShot(f); return; } } showToast("Pas d'image dans le presse-papiers", true); }
+    catch { showToast("Autorise l'accès au presse-papiers, ou fais Ctrl+V sur la page", true); } };
   // raccourcis clavier (ordi)
   useEffect(() => {
     const h = (e) => {
@@ -7942,15 +8049,17 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
 
       {/* ── Saisie express ── */}
       <div style={card}>
-        <div onPaste={(e) => { const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); readShot(it.getAsFile()); } }}
-          onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); readShot(e.dataTransfer.files?.[0]); }} tabIndex={0}
+        <div style={lab}>Année du backtest</div>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, marginBottom: 10 }}>{BT_YEARS.map((y) => <button key={y} onClick={() => setYear(y)} style={{ ...chip(String(y) === yearOf), flexShrink: 0 }}>{y}</button>)}</div>
+        <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); readShot(e.dataTransfer.files?.[0]); }} tabIndex={0}
           onClick={() => !shot && fileRef.current?.click()}
           style={{ border: `1.5px dashed ${reading ? C.purple : C.border}`, borderRadius: 12, padding: shot ? 0 : "16px 12px", textAlign: "center", cursor: shot ? "default" : "pointer", overflow: "hidden", position: "relative", outline: "none", marginBottom: 14 }}>
           {shot ? <>
             <img src={shot} alt="Screenshot" style={{ width: "100%", maxHeight: 220, objectFit: "contain", display: "block" }} />
             {reading && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, gap: 8 }}><Sparkles size={16} className="spin-slow" /> Lecture du graphique…</div>}
             <button onClick={(e) => { e.stopPropagation(); setShot(null); setShotFile(null); setFound(null); }} aria-label="Retirer" style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 15, border: "none", background: "rgba(0,0,0,.6)", color: "#fff", cursor: "pointer" }}>✕</button>
-          </> : <div style={{ color: C.textSecondary, fontSize: 13.5 }}><Upload size={18} style={{ verticalAlign: -4, marginRight: 8 }} />Screenshot TradingView (colle, glisse ou touche) — tout se remplit seul</div>}
+          </> : <div style={{ color: C.textSecondary, fontSize: 13.5 }}><Upload size={18} style={{ verticalAlign: -4, marginRight: 8 }} />Screenshot TradingView (Ctrl+V, glisse ou touche) — tout se remplit seul
+            <div style={{ marginTop: 10 }}><button onClick={pasteBtn} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: C.purple, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit" }}>📋 Coller l'image</button></div></div>}
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { readShot(e.target.files?.[0]); e.target.value = ""; }} />
         </div>
         {found && found.trades.length > 1 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: -6, marginBottom: 12 }}>
@@ -7962,7 +8071,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
-            <div style={lab}>Date</div>
+            <div style={lab}>Date <span style={{ fontWeight: 500, color: C.textMuted }}>· l'année choisie s'applique aux captures</span></div>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={() => setDate((d) => btClampDate(btAddDays(d, -1)))} style={{ ...chip(false), padding: "0 12px" }} aria-label="Jour précédent">‹</button>
               <input type="date" min="2010-01-01" max="2025-12-31" value={date} onChange={(e) => setDate(btClampDate(e.target.value))} style={{ ...inp, colorScheme: "dark", minWidth: 0 }} />
@@ -7983,6 +8092,10 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
             <div key={k}><div style={lab}>{l}</div><input inputMode="decimal" value={String(px[k]).replace(".", ",")} onChange={(e) => setPx((o) => ({ ...o, [k]: autoPrice(e.target.value, pair) }))} placeholder="optionnel" style={inp} /></div>))}
         </div>
 
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10, marginTop: 12 }}>
+          <div><div style={lab}>Timeframe</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{[...new Set([...DEFAULT_TFS, tf].filter(Boolean))].map((x) => <button key={x} onClick={() => setTf(x)} style={chip(tf === x)}>{x}</button>)}</div></div>
+          <div><div style={lab}>Heure (optionnel)</div><input type="time" value={tm} onChange={(e) => setTm(e.target.value)} style={inp} /></div>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10, marginTop: 12 }}>
           <div><div style={lab}>R:R du TP</div><input inputMode="decimal" value={pxRR != null && px.tp ? pxRR.toFixed(2) : rr} onChange={(e) => setRr(e.target.value)} disabled={pxRR != null && !!px.tp} style={inp} /></div>
           <div><div style={lab}>Setup (optionnel)</div>
@@ -8046,6 +8159,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
       {/* ── Liste ── */}
       <div style={{ ...card, marginTop: 12 }}>
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Trades</div>
+
         {filtered.length === 0 && <div style={{ color: C.textMuted, fontSize: 13.5, padding: "12px 0" }}>Aucun trade de backtest pour l'instant.</div>}
         {(showAll ? filtered : filtered.slice(0, 30)).map((t) => (
           <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
@@ -8055,6 +8169,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
               <div style={{ fontSize: 14, fontWeight: 700 }}>{PAIR_LABEL[t.pair] || t.pair} <span style={{ color: t.direction === "long" ? C.teal : C.red, fontWeight: 600 }}>{t.direction === "long" ? "Long" : "Short"}</span>{(t.tags || [])[0] ? <span style={{ color: C.textMuted, fontWeight: 500 }}> · {t.tags[0]}</span> : null}</div>
               <div className="tnum" style={{ fontSize: 12, color: C.textMuted }}>{String(t.entryTime).slice(0, 10)}{t.entryPrice ? " · E " + t.entryPrice : ""}</div>
             </div>
+            {t.screenshotBefore && <a href={t.screenshotBefore} target="_blank" rel="noreferrer" title="Photo du trade" style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, textDecoration: "none", padding: "3px 6px", borderRadius: 6, border: `1px solid ${C.border}` }}>Photo</a>}
             <span className="tnum" style={{ fontSize: 15, fontWeight: 800, color: t.resultR > 0 ? C.teal : t.resultR < 0 ? C.red : C.textMuted }}>{fmtR(t.resultR || 0)}</span>
             <button onClick={() => { if (window.confirm("Supprimer ce trade de backtest ?")) onDelete(t.id); }} aria-label="Supprimer" style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", padding: 4 }}><Trash2 size={15} /></button>
           </div>))}
@@ -8520,6 +8635,7 @@ export default function TradingJournalApp() {
           )}
         </main>
       </div>
+      <PhotoZoom />
       {toast && (
         <div style={{
           position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
