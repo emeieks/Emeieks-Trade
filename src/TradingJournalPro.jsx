@@ -1306,7 +1306,7 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
     });
     return Object.keys(m).sort().map((k) => ({ label: fmtDate(k + "T12:00:00"), pnl: Math.round(m[k] * 100) / 100 }));
   }, [stats.closed]);
-  const recentTrades = filteredTrades.slice(0, 5);
+  const recentTrades = [...filteredTrades].sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime)).slice(0, 5);
   const PERIODS = ["tout", "7j", "30j", "90j"];
   const totalR = stats.closed.reduce((s, t) => s + (Number(t.resultR) || 0), 0);
   const [goal, setGoal] = useState(() => { try { return JSON.parse(localStorage.getItem("emeieks_goals") || "null") || { monthR: 10, maxTrades: 2, stopR: 2 }; } catch (e) { return { monthR: 10, maxTrades: 2, stopR: 2 }; } });
@@ -1415,15 +1415,15 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
         </div>
 
         <div className="desktop-only table-scroll">
-          <div style={{ display: "grid", gridTemplateColumns: "90px 70px 60px 110px 90px 80px 1fr", padding: "8px 18px", fontSize: 10.5, color: C.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, borderBottom: `1px solid ${C.border}`, minWidth: 640 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "84px 128px 72px minmax(90px,140px) 110px 90px 1fr", padding: "8px 18px", fontSize: 10.5, color: C.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, borderBottom: `1px solid ${C.border}`, minWidth: 640 }}>
             <div>Date</div><div>Paire</div><div>Dir.</div><div>Setup</div><div>Résultat</div><div>Statut</div><div>Tags</div>
           </div>
           {recentTrades.map((t) => (
-            <div key={t.id} className="row-hover" onClick={() => onOpenTrade(t.id)} style={{ display: "grid", gridTemplateColumns: "90px 70px 60px 110px 90px 80px 1fr", padding: "11px 18px", borderBottom: `1px solid ${C.border}`, alignItems: "center", cursor: "pointer", fontSize: 12.5, minWidth: 640 }}>
+            <div key={t.id} className="row-hover" onClick={() => onOpenTrade(t.id)} style={{ display: "grid", gridTemplateColumns: "84px 128px 72px minmax(90px,140px) 110px 90px 1fr", padding: "11px 18px", borderBottom: `1px solid ${C.border}`, alignItems: "center", cursor: "pointer", fontSize: 12.5, minWidth: 640 }}>
               <div style={{ color: C.textSecondary }}>{fmtDate(t.entryTime)}</div>
               <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}><PairLogo pair={t.pair} size={20} />{t.pair}</div>
               <div><DirBadge direction={t.direction} /></div>
-              <div style={{ color: C.textSecondary, fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.setup}</div>
+              <div style={{ color: C.textSecondary, fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(() => { const ts = t.rules?.tfSetups; const l = Array.isArray(ts) && ts.length ? ts.flatMap((r) => (r.setups || []).map((x) => x + (r.tf ? " " + r.tf : ""))) : [t.setup].filter(Boolean); return l.join(" · ") || "—"; })()}</div>
               <div className="tnum" style={{ fontWeight: 700, color: t.resultUsd >= 0 ? C.teal : C.red }}>{fmtUsdSigned(t.resultUsd)}</div>
               <div><ResultBadge resultR={t.resultR} status={t.status} size="sm" onStatusChange={(newStatus, newR) => onStatusChange(t.id, newStatus, newR)} /></div>
               <div style={{ display: "flex", gap: 4, overflow: "hidden" }}>
@@ -1626,6 +1626,11 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
             onKeyDown={(e) => e.key === "Enter" && applyFilters()}
             style={{ ...inputStyle, paddingLeft: 36 }}
           />
+          {(() => { const q = pendingSearch.trim().toUpperCase(); if (q.length < 2) return null; const cnt = {}; trades.forEach((t) => { if (t.pair && t.pair.toUpperCase().includes(q)) cnt[t.pair] = (cnt[t.pair] || 0) + 1; }); const L = Object.entries(cnt).sort((a, b) => b[1] - a[1]); if (!L.length) return null;
+            return <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 6px)", zIndex: 30, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 18px 40px -16px rgba(0,0,0,.45)", overflow: "hidden" }}>
+              {L.map(([p, n]) => <button key={p} onClick={() => { setPendingPair(p); setFilterPair(p); setPendingSearch(""); setSearch(""); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, textAlign: "left" }}>
+                <PairLogo pair={p} size={20} /><span style={{ flex: 1 }}>{p}</span><span className="tnum" style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 600 }}>{n} trade{n > 1 ? "s" : ""}</span></button>)}
+            </div>; })()}
         </div>
         <button
           onClick={() => setShowFilters((v) => !v)}
@@ -1809,19 +1814,20 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
               <div key={monthKey} style={{ marginBottom: 16 }}>
                 <button onClick={() => toggleMonth(monthKey)} style={{
                   width: "100%",
-                  background: "transparent",
-                  border: "none", padding: "10px 4px",
-                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+                  background: `linear-gradient(90deg, ${monthR > 0 ? C.tealDim : monthR < 0 ? C.redDim : C.purpleDim}, transparent 70%), ${C.card}`,
+                  border: `1px solid ${C.border}`, borderLeft: `4px solid ${monthR > 0 ? C.teal : monthR < 0 ? C.red : C.purple}`, borderRadius: 16, padding: "14px 18px", marginBottom: isOpen ? 10 : 0,
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 26px -18px rgba(0,0,0,0.55)",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "inherit",
                   }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 8, color: C.textMuted, transform: isOpen ? "rotate(0)" : "rotate(-90deg)", display: "inline-block", transition: "transform 0.2s" }}>▼</span>
                     <div style={{ textAlign: "left" }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: C.text, textTransform: "capitalize", letterSpacing: 0.2 }}>{monthLabel}</div>
-                      <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{monthTrades.length} trade{monthTrades.length > 1 ? "s" : ""} · {wins}W/{monthTrades.filter((x) => x.resultR < 0).length}L</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: C.text, textTransform: "capitalize", letterSpacing: -0.2 }}>{monthLabel}</div>
+                      <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 3 }}>{monthTrades.length} trade{monthTrades.length > 1 ? "s" : ""} · {wins}W/{monthTrades.filter((x) => x.resultR < 0).length}L</div>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div className="tnum" style={{ fontSize: 20, fontWeight: 600, color: monthR > 0 ? C.teal : monthR < 0 ? C.red : C.textSecondary, letterSpacing: -0.5 }}>{monthR >= 0 ? "+" : ""}{monthR.toFixed(1)}R</div>
+                    <div className="tnum" style={{ fontSize: 24, fontWeight: 700, color: monthR > 0 ? C.teal : monthR < 0 ? C.red : C.textSecondary, letterSpacing: -0.5 }}>{monthR >= 0 ? "+" : ""}{monthR.toFixed(1)}R</div>
                     <div className="tnum" style={{ fontSize: 11.5, fontWeight: 600, color: monthR > 0 ? C.teal : monthR < 0 ? C.red : C.textSecondary, marginTop: 1 }}>{fmtUsdSigned(monthPnl)}</div>
                   </div>
                 </button>
@@ -1869,7 +1875,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
   const SESS = ["London Session", "New York Session", "Asia Session", "Hors session"];
   const [when, setWhen] = useState(toLocalInput(trade.entryTime));
   const [sess, setSess] = useState((trade.tags || []).find((g) => SESS.includes(g)) || getSession(trade.entryTime));
-  const tfList = appSettings?.timeframes && appSettings.timeframes.length ? appSettings.timeframes : DEFAULT_TFS;
+  const tfList = appSettings?.timeframes && appSettings.timeframes.length ? [...new Set(appSettings.timeframes.map(tfFix))] : DEFAULT_TFS;
   const hiddenT = appSettings?.hiddenTags || [];
   const setupNames = [...TAG_CATALOG.filter((t) => t.category === "setup" && !hiddenT.includes(t.name)).map((t) => t.name), ...(appSettings?.customTags || [])];
   const ALLTF = ["M1","M3","M5","M15","M30","H1","H4","D1","W1","D","W","MN", ...tfList];
@@ -1886,11 +1892,15 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
   const [st, setSt] = useState(trade.status === "open" ? "open" : trade.status === "breakeven" ? "breakeven" : Number(trade.resultR) < 0 ? "loss" : "win");
   const [note, setNote] = useState(trade.retroRating ?? null);
   const [rIn, setRIn] = useState(trade.resultR != null && trade.status !== "open" ? String(Math.abs(trade.resultR)) : "");
+  const [exitP, setExitP] = useState(trade.exitPrice ?? "");
   const pf = (v) => String(v ?? "").replace(".", ",");
   const enN = entry === "" ? null : Number(entry), slN = sl === "" ? null : Number(sl), tpN = tp === "" ? null : Number(tp);
   const rrN = enN != null && slN != null && tpN != null && enN !== slN ? Math.abs(tpN - enN) / Math.abs(enN - slN) : null;
   const riskN = Number(trade.riskUsd) || null;
-  const liveR = st === "win" ? (rIn !== "" ? Math.abs(Number(rIn)) : rrN) : st === "loss" ? -(rIn !== "" ? Math.abs(Number(rIn)) : 1) : null;
+  const exN = exitP === "" ? null : Number(String(exitP).replace(",", "."));
+  const exR = enN != null && slN != null && exN != null && enN !== slN ? ((dir === "long" ? exN - enN : enN - exN) / Math.abs(enN - slN)) : null;
+  const liveR = exR != null && (st === "win" || st === "loss") ? exR : st === "win" ? (rIn !== "" ? Math.abs(Number(rIn)) : rrN) : st === "loss" ? -(rIn !== "" ? Math.abs(Number(rIn)) : 1) : null;
+  const pickExit = (k) => { if (k === "tp" && tp !== "") { setExitP(tp); setSt("win"); } if (k === "sl" && sl !== "") { setExitP(sl); setSt("loss"); } if (k === "be" && entry !== "") { setExitP(entry); setSt("breakeven"); } };
   const liveUsd = liveR != null && riskN ? liveR * riskN : null;
   const save = () => {
     const en = entry === "" ? null : Number(entry), s = sl === "" ? null : Number(sl), t = tp === "" ? null : Number(tp);
@@ -1900,7 +1910,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
     const tags = [...new Set([...keep, ...rows.map((r) => r.tf).filter(Boolean), ...rows.flatMap((r) => r.setups), ...(sess ? [sess] : [])])];
     const iso = when && !isNaN(new Date(when).getTime()) ? new Date(when).toISOString() : trade.entryTime;
     onPatch(trade.id, { entryTime: iso, tags, rules: { ...(trade.rules || {}), tfSetups: rows.filter((r) => r.tf || r.setups.length) }, entryPrice: en, stopLoss: s, takeProfit: t, direction: dir, screenshotBefore: before, screenshotAfter: after,
-      status: st === "win" || st === "loss" ? "closed" : st, resultR, resultUsd: resultR == null ? null : risk ? Math.round(resultR * risk * 100) / 100 : trade.resultUsd ?? null, retroRating: note });
+      exitPrice: exN, status: st === "win" || st === "loss" ? "closed" : st, resultR, resultUsd: resultR == null ? null : risk ? Math.round(resultR * risk * 100) / 100 : trade.resultUsd ?? null, retroRating: note });
     onClose();
   };
   const big = (on, col) => ({ flex: 1, padding: "11px 6px", borderRadius: 12, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}1A` : "transparent", color: on ? col : C.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer" });
@@ -1908,12 +1918,12 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "92vh", overflowY: "auto", background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: -0.8, lineHeight: 1, display: "flex", alignItems: "center", gap: 10 }}><PairLogo pair={trade.pair} size={38} />{trade.pair}</div>
-            <input type="datetime-local" value={when} onChange={(e) => { setWhen(e.target.value); const d = new Date(e.target.value); if (!isNaN(d.getTime())) setSess(getSession(d.toISOString())); }} aria-label="Date" style={{ ...inputStyle, width: "auto", padding: "5px 9px", fontSize: 12.5, marginTop: 6 }} />
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ flex: 1, fontSize: 30, fontWeight: 700, letterSpacing: -0.8, lineHeight: 1, display: "flex", alignItems: "center", gap: 10 }}><PairLogo pair={trade.pair} size={38} />{trade.pair}</div>
+            <button onClick={onClose} aria-label="Fermer" style={{ ...btn.ghost, padding: 8 }}><X size={16} /></button>
           </div>
-          <button onClick={onClose} aria-label="Fermer" style={{ ...btn.ghost, padding: 8 }}><X size={16} /></button>
+            <input type="datetime-local" value={when} onChange={(e) => { setWhen(e.target.value); const d = new Date(e.target.value); if (!isNaN(d.getTime())) setSess(getSession(d.toISOString())); }} aria-label="Date" style={{ ...inputStyle, width: "auto", padding: "5px 9px", fontSize: 12.5, marginTop: 8 }} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8 }}>
           {[["Entrée", entry, setEntry], ["Stop loss", sl, setSl], ["Take profit", tp, setTp]].map(([l, v, set]) => (
@@ -1945,24 +1955,37 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
               {row.setups.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{row.setups.map((st) => <span key={st} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: C.purpleDim, color: C.purpleBright, fontSize: 12, fontWeight: 700 }}><b style={{ color: C.text }}>{row.tf}</b> {st}
                 <button onClick={() => upd((r) => ({ ...r, setups: r.setups.filter((x) => x !== st) }))} aria-label={"Retirer " + st} style={{ background: "none", border: "none", color: C.purpleBright, cursor: "pointer", padding: 0, display: "flex" }}><X size={12} /></button></span>)}</div>}
             </div>); })}
-          <button onClick={() => setRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 12.5, cursor: "pointer", padding: 0 }}>+ Ajouter une timeframe</button>
+          <button onClick={() => setRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 12.5, cursor: "pointer", padding: 0 }}>+ Ajouter des PD arrays</button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <ImageUploadBox label="Avant" value={before} onChange={setBefore} />
           <ImageUploadBox label="Après" value={after} onChange={setAfter} />
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {[["open", "En cours", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red]].map(([v, l, col]) => <button key={v} onClick={() => setSt(v)} style={big(st === v, col)}>{l}</button>)}
-        </div>
-        {(st === "win" || st === "loss") && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 14, border: `1px solid ${st === "win" ? C.teal : C.red}55`, background: `${st === "win" ? C.teal : C.red}12`, marginTop: -4 }}>
-          <input type="number" inputMode="decimal" step="0.1" value={rIn} onChange={(e) => setRIn(e.target.value)} placeholder={st === "win" ? (rrN ? rrN.toFixed(2) : "R") : "1"} aria-label="R" style={{ ...inp, width: 90 }} />
-          <span style={{ color: C.textMuted, fontWeight: 600 }}>R</span>
-          <div style={{ marginLeft: "auto", textAlign: "right" }}>
-            <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700 }}>{st === "win" ? "TU GAGNES" : "TU PERDS"}</div>
-            <div className="tnum" style={{ fontSize: 22, fontWeight: 700, color: st === "win" ? C.teal : C.red }}>{liveUsd != null ? fmtUsdSigned(liveUsd) : liveR != null ? fmtR(liveR) : "—"}</div>
-            {liveUsd != null && <div className="tnum" style={{ fontSize: 11.5, color: C.textMuted }}>{fmtR(liveR)} · risque {fmtUsd(riskN)}</div>}
+        <div style={{ border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, background: C.cardHover, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[["open", "En cours", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary]].map(([v, l, col]) => <button key={v} onClick={() => setSt(v)} style={{ ...big(st === v, col), flex: v === "breakeven" ? 0.6 : 1 }}>{l}</button>)}
           </div>
-        </div>}
+          {st !== "open" && <>
+            <div>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Prix de sortie</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input type="text" inputMode="decimal" value={pf(exitP)} onChange={(e) => setExitP(autoPrice(e.target.value, trade.pair))} placeholder="—" aria-label="Prix de sortie" style={{ ...inp, flex: 1, minWidth: 0 }} />
+                {[["tp", "TP", C.teal, tp], ["sl", "SL", C.red, sl], ["be", "BE", C.textSecondary, entry]].map(([k, l, col, v]) => { const on = exitP !== "" && v !== "" && Number(String(exitP).replace(",", ".")) === Number(v); return <button key={k} disabled={v === ""} onClick={() => pickExit(k)} style={{ width: 54, borderRadius: 11, border: `1.5px solid ${on ? col : C.border}`, background: on ? col + "1F" : "transparent", color: on ? col : C.textSecondary, fontWeight: 800, fontSize: 13, cursor: v === "" ? "default" : "pointer", opacity: v === "" ? 0.4 : 1 }}>{l}</button>; })}
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 14px", borderRadius: 13, background: C.card, border: `1px solid ${(liveR ?? 0) > 0 ? C.teal + "55" : (liveR ?? 0) < 0 ? C.red + "55" : C.border}` }}>
+              <div>
+                <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, letterSpacing: 0.4 }}>RÉSULTAT</div>
+                {exR == null ? <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}><input type="number" inputMode="decimal" step="0.1" value={rIn} onChange={(e) => setRIn(e.target.value)} placeholder={st === "win" ? (rrN ? rrN.toFixed(2) : "R") : "1"} aria-label="R" style={{ ...inp, width: 80, padding: "7px 9px" }} /><span style={{ color: C.textMuted, fontWeight: 600 }}>R</span></div>
+                  : <div className="tnum" style={{ fontSize: 13, color: C.textSecondary, marginTop: 4 }}>Sortie {pf(exitP)}</div>}
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div className="tnum" style={{ fontSize: 26, fontWeight: 700, letterSpacing: -0.5, color: (liveR ?? 0) > 0 ? C.teal : (liveR ?? 0) < 0 ? C.red : C.textSecondary }}>{st === "breakeven" ? "0.00R" : liveR != null ? fmtR(liveR) : "—"}</div>
+                {liveUsd != null && st !== "breakeven" && <div className="tnum" style={{ fontSize: 12, color: C.textMuted }}>{fmtUsdSigned(liveUsd)} · risque {fmtUsd(riskN)}</div>}
+              </div>
+            </div>
+          </>}
+        </div>
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Note du trade {note ? <b style={{ color: C.text }}>· {note}/10</b> : ""}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4 }}>
@@ -2965,7 +2988,7 @@ function ImageUploadBox({ label, value, onChange }) {
           border: `1.5px dashed ${focused ? C.focusBorder || C.purple : dragOver ? C.purple : C.border}`,
           borderRadius: 10, cursor: value ? "default" : "pointer", overflow: "hidden",
           position: "relative", background: dragOver ? C.purpleDim : C.inputBg || C.card,
-          minHeight: value ? "auto" : 100,
+          height: 150,
           display: "flex", alignItems: "center", justifyContent: "center",
           transition: "border-color 0.15s, background 0.15s",
           outline: "none",
@@ -2974,7 +2997,7 @@ function ImageUploadBox({ label, value, onChange }) {
       >
         {value ? (
           <>
-            <img src={value} alt={label} style={{ width: "100%", display: "block", maxHeight: 220, objectFit: "contain" }} />
+            <img src={value} alt={label} style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }} />
             <button onClick={(e) => { e.stopPropagation(); onChange(null); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(15,17,23,0.85)", border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, padding: 5, cursor: "pointer", display: "flex" }}>
               <X size={12} />
             </button>
@@ -3069,7 +3092,25 @@ function Section({ title, icon, sub, open, onToggle, children }) {
 }
 
 // ── Nouveau formulaire d'ajout (v2) ──
-const DEFAULT_TFS = ["M15", "H1", "H4", "D", "W"];
+const DEFAULT_TFS = ["M15", "M30", "H1", "H4", "D", "W"];
+// D1 → D, W1 → W, MN1 → MN : une seule écriture partout
+const TF_FIX = { D1: "D", W1: "W", MN1: "MN", "1D": "D", "1W": "W" };
+const tfFix = (x) => TF_FIX[x] || x;
+// Tag « Tendance » : le trade va dans le sens du biais Daily ou Weekly noté dans Prévisions
+function withTrend(t) {
+  if (!t || !t.pair || !t.direction || t.rules?.backtest) return t;
+  let b = {}; try { b = JSON.parse(localStorage.getItem("previsions_data") || "{}"); } catch {}
+  const want = t.direction === "long" ? "bullish" : "bearish";
+  const ok = ["Daily", "Weekly"].some((tf) => b[`${t.pair}_${tf}`] === want);
+  if (!ok || (t.tags || []).includes("Tendance")) return t;
+  return { ...t, tags: [...(t.tags || []), "Tendance"] };
+}
+function fixTF(t) {
+  if (!t) return t; const tg = t.tags || []; const ts = t.rules?.tfSetups;
+  const needT = tg.some((g) => TF_FIX[g]); const needS = Array.isArray(ts) && ts.some((r) => TF_FIX[r.tf]);
+  if (!needT && !needS) return t;
+  return { ...t, tags: needT ? [...new Set(tg.map(tfFix))] : tg, rules: needS ? { ...t.rules, tfSetups: ts.map((r) => ({ ...r, tf: tfFix(r.tf) })) } : t.rules };
+}
 const GRADES = [["A+", "A", "A-"], ["B+", "B", "B-"], ["C+", "C", "C-"], ["D+", "D", "D-"], ["E"]];
 const gradeToLevel = (g) => !g ? 0 : g[0] === "A" ? 5 : g[0] === "B" ? 4 : g[0] === "C" ? 3 : g[0] === "D" ? 2 : 1;
 function pipInfo(pair, entry) {
@@ -3129,7 +3170,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const lastRisk = (trades || []).find((t) => Number(t.riskUsd) > 0)?.riskUsd;
   const [riskMode, setRiskMode] = useState(initial?.positionSize != null && initial?.riskUsd == null ? "lots" : "usd");
   const [riskVal, setRiskVal] = useState(String(initial ? (initial.riskUsd ?? initial.positionSize ?? "") : (lastRisk ?? 100)));
-  const tfList = (appSettings?.timeframes && appSettings.timeframes.length ? appSettings.timeframes : DEFAULT_TFS);
+  const tfList = (appSettings?.timeframes && appSettings.timeframes.length ? [...new Set(appSettings.timeframes.map(tfFix))] : DEFAULT_TFS);
   const initTf = (() => {
     const r = initial?.rules?.tfSetups; if (Array.isArray(r) && r.length) return r;
     const tags = initial?.tags || []; const tf = tags.find((t) => tfList.includes(t) || ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(t));
@@ -3307,7 +3348,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
                 </div>}
               </div>);
           })}
-          <button onClick={() => setTfRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 13, cursor: "pointer", padding: "10px 0 0" }}>+ Ajouter une timeframe</button>
+          <button onClick={() => setTfRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 13, cursor: "pointer", padding: "10px 0 0" }}>+ Ajouter des PD arrays</button>
         </div>
 
         {/* 5. Photos */}
@@ -3579,7 +3620,7 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trade
   const [showMore, setShowMore] = useState(false);
   const SESSIONS = ["London Session", "New York Session", "Asia Session", "Hors session"];
   const currentSession = tags.find((t) => SESSIONS.includes(t));
-  const tfs = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"];
+  const tfs = ["M1", "M5", "M15", "M30", "H1", "H4", "D", "W"];
   const types = ["Scalping", "Day Trading", "Swing"];
   const setOneTag = (group, v) => setTags((prev) => [...prev.filter((t) => !group.includes(t)), ...(v ? [v] : [])]);
   const curTf = tags.find((t) => tfs.includes(t)) || "";
@@ -4367,7 +4408,7 @@ function OverviewStats({ trades }) {
    ============================================================================ */
 
 const SESSION_TAGS = ["London Session", "New York Session", "Asia Session", "Hors session"];
-const TF_TAGS = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"];
+const TF_TAGS = ["M1", "M5", "M15", "M30", "H1", "H4", "D", "W"];
 const TYPE_TAGS = ["Swing", "Day Trading", "Scalping"];
 const MISTAKE_TAGS = TAG_CATALOG.filter((t) => t.category === "mistake").map((t) => t.name);
 const isSetupTag = (tag) => !SESSION_TAGS.includes(tag) && !TF_TAGS.includes(tag) && !TYPE_TAGS.includes(tag) && !MISTAKE_TAGS.includes(tag);
@@ -6130,9 +6171,9 @@ function PairsSettings({ settings, addPair, removePair }) {
   </div>);
 }
 function TimeframesSettings({ settings, update }) {
-  const cur = settings.timeframes && settings.timeframes.length ? settings.timeframes : DEFAULT_TFS;
+  const cur = settings.timeframes && settings.timeframes.length ? [...new Set(settings.timeframes.map(tfFix))] : DEFAULT_TFS;
   const [v, setV] = useState("");
-  const add = () => { const t = v.trim().toUpperCase(); if (!t || cur.includes(t)) return; update({ timeframes: [...cur, t] }); setV(""); };
+  const add = () => { const t = tfFix(v.trim().toUpperCase()); if (!t || cur.includes(t)) return; update({ timeframes: [...cur, t] }); setV(""); };
   return (<div>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
       {cur.map((tf) => <span key={tf} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 12px", borderRadius: 9, border: `1px solid ${C.purple}`, background: C.purpleDim, color: C.purpleBright, fontSize: 13, fontWeight: 600 }}>{tf}
@@ -6675,12 +6716,14 @@ function PlaybookDetail({ k, trades, onHide }) {
   const tog = (d, v) => setF((o) => ({ ...o, [d]: o[d].includes(v) ? o[d].filter((x) => x !== v) : [...o[d], v] }));
   const nF = Object.values(f).reduce((s, x) => s + x.length, 0);
   const K = ({ l, v, c }) => <div style={{ padding: "10px 12px", borderRadius: 12, background: C.cardHover, border: `1px solid ${C.border}`, minWidth: 0 }}><div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, color: c || C.text, marginTop: 3, whiteSpace: "nowrap" }}>{v}</div></div>;
+  const SES_FULL = Object.fromEntries(Object.entries(SESSION_SHORT).map(([k, v]) => [v, k]));
+  const lead = (lb) => SES_FULL[lb] && SES_FULL[lb] !== "Hors session" ? <SessionFlag name={SES_FULL[lb]} size={15} /> : /^[A-Z0-9]{6}$|^XAU|^NAS|^US\d/.test(lb) ? <PairLogo pair={lb} size={16} /> : null;
   const Break = ({ title, fn }) => { const g = groupAgg(T, fn).sort((x, y) => y.sumR - x.sumR); if (!g.length) return null; const mx = Math.max(0.01, ...g.map((x) => Math.abs(x.sumR)));
     return <div style={{ background: C.cardHover, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 12px 6px", minWidth: 0 }}>
       <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>{title}</div>
       {g.map((x) => <div key={x.label} style={{ position: "relative", display: "grid", gridTemplateColumns: "minmax(0,1fr) 34px 42px 62px", gap: 6, alignItems: "center", padding: "7px 4px", borderTop: `1px solid ${C.border}`, fontSize: 12.5 }}>
         <div className="grow-x" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: (Math.abs(x.sumR) / mx) * 100 + "%", background: `linear-gradient(90deg, ${rCol(x.sumR)}1A, transparent)`, borderRadius: 4 }} />
-        <b style={{ position: "relative", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.label}</b>
+        <b style={{ position: "relative", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>{lead(x.label)}{x.label}</b>
         <span className="tnum" style={{ position: "relative", textAlign: "right", color: C.textSecondary }}>{x.n}</span>
         <span className="tnum" style={{ position: "relative", textAlign: "right", color: x.wr >= 50 ? C.teal : C.textSecondary }}>{x.wr.toFixed(0)}%</span>
         <b className="tnum" style={{ position: "relative", textAlign: "right", color: rCol(x.sumR) }}>{fmtRs(x.sumR)}</b>
@@ -6691,7 +6734,7 @@ function PlaybookDetail({ k, trades, onHide }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px", borderRadius: 14, background: C.cardHover, border: `1px solid ${C.border}`, marginBottom: 12 }}>
         {DIMS.map(([d, l]) => opts[d].length > 0 && <div key={d} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span style={{ width: 82, fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}</span>
-          {opts[d].map((v) => { const on = f[d].includes(v); return <button key={v} onClick={() => tog(d, v)} aria-pressed={on} style={{ padding: "5px 10px", borderRadius: 999, border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{on ? "✓ " : ""}{v}</button>; })}
+          {opts[d].map((v) => { const on = f[d].includes(v); return <button key={v} onClick={() => tog(d, v)} aria-pressed={on} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 999, border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{d === "ses" ? lead(v) : null}{on ? "✓ " : ""}{v}</button>; })}
         </div>)}
         {nF > 0 && <button onClick={() => setF({ ses: [], tf: [], conf: [], dir: [], grade: [] })} style={{ alignSelf: "flex-start", background: "none", border: "none", color: C.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Effacer les filtres ({nF})</button>}
       </div>
@@ -6711,11 +6754,11 @@ function PlaybookDetail({ k, trades, onHide }) {
           </AreaChart></ResponsiveContainer>
         </div>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginBottom: 12 }}>
-          <Break title="Par session" fn={sesOf} /><Break title="Par timeframe" fn={tfOf} /><Break title="Par confluence" fn={confOf} /><Break title="Par paire" fn={(t) => t.pair} /><Break title="Par sens" fn={dirOf} /><Break title="Par note" fn={grOf} />
+          <Break title="Par session" fn={sesOf} /><Break title="Par timeframe" fn={tfOf} /><Break title="Par confluence" fn={confOf} /><Break title="Par paire" fn={(t) => t.pair} /><Break title="Long / Short" fn={dirOf} /><Break title="Par note" fn={grOf} />
         </div>
         <div style={{ background: C.cardHover, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 12px 6px" }}>
           <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Derniers trades</div>
-          {T.slice(-8).reverse().map((t) => <div key={t.id} className="tnum" style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, padding: "7px 4px", borderTop: `1px solid ${C.border}` }}><span style={{ color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · {t.pair} · {sesOf(t)}{tfOf(t) ? " · " + tfOf(t) : ""}</span><b style={{ color: rCol(rOf(t)) }}>{fmtRs(rOf(t))}</b></div>)}
+          {T.slice(-8).reverse().map((t) => <div key={t.id} className="tnum" style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, padding: "7px 4px", borderTop: `1px solid ${C.border}` }}><span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, color: C.textSecondary }}><PairLogo pair={t.pair} size={18} /><b style={{ color: C.text }}>{t.pair}</b><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · {sesOf(t)}{tfOf(t) ? " · " + tfOf(t) : ""}</span></span><b style={{ color: rCol(rOf(t)) }}>{fmtRs(rOf(t))}</b></div>)}
         </div>
       </>}
       <button onClick={onHide} style={{ ...btn.ghost, marginTop: 12, color: C.textMuted, fontSize: 12 }}>Masquer ce playbook</button>
@@ -6723,8 +6766,16 @@ function PlaybookDetail({ k, trades, onHide }) {
   );
 }
 
-function Playbooks({ trades }) {
+function Playbooks({ trades: allT }) {
   const [pb, setPb] = useState(loadPB); const [open, setOpen] = useState(null); const [nw, setNw] = useState("");
+  const [gf, setGf] = useState(() => { try { return JSON.parse(localStorage.getItem("pb_filter") || "null") || { per: "all", hideSes: [], dir: "all", pairs: [] }; } catch { return { per: "all", hideSes: [], dir: "all", pairs: [] }; } });
+  const [fo, setFo] = useState(false);
+  const setG = (p) => { const n = { ...gf, ...p }; setGf(n); try { localStorage.setItem("pb_filter", JSON.stringify(n)); } catch {} };
+  const days = { "7": 7, "30": 30, "90": 90 }[gf.per];
+  const trades = allT.filter((t) => (!days || new Date(t.entryTime) >= Date.now() - days * 864e5) && !gf.hideSes.includes(getSession(t.entryTime)) && (gf.dir === "all" || t.direction === gf.dir) && (!gf.pairs.length || gf.pairs.includes(t.pair)));
+  const nGF = (gf.per !== "all") + gf.hideSes.length + (gf.dir !== "all") + gf.pairs.length;
+  const allPairs = [...new Set(allT.map((t) => t.pair).filter(Boolean))].sort();
+  const chipG = (on) => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 999, border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" });
   const up = (k, patch) => { const n = { ...pb, [k]: { ...(pb[k] || {}), ...patch } }; setPb(n); savePB(n); };
   const L = closedSorted(trades);
   const setupsOf = (t) => { const ts = t.rules?.tfSetups; if (Array.isArray(ts) && ts.length) return [...new Set(ts.flatMap((r) => r.setups || []))]; return (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")); };
@@ -6735,7 +6786,14 @@ function Playbooks({ trades }) {
   const rows = names.map((k) => ({ k, ...stat(k) })).sort((a, b) => b.sumR - a.sumR);
   return (
     <div className="fade-in" style={{ maxWidth: 860, margin: "0 auto" }}>
-      <PageHeader title="Playbooks" />
+      <PageHeader title="Playbooks" action={<button onClick={() => setFo((v) => !v)} style={{ ...btn.ghost, borderColor: nGF ? C.purple : C.border, color: nGF ? C.purpleBright : C.textSecondary }}><SlidersHorizontal size={14} /> Filtrer{nGF ? " · " + nGF : ""}</button>} />
+      {fo && <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        {[["Période", [["all", "Tout"], ["7", "7 j"], ["30", "30 j"], ["90", "90 j"]].map(([k, l]) => <button key={k} onClick={() => setG({ per: k })} style={chipG(gf.per === k)}>{l}</button>)],
+          ["Sessions", SESSIONS_ALL.map((x) => { const on = !gf.hideSes.includes(x); return <button key={x} onClick={() => setG({ hideSes: on ? [...gf.hideSes, x] : gf.hideSes.filter((y) => y !== x) })} style={chipG(on)}>{x !== "Hors session" ? <SessionFlag name={x} size={15} /> : null}{SESSION_SHORT[x]}</button>; })],
+          ["Sens", [["all", "Les deux"], ["long", "Long"], ["short", "Short"]].map(([k, l]) => <button key={k} onClick={() => setG({ dir: k })} style={chipG(gf.dir === k)}>{l}</button>)],
+          ["Paires", allPairs.map((x) => { const on = gf.pairs.includes(x); return <button key={x} onClick={() => setG({ pairs: on ? gf.pairs.filter((y) => y !== x) : [...gf.pairs, x] })} style={chipG(on)}><PairLogo pair={x} size={15} />{x}</button>; })]].map(([l, ch]) => <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span style={{ width: 70, fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}</span>{ch}</div>)}
+        {nGF > 0 && <button onClick={() => setG({ per: "all", hideSes: [], dir: "all", pairs: [] })} style={{ alignSelf: "flex-start", background: "none", border: "none", color: C.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Tout réinitialiser</button>}
+      </div>}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         <input value={nw} onChange={(e) => setNw(e.target.value)} placeholder="Nom du playbook" style={{ ...inputStyle, flex: 1 }} />
         <button disabled={!nw.trim()} onClick={() => { up(nw.trim(), { rules: [], desc: "" }); setOpen(nw.trim()); setNw(""); }} style={{ ...btn.primary, opacity: nw.trim() ? 1 : 0.5 }}><Plus size={14} /> Créer</button>
@@ -6971,24 +7029,6 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
         </SettingsRow>
       </SettingsSection>
 
-      <SettingsSection title="Erreurs à améliorer" icon={AlertTriangle}>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>Apparaissent dans l'onglet Retour. Clique pour masquer celles que tu n'utilises pas.</div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 8 }}>Par défaut</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-          {DEFAULT_ERRORS.map(err => {
-            const hidden = (settings.hiddenErrors || []).includes(err);
-            return (
-              <button key={err} onClick={() => {
-                const cur = settings.hiddenErrors || [];
-                update({ hiddenErrors: hidden ? cur.filter(x => x !== err) : [...cur, err] });
-              }} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 11.5, cursor: "pointer", border: `1px solid ${hidden ? C.border : C.red}`, background: hidden ? "transparent" : "rgba(255,83,112,0.08)", color: hidden ? C.textMuted : C.red, textDecoration: hidden ? "line-through" : "none", opacity: hidden ? 0.5 : 1 }}>{err}</button>
-            );
-          })}
-        </div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 8 }}>Personnalisées</div>
-        <TagList items={settings.customErrors || []} onRemove={err => update({ customErrors: (settings.customErrors || []).filter(e => e !== err) })} />
-        <AddItemInput placeholder="Ex: Trop de confluences, mauvais TF..." onAdd={err => { if (err && !(settings.customErrors || []).includes(err)) update({ customErrors: [...(settings.customErrors || []), err] }); }} />
-      </SettingsSection>
 
       {toast && (
         <div style={{ position: "fixed", bottom: 130, left: "50%", transform: "translateX(-50%)", background: C.card, border: `1px solid ${C.border}`, padding: "9px 16px", borderRadius: 8, fontSize: 12.5, color: C.text, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 1000 }}>
@@ -8321,7 +8361,7 @@ export default function TradingJournalApp() {
     const now = Date.now();
     const existing = tradesRef.current.find((t) => t.id === trade.id);
     // On garde les champs que le formulaire ne connaît pas (verdict, rétrospective, compte…)
-    const merged = { ...(existing || {}), ...trade, accountId: existing?.accountId ?? effectiveAccountId, updatedAt: now };
+    const merged = withTrend({ ...(existing || {}), ...trade, accountId: existing?.accountId ?? effectiveAccountId, updatedAt: now });
     const newTrades = existing ? tradesRef.current.map((t) => t.id === trade.id ? merged : t) : [merged, ...tradesRef.current];
     setTrades(newTrades);
     writeLocal(newTrades);
@@ -8360,7 +8400,7 @@ export default function TradingJournalApp() {
   const patchTrade = (id, patch, debounce = 0) => {
     const t = tradesRef.current.find((x) => x.id === id);
     if (!t) return;
-    const nt = { ...t, ...patch, updatedAt: Date.now() };
+    const nt = ("direction" in patch || "tags" in patch || "pair" in patch) ? withTrend({ ...t, ...patch, updatedAt: Date.now() }) : { ...t, ...patch, updatedAt: Date.now() };
     const list = tradesRef.current.map((x) => x.id === id ? nt : x);
     tradesRef.current = list;
     setTrades(list);
@@ -8401,7 +8441,7 @@ export default function TradingJournalApp() {
   // Filtre trades par compte actif — les autres comptes sont isolés
   const [cumulMode, setCumulMode] = useState(false);
   const effectiveAccountId = activeAccountId || accounts[0]?.id || null;
-  const accountTrades = useMemo(() => { const live = trades.filter((t) => t.accountId !== BT_ACC); return cumulMode || !effectiveAccountId
+  const accountTrades = useMemo(() => { const live = trades.filter((t) => t.accountId !== BT_ACC).map(fixTF); return cumulMode || !effectiveAccountId
     ? live
     : live.filter(t => !t.accountId || t.accountId === effectiveAccountId); }, [trades, cumulMode, effectiveAccountId]);
   const initialBalance = cumulMode
