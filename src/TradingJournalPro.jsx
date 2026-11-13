@@ -1993,7 +1993,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => { onClose(); onOpenFull(trade.id); }} style={{ ...btn.ghost, flex: 1, justifyContent: "center" }}>Détail complet</button>
+          {onOpenFull && <button onClick={() => { onClose(); onOpenFull(trade.id); }} style={{ ...btn.ghost, flex: 1, justifyContent: "center" }}>Détail complet</button>}
           <button onClick={save} style={{ ...btn.primary, flex: 2, justifyContent: "center", padding: "12px" }}>Enregistrer</button>
         </div>
       </div>
@@ -7924,7 +7924,7 @@ function btAgg(list) {
   return { n, w, l, wr: w + l ? w / (w + l) * 100 : 0, R, avg: n ? R / n : 0, pf: gl ? gw / gl : (gw ? Infinity : 0), dd };
 }
 
-function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
+function BacktestView({ trades, onSave, onDelete, showToast, pairs, appSettings }) {
   const LSK = "bt_quick_v1";
   const saved = (() => { try { return JSON.parse(localStorage.getItem(LSK) || "{}"); } catch { return {}; } })();
   const [pair, setPair] = useState(saved.pair || (pairs && pairs[0]) || "EURUSD");
@@ -7934,6 +7934,9 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
   const [setup, setSetup] = useState(saved.setup || "");
   const [tf, setTf] = useState(saved.tf || "M15");
   const [tm, setTm] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [btTab, setBtTab] = useState("saisie");
+  const [autoEdit, setAutoEdit] = useState(saved.autoEdit !== false);
   const [afterId, setAfterId] = useState(null); const [afterBusy, setAfterBusy] = useState(false); const afterRef = useRef(null);
   const yearOf = String(date).slice(0, 4);
   const setYear = (y) => setDate((d) => { const md = String(d).slice(4); const nd = y + (md === "-02-29" && (y % 4) ? "-02-28" : md); return btClampDate(nd); });
@@ -7946,7 +7949,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
   const [pairF, setPairF] = useState("all");
   const [showAll, setShowAll] = useState(false);
   const fileRef = useRef(null);
-  useEffect(() => { try { localStorage.setItem(LSK, JSON.stringify({ pair, date, dir, rr, setup, tf })); } catch {} }, [pair, date, dir, rr, setup, tf]);
+  useEffect(() => { try { localStorage.setItem(LSK, JSON.stringify({ pair, date, dir, rr, setup, tf, autoEdit })); } catch {} }, [pair, date, dir, rr, setup, tf, autoEdit]);
 
   const bt = useMemo(() => trades.filter((t) => t.accountId === BT_ACC).sort((a, b) => String(b.entryTime).localeCompare(String(a.entryTime))), [trades]);
   const setups = useMemo(() => { const m = {}; bt.forEach((t) => (t.tags || []).forEach((g) => { m[g] = (m[g] || 0) + 1; })); return Object.entries(m).sort((a, b) => b[1] - a[1]).map((x) => x[0]).slice(0, 8); }, [bt]);
@@ -7991,7 +7994,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
       resultR: r, resultUsd: null, status: kind === "be" ? "breakeven" : "closed", tags: [setup, tf].filter(Boolean), rules: { backtest: true, rr: pxRR || rrN, tfSetups: [{ tf, setups: setup ? [setup] : [] }] },
       screenshotBefore: shotUrl, notes: null,
     };
-    onSave(t);
+    onSave(t); if (autoEdit) setEditId(t.id);
     setPx({ e: "", sl: "", tp: "" }); setShot(null); setShotFile(null); setFound(null); setTm("");
     showToast((kind === "tp" ? "TP " + fmtR(r) : kind === "sl" ? "SL −1R" : "BE") + " · " + pair + " · " + date);
   };
@@ -8011,7 +8014,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
   // raccourcis clavier (ordi)
   useEffect(() => {
     const h = (e) => {
-      if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || editId) return;
       const k = e.key.toLowerCase();
       if (k === "l") setDir("long"); else if (k === "s") setDir("short");
       else if (k === "t") add("tp"); else if (k === "x") add("sl"); else if (k === "b") add("be");
@@ -8047,6 +8050,12 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
         <span style={{ fontSize: 13, color: C.textMuted }}>2010 → 2025 · {bt.length} trades</span>
       </div>
 
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {[["saisie", "Saisie & stats"], ["playbook", "Playbook"]].map(([k, l]) => <button key={k} onClick={() => setBtTab(k)} style={{ ...chip(btTab === k), padding: "9px 16px", fontSize: 14 }}>{l}</button>)}
+      </div>
+      {editId && (() => { const t = bt.find((x) => x.id === editId); return t ? <QuickTradeModal key={t.id} trade={t} appSettings={appSettings} onClose={() => setEditId(null)} onPatch={(id, data) => onSave({ ...t, ...data, accountId: BT_ACC, rules: { ...(data.rules || t.rules || {}), backtest: true } })} /> : null; })()}
+      {btTab === "playbook" && <Playbooks trades={filtered} />}
+      {btTab === "saisie" && <>
       {/* ── Saisie express ── */}
       <div style={card}>
         <div style={lab}>Année du backtest</div>
@@ -8108,6 +8117,8 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
           <button onClick={() => add("sl")} style={big(C.red)}><span>SL</span><span style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.9 }}>−1R</span></button>
           <button onClick={() => add("be")} style={big("#4B5563")}><span>BE</span><span style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.9 }}>0R</span></button>
         </div>
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, fontSize: 13, color: C.textSecondary, cursor: "pointer" }}>
+          <input type="checkbox" checked={autoEdit} onChange={(e) => setAutoEdit(e.target.checked)} /> Après l'ajout, ouvrir la fiche (session, PD arrays, note)</label>
         <div className="desktop-only" style={{ fontSize: 11.5, color: C.textMuted, marginTop: 10, textAlign: "center" }}>Clavier : L / S = sens · T = TP · X = SL · B = BE · ← → = jour</div>
       </div>
 
@@ -8162,7 +8173,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
 
         {filtered.length === 0 && <div style={{ color: C.textMuted, fontSize: 13.5, padding: "12px 0" }}>Aucun trade de backtest pour l'instant.</div>}
         {(showAll ? filtered : filtered.slice(0, 30)).map((t) => (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
+          <div key={t.id} onClick={(e) => { if (e.target.closest("a,button")) return; setEditId(t.id); }} title="Modifier (session, PD arrays, note…)" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${C.border}`, cursor: "pointer" }}>
             <span style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: t.resultR > 0 ? C.teal : t.resultR < 0 ? C.red : C.textMuted }} />
             <PairLogo pair={t.pair} size={24} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -8175,6 +8186,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs }) {
           </div>))}
         {filtered.length > 30 && <button onClick={() => setShowAll((v) => !v)} style={{ ...btn.ghost, width: "100%", justifyContent: "center", marginTop: 8 }}>{showAll ? "Réduire" : "Voir les " + filtered.length + " trades"}</button>}
       </div>
+      </>}
     </div>
   );
 }
@@ -8615,7 +8627,7 @@ export default function TradingJournalApp() {
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
               {view === "dashboard" && <Dashboard extra={<>{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} />}<ScoreCard trades={accountTrades} balance={initialBalance} /><WeekRecap trades={accountTrades} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
-              {view === "backtest" && <BacktestView trades={trades} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
+              {view === "backtest" && <BacktestView trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
                 <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} appSettings={appSettings} onRetroSave={(id, data) => patchTrade(id, data, 800)} onPatch={(id, data) => patchTrade(id, data)} />
