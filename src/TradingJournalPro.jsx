@@ -6657,6 +6657,72 @@ function HourHeatmap({ trades, useUsd }) {
 const PB_KEY = "playbooks_v1";
 function loadPB() { try { return JSON.parse(localStorage.getItem(PB_KEY) || "{}"); } catch { return {}; } }
 function savePB(p) { try { localStorage.setItem(PB_KEY, JSON.stringify(p)); } catch {} saveSettingsPatch({ playbooks: p }).catch(() => {}); }
+function PlaybookDetail({ k, trades, onHide }) {
+  const [f, setF] = useState({ ses: [], tf: [], conf: [], dir: [], grade: [] });
+  const tfOf = (t) => { const ts = t.rules?.tfSetups; if (Array.isArray(ts)) { const r = ts.find((x) => (x.setups || []).includes(k)); if (r && r.tf) return r.tf; } const tg = (t.tags || []).find((g) => ["M1","M3","M5","M15","M30","H1","H4","D1","W1","D","W","MN"].includes(g)); return tg || null; };
+  const confOf = (t) => { const ts = t.rules?.tfSetups; const all = Array.isArray(ts) && ts.length ? ts.flatMap((r) => (r.setups || []).map((x) => x + (r.tf ? " " + r.tf : ""))) : (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")); return [...new Set(all.filter((x) => x.split(" ")[0] !== k && x !== k))]; };
+  const sesOf = (t) => SESSION_SHORT[getSession(t.entryTime)];
+  const dirOf = (t) => (t.direction === "long" ? "Long" : "Short");
+  const grOf = (t) => t.rules?.grade || null;
+  const DIMS = [["ses", "Session", sesOf], ["tf", "Timeframe", tfOf], ["conf", "Confluence", confOf], ["dir", "Sens", dirOf], ["grade", "Note", grOf]];
+  const opts = Object.fromEntries(DIMS.map(([d, , fn]) => [d, [...new Set(trades.flatMap((t) => { const v = fn(t); return Array.isArray(v) ? v : v ? [v] : []; }))].sort()]));
+  const pass = (t) => DIMS.every(([d, , fn]) => { if (!f[d].length) return true; const v = fn(t); return d === "conf" ? f[d].every((x) => (v || []).includes(x)) : f[d].includes(v); });
+  const T = trades.filter(pass);
+  const a = aggR(T); const W = T.filter((t) => rOf(t) > 0), L = T.filter((t) => rOf(t) < 0);
+  const gw = W.reduce((s, t) => s + rOf(t), 0), gl = -L.reduce((s, t) => s + rOf(t), 0);
+  let st = 0, bw = 0, bl = 0; T.forEach((t) => { const r = rOf(t); st = r > 0 ? (st > 0 ? st + 1 : 1) : r < 0 ? (st < 0 ? st - 1 : -1) : st; bw = Math.max(bw, st); bl = Math.min(bl, st); });
+  let cum = 0; const curve = [{ i: 0, v: 0 }, ...T.map((t, i) => ({ i: i + 1, v: Math.round((cum += rOf(t)) * 100) / 100 }))];
+  const tog = (d, v) => setF((o) => ({ ...o, [d]: o[d].includes(v) ? o[d].filter((x) => x !== v) : [...o[d], v] }));
+  const nF = Object.values(f).reduce((s, x) => s + x.length, 0);
+  const K = ({ l, v, c }) => <div style={{ padding: "10px 12px", borderRadius: 12, background: C.cardHover, border: `1px solid ${C.border}`, minWidth: 0 }}><div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, color: c || C.text, marginTop: 3, whiteSpace: "nowrap" }}>{v}</div></div>;
+  const Break = ({ title, fn }) => { const g = groupAgg(T, fn).sort((x, y) => y.sumR - x.sumR); if (!g.length) return null; const mx = Math.max(0.01, ...g.map((x) => Math.abs(x.sumR)));
+    return <div style={{ background: C.cardHover, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 12px 6px", minWidth: 0 }}>
+      <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>{title}</div>
+      {g.map((x) => <div key={x.label} style={{ position: "relative", display: "grid", gridTemplateColumns: "minmax(0,1fr) 34px 42px 62px", gap: 6, alignItems: "center", padding: "7px 4px", borderTop: `1px solid ${C.border}`, fontSize: 12.5 }}>
+        <div className="grow-x" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: (Math.abs(x.sumR) / mx) * 100 + "%", background: `linear-gradient(90deg, ${rCol(x.sumR)}1A, transparent)`, borderRadius: 4 }} />
+        <b style={{ position: "relative", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.label}</b>
+        <span className="tnum" style={{ position: "relative", textAlign: "right", color: C.textSecondary }}>{x.n}</span>
+        <span className="tnum" style={{ position: "relative", textAlign: "right", color: x.wr >= 50 ? C.teal : C.textSecondary }}>{x.wr.toFixed(0)}%</span>
+        <b className="tnum" style={{ position: "relative", textAlign: "right", color: rCol(x.sumR) }}>{fmtRs(x.sumR)}</b>
+      </div>)}
+    </div>; };
+  return (
+    <div style={{ padding: "0 16px 16px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px", borderRadius: 14, background: C.cardHover, border: `1px solid ${C.border}`, marginBottom: 12 }}>
+        {DIMS.map(([d, l]) => opts[d].length > 0 && <div key={d} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ width: 82, fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}</span>
+          {opts[d].map((v) => { const on = f[d].includes(v); return <button key={v} onClick={() => tog(d, v)} aria-pressed={on} style={{ padding: "5px 10px", borderRadius: 999, border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{on ? "✓ " : ""}{v}</button>; })}
+        </div>)}
+        {nF > 0 && <button onClick={() => setF({ ses: [], tf: [], conf: [], dir: [], grade: [] })} style={{ alignSelf: "flex-start", background: "none", border: "none", color: C.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Effacer les filtres ({nF})</button>}
+      </div>
+      {T.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 13 }}>Aucun trade avec ces filtres.</div> : <>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))", gap: 8, marginBottom: 12 }}>
+          <K l="Trades" v={a.n} /><K l="Winrate" v={a.wr.toFixed(0) + " %"} c={a.wr >= 50 ? C.teal : C.amber} /><K l="Profit factor" v={gl ? (gw / gl).toFixed(2) : "—"} c={gl && gw / gl >= 1.5 ? C.teal : null} />
+          <K l="R moyen" v={fmtRs(a.avgR)} c={rCol(a.avgR)} /><K l="Total" v={fmtRs(a.sumR)} c={rCol(a.sumR)} /><K l="Total $" v={fmtUsdSigned(a.pnl)} c={rCol(a.pnl)} />
+          <K l="Gain moyen" v={W.length ? fmtRs(gw / W.length) : "—"} c={C.teal} /><K l="Perte moyenne" v={L.length ? fmtRs(-gl / L.length) : "—"} c={C.red} />
+          <K l="Meilleur" v={fmtRs(Math.max(...T.map(rOf)))} c={C.teal} /><K l="Pire" v={fmtRs(Math.min(...T.map(rOf)))} c={C.red} /><K l="Séries" v={bw + "W / " + -bl + "L"} />
+        </div>
+        {T.length > 1 && <div style={{ height: 130, background: C.cardHover, border: `1px solid ${C.border}`, borderRadius: 14, padding: "8px 0 0", marginBottom: 12 }}>
+          <ResponsiveContainer width="100%" height="100%"><AreaChart data={curve} margin={{ top: 6, right: 8, left: 8, bottom: 6 }}>
+            <defs><linearGradient id={"pbG" + k.replace(/\W/g, "")} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={rCol(a.sumR)} stopOpacity={0.35} /><stop offset="100%" stopColor={rCol(a.sumR)} stopOpacity={0} /></linearGradient></defs>
+            <XAxis dataKey="i" hide /><YAxis hide domain={["dataMin", "dataMax"]} /><ReferenceLine y={0} stroke={C.textMuted} strokeDasharray="3 4" strokeOpacity={0.5} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }} formatter={(v) => [fmtRs(v), "Cumul"]} labelFormatter={() => ""} />
+            <Area type="monotone" dataKey="v" stroke={rCol(a.sumR)} strokeWidth={2} fill={"url(#pbG" + k.replace(/\W/g, "") + ")"} dot={false} />
+          </AreaChart></ResponsiveContainer>
+        </div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginBottom: 12 }}>
+          <Break title="Par session" fn={sesOf} /><Break title="Par timeframe" fn={tfOf} /><Break title="Par confluence" fn={confOf} /><Break title="Par paire" fn={(t) => t.pair} /><Break title="Par sens" fn={dirOf} /><Break title="Par note" fn={grOf} />
+        </div>
+        <div style={{ background: C.cardHover, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 12px 6px" }}>
+          <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Derniers trades</div>
+          {T.slice(-8).reverse().map((t) => <div key={t.id} className="tnum" style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, padding: "7px 4px", borderTop: `1px solid ${C.border}` }}><span style={{ color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · {t.pair} · {sesOf(t)}{tfOf(t) ? " · " + tfOf(t) : ""}</span><b style={{ color: rCol(rOf(t)) }}>{fmtRs(rOf(t))}</b></div>)}
+        </div>
+      </>}
+      <button onClick={onHide} style={{ ...btn.ghost, marginTop: 12, color: C.textMuted, fontSize: 12 }}>Masquer ce playbook</button>
+    </div>
+  );
+}
+
 function Playbooks({ trades }) {
   const [pb, setPb] = useState(loadPB); const [open, setOpen] = useState(null); const [nw, setNw] = useState("");
   const up = (k, patch) => { const n = { ...pb, [k]: { ...(pb[k] || {}), ...patch } }; setPb(n); savePB(n); };
@@ -6679,30 +6745,9 @@ function Playbooks({ trades }) {
           return <div key={r.k} style={{ gridColumn: op ? "1 / -1" : undefined, background: `linear-gradient(160deg, ${c}14, transparent 50%), ${C.card}`, border: `1px solid ${op ? C.purple + "77" : C.border}`, borderRadius: 18, overflow: "hidden" }}>
             <button onClick={() => setOpen(op ? null : r.k)} style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: C.text, cursor: "pointer", padding: "14px 16px", fontFamily: "inherit" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}><span style={{ fontSize: 16, fontWeight: 700 }}>{r.k}</span><span className="tnum" style={{ fontSize: 17, fontWeight: 700, color: c }}>{fmtRs(r.sumR)}</span></div>
-              {(P.tf || P.ses) && <div style={{ display: "flex", gap: 5, marginTop: 6 }}>{[P.tf, P.ses].filter(Boolean).map((x) => <span key={x} style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: C.purpleDim, color: C.purpleBright }}>{x}</span>)}</div>}
               <div className="tnum" style={{ display: "flex", gap: 12, fontSize: 12, color: C.textSecondary, marginTop: 6, flexWrap: "wrap" }}><span>{r.n} trades</span><span>{r.n ? r.wr.toFixed(0) : 0} % WR</span><span>PF {r.pf != null ? r.pf.toFixed(2) : "—"}</span><span>{fmtRs(r.avgR)} / trade</span></div>
             </button>
-            {op && <div style={{ padding: "0 16px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
-              <div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {[["tf", "Timeframe"], ["ses", "Session"], ["ctx", "Contexte HTF"], ["entry", "Entrée"], ["sl", "Stop"], ["tp", "Objectif"]].map(([f, l]) => <label key={f} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}<input value={P[f] || ""} onChange={(e) => up(r.k, { [f]: e.target.value })} style={{ ...inputStyle, padding: "8px 10px", fontSize: 13.5, fontWeight: 600, textTransform: "none", letterSpacing: 0 }} /></label>)}
-                </div>
-                <label style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8, fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4 }}>Invalidation<input value={P.inv || ""} onChange={(e) => up(r.k, { inv: e.target.value })} style={{ ...inputStyle, padding: "8px 10px", fontSize: 13.5, fontWeight: 600, textTransform: "none", letterSpacing: 0 }} /></label>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, margin: "14px 0 6px", textTransform: "uppercase", letterSpacing: 0.4 }}>Conditions</div>
-                {(P.rules || []).map((x, i) => <div key={i} style={{ display: "flex", gap: 6, marginBottom: 5 }}><span style={{ color: C.purpleBright, fontWeight: 700, width: 18 }}>{i + 1}.</span><input value={x} onChange={(e) => { const n = [...P.rules]; n[i] = e.target.value; up(r.k, { rules: n }); }} style={{ ...inputStyle, flex: 1, padding: "7px 10px" }} /><button onClick={() => up(r.k, { rules: P.rules.filter((_, j) => j !== i) })} style={{ ...btn.icon }} aria-label="Supprimer"><X size={13} /></button></div>)}
-                <button onClick={() => up(r.k, { rules: [...(P.rules || []), ""] })} style={{ ...btn.ghost, marginTop: 4 }}><Plus size={13} /> Condition</button>
-              </div>
-              <div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {[["Meilleure paire", r.pair ? r.pair.label + " · " + fmtRs(r.pair.sumR) : "—"], ["Meilleure session", r.ses ? r.ses.label + " · " + fmtRs(r.ses.sumR) : "—"], ["Gain total", fmtUsdSigned(r.pnl)], ["Meilleur trade", r.T.length ? fmtRs(Math.max(...r.T.map(rOf))) : "—"]].map(([l, v]) => <div key={l} style={{ padding: "10px 11px", borderRadius: 12, background: C.cardHover, border: `1px solid ${C.border}` }}><div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 13.5, fontWeight: 700, marginTop: 3 }}>{v}</div></div>)}
-                </div>
-                {r.grades.length > 0 && <><div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "12px 0 6px" }}>Par note du trade</div>
-                  {r.grades.sort((a, b) => a.label.localeCompare(b.label)).map((g) => <div key={g.label} className="tnum" style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "6px 2px", borderTop: `1px solid ${C.border}` }}><b>{g.label}</b><span style={{ color: C.textSecondary }}>{g.n} · {g.wr.toFixed(0)} %</span><b style={{ color: rCol(g.sumR) }}>{fmtRs(g.sumR)}</b></div>)}</>}
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "12px 0 6px" }}>Derniers trades</div>
-                {r.T.slice(-5).reverse().map((t) => <div key={t.id} className="tnum" style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "6px 2px", borderTop: `1px solid ${C.border}` }}><span style={{ color: C.textSecondary }}>{new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · {t.pair}</span><b style={{ color: rCol(rOf(t)) }}>{fmtRs(rOf(t))}</b></div>)}
-                <button onClick={() => { up(r.k, { hidden: true }); setOpen(null); }} style={{ ...btn.ghost, marginTop: 12, color: C.textMuted, fontSize: 12 }}>Masquer ce playbook</button>
-              </div>
-            </div>}
+            {op && <PlaybookDetail k={r.k} trades={r.T} onHide={() => { up(r.k, { hidden: true }); setOpen(null); }} />}
           </div>; })}
       </div>
     </div>
