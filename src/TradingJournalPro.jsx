@@ -1515,6 +1515,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   const [ctx, setCtx] = useState(null);
   const [unseen, setUnseen] = useState(0);
   const [indOpen, setIndOpen] = useState(false);
+  const [indFav, setIndFav] = useState(() => { try { return JSON.parse(localStorage.getItem("tjp_tv_indfav")) || []; } catch (e) { return []; } });
+  const togFav = (n) => setIndFav((f) => { const v = f.includes(n) ? f.filter((x) => x !== n) : [...f, n]; try { localStorage.setItem("tjp_tv_indfav", JSON.stringify(v)); } catch (e) {} return v; });
   const [selBar, setSelBar] = useState(false);
   const [tfMenu, setTfMenu] = useState(false);
   const [botOn, setBotOn] = useState(false);
@@ -1555,7 +1557,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     const ro = new ResizeObserver(() => { R.dirty = true; }); ro.observe(boxRef.current);
     const mark = () => { R.dirty = true; }; boxRef.current.addEventListener("wheel", mark, { passive: true });
     R.dirty = true; let raf; const loop = () => { if (R.dirty) { R.dirty = false; R.after = 2; drawOverlay(); } else if (R.after > 0) { R.after--; drawOverlay(); } raf = requestAnimationFrame(loop); }; loop();
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); ch.remove(); R.chart = null; };
+  return () => { cancelAnimationFrame(raf); ro.disconnect(); ch.remove(); R.chart = null; };
   }, []);
 
   useEffect(() => { R.dirty = true; }, [cfg]);
@@ -2377,11 +2379,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     </button>
   );
 
-  return (
-    <div ref={wrapRef} className="tvw" style={{ position: "relative", background: TV.bg, color: TV.text, border: fs ? "none" : `1px solid ${TV.border}`, borderRadius: fs ? 0 : 6, overflow: "hidden", display: "flex", flexDirection: "column", ...(fs ? { position: "fixed", inset: 0, zIndex: 9999, height: "100vh" } : { height: "calc(100vh - 96px)", minHeight: 560 }), fontFamily: TV_FONT, fontSize: 14 }}>
-      <style>{`.tvw input:not([type=checkbox]):not([type=color]), .tvw select { background: #fff !important; color: ${TV.text} !important; -webkit-text-fill-color: ${TV.text} !important; opacity: 1 !important; border: 1px solid ${TV.border} !important; border-radius: 6px !important; box-shadow: none !important; color-scheme: light; } .tvw select[title="Pas de lecture"], .tvw select[title^="Changer"] { border: none !important; padding: 0 2px !important; } .tvw .tv-hidden-date { width: 1px !important; height: 1px !important; min-width: 0 !important; border: none !important; padding: 0 !important; opacity: 0 !important; } .tvw option { color: ${TV.text}; background: #fff; } .tvw td, .tvw th { color: inherit; padding: 4px 6px; } .tvw table { color: ${TV.text}; }`}</style>
-          {indOpen && <div style={{ position: "absolute", right: 90, top: 46, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "8px 14px", minWidth: 230 }}>
-            {[["Killzones", R.cfg.kz.show, (v) => setCfg({ ...R.cfg, kz: { ...R.cfg.kz, show: v } })],
+  const indList = [["Killzones", R.cfg.kz.show, (v) => setCfg({ ...R.cfg, kz: { ...R.cfg.kz, show: v } })],
               ["Swing high / low", R.cfg.st.swings, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, swings: v } })],
               ["BOS", R.cfg.st.bos, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, bos: v } })],
               ["MSS", R.cfg.st.mss, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, mss: v } })],
@@ -2391,7 +2389,13 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
               ["PDL", R.cfg.lv.pd && R.cfg.lv.pdl !== false, (v) => setCfg({ ...R.cfg, lv: { ...R.cfg.lv, pd: true, pdl: v } })],
               ["PWH", R.cfg.lv.pw && R.cfg.lv.pwh !== false, (v) => setCfg({ ...R.cfg, lv: { ...R.cfg.lv, pw: true, pwh: v } })],
               ["Positions fermées sur le graphique", !!R.cfg.showClosed, (v) => setCfg({ ...R.cfg, showClosed: v })],
-              ["PWL", R.cfg.lv.pw && R.cfg.lv.pwl !== false, (v) => setCfg({ ...R.cfg, lv: { ...R.cfg.lv, pw: true, pwl: v } })]].map(([n, on, fn]) => tvChk(on, fn, n))}
+              ["PWL", R.cfg.lv.pw && R.cfg.lv.pwl !== false, (v) => setCfg({ ...R.cfg, lv: { ...R.cfg.lv, pw: true, pwl: v } })]];
+  return (
+    <div ref={wrapRef} className="tvw" style={{ position: "relative", background: TV.bg, color: TV.text, border: fs ? "none" : `1px solid ${TV.border}`, borderRadius: fs ? 0 : 6, overflow: "hidden", display: "flex", flexDirection: "column", ...(fs ? { position: "fixed", inset: 0, zIndex: 9999, height: "100vh" } : { height: "calc(100vh - 96px)", minHeight: 560 }), fontFamily: TV_FONT, fontSize: 14 }}>
+      <style>{`.tvw input:not([type=checkbox]):not([type=color]), .tvw select { background: #fff !important; color: ${TV.text} !important; -webkit-text-fill-color: ${TV.text} !important; opacity: 1 !important; border: 1px solid ${TV.border} !important; border-radius: 6px !important; box-shadow: none !important; color-scheme: light; } .tvw select[title="Pas de lecture"], .tvw select[title^="Changer"] { border: none !important; padding: 0 2px !important; } .tvw .tv-hidden-date { width: 1px !important; height: 1px !important; min-width: 0 !important; border: none !important; padding: 0 !important; opacity: 0 !important; } .tvw option { color: ${TV.text}; background: #fff; } .tvw td, .tvw th { color: inherit; padding: 4px 6px; } .tvw table { color: ${TV.text}; }`}</style>
+          {indOpen && <div style={{ position: "absolute", right: 90, top: 46, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "8px 14px", minWidth: 230 }}>
+            <div style={{ fontSize: 11, color: TV.muted, marginBottom: 4 }}>★ = afficher dans la légende du graphique</div>
+            {indList.map(([n, on, fn]) => <div key={n} style={{ display: "flex", alignItems: "center", gap: 6 }}><span title={indFav.includes(n) ? "Retirer de la légende" : "Ajouter à la légende"} onClick={() => togFav(n)} style={{ cursor: "pointer", fontSize: 16, color: indFav.includes(n) ? "#f5a623" : "#c3c6ce", lineHeight: 1 }}>{indFav.includes(n) ? "★" : "☆"}</span><div style={{ flex: 1 }}>{tvChk(on, fn, n)}</div></div>)}
           </div>}
       {/* barre du haut */}
       <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, flexWrap: "wrap", rowGap: 2, flexShrink: 0 }}>
@@ -2512,6 +2516,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
               {demo && <span style={{ fontSize: 11, fontWeight: 700, color: TV.red }}>DONNÉES DÉMO</span>}
               {lb && <span style={{ fontSize: 13, color: lcol }}>O<span>{lb.open.toFixed(TV_DIG)}</span> H{lb.high.toFixed(TV_DIG)} B{lb.low.toFixed(TV_DIG)} C{lb.close.toFixed(TV_DIG)} {chg >= 0 ? "+" : ""}{(chg / TV_PIP).toFixed(1)} ({prevC ? ((chg / prevC) * 100).toFixed(2) : "0.00"}%)</span>}
             </div>
+            {indList.filter(([n]) => indFav.includes(n)).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, pointerEvents: "auto" }}>
+              {indList.filter(([n]) => indFav.includes(n)).map(([n, on, fn]) => <span key={n} onClick={() => fn(!on)} title={on ? "Masquer" : "Afficher"} style={{ cursor: "pointer", fontSize: 12, padding: "1px 7px", borderRadius: 4, border: `1px solid ${TV.border}`, background: "#fff", color: on ? TV.text : TV.muted, textDecoration: on ? "none" : "line-through", userSelect: "none" }}>{on ? "👁" : "◌"} {n}</span>)}
+            </div>}
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, pointerEvents: "auto" }}>
               {priceBox(-1)}
               <div title="Risque par trade (modifiable sous le stop de la position)" style={{ textAlign: "center", fontSize: 11, color: TV.muted, minWidth: 44, lineHeight: 1.25 }}>1:1<br /><b style={{ color: TV.text }}>{String(R.cfg.risk).replace(".", ",")} %</b></div>
