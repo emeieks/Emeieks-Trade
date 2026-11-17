@@ -1294,6 +1294,24 @@ function tvDB() { return new Promise((res) => { try { const q = indexedDB.open("
 async function tvGet(k) { const db = await tvDB(); if (!db) return null; return new Promise((r) => { const q = db.transaction("bars").objectStore("bars").get(k); q.onsuccess = () => r(q.result || null); q.onerror = () => r(null); }); }
 async function tvPut(k, v) { const db = await tvDB(); if (!db) return; return new Promise((r) => { const tx = db.transaction("bars", "readwrite"); tx.objectStore("bars").put(v, k); tx.oncomplete = r; tx.onerror = r; }); }
 
+/* --- données publiées avec le site : public/data/eurusd-m15.csv (GitHub). Chargées une fois, puis gardées dans le navigateur --- */
+let TV_AUTO = null;
+function tvAutoLoad(onMsg) {
+  if (TV_AUTO) return TV_AUTO;
+  TV_AUTO = (async () => {
+    const d = await tvGet(TV_PAIR); if (d && d.rows && d.rows.length) return d.rows;
+    let base = "/"; try { base = (import.meta && import.meta.env && import.meta.env.BASE_URL) || "/"; } catch (e) {}
+    try {
+      onMsg && onMsg("Téléchargement de l'historique EURUSD depuis le site…");
+      const r = await fetch(base + "data/eurusd-m15.csv"); if (!r.ok) return null;
+      const txt = await r.text(); const rows = tvParse(txt); if (!rows.length) return null;
+      rows.sort((a, b) => a[0] - b[0]); await tvPut(TV_PAIR, { rows }); onMsg && onMsg(`${rows.length.toLocaleString("fr-CA")} bougies réelles chargées et gardées sur cet appareil.`); return rows;
+    } catch (e) { return null; }
+  })();
+  TV_AUTO.then((r) => { if (!r) TV_AUTO = null; });
+  return TV_AUTO;
+}
+
 /* --- lecture CSV (dukascopy-node, Dukascopy web, HistData, MT4) --- */
 function tvParse(txt) {
   const out = [];
@@ -1573,7 +1591,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
 
   /* ---------- données ---------- */
   const load = async () => {
-    const d = await tvGet(TV_PAIR);
+    const real = await tvAutoLoad(setMsg); const d = real ? { rows: real } : null;
     if (d && d.rows && d.rows.length) { R.rows = d.rows; setDemo(false); } else { R.rows = tvDemo(); setDemo(true); }
     R.demo = !(d && d.rows && d.rows.length);
     const c = curSess(); R.trades = (!R.demo && c.trades) || []; R.draws = (!R.demo && c.draws) || []; R.years = (!R.demo && c.years) || []; R.archive = (!R.demo && c.archive) || []; R.seq = (!R.demo && c.seq) ?? null;
@@ -2472,7 +2490,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
           {/* pas de bougies inventées : sans tes données Dukascopy, le graphique reste vide */}
           {demo && <div style={{ position: "absolute", inset: 0, zIndex: 30, background: TV.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, textAlign: "center", padding: 24 }}>
             <div style={{ fontSize: 18, fontWeight: 600 }}>Aucune donnée réelle chargée sur cet appareil</div>
-            <div style={{ fontSize: 14, color: TV.muted, maxWidth: 460, lineHeight: 1.5 }}>Le replay utilise uniquement tes vraies bougies EURUSD (Dukascopy, M15 depuis 2010). Importe ton fichier CSV une fois : il reste ensuite dans ce navigateur.</div>
+            <div style={{ fontSize: 14, color: TV.muted, maxWidth: 460, lineHeight: 1.5 }}>Le replay utilise uniquement tes vraies bougies EURUSD (Dukascopy, M15 depuis 2010). Sur iPhone : mets le fichier dans ton dépôt GitHub sous <b>public/data/eurusd-m15.csv</b> et il se chargera tout seul sur tous tes appareils. Sinon, importe le fichier ici.</div>
             <button onClick={() => fileRef.current.click()} style={{ border: "none", background: TV.text, color: "#fff", borderRadius: 8, padding: "10px 18px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: TV_FONT }}>Importer mes données</button>
           </div>}
           {/* légende OHLC + SELL / BUY */}
@@ -9839,7 +9857,7 @@ function BacktestBot() {
     if (res) return; try { const c = JSON.parse(localStorage.getItem("tjp_bot_remote") || "null"); if (c && c.t) setRes({ at: c.at, cfg: c.cfg, ms: 0, trades: c.t.map((a) => ({ t: a[0], tOut: a[1], dir: a[2], kind: a[3], tf: a[4], entry: a[5], sl: a[6], tp: a[7], r: a[8], why: a[9], formT: a[10], top: a[11], bot: a[12] })) }); } catch (e) {}
   }, []);
   const [show, setShow] = useState(60);
-  useEffect(() => { tvGet(TV_PAIR).then((d) => setRows(d && d.rows && d.rows.length ? d.rows : null)); }, []);
+  useEffect(() => { tvAutoLoad().then((r) => setRows(r && r.length ? r : null)); }, []);
   const run = () => {
     if (!rows) return; setBusy(true);
     setTimeout(() => {
@@ -9874,48 +9892,74 @@ function BacktestBot() {
         <span style={{ fontSize: 13, color: C.textMuted }}>Données à part · rien n'est ajouté à Saisie & stats</span>
       </div>
       <div style={card}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))", gap: 18 }}>
-          <div>
-            <div style={lab}>Setups · toujours au 1er contact</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {[["bisi", "BISI"], ["sibi", "SIBI"], ["ob", "Order block"], ["bb", "Breaker"]].map(([k, n]) => <button key={k} onClick={() => setCfg({ [k]: !cfg[k] })} style={chip(cfg[k])}>{n}</button>)}
-            </div>
-            <div style={lab}>Timeframe des zones</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{tfChips("tfs", true)}</div>
-            <div style={lab}>Tendance</div>
-            {ck("trend", "Seulement dans le sens de la tendance de")}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", opacity: cfg.trend ? 1 : 0.4 }}>{tfChips("trendTf", false)}</div>
-          </div>
-          <div>
-            <div style={lab}>Filtres</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "6px 0" }}>
-              {[["none", "Pas de filtre range"], ["discount", "Discount / premium (50 %)"], ["ote", "Zone OTE (62–79 %)"]].map(([k, n]) => <button key={k} onClick={() => setCfg({ ote: k })} style={chip(cfg.ote === k)}>{n}</button>)}
-            </div>
-            {ck("nest", "Zone à l'intérieur d'un FVG du timeframe")}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", opacity: cfg.nest ? 1 : 0.4 }}>{tfChips("nestTf", false)}</div>
-            {ck("kz", "Entrée seulement en killzone (London 2h-5h, NY 7h-10h)")}
-          </div>
-          <div>
-            <div style={lab}>Gestion</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{[["edge", "Entrée au bord"], ["ce", "Entrée au milieu (CE)"]].map(([k, n]) => <button key={k} onClick={() => setCfg({ entry: k })} style={chip(cfg.entry === k)}>{n}</button>)}</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>{[1, 1.5, 2, 3, 4].map((v) => <button key={v} onClick={() => setCfg({ rr: v })} style={chip(cfg.rr === v)}>TP {String(v).replace(".", ",")}R</button>)}</div>
-            <div style={{ marginTop: 6 }}>{ck("be", "BE automatique à 50 % du TP")}{ck("one", "Une seule position à la fois")}</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 13, color: C.textSecondary, marginTop: 4 }}>
-              SL max <input type="number" value={cfg.maxSl} onChange={(e) => setCfg({ maxSl: +e.target.value || 40 })} style={{ width: 58, height: 32, padding: "0 6px", fontSize: 13 }} /> pips · Marge <input type="number" step="0.5" value={cfg.buf} onChange={(e) => setCfg({ buf: +e.target.value || 0 })} style={{ width: 52, height: 32, padding: "0 6px", fontSize: 13 }} /> pip
-            </div>
-            <div style={lab}>Période</div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <select value={cfg.y0} onChange={(e) => setCfg({ y0: +e.target.value })} style={{ height: 34, fontSize: 13 }}>{yrs.map((y) => <option key={y}>{y}</option>)}</select> →
-              <select value={cfg.y1} onChange={(e) => setCfg({ y1: +e.target.value })} style={{ height: 34, fontSize: 13 }}>{yrs.map((y) => <option key={y}>{y}</option>)}</select>
-            </div>
+        {/* schéma : comment le bot prend un trade */}
+        <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+          <svg width="275" height="150" viewBox="0 0 275 150" style={{ flexShrink: 0 }} aria-label="Schéma d'un trade du bot">
+            <rect x="20" y="70" width="170" height="30" fill={C.teal} fillOpacity="0.18" stroke={C.teal} />
+            <text x="185" y="89" textAnchor="end" fontSize="11" fontWeight="700" fill={C.teal}>BISI H1</text>
+            <line x1="20" x2="230" y1="70" y2="70" stroke={C.text} strokeDasharray="4 3" /><text x="232" y="74" fontSize="10.5" fill={C.text}>Entrée</text>
+            <line x1="20" x2="230" y1="108" y2="108" stroke={C.red} /><text x="232" y="112" fontSize="10.5" fill={C.red}>SL</text>
+            <line x1="20" x2="230" y1="20" y2="20" stroke={C.teal} /><text x="232" y="24" fontSize="10.5" fill={C.teal}>TP</text>
+            <text x="22" y="122" fontSize="10" fill={C.textMuted}>SL derrière la zone + marge</text>
+            <text x="22" y="16" fontSize="10" fill={C.textMuted}>TP = risque × R choisi</text>
+          </svg>
+          <div style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.55, flex: 1, minWidth: 240 }}>
+            Le bot repère chaque zone choisie, attend que le prix y revienne <b>pour la première fois</b>, entre au bord (ou au milieu), place son <b>SL derrière la zone</b> et son TP au ratio choisi. Il achète dans les zones haussières (BISI, OB et breaker haussiers) et vend dans les zones baissières (SIBI, OB et breaker baissiers).
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 16, flexWrap: "wrap" }}>
+
+        <div style={lab}>1 · Quelles zones ?</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {[["bisi", "BISI"], ["sibi", "SIBI"], ["ob", "Order block"], ["bb", "Breaker"]].map(([k, n]) => <button key={k} onClick={() => setCfg({ [k]: !cfg[k] })} style={chip(cfg[k])}>{n}</button>)}
+        </div>
+
+        <div style={lab}>2 · Sur quel timeframe ?</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{tfChips("tfs", true)}</div>
+
+        <div style={lab}>3 · Filtres (facultatifs)</div>
+        <div style={{ display: "grid", gap: 10 }}>
+          <div>
+            {ck("trend", "Suivre la tendance")}
+            <div style={{ fontSize: 12.5, color: C.textMuted, margin: "0 0 4px 24px" }}>Achète seulement si la tendance est haussière (dernière cassure vers le haut), vend seulement si elle est baissière. Tendance lue sur :</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: 24, opacity: cfg.trend ? 1 : 0.4 }}>{tfChips("trendTf", false)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 14, color: C.text, marginBottom: 4 }}>Où doit se trouver la zone dans le range ?</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[["none", "Peu importe"], ["discount", "Discount / premium"], ["ote", "Zone OTE"]].map(([k, n]) => <button key={k} onClick={() => setCfg({ ote: k })} style={chip(cfg.ote === k)}>{n}</button>)}
+            </div>
+            <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 4 }}>{cfg.ote === "none" ? "Toutes les zones sont prises." : cfg.ote === "discount" ? "Achat seulement sous le milieu du dernier swing (discount), vente seulement au-dessus (premium)." : "Achat seulement entre 62 % et 79 % de retracement du dernier swing (vente : l'inverse), comme dans le guide."}</div>
+          </div>
+          <div>
+            {ck("nest", "La zone doit être dans un FVG plus grand")}
+            <div style={{ fontSize: 12.5, color: C.textMuted, margin: "0 0 4px 24px" }}>Ex. un BISI H1 pris seulement s'il est à l'intérieur d'un BISI encore valide du timeframe :</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: 24, opacity: cfg.nest ? 1 : 0.4 }}>{tfChips("nestTf", false)}</div>
+          </div>
+          <div>{ck("kz", "Entrer seulement pendant les killzones")}<div style={{ fontSize: 12.5, color: C.textMuted, marginLeft: 24 }}>London 2h-5h et New York 7h-10h (heure de New York).</div></div>
+        </div>
+
+        <div style={lab}>4 · Entrée et sortie</div>
+        <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><span style={{ fontSize: 14, minWidth: 70 }}>Entrée</span>{[["edge", "Au bord de la zone"], ["ce", "Au milieu (CE)"]].map(([k, n]) => <button key={k} onClick={() => setCfg({ entry: k })} style={chip(cfg.entry === k)}>{n}</button>)}</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", fontSize: 14 }}><span style={{ minWidth: 70 }}>Stop</span>derrière la zone + <input type="number" step="0.5" value={cfg.buf} onChange={(e) => setCfg({ buf: Math.max(0, +e.target.value || 0) })} style={{ width: 56, height: 32, padding: "0 6px", fontSize: 13 }} /> pip de marge</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><span style={{ fontSize: 14, minWidth: 70 }}>Objectif</span>{[1, 1.5, 2, 3, 4].map((v) => <button key={v} onClick={() => setCfg({ rr: v })} style={chip(cfg.rr === v)}>{String(v).replace(".", ",")}R</button>)}</div>
+          {ck("be", "Passer le SL à l'entrée (BE) quand le prix a fait la moitié du chemin vers le TP")}
+          {ck("one", "Une seule position à la fois")}
+          <div style={{ fontSize: 14, color: C.text }}>Ignorer les zones trop grandes : SL de plus de <input type="number" value={cfg.maxSl} onChange={(e) => setCfg({ maxSl: +e.target.value || 40 })} style={{ width: 58, height: 32, padding: "0 6px", fontSize: 13 }} /> pips</div>
+        </div>
+
+        <div style={lab}>5 · Période</div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <select value={cfg.y0} onChange={(e) => setCfg({ y0: +e.target.value })} style={{ height: 34, fontSize: 13 }}>{yrs.map((y) => <option key={y}>{y}</option>)}</select> →
+          <select value={cfg.y1} onChange={(e) => setCfg({ y1: +e.target.value })} style={{ height: 34, fontSize: 13 }}>{yrs.map((y) => <option key={y}>{y}</option>)}</select>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 18, flexWrap: "wrap" }}>
           <button disabled={!rows || busy || !cfg.tfs.length || !(cfg.bisi || cfg.sibi || cfg.ob || cfg.bb)} onClick={run} style={{ padding: "11px 22px", borderRadius: 12, border: "none", background: C.purple, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", opacity: !rows || busy ? 0.5 : 1, fontFamily: "inherit" }}>{busy ? "Calcul en cours…" : "Lancer le bot"}</button>
           <button disabled={!rows} onClick={() => window.dispatchEvent(new CustomEvent("tjp-bot-live"))} style={{ padding: "11px 18px", borderRadius: 12, border: `1px solid ${C.purple}`, background: "transparent", color: C.purpleBright, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>▶ Regarder le bot en replay</button>
-          <span style={{ fontSize: 12.5, color: C.textMuted }}>{rows ? rows.length.toLocaleString("fr-CA") + " bougies M15 EURUSD" : "Importe tes données dans l'onglet Graphique (bouton Données)"}{res ? ` · dernier calcul : ${res.trades.length} trades en ${res.ms} ms` : ""}</span>
+          <span style={{ fontSize: 12.5, color: C.textMuted }}>{rows ? rows.length.toLocaleString("fr-CA") + " bougies réelles EURUSD M15" : "Aucune donnée réelle : ouvre l'onglet Graphique pour les charger"}{res ? ` · dernier calcul : ${res.trades.length} trades` : ""}</span>
         </div>
-        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>Règles (comme le guide) : seuls les gaps forts comptent (bougie du milieu = displacement), la zone est active à la clôture de la bougie qui la crée, et elle se trade au 1er contact seulement. Ordre limite au bord ou au CE, SL de l'autre côté de la zone + marge. Si le SL et le TP sont touchés dans la même bougie de 15 min, le SL est compté (prudent). Spread non compté.</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>Pour que les résultats soient honnêtes : seuls les gaps forts comptent (bougie du milieu = displacement), une zone n'existe qu'une fois sa bougie fermée, et si le SL et le TP sont touchés dans la même bougie de 15 min, le bot compte le SL. Spread non compté.</div>
       </div>
 
       {res && <>
