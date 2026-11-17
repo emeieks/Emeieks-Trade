@@ -13,6 +13,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, Cell, ReferenceLine, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from "recharts";
+import { createChart } from "lightweight-charts";
 
 /* ============================================================================
    MOCK DATA & UTILITIES
@@ -1203,6 +1204,285 @@ function RessourcesICT() {
    SIDEBAR / NAVIGATION — façon TradeZella
    ============================================================================ */
 
+/* ============================================================================
+   BACKTEST — replay style TradingView (Lightweight Charts + données Dukascopy)
+   ============================================================================ */
+
+const BT_TFS = [["M15", 15], ["M30", 30], ["H1", 60], ["H2", 120], ["H3", 180], ["H4", 240], ["H6", 360], ["H8", 480], ["H12", 720], ["D", 1440], ["W", 10080], ["MN", 43200]];
+const BT_PAIRS = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "GBPJPY", "EURJPY", "US30", "NAS100"];
+const btPip = (p) => (/JPY/.test(p) ? 0.01 : p === "XAUUSD" ? 0.1 : /US30|NAS/.test(p) ? 1 : 0.0001);
+const btPipVal = (p, px) => { if (/US30|NAS/.test(p)) return 1; if (p === "XAUUSD") return 10; const q = p.slice(3); if (q === "USD") return 10; if (p.startsWith("USD")) return (btPip(p) * 100000) / px; return 10; };
+const btDig = (p) => (/JPY/.test(p) ? 3 : p === "XAUUSD" ? 2 : /US30|NAS/.test(p) ? 1 : 5);
+
+/* --- IndexedDB : les bougies restent dans ton navigateur --- */
+function btDB() { return new Promise((res) => { try { const q = indexedDB.open("tjp_backtest", 1); q.onupgradeneeded = () => q.result.createObjectStore("bars"); q.onsuccess = () => res(q.result); q.onerror = () => res(null); } catch (e) { res(null); } }); }
+async function btGet(k) { const db = await btDB(); if (!db) return null; return new Promise((r) => { const q = db.transaction("bars").objectStore("bars").get(k); q.onsuccess = () => r(q.result || null); q.onerror = () => r(null); }); }
+async function btPut(k, v) { const db = await btDB(); if (!db) return; return new Promise((r) => { const tx = db.transaction("bars", "readwrite"); tx.objectStore("bars").put(v, k); tx.oncomplete = r; tx.onerror = r; }); }
+async function btKeys() { const db = await btDB(); if (!db) return []; return new Promise((r) => { const q = db.transaction("bars").objectStore("bars").getAllKeys(); q.onsuccess = () => r(q.result); q.onerror = () => r([]); }); }
+
+/* --- Lecture CSV : dukascopy-node (timestamp ms), Dukascopy web, HistData, MT4 --- */
+function btParse(txt, tzMode) {
+  const out = [];
+  for (const raw of txt.split(/\r?\n/)) {
+    const s = raw.trim(); if (!s || /^[a-z"]/i.test(s)) continue;
+    const a = s.split(/[;,\t]/); let t = null, i = 1, m;
+    if (/^\d{12,13}$/.test(a[0])) t = Math.floor(+a[0] / 1000);
+    else if (/^\d{9,10}$/.test(a[0])) t = +a[0];
+    else if ((m = a[0].match(/^(\d{4})(\d{2})(\d{2}) (\d{2})(\d{2})/))) t = Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) / 1000;
+    else if ((m = a[0].match(/^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})/))) t = Date.UTC(+m[3], m[2] - 1, +m[1], +m[4], +m[5]) / 1000;
+    else if ((m = a[0].match(/^(\d{4})[-.](\d{2})[-.](\d{2})[ T](\d{2}):(\d{2})/))) t = Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) / 1000;
+    else if ((m = a[0].match(/^(\d{4})\.(\d{2})\.(\d{2})$/)) && /^\d{1,2}:\d{2}/.test(a[1])) { const h = a[1].split(":"); t = Date.UTC(+m[1], m[2] - 1, +m[3], +h[0], +h[1]) / 1000; i = 2; }
+    if (t === null) continue;
+    if (tzMode === "est") t += 5 * 3600;
+    const o = +a[i], h = +a[i + 1], l = +a[i + 2], c = +a[i + 3];
+    if (o > 0 && h > 0 && l > 0 && c > 0) out.push([t, o, h, l, c]);
+  }
+  return out;
+}
+function btMerge(oldRows, rows) {
+  const map = new Map(); for (const r of oldRows || []) map.set(r[0], r); for (const r of rows) map.set(r[0], r);
+  return [...map.values()].sort((a, b) => a[0] - b[0]);
+}
+/* Agrégation : la base (M1 ou M15) devient M30, H1, H4, D, W. Jour et H4 alignés sur 17:00 New York (22:00 UTC). */
+function btBucket(t, min) {
+  const s = min * 60;
+  if (min === 43200) { const d = new Date((t + 7200) * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000 - 7200; }
+  if (min === 10080) return Math.floor((t - 338400) / 604800) * 604800 + 338400;
+  if (min >= 240) return Math.floor((t + 7200) / s) * s - 7200;
+  return Math.floor(t / s) * s;
+}
+function bxAgg(rows, min, upto) {
+  const out = []; let cur = null;
+  for (let i = 0; i <= upto; i++) {
+    const r = rows[i]; const b = btBucket(r[0], min);
+    if (!cur || cur.time !== b) { cur = { time: b, open: r[1], high: r[2], low: r[3], close: r[4] }; out.push(cur); }
+    else { if (r[2] > cur.high) cur.high = r[2]; if (r[3] < cur.low) cur.low = r[3]; cur.close = r[4]; }
+  }
+  return out;
+}
+function btDemo() {
+  let s = 11; const R = () => (s = (s * 16807) % 2147483647) / 2147483647; const g = () => Math.sqrt(-2 * Math.log(R() + 1e-9)) * Math.cos(6.283 * R());
+  const rows = []; let p = 1.085; let t = Date.UTC(2024, 0, 1) / 1000;
+  for (let k = 0; k < 8000; k++) { t += 900; const d = new Date(t * 1000); if (d.getUTCDay() === 6 || (d.getUTCDay() === 0 && d.getUTCHours() < 22)) continue; const v = 0.00045; const o = p; p += g() * v; rows.push([t, o, Math.max(o, p) + R() * v * 0.6, Math.min(o, p) - R() * v * 0.6, p]); }
+  return rows;
+}
+
+function BacktestLab() {
+  const boxRef = useRef(null), chartRef = useRef(null), seriesRef = useRef(null), linesRef = useRef([]);
+  const [pair, setPair] = useState("EURUSD");
+  const [rows, setRows] = useState(null);
+  const [demo, setDemo] = useState(false);
+  const [baseMin, setBaseMin] = useState(15);
+  const [ci, setCi] = useState(0);
+  const [tf, setTf] = useState(15);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(250);
+  const [slPips, setSlPips] = useState(15);
+  const [rr, setRr] = useState(2);
+  const [riskPct, setRiskPct] = useState(0.5);
+  const [startBal, setStartBal] = useState(50000);
+  const [trades, setTrades] = useState([]);
+  const [msg, setMsg] = useState("");
+  const [keys, setKeys] = useState([]);
+  const [tz, setTz] = useState("utc");
+
+  /* charger les données */
+  const load = async (p) => {
+    const d = await btGet(p); setKeys(await btKeys());
+    if (d && d.rows && d.rows.length) { setRows(d.rows); setBaseMin(d.base); setDemo(false); setCi(Math.min(d.rows.length - 1, 500)); setTf(Math.max(15, d.base)); }
+    else { const r = btDemo(); setRows(r); setBaseMin(15); setDemo(true); setCi(500); setTf(15); }
+    setTrades([]); setPlaying(false);
+  };
+  useEffect(() => { load(pair); }, [pair]);
+
+  /* création du graphique */
+  useEffect(() => {
+    if (!boxRef.current) return;
+    const ch = createChart(boxRef.current, {
+      autoSize: true,
+      layout: { background: { color: C.card }, textColor: C.textSecondary, fontFamily: "inherit" },
+      grid: { vertLines: { color: C.border }, horzLines: { color: C.border } },
+      crosshair: { mode: 0 },
+      rightPriceScale: { borderColor: C.border },
+      timeScale: { borderColor: C.border, timeVisible: true, secondsVisible: false, rightOffset: 12 },
+    });
+    const se = ch.addCandlestickSeries({ upColor: "#7fd1bd", downColor: "#131722", borderUpColor: "#131722", borderDownColor: "#131722", wickUpColor: "#131722", wickDownColor: "#131722" });
+    if (C.bg === THEMES.dark.bg) se.applyOptions({ downColor: "#d1d4dc", borderDownColor: "#d1d4dc", borderUpColor: "#7fd1bd", wickUpColor: "#b2b5be", wickDownColor: "#b2b5be" });
+    chartRef.current = ch; seriesRef.current = se;
+    return () => { ch.remove(); chartRef.current = null; };
+  }, []);
+
+  const shown = useMemo(() => {
+    if (!rows) return [];
+    const off = tz === "ny" ? -5 * 3600 : tz === "bkk" ? 7 * 3600 : 0;
+    return bxAgg(rows, Math.max(tf, baseMin), ci).map((b) => ({ ...b, time: b.time + off }));
+  }, [rows, tf, ci, baseMin, tz]);
+
+  const lastKey = useRef("");
+  useEffect(() => {
+    const se = seriesRef.current; if (!se || !shown.length) return;
+    se.applyOptions({ priceFormat: { type: "price", precision: btDig(pair), minMove: Math.pow(10, -btDig(pair)) } });
+    const key = pair + tf + tz + (rows ? rows.length : 0);
+    if (key !== lastKey.current) { se.setData(shown); lastKey.current = key; chartRef.current.timeScale().scrollToRealTime(); }
+    else se.update(shown[shown.length - 1]);
+    /* lignes de prix pour les positions */
+    linesRef.current.forEach((l) => se.removePriceLine(l)); linesRef.current = [];
+    for (const t of trades) {
+      if (t.status !== "open") continue;
+      linesRef.current.push(se.createPriceLine({ price: t.entry, color: C.purple, lineWidth: 1, title: (t.side > 0 ? "BUY " : "SELL ") + t.lots.toFixed(2) }));
+      linesRef.current.push(se.createPriceLine({ price: t.sl, color: C.red, lineWidth: 1, lineStyle: 2, title: "SL" }));
+      linesRef.current.push(se.createPriceLine({ price: t.tp, color: C.teal, lineWidth: 1, lineStyle: 2, title: "TP" }));
+    }
+    const off = tz === "ny" ? -5 * 3600 : tz === "bkk" ? 7 * 3600 : 0; const tfS = Math.max(tf, baseMin);
+    se.setMarkers(trades.flatMap((t) => {
+      const m = [{ time: btBucket(t.openT, tfS) + off, position: t.side > 0 ? "belowBar" : "aboveBar", color: t.side > 0 ? C.teal : C.red, shape: t.side > 0 ? "arrowUp" : "arrowDown", text: t.side > 0 ? "Long" : "Short" }];
+      if (t.status === "closed") m.push({ time: btBucket(t.closeT, tfS) + off, position: "inBar", color: t.pnl >= 0 ? C.teal : C.red, shape: "circle", text: (t.r >= 0 ? "+" : "") + t.r.toFixed(1) + "R" });
+      return m;
+    }).sort((a, b) => a.time - b.time));
+  }, [shown, trades]);
+
+  /* moteur : vérifie SL/TP à chaque bougie de base */
+  const balance = startBal + trades.filter((t) => t.status === "closed").reduce((a, t) => a + t.pnl, 0);
+  const step = (n = 1) => {
+    if (!rows) return;
+    setCi((c0) => {
+      let c = c0; const end = Math.min(rows.length - 1, c0 + n);
+      setTrades((ts) => {
+        const next = ts.map((t) => ({ ...t }));
+        for (c = c0 + 1; c <= end; c++) {
+          const [time, , h, l] = rows[c];
+          for (const t of next) {
+            if (t.status !== "open") continue;
+            const slHit = t.side > 0 ? l <= t.sl : h >= t.sl, tpHit = t.side > 0 ? h >= t.tp : l <= t.tp;
+            if (slHit || tpHit) {
+              const exit = slHit ? t.sl : t.tp; const pips = ((exit - t.entry) * t.side) / btPip(pair);
+              Object.assign(t, { status: "closed", exit, closeT: time, pips, pnl: pips * btPipVal(pair, t.entry) * t.lots, reason: slHit ? "SL" : "TP" });
+              t.r = t.pnl / t.risk;
+            }
+          }
+        }
+        return next;
+      });
+      if (end >= rows.length - 1) setPlaying(false);
+      return end;
+    });
+  };
+  useEffect(() => { if (!playing) return; const id = setInterval(() => step(1), speed); return () => clearInterval(id); }, [playing, speed, rows]);
+
+  const open = (side) => {
+    if (!rows) return; const px = rows[ci][4]; const pip = btPip(pair);
+    const risk = (balance * riskPct) / 100; const lots = Math.max(0.01, Math.round((risk / (slPips * btPipVal(pair, px))) * 100) / 100);
+    setTrades((ts) => [...ts, { id: Date.now(), side, entry: px, sl: px - side * slPips * pip, tp: px + side * slPips * pip * rr, lots, risk: lots * slPips * btPipVal(pair, px), openT: rows[ci][0], status: "open" }]);
+  };
+  const closeAll = () => { if (!rows) return; const px = rows[ci][4]; setTrades((ts) => ts.map((t) => { if (t.status !== "open") return t; const pips = ((px - t.entry) * t.side) / btPip(pair); const pnl = pips * btPipVal(pair, t.entry) * t.lots; return { ...t, status: "closed", exit: px, closeT: rows[ci][0], pips, pnl, r: pnl / t.risk, reason: "Manuel" }; })); };
+  const randomStart = () => { if (!rows || trades.some((t) => t.status === "open")) return; setCi(300 + Math.floor(Math.random() * Math.max(1, rows.length - 1300))); lastKey.current = ""; };
+  const jump = (v) => { if (!rows || !v) return; const t = Date.parse(v + "T00:00:00Z") / 1000; let i = rows.findIndex((r) => r[0] >= t); if (i < 0) i = rows.length - 1; setCi(i); lastKey.current = ""; };
+
+  /* raccourcis */
+  useEffect(() => {
+    const k = (e) => { if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return; if (e.key === "ArrowRight") { e.preventDefault(); step(1); } else if (e.key === " ") { e.preventDefault(); setPlaying((p) => !p); } else if (e.key === "b") open(1); else if (e.key === "s") open(-1); else if (e.key === "x") closeAll(); };
+    window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
+  });
+
+  /* import */
+  const onFiles = async (files) => {
+    let all = [];
+    for (const f of files) { setMsg("Lecture de " + f.name + "…"); all = all.concat(btParse(await f.text(), tz === "ny" ? "utc" : "utc")); }
+    if (!all.length) { setMsg("Aucune bougie reconnue. Utilise le CSV de dukascopy-node (timestamp,open,high,low,close)."); return; }
+    const old = await btGet(pair); const merged = btMerge(old && old.rows, all);
+    let base = 1440; for (let i = 1; i < Math.min(merged.length, 2000); i++) base = Math.min(base, (merged[i][0] - merged[i - 1][0]) / 60);
+    await btPut(pair, { rows: merged, base: Math.max(1, base) });
+    setMsg(`${pair} : ${merged.length.toLocaleString("fr-CA")} bougies (${new Date(merged[0][0] * 1000).toISOString().slice(0, 10)} → ${new Date(merged[merged.length - 1][0] * 1000).toISOString().slice(0, 10)}).`);
+    lastKey.current = ""; load(pair);
+  };
+
+  const closed = trades.filter((t) => t.status === "closed");
+  const wins = closed.filter((t) => t.pnl > 0);
+  const net = closed.reduce((a, t) => a + t.pnl, 0);
+  const gw = wins.reduce((a, t) => a + t.pnl, 0), gl = -closed.filter((t) => t.pnl <= 0).reduce((a, t) => a + t.pnl, 0);
+  const curT = rows && rows[ci] ? new Date((rows[ci][0] + (tz === "ny" ? -5 * 3600 : tz === "bkk" ? 7 * 3600 : 0)) * 1000).toISOString().slice(0, 16).replace("T", " ") : "—";
+  const btn = (on) => ({ background: on ? C.purple : C.inputBg, color: on ? "#fff" : C.text, border: `1px solid ${on ? C.purple : C.border}`, borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" });
+  const inp = { background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 8px", fontSize: 12, width: 70 };
+  const money = (v) => (v < 0 ? "-" : "") + "$" + Math.abs(v).toLocaleString("fr-CA", { maximumFractionDigits: 0 });
+
+  return (
+    <div>
+      <PageHeader title="Backtest" action={demo ? <span style={{ fontSize: 11, fontWeight: 700, color: C.red, background: C.redDim, padding: "4px 10px", borderRadius: 20 }}>DONNÉES DÉMO · importe ton CSV ci-dessous</span> : <span style={{ fontSize: 12, color: C.textMuted }}>{rows ? rows.length.toLocaleString("fr-CA") : 0} bougies réelles</span>} />
+
+      <Card style={{ padding: 12, marginBottom: 12 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 10 }}>
+          <select value={pair} onChange={(e) => setPair(e.target.value)} style={{ ...inp, width: 100 }}>{BT_PAIRS.map((p) => <option key={p}>{p}</option>)}</select>
+          {BT_TFS.filter(([, m]) => m >= baseMin).map(([n, m]) => <button key={n} style={btn(tf === m)} onClick={() => { setTf(m); lastKey.current = ""; }}>{n}</button>)}
+          <span style={{ width: 1, height: 22, background: C.border }} />
+          <button style={btn(playing)} onClick={() => setPlaying((p) => !p)}>{playing ? "❚❚ Pause" : "▶ Lecture"}</button>
+          <button style={btn(false)} onClick={() => step(1)}>Bougie +1</button>
+          <button style={btn(false)} onClick={() => step(Math.max(1, tf / baseMin))}>+1 {BT_TFS.find(([, m]) => m === tf)?.[0]}</button>
+          <select value={speed} onChange={(e) => setSpeed(+e.target.value)} style={{ ...inp, width: 80 }}><option value={600}>Lent</option><option value={250}>Normal</option><option value={80}>Rapide</option><option value={15}>Très rapide</option></select>
+          <input type="date" onChange={(e) => jump(e.target.value)} style={{ ...inp, width: 140 }} aria-label="Aller à la date" />
+          <button style={btn(false)} onClick={randomStart}>Date aléatoire</button>
+          <select value={tz} onChange={(e) => { setTz(e.target.value); lastKey.current = ""; }} style={{ ...inp, width: 100 }}><option value="utc">UTC</option><option value="ny">New York</option><option value="bkk">Bangkok</option></select>
+          <span style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 12, color: C.textSecondary }}>{curT}</span>
+        </div>
+        <div ref={boxRef} style={{ height: 460, width: "100%" }} />
+      </Card>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+        <Card style={{ padding: 14 }}>
+          <CardLabel>Ordre</CardLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10, fontSize: 12, color: C.textSecondary }}>
+            <label>SL (pips)<br /><input type="number" value={slPips} step="0.5" onChange={(e) => setSlPips(+e.target.value)} style={inp} /></label>
+            <label>TP (R)<br /><input type="number" value={rr} step="0.5" onChange={(e) => setRr(+e.target.value)} style={inp} /></label>
+            <label>Risque %<br /><input type="number" value={riskPct} step="0.1" onChange={(e) => setRiskPct(+e.target.value)} style={inp} /></label>
+            <label>Capital<br /><input type="number" value={startBal} onChange={(e) => setStartBal(+e.target.value)} style={{ ...inp, width: 90 }} /></label>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+            <button onClick={() => open(-1)} style={{ ...btn(false), background: C.red, color: "#fff", border: "none", padding: 12 }}>SELL</button>
+            <button onClick={() => open(1)} style={{ ...btn(false), background: C.teal, color: "#fff", border: "none", padding: 12 }}>BUY</button>
+          </div>
+          <button onClick={closeAll} style={{ ...btn(false), width: "100%", marginTop: 8 }}>Tout fermer</button>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 8 }}>Clavier : → bougie suivante · Espace lecture · B achat · S vente · X fermer</div>
+        </Card>
+
+        <Card style={{ padding: 14 }}>
+          <CardLabel>Résultats</CardLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "6px 10px", marginTop: 10, fontSize: 13, color: C.text }}>
+            <span style={{ color: C.textSecondary }}>Solde</span><b>{money(balance)}</b>
+            <span style={{ color: C.textSecondary }}>P&amp;L</span><b style={{ color: net >= 0 ? C.teal : C.red }}>{money(net)} ({((net / startBal) * 100).toFixed(2)} %)</b>
+            <span style={{ color: C.textSecondary }}>Trades</span><b>{closed.length}</b>
+            <span style={{ color: C.textSecondary }}>Win rate</span><b>{closed.length ? ((wins.length / closed.length) * 100).toFixed(0) : 0} %</b>
+            <span style={{ color: C.textSecondary }}>Profit factor</span><b>{gl ? (gw / gl).toFixed(2) : "—"}</b>
+            <span style={{ color: C.textSecondary }}>Total R</span><b>{closed.reduce((a, t) => a + t.r, 0).toFixed(1)} R</b>
+          </div>
+        </Card>
+
+        <Card style={{ padding: 14 }}>
+          <CardLabel>Importer tes données</CardLabel>
+          <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 8, lineHeight: 1.5 }}>
+            CSV de <b>dukascopy-node</b> pour <b>{pair}</b>. Plusieurs fichiers acceptés, ils sont fusionnés.
+          </div>
+          <input type="file" accept=".csv,.txt" multiple onChange={(e) => onFiles([...e.target.files])} style={{ marginTop: 10, fontSize: 12, color: C.text }} />
+          {msg && <div style={{ fontSize: 12, marginTop: 8, color: C.teal }}>{msg}</div>}
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 8 }}>Déjà enregistré : {keys.length ? keys.join(", ") : "rien"}</div>
+        </Card>
+      </div>
+
+      {closed.length > 0 && (
+        <Card style={{ padding: 14, marginTop: 12, overflowX: "auto" }}>
+          <CardLabel>Trades du backtest</CardLabel>
+          <table style={{ width: "100%", fontSize: 12, marginTop: 8, borderCollapse: "collapse", color: C.text }}>
+            <thead><tr style={{ color: C.textMuted, textAlign: "left" }}><th>Date</th><th>Sens</th><th>Lots</th><th>Entrée</th><th>Sortie</th><th>Pips</th><th>R</th><th>P&amp;L</th><th>Sortie</th></tr></thead>
+            <tbody>{closed.slice().reverse().map((t) => (
+              <tr key={t.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                <td>{new Date(t.openT * 1000).toISOString().slice(0, 16).replace("T", " ")}</td><td style={{ color: t.side > 0 ? C.teal : C.red }}>{t.side > 0 ? "Long" : "Short"}</td><td>{t.lots.toFixed(2)}</td>
+                <td>{t.entry.toFixed(btDig(pair))}</td><td>{t.exit.toFixed(btDig(pair))}</td><td>{t.pips.toFixed(1)}</td><td>{t.r.toFixed(2)}</td><td style={{ color: t.pnl >= 0 ? C.teal : C.red }}>{money(t.pnl)}</td><td>{t.reason}</td>
+              </tr>))}</tbody>
+          </table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid },
   { id: "trades", label: "Mes trades", short: "Trades", icon: NotebookPen },
@@ -1210,6 +1490,7 @@ const NAV_ITEMS = [
   { id: "previsions", label: "Prévisions", short: "Prévis.", icon: TrendingUp },
   { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3 },
   { id: "playbooks", label: "Playbooks", short: "Playbooks", icon: Target },
+  { id: "backtest", label: "Backtest", short: "Backtest", icon: LineChart },
   { id: "ressources", label: "Ressources ICT", short: "Ressources", icon: FolderOpen },
   { id: "settings", label: "Réglages", short: "Réglages", icon: Settings },
 ];
@@ -1224,6 +1505,7 @@ function MobileNav({ view, setView, onNewTrade }) {
     { id: "calendar", label: "Calendrier", icon: CalendarDays },
     { id: "calculator", label: "Calculatrice", icon: Calculator },
     { id: "coach", label: "IA Coach", icon: Brain },
+    { id: "backtest", label: "Backtest", icon: LineChart },
     { id: "ressources", label: "Ressources", icon: FolderOpen },
     { id: "settings", label: "Réglages", icon: Settings },
   ];
@@ -8867,6 +9149,7 @@ export default function TradingJournalApp() {
               {view === "previsions" && <Previsions pairs={["DXY", ...(appSettings?.pairs || PAIRS)]} />}
               {view === "coach" && <AiCoach trades={accountTrades} />}
               {view === "ressources" && <RessourcesICT />}
+              {view === "backtest" && <BacktestLab />}
               {view === "settings" && <SettingsPage trades={trades} onImport={importTrades} onOpenBacktest={() => setView("backtest")} settings={appSettings} setSettings={saveSettings} accounts={accounts} activeAccountId={activeAccountId} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} />}
               {view === "calendar" && <><TradingCalendar trades={accountTrades} onSelectDay={() => {}} /><EcoCalendar /></>}
             </div>
