@@ -1216,6 +1216,9 @@ const TV_FONT = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubun
 const TV_TFLAB = { 15: "M15", 30: "M30", 60: "H1", 120: "H2", 180: "H3", 240: "H4", 360: "H6", 480: "H8", 720: "H12", 1440: "D", 10080: "W", 43200: "M" };
 const TV_ZONE = { OB: "#2962ff", SIBI: "#f23645", BISI: "#089981", BB: "#9c27b0", IFVG: "#f5b700" };
 const TV_LIQ = { BSL: "#8b0000", SSL: "#089981" };
+/* annonces US : CPI (BLS, 8h30 NY) et FOMC (Fed, communiqué 14h15 jusqu'en 2012 puis 14h00 NY) */
+const TV_CPI = "2010-01-15 2010-02-19 2010-03-18 2010-04-14 2010-05-19 2010-06-17 2010-07-16 2010-08-13 2010-09-17 2010-10-15 2010-11-17 2010-12-15 2011-01-14 2011-02-17 2011-03-17 2011-04-15 2011-05-13 2011-06-15 2011-07-15 2011-08-18 2011-09-15 2011-10-19 2011-11-16 2011-12-16 2012-01-19 2012-02-17 2012-03-16 2012-04-13 2012-05-15 2012-06-14 2012-07-17 2012-08-15 2012-09-14 2012-10-16 2012-11-15 2012-12-14 2013-01-16 2013-02-21 2013-03-15 2013-04-16 2013-05-16 2013-06-18 2013-07-16 2013-08-15 2013-09-17 2013-10-30 2013-11-20 2013-12-17 2014-01-16 2014-02-20 2014-03-18 2014-04-15 2014-05-15 2014-06-17 2014-07-22 2014-08-19 2014-09-17 2014-10-22 2014-11-20 2014-12-17 2015-01-16 2015-02-26 2015-03-24 2015-04-17 2015-05-22 2015-06-18 2015-07-17 2015-08-19 2015-09-16 2015-10-15 2015-11-17 2015-12-15 2016-01-20 2016-02-19 2016-03-16 2016-04-14 2016-05-17 2016-06-16 2016-07-15 2016-08-16 2016-09-16 2016-10-18 2016-11-17 2016-12-15 2017-01-18 2017-02-15 2017-03-15 2017-04-14 2017-05-12 2017-06-14 2017-07-14 2017-08-11 2017-09-14 2017-10-13 2017-11-15 2017-12-13 2018-01-12 2018-02-14 2018-03-13 2018-04-11 2018-05-10 2018-06-12 2018-07-12 2018-08-10 2018-09-13 2018-10-11 2018-11-14 2018-12-12 2019-01-11 2019-02-13 2019-03-12 2019-04-10 2019-05-10 2019-06-12 2019-07-11 2019-08-13 2019-09-12 2019-10-10 2019-11-13 2019-12-11 2020-01-14 2020-02-13 2020-03-11 2020-04-10 2020-05-12 2020-06-10 2020-07-14 2020-08-12 2020-09-11 2020-10-13 2020-11-12 2020-12-10 2021-01-13 2021-02-10 2021-03-10 2021-04-13 2021-05-12 2021-06-10 2021-07-13 2021-08-11 2021-09-14 2021-10-13 2021-11-10 2021-12-10 2022-01-12 2022-02-10 2022-03-10 2022-04-12 2022-05-11 2022-06-10 2022-07-13 2022-08-10 2022-09-13 2022-10-13 2022-11-10 2022-12-13 2023-01-12 2023-02-14 2023-03-14 2023-04-12 2023-05-10 2023-06-13 2023-07-12 2023-08-10 2023-09-13 2023-10-12 2023-11-14 2023-12-12 2024-01-11 2024-02-13 2024-03-12 2024-04-10 2024-05-15 2024-06-12 2024-07-11 2024-08-14 2024-09-11 2024-10-10 2024-11-13 2024-12-11 2025-01-15 2025-02-12 2025-03-12 2025-04-10 2025-05-13 2025-06-11 2025-07-15 2025-08-12 2025-09-11 2025-10-24 2025-12-18 2026-01-13 2026-02-13 2026-03-11 2026-04-10 2026-05-12 2026-06-10 2026-07-14 2026-08-12 2026-09-11 2026-10-14 2026-11-10".split(" ");
+const TV_FOMC = "2010-01-27 2010-03-16 2010-04-28 2010-06-23 2010-08-10 2010-09-21 2010-11-03 2010-12-14 2011-01-26 2011-03-15 2011-04-27 2011-06-22 2011-08-09 2011-09-21 2011-11-02 2011-12-13 2012-01-25 2012-03-13 2012-04-25 2012-06-20 2012-08-01 2012-09-13 2012-10-24 2012-12-12 2013-01-30 2013-03-20 2013-05-01 2013-06-19 2013-07-31 2013-09-18 2013-10-30 2013-12-18 2014-01-29 2014-03-19 2014-04-30 2014-06-18 2014-07-30 2014-09-17 2014-10-29 2014-12-17 2015-01-28 2015-03-18 2015-04-29 2015-06-17 2015-07-29 2015-09-17 2015-10-28 2015-12-16 2016-01-27 2016-03-16 2016-04-27 2016-06-15 2016-07-27 2016-09-21 2016-11-02 2016-12-14 2017-02-01 2017-03-15 2017-05-03 2017-06-14 2017-07-26 2017-09-20 2017-11-01 2017-12-13 2018-01-31 2018-03-21 2018-05-02 2018-06-13 2018-08-01 2018-09-26 2018-11-08 2018-12-19 2019-01-30 2019-03-20 2019-05-01 2019-06-19 2019-07-31 2019-09-18 2019-10-30 2019-12-11 2020-01-29 2020-03-03@10:00 2020-03-15@17:00 2020-04-29 2020-06-10 2020-07-29 2020-09-16 2020-11-05 2020-12-16 2021-01-27 2021-03-17 2021-04-28 2021-06-16 2021-07-28 2021-09-22 2021-11-03 2021-12-15 2022-01-26 2022-03-16 2022-05-04 2022-06-15 2022-07-27 2022-09-21 2022-11-02 2022-12-14 2023-02-01 2023-03-22 2023-05-03 2023-06-14 2023-07-26 2023-09-20 2023-11-01 2023-12-13 2024-01-31 2024-03-20 2024-05-01 2024-06-12 2024-07-31 2024-09-18 2024-11-07 2024-12-18 2025-01-29 2025-03-19 2025-05-07 2025-06-18 2025-07-30 2025-09-17 2025-10-29 2025-12-10 2026-01-28 2026-03-18 2026-04-29 2026-06-17 2026-07-29 2026-09-16 2026-10-28 2026-12-09".split(" ");
 const TV_STRUCT = { MSS: "#ff6d00", BOS: "#131722" };
 /* zones dessinées -> PD arrays du site */
 const TV_PD_MAP = { OB: (side) => (side > 0 ? "OB+" : "OB-"), BISI: () => "BISI", SIBI: () => "SIBI", BB: () => "Breaker Block", IFVG: () => "Inverse FVG" };
@@ -1232,7 +1235,7 @@ const TV_CFG0 = {
   kz: { show: true, preset: "site", on: { asia: true, london: true, ny: true, lc: false, nypm: true }, times: { ...KZ_PRESETS.ict.s, ...KZ_PRESETS.site.s }, days: 30, transp: 88, mid: false, labels: true,
         color: { asia: "#4caf50", london: "#2962ff", ny: "#f23645", lc: "#9c27b0", nypm: "#ff9800" } },
   lv: { pd: true, pw: true, pdh: true, pdl: true, pwh: true, pwl: true, pdColor: "#131722", pwColor: "#2962ff" },
-  st: { swings: false, bos: false, eq: false, fvg: false, len: 3 },
+  st: { swings: false, bos: false, mss: false, eq: false, fvg: false, len: 3 },
   grid: false, hideFlat: true, up: "#7fd1bd", down: "#131722",
   cap: 50000, slP: 15, rr: 1, risk: 0.5, qty: 1, yearReset: true, showClosed: false,
 };
@@ -1265,6 +1268,7 @@ function tvFmtTime(t, tz, type) {
 }
 const TV_PD_TFS = ["M1", "M3", "M5", "M15", "M30", "M45", "H1", "H2", "H3", "H4", "D", "W", "M"]; /* intervalles de TradingView */
 const tvPdList = () => { try { return TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name); } catch (e) { return ["BISI", "SIBI", "OB+", "OB-", "Breaker Block"]; } };
+const tvIsBE = (t) => Math.abs(t.pnl || 0) <= 1 || Math.abs(t.r || 0) < 0.05; /* BE : on perd (ou gagne) 1 $ ou moins */
 const tvYear = (t) => new Date((t + tvNyOff(t)) * 1000).getUTCFullYear();
 function tvBsRows(rows, t) { let lo = 0, hi = rows.length - 1, r = rows.length - 1; while (lo <= hi) { const m = (lo + hi) >> 1; if (rows[m][0] >= t) { r = m; hi = m - 1; } else lo = m + 1; } return r; }
 const tvNyIso = (t) => new Date((t + tvNyOff(t)) * 1000).toISOString().slice(0, 19) + ".000Z";
@@ -1335,7 +1339,7 @@ function tvDemo() {
 }
 const tvBs = (arr, v) => { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (arr[m] <= v) { r = m; lo = m + 1; } else hi = m - 1; } return r; };
 const tvMoney = (v) => (v < 0 ? "-" : "") + "$" + Math.abs(v).toLocaleString("fr-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const TV_SPEEDS = [[1, 700], [3, 250], [5, 120], [10, 50], [30, 12]];
+const TV_SPEEDS = [[0.5, 1400], [1, 700], [2, 350], [3, 230], [5, 140]];
 
 function TvBtn({ active, children, onClick, title, style }) {
   const [h, setH] = useState(false);
@@ -1440,7 +1444,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   const slP = cfg.slP, setSlP = (v) => setCfg({ ...R.cfg, slP: v });
   const rr = cfg.rr, setRr = (v) => setCfg({ ...R.cfg, rr: v });
   const cap = cfg.cap, setCap = (v) => setCfg({ ...R.cfg, cap: v });
-  const [panel, setPanel] = useState(true);
+  const [panel, setPanel] = useState(false);
+  const [histM, setHistM] = useState("cur");
+  const [barPos, setBarPos] = useState(null);
   const [tab, setTab] = useState("pos");
   const [msg, setMsg] = useState("");
   const [tz, setTzS] = useState(() => { try { return localStorage.getItem("tjp_tv_tz") || "ny"; } catch (e) { return "ny"; } });
@@ -1513,12 +1519,12 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
 
   /* ---------- sessions de backtest ---------- */
   const curSess = () => sess.list.find((x) => x.id === sess.cur) || sess.list[0];
-  const snapSess = (v) => ({ ...v, list: v.list.map((x) => (x.id === v.cur ? { ...x, ci: R.ci, tf, draws: R.draws, trades: R.trades, years: R.years || [], seq: R.seq || 0 } : x)) });
+  const snapSess = (v) => ({ ...v, list: v.list.map((x) => (x.id === v.cur ? { ...x, ci: R.ci, tf, draws: R.draws, trades: R.trades, years: R.years || [], seq: R.seq || 0, archive: R.archive || [] } : x)) });
   useEffect(() => { const id = setTimeout(() => { if (R.rows && !R.demo) { const v = snapSess(sess); tvSaveSess(v); } }, 800); return () => clearTimeout(id); });
   const openSess = (id, base) => {
     const v = snapSess(base || sess); const n = { ...v, cur: id }; setSessS(n); tvSaveSess(n);
     const c = n.list.find((x) => x.id === id); setPlaying(false);
-    R.trades = c.trades || []; R.draws = c.draws || []; R.years = c.years || []; R.seq = c.seq ?? null; R.sel = -1; R.selTr = null;
+    R.trades = c.trades || []; R.draws = c.draws || []; R.years = c.years || []; R.archive = c.archive || []; R.seq = c.seq ?? null; R.sel = -1; R.selTr = null;
     R.ci = c.ci != null && c.ci < R.rows.length ? c.ci : Math.min(R.rows.length - 1, 2000 + Math.floor(Math.random() * Math.max(1, R.rows.length - 4000)));
     if (c.tf && c.tf !== tf) setTf(c.tf); else rebuild(c.tf || tf, true);
   };
@@ -1535,7 +1541,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     const d = await tvGet(TV_PAIR);
     if (d && d.rows && d.rows.length) { R.rows = d.rows; setDemo(false); } else { R.rows = tvDemo(); setDemo(true); }
     R.demo = !(d && d.rows && d.rows.length);
-    const c = curSess(); R.trades = (!R.demo && c.trades) || []; R.draws = (!R.demo && c.draws) || []; R.years = (!R.demo && c.years) || []; R.seq = (!R.demo && c.seq) ?? null;
+    const c = curSess(); R.trades = (!R.demo && c.trades) || []; R.draws = (!R.demo && c.draws) || []; R.years = (!R.demo && c.years) || []; R.archive = (!R.demo && c.archive) || []; R.seq = (!R.demo && c.seq) ?? null;
     R.ci = !R.demo && c.ci != null && c.ci < R.rows.length ? c.ci : Math.min(R.rows.length - 1, 600);
     rebuild(tf, true);
   };
@@ -1564,7 +1570,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       if (R.cfg.yearReset) {
         const done = R.trades.filter((x) => x.status === "closed"); const pnl = done.reduce((a, x) => a + x.pnl, 0);
         if (done.length) R.years = [...(R.years || []).filter((x) => x.year !== R.curYear), { year: R.curYear, n: done.length, w: done.filter((x) => x.pnl > 0).length, R: +done.reduce((a, x) => a + x.r, 0).toFixed(2), pnl: +pnl.toFixed(2) }];
-        R.trades = R.trades.filter((x) => x.status !== "closed");
+        R.archive = [...(R.archive || []), ...done]; R.trades = R.trades.filter((x) => x.status !== "closed");
         if (done.length) R.yearMsg = `Nouvelle année ${y} : Replay Trading remis à zéro. ${R.curYear} : ${done.length} trades, ${done.reduce((a, x) => a + x.r, 0).toFixed(2)} R, ${tvMoney(pnl)} (enregistrés dans Saisie & stats).`;
       }
       R.curYear = y;
@@ -1676,12 +1682,14 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     const tr = { id: Date.now() + Math.random(), no: R.seq, pd: [], type, side, entry, sl, tp, sl0: sl, lots, status: type === "mkt" ? "open" : "pending", openT: R.rows[R.ci][0], placedT: R.rows[R.ci][0], anchorT: Math.min(opt.at ?? R.rows[R.ci][0], R.rows[R.ci][0]), tf: TV_TFLAB[tf] };
     tr.risk = (Math.abs(entry - sl) / TV_PIP) * TV_PIPVAL * lots;
     tr.pd = autoPd(side, entry, R.rows[R.ci][0]);
+    tr.endT = tr.anchorT + 40 * tfSec(); /* largeur fixe comme TradingView */
+    tr.drawSnap = JSON.parse(JSON.stringify(R.draws.filter((d) => d.type !== "measure"))); /* les dessins restent avec le trade pour le revivre */
     R.trades.push(tr); rerender();
   }
   const closeAll = () => { for (const t of R.trades) if (t.status === "open") closeTrade(t, t.side > 0 ? bid() : ask(), "Manuel"); R.trades = R.trades.filter((t) => t.status !== "pending"); if (R.unseenAdd) { setUnseen((u) => u + R.unseenAdd); R.unseenAdd = 0; } rerender(); };
   const closeOne = (t) => { if (t.status === "open") closeTrade(t, t.side > 0 ? bid() : ask(), "Manuel"); else R.trades = R.trades.filter((x) => x !== t); if (R.unseenAdd) { setUnseen((u) => u + R.unseenAdd); R.unseenAdd = 0; } rerender(); };
   const toBE = (t) => { t.sl = t.entry; rerender(); };
-  const delTrade = (t, ask = true) => { if (ask && !window.confirm(`Supprimer le trade #${t.no || ""} ?` + (t.appId ? " Il sera aussi retiré de Saisie & stats." : ""))) return; R.trades = R.trades.filter((x) => x !== t); if (t.appId && onDelete) onDelete(t.appId); rerender(); };
+  const delTrade = (t, ask = true) => { if (ask && !window.confirm(`Supprimer le trade #${dispNo(t)} ?` + (t.appId ? " Il sera aussi retiré de Saisie & stats." : ""))) return; R.trades = R.trades.filter((x) => x !== t); R.archive = (R.archive || []).filter((x) => x !== t); if (t.appId && onDelete) onDelete(t.appId); rerender(); };
 
   R.api = { toBE, closeOne, order, setCtx, openSet: () => setShowSet(true) };
 
@@ -1717,9 +1725,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       entryTime: new Date(tr.openT * 1000).toISOString(), exitTime: new Date(tr.closeT * 1000).toISOString(), timeframe: tr.tf || "H4",
       session: (() => { try { return getSession(new Date(tr.openT * 1000).toISOString()); } catch (e) { return undefined; } })(),
       entryPrice: +tr.entry.toFixed(5), stopLoss: +(tr.sl0 ?? tr.sl).toFixed(5), takeProfit: +tr.tp.toFixed(5), exitPrice: +tr.exit.toFixed(5),
-      resultR: +tr.r.toFixed(2), resultUsd: +tr.pnl.toFixed(2), status: Math.abs(tr.r) < 0.05 ? "breakeven" : "closed",
+      resultR: tvIsBE(tr) ? 0 : +tr.r.toFixed(2), resultUsd: +tr.pnl.toFixed(2), status: tvIsBE(tr) ? "breakeven" : "closed",
       tags: [...new Set([...pd.map((x) => x.pd), title])].filter(Boolean), notes: null,
-      rules: { backtest: true, replay: true, session: title, tradeNo: dispNo(tr), rr: +(Math.abs(tr.tp - tr.entry) / Math.abs(tr.entry - (tr.sl0 ?? tr.sl))).toFixed(2), exitReason: tr.reason, pdArrays: pd, tfSetups },
+      rules: { backtest: true, replay: true, session: title, tradeNo: dispNo(tr), rr: +(Math.abs(tr.tp - tr.entry) / Math.abs(tr.entry - (tr.sl0 ?? tr.sl))).toFixed(2), exitReason: tr.reason, pdArrays: pd, tfSetups, draws: tr.drawSnap || [] },
     };
     try { R.onSave(app); } catch (e) {}
   };
@@ -1795,32 +1803,43 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     return R.stc;
   }
   function drawStructure(c, cw, ch) {
-    const S = R.cfg.st; if (!(S.swings || S.bos || S.eq || S.fvg) || !R.agg || R.k < 10) return;
+    const S = R.cfg.st; if (!(S.swings || S.bos || S.mss || S.eq || S.fvg) || !R.agg || R.k < 10) return;
     const st = structure(), ts = R.chart.timeScale(), X = (i) => ts.logicalToCoordinate(i), lab = TV_TFLAB[R.agg.min];
     c.font = "11px " + TV_FONT; c.lineWidth = 1;
     if (S.fvg) for (const f of st.fvg) { const xa = X(f.i - 1), xb = f.end != null ? X(f.end) : cw; const ya = pToY(f.top), yb = pToY(f.bot); c.fillStyle = f.up ? "rgba(8,153,129,0.10)" : "rgba(242,54,69,0.10)"; c.fillRect(xa, ya, xb - xa, yb - ya); c.fillStyle = f.up ? TV.green : TV.red; c.fillText(f.up ? "BISI " + lab : "SIBI " + lab, Math.min(xb, cw) - 62, (ya + yb) / 2 + 4); }
     if (S.swings) for (const w of st.sw) { const x = X(w.i), y = pToY(w.p); if (x < 0 || x > cw) continue; c.fillStyle = "#787b86"; c.beginPath(); if (w.hi) { c.moveTo(x, y - 6); c.lineTo(x - 4, y - 12); c.lineTo(x + 4, y - 12); } else { c.moveTo(x, y + 6); c.lineTo(x - 4, y + 12); c.lineTo(x + 4, y + 12); } c.fill(); }
     if (S.eq) for (const q of st.eq) { const xa = X(q.i0), xb = X(q.i1), y = pToY(q.p); c.strokeStyle = "#9c27b0"; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke(); c.setLineDash([]); c.fillStyle = "#9c27b0"; c.fillText(q.hi ? "EQH" : "EQL", (xa + xb) / 2 - 12, q.hi ? y - 5 : y + 13); }
-    if (S.bos) for (const b of st.bos) { const xa = X(b.i0), xb = X(b.i1), y = pToY(b.p); if (xb < 0) continue; const col = b.k === "MSS" ? TV_STRUCT.MSS : TV_STRUCT.BOS; c.strokeStyle = col; c.setLineDash(b.k === "MSS" ? [] : [4, 3]); c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke(); c.setLineDash([]); c.fillStyle = col; const t = b.k + " " + lab; c.fillText(t, (xa + xb) / 2 - c.measureText(t).width / 2, b.up ? y - 4 : y + 12); }
+    for (const b of st.bos) { if (!(b.k === "MSS" ? S.mss : S.bos)) continue; const xa = X(b.i0), xb = X(b.i1), y = pToY(b.p); if (xb < 0) continue; const col = b.k === "MSS" ? TV_STRUCT.MSS : TV_STRUCT.BOS; c.strokeStyle = col; c.setLineDash(b.k === "MSS" ? [] : [4, 3]); c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke(); c.setLineDash([]); c.fillStyle = col; const t = b.k + " " + lab; c.fillText(t, (xa + xb) / 2 - c.measureText(t).width / 2, b.up ? y - 4 : y + 12); }
   }
 
   /* ---------- annonces US : NFP calculé (1er vendredi du mois, 8h30 New York) ---------- */
+  function newsList() {
+    if (R.newsL) return R.newsL; const L = [];
+    const at = (d, hm, n) => { const [y, m, dd] = d.split("-").map(Number); const [h, mi] = hm.split(":").map(Number); let t = Date.UTC(y, m - 1, dd, h, mi) / 1000; t -= tvNyOff(t); L.push({ t, n }); };
+    for (let y = 2010; y <= 2027; y++) for (let m = 0; m < 12; m++) {
+      const d12 = new Date(Date.UTC(y, m - 1, 12)); const sat = Date.UTC(y, m - 1, 12 + (6 - d12.getUTCDay()));
+      let rel = new Date(sat + 20 * 86400000);
+      if (rel.getUTCMonth() === 0 && rel.getUTCDate() === 1) rel = new Date(rel.getTime() + 7 * 86400000);
+      if (rel.getUTCMonth() === 6 && rel.getUTCDate() === 4) rel = new Date(rel.getTime() - 86400000);
+      at(rel.toISOString().slice(0, 10), "08:30", "NFP");
+    }
+    TV_CPI.forEach((d) => at(d, "08:30", "CPI"));
+    TV_FOMC.forEach((x) => { const [d, hm] = x.split("@"); at(d, hm || (d < "2013" ? "14:15" : "14:00"), "FOMC"); });
+    R.newsL = L.sort((a, b) => a.t - b.t); return R.newsL;
+  }
   function drawNews(c, cw, ch) {
-    if (!R.cfg.news || !R.agg || R.agg.min > 240) return;
+    const on = { NFP: !!R.cfg.news, CPI: !!R.cfg.cpi, FOMC: !!R.cfg.fomc }; if (!(on.NFP || on.CPI || on.FOMC) || !R.agg || R.agg.min > 1440) return;
     const ts = R.chart.timeScale(), lr = ts.getVisibleLogicalRange(); if (!lr) return;
-    const A = R.agg, t0 = A.bars[Math.max(0, Math.floor(lr.from))].time, t1 = A.bars[Math.min(R.k, Math.ceil(lr.to))].time;
-    c.font = "600 10px " + TV_FONT;
-    for (let d = new Date(t0 * 1000); d.getTime() / 1000 <= t1 + 86400 * 31; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
-      const y = d.getUTCFullYear(), m = d.getUTCMonth();
-      const d12 = new Date(Date.UTC(y, m - 1, 12)); const sat = Date.UTC(y, m - 1, 12 + (6 - d12.getUTCDay())); /* fin de la semaine de référence */
-      let rel = new Date(sat + 20 * 86400000); /* 3e vendredi qui suit */
-      if (rel.getUTCMonth() === 0 && rel.getUTCDate() === 1) rel = new Date(rel.getTime() + 7 * 86400000); /* 1er janvier férié */
-      if (rel.getUTCMonth() === 6 && rel.getUTCDate() === 4) rel = new Date(rel.getTime() - 86400000); /* 4 juillet : la veille */
-      let t = Date.UTC(rel.getUTCFullYear(), rel.getUTCMonth(), rel.getUTCDate(), 8, 30) / 1000; t -= tvNyOff(t);
-      if (t < t0 || t > t1 || t > R.rows[R.ci][0] + 86400 * 7) continue;
-      const x = tToX(t); if (x === null || x < 0 || x > cw) continue;
-      c.strokeStyle = "rgba(242,54,69,0.5)"; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(x, 18); c.lineTo(x, ch); c.stroke(); c.setLineDash([]);
-      c.fillStyle = TV.red; c.fillText("NFP", x - 9, 14);
+    const A = R.agg, t0 = A.bars[Math.max(0, Math.floor(lr.from))].time, t1 = A.bars[Math.min(R.k, Math.ceil(lr.to))].time + A.min * 60 * 40;
+    const col = { NFP: "#f23645", CPI: "#ff9800", FOMC: "#2962ff" }; c.font = "600 10px " + TV_FONT;
+    const now = R.rows[R.ci][0], lastX = {};
+    for (const ev of newsList()) {
+      if (!on[ev.n] || ev.t < t0 || ev.t > t1) continue;
+      const x = tToX(ev.t); if (x === null || x < 0 || x > cw) continue;
+      c.globalAlpha = ev.t > now ? 0.55 : 1; /* à venir = plus pâle (comme un calendrier économique) */
+      c.strokeStyle = col[ev.n]; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(x, 18); c.lineTo(x, ch); c.stroke(); c.setLineDash([]);
+      c.fillStyle = col[ev.n]; c.fillText(ev.n, x - c.measureText(ev.n).width / 2, 14 + (lastX[ev.n] && Math.abs(lastX[ev.n] - x) < 30 ? 11 : 0)); lastX[ev.n] = x;
+      c.globalAlpha = 1;
     }
   }
 
@@ -1869,7 +1888,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       if (R.selTr === tr) { c.strokeStyle = TV.blue; c.lineWidth = 1; c.setLineDash([3, 3]); c.strokeRect(x1, Math.min(ys, yt), x2 - x1, Math.abs(ys - yt)); c.setLineDash([]); }
       c.globalAlpha = 1;
       const hov = R.mouse && R.mouse.x >= x1 - 6 && R.mouse.x <= x2 + 6 && R.mouse.y >= Math.min(ys, yt) - 8 && R.mouse.y <= Math.max(ys, yt) + 8;
-      if (!closed || hov) {
+      if (R.selTr === tr || hov || (R.drag && R.drag.tr === tr)) { /* infos visibles seulement si la position est sélectionnée ou survolée */
         const dTp = Math.abs(tr.tp - tr.entry), dSl = Math.abs(tr.sl - tr.entry), dSl0 = Math.abs((tr.sl0 ?? tr.sl) - tr.entry) || dSl;
         const fx = (v) => v.toFixed(TV_DIG).replace(".", ","), pc = (v) => ((v / tr.entry) * 100).toFixed(3).replace(".", ","), pts = (v) => Math.round(v / 0.00001);
         const usd = (d) => ((d / TV_PIP) * TV_PIPVAL * tr.lots).toFixed(2);
@@ -2048,6 +2067,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     };
     const hitBody = ({ x, y }) => R.trades.slice().reverse().find((tr) => { if (tr.status === "closed" && (!R.cfg.showClosed || tr.hidden)) return false; const B = tradeBox(tr); return B && x >= B.x1 && x <= B.x2 && y >= Math.min(B.ys, B.yt) && y <= Math.max(B.ys, B.yt); });
     const down = (e) => {
+      const ae = document.activeElement; if (ae && /SELECT|INPUT/.test(ae.tagName)) ae.blur(); /* le clavier revient au graphique */
       if (!R.agg || (e.button !== undefined && e.button !== 0)) return; const p = pos(e);
       if (R.lastMeasure) R.lastMeasure = null;
       if (p.x > el.clientWidth - R.chart.priceScale("right").width()) return;
@@ -2175,7 +2195,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   /* ---------- clavier : raccourcis de TradingView ---------- */
   useEffect(() => {
     const k = (e) => {
-      if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+      if (e.target.tagName === "SELECT" && (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === " ")) { e.preventDefault(); e.target.blur(); }
+      else if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
       const key = e.key.toLowerCase(), sel = R.draws[R.sel];
       if (R.pend && (e.key === "Enter" || e.key === "Escape") && TV_TOOLS[R.pend.type].mode === "multi") { const s = R.pend; R.pend = null; s.pts.pop(); commit(s); return; }
       if ((key === "delete" || key === "backspace") && R.selTr && !sel) { e.preventDefault(); const t = R.selTr; R.selTr = null; if (t.status === "closed") { t.hidden = true; rerender(); } else delTrade(t); return; }
@@ -2208,8 +2229,11 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   /* ---------- revivre un trade cliqué dans Saisie & stats ---------- */
   useEffect(() => {
     const h = (e) => {
-      const { t, session } = e.detail || {}; if (!R.rows || !t) return;
-      const go = () => { goToIndex(tvBsRows(R.rows, t - 86400)); setMsg("Replay repris 24 h avant le trade : rejoue-le."); };
+      const { t, session, draws } = e.detail || {}; if (!R.rows || !t) return;
+      const go = () => {
+        if (Array.isArray(draws) && draws.length) { const have = new Set(R.draws.map((d) => JSON.stringify(d.pts) + d.type)); draws.forEach((d) => { if (!have.has(JSON.stringify(d.pts) + d.type)) R.draws.push(d); }); }
+        goToIndex(tvBsRows(R.rows, t - 86400)); setMsg("Replay repris 24 h avant le trade, avec tes dessins : rejoue-le.");
+      };
       const sid = session && sess.list.find((x) => x.title === session);
       if (sid && sid.id !== sess.cur) { openSess(sid.id); setTimeout(go, 50); } else go();
     };
@@ -2257,9 +2281,12 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       <style>{`.tvw input:not([type=checkbox]):not([type=color]), .tvw select { background: #fff !important; color: ${TV.text} !important; -webkit-text-fill-color: ${TV.text} !important; opacity: 1 !important; border: 1px solid ${TV.border} !important; border-radius: 6px !important; box-shadow: none !important; color-scheme: light; } .tvw select[title="Pas de lecture"], .tvw select[title^="Changer"] { border: none !important; padding: 0 2px !important; } .tvw .tv-hidden-date { width: 1px !important; height: 1px !important; min-width: 0 !important; border: none !important; padding: 0 !important; opacity: 0 !important; } .tvw option { color: ${TV.text}; background: #fff; } .tvw td, .tvw th { color: inherit; padding: 4px 6px; } .tvw table { color: ${TV.text}; }`}</style>
           {indOpen && <div style={{ position: "absolute", right: 90, top: 46, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "8px 14px", minWidth: 230 }}>
             {[["Killzones", R.cfg.kz.show, (v) => setCfg({ ...R.cfg, kz: { ...R.cfg.kz, show: v } })],
-              ["Annonces US : NFP (8h30 NY)", !!R.cfg.news, (v) => setCfg({ ...R.cfg, news: v })],
+              ["NFP (8h30 NY)", !!R.cfg.news, (v) => setCfg({ ...R.cfg, news: v })],
+              ["CPI (8h30 NY)", !!R.cfg.cpi, (v) => setCfg({ ...R.cfg, cpi: v })],
+              ["FOMC (14h00 NY)", !!R.cfg.fomc, (v) => setCfg({ ...R.cfg, fomc: v })],
               ["Swing high / low", R.cfg.st.swings, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, swings: v } })],
-              ["BOS / MSS", R.cfg.st.bos, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, bos: v } })],
+              ["BOS", R.cfg.st.bos, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, bos: v } })],
+              ["MSS", R.cfg.st.mss, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, mss: v } })],
               ["Equal high / low (EQH / EQL)", R.cfg.st.eq, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, eq: v } })],
               ["FVG automatiques (BISI / SIBI)", R.cfg.st.fvg, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, fvg: v } })],
               ["PDH", R.cfg.lv.pd && R.cfg.lv.pdh !== false, (v) => setCfg({ ...R.cfg, lv: { ...R.cfg.lv, pd: true, pdh: v } })],
@@ -2335,15 +2362,6 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
         <div style={{ position: "relative", flex: 1, minWidth: 0 }} onMouseDown={() => { if (fly) setFly(null); if (ctx) setCtx(null); }}>
           {live && <div style={{ position: "absolute", inset: 0, zIndex: 20, background: TV.bg }}><TvLive /></div>}
           <div ref={boxRef} style={{ position: "absolute", inset: 0 }} />
-          <div ref={trBarRef} style={{ position: "absolute", display: "none", zIndex: 8, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.15)", padding: 3, gap: 2, alignItems: "center", fontFamily: TV_FONT }}>
-            {R.selTr && <span style={{ fontSize: 13, fontWeight: 700, padding: "0 6px" }}>#{dispNo(R.selTr)}</span>}
-            {R.selTr && <select id="tv-pd-tf" defaultValue={R.selTr.tf || "H4"} title="Timeframe du PD array" style={{ fontSize: 13, padding: "3px 4px", fontFamily: TV_FONT }}>{TV_PD_TFS.map((x) => <option key={x} value={x}>{x}</option>)}</select>}
-            {R.selTr && <select id="tv-pd" value="" onChange={(e) => { const tfSel = document.getElementById("tv-pd-tf"); addPd(R.selTr, tfSel ? tfSel.value : "H4", e.target.value); }} title="Ajouter un PD array" style={{ fontSize: 13, padding: "3px 4px", maxWidth: 170, fontFamily: TV_FONT }}><option value="">+ PD array…</option>{tvPdList().map((x) => <option key={x} value={x}>{x}</option>)}</select>}
-            {R.selTr && (R.selTr.pd || []).map((x, i) => <span key={i} onClick={() => delPd(R.selTr, i)} title="Retirer" style={{ background: TV.hover, borderRadius: 10, padding: "2px 8px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>{x.pd} {x.tf} ×</span>)}
-            {R.selTr && R.selTr.status === "open" && <TvBtn title="Stop au point mort" onClick={() => toBE(R.selTr)} style={{ fontSize: 13, fontWeight: 700 }}>BE</TvBtn>}
-            {R.selTr && R.selTr.status !== "closed" && <TvBtn title={R.selTr.status === "open" ? "Fermer au prix actuel" : "Annuler l'ordre"} onClick={() => { closeOne(R.selTr); R.selTr = null; rerender(); }} style={{ fontSize: 13 }}>{R.selTr.status === "open" ? "Fermer" : "Annuler"}</TvBtn>}
-            <TvBtn title={R.selTr && R.selTr.status === "closed" ? "Retirer du graphique (le trade reste dans Replay Trading)" : "Supprimer la position"} onClick={() => { const t = R.selTr; R.selTr = null; if (!t) return; if (t.status === "closed") { t.hidden = true; rerender(); } else delTrade(t); }} style={{ padding: "4px 6px", color: TV.red }}><Trash2 size={16} /></TvBtn>
-          </div>
           <div ref={barRef} style={{ position: "absolute", display: "none", zIndex: 8, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.15)", padding: 3, gap: 2, alignItems: "center" }}>
             {!["rect", "hray"].includes((R.draws[R.sel] || {}).type) && TV_COLORS.map((col) => <button key={col} title="Couleur" onClick={() => { const s = R.draws[R.sel]; if (s) { s.color = col; rerender(); } }} style={{ width: 20, height: 20, borderRadius: 4, border: (R.draws[R.sel] || {}).color === col ? `2px solid ${TV.text}` : `1px solid ${TV.border}`, background: col, cursor: "pointer", padding: 0 }} />)}
             <span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} />
@@ -2387,20 +2405,22 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
               </div>
             </div>
           </div>
-          {/* barre de replay */}
-          <div style={{ position: "absolute", left: "50%", bottom: 42, transform: "translateX(-50%)", zIndex: 5, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 2, padding: 4, whiteSpace: "nowrap" }}>
-            <TvBtn title="Sélectionner la date (Alt+G)" onClick={openDate} style={{ padding: "6px 7px" }}><CalendarDays size={17} /></TvBtn>
+          {/* barre de replay compacte et déplaçable */}
+          <div style={{ position: "absolute", ...(barPos ? { left: barPos.x, top: barPos.y } : { left: "50%", bottom: 42, transform: "translateX(-50%)" }), zIndex: 5, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 0, padding: "2px 4px", whiteSpace: "nowrap" }}>
+            <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); const host = e.currentTarget.parentElement.parentElement.getBoundingClientRect(), me = e.currentTarget.parentElement.getBoundingClientRect(); const ox = e.clientX - me.left, oy = e.clientY - me.top; const mv = (ev) => setBarPos({ x: Math.max(0, Math.min(host.width - me.width, ev.clientX - host.left - ox)), y: Math.max(0, Math.min(host.height - me.height, ev.clientY - host.top - oy)) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
+              style={{ cursor: "grab", padding: "0 3px", color: TV.muted, fontSize: 13, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>
+            <TvBtn title="Sélectionner la date (Alt+G)" onClick={openDate} style={{ padding: "4px 6px", fontSize: 16 }}>📅</TvBtn>
             <input ref={dateRef} className="tv-hidden-date" type="date" onChange={(e) => jumpTo(e.target.value)} style={{ position: "absolute", opacity: 0, width: 1, height: 1, left: 20, bottom: 0, pointerEvents: "none" }} aria-label="Date de départ" />
-            <select value={R.rows ? tvYear(R.rows[R.ci][0]) : ""} onChange={(e) => { jumpTo(e.target.value + "-01-02"); e.target.blur(); }} title="Changer d'année (les positions restent ouvertes)" style={{ border: "none", background: "transparent", fontSize: 14, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select>
-            <TvBtn title="Date aléatoire" onClick={randomDate}>?</TvBtn>
-            {sep}
-            <TvBtn title="Sélectionner la barre : clique sur une bougie pour reprendre le replay à partir de là" active={selBar} onClick={() => { setPlaying(false); R.selBar = !selBar; setSelBar(!selBar); }}><Scissors size={17} /></TvBtn>
-            <TvBtn title="Reculer (←)" onClick={stepBack}><StepBack size={18} /></TvBtn>
-            <TvBtn title="Lecture (Espace)" onClick={() => setPlaying((p) => !p)}>{playing ? <Pause size={18} /> : <Play size={18} />}</TvBtn>
-            <TvBtn title="Avancer (→)" onClick={stepMinutes}><StepForward size={18} /></TvBtn>
-            <TvBtn title="Avancer d'une journée" onClick={() => goToIndex(tvBsRows(R.rows, R.rows[R.ci][0] + 86400))} style={{ fontSize: 13, fontWeight: 700 }}>+1 J</TvBtn>
-            <TvBtn title="Vitesse" onClick={() => { const i = TV_SPEEDS.findIndex((s) => s[0] === spd); setSpd(TV_SPEEDS[(i + 1) % TV_SPEEDS.length][0]); }}>{spd}x</TvBtn>
-            <select value={stepTf} onChange={(e) => { setStepTf(+e.target.value); e.target.blur(); }} title="Pas de lecture" style={{ border: "none", background: "transparent", fontSize: 14, fontWeight: 500, color: TV.text, cursor: "pointer" }}>{TV_TFS.slice(0, 10).map(([n, m]) => <option key={n} value={m}>{n}</option>)}</select>
+            <TvBtn title="Date aléatoire" onClick={randomDate} style={{ padding: "4px 6px", fontSize: 15 }}>🎲</TvBtn>
+            <TvBtn title="Sélectionner la barre : clique sur une bougie pour reprendre le replay à partir de là" active={selBar} onClick={() => { setPlaying(false); R.selBar = !selBar; setSelBar(!selBar); }} style={{ padding: "4px 6px", fontSize: 16 }}>✂️</TvBtn>
+            <TvBtn title="Reculer (←)" onClick={stepBack} style={{ padding: "4px 5px" }}><StepBack size={17} /></TvBtn>
+            <TvBtn title="Lecture / pause (Espace)" onClick={() => setPlaying((p) => !p)} style={{ padding: "4px 6px", fontSize: 16 }}>{playing ? "⏸️" : "▶️"}</TvBtn>
+            <TvBtn title="Avancer (→)" onClick={stepMinutes} style={{ padding: "4px 5px" }}><StepForward size={17} /></TvBtn>
+            <TvBtn title="Avancer d'une journée" onClick={() => goToIndex(tvBsRows(R.rows, R.rows[R.ci][0] + 86400))} style={{ padding: "4px 5px" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /><text x="12" y="19" textAnchor="middle" fontSize="8" fontWeight="700" fill="currentColor" stroke="none">+1</text></svg>
+            </TvBtn>
+            <select value={spd} onChange={(e) => { setSpd(+e.target.value); e.target.blur(); }} title="Vitesse" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_SPEEDS.map(([v]) => <option key={v} value={v}>{String(v).replace(".", ",")}x</option>)}</select>
+            <select value={stepTf} onChange={(e) => { setStepTf(+e.target.value); e.target.blur(); }} title="Pas de lecture" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_TFS.slice(0, 10).map(([n, m]) => <option key={n} value={m}>{n}</option>)}</select>
           </div>
           {/* boutons de l'échelle : A = ajustement auto, » = revenir aux dernières bougies */}
           <div style={{ position: "absolute", right: 4, bottom: 34, zIndex: 6, display: "flex", gap: 4 }}>
@@ -2431,34 +2451,48 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
           {[["pos", `Positions (${opened.length})`], ["hist", `Historique (${closed.length})`], ["stats", "Statistiques"]].map(([id, n]) => <TvBtn key={id} active={panel && tab === id} onClick={() => { setTab(id); setPanel(true); if (id === "hist") setUnseen(0); }}>{n}{id === "hist" && unseen > 0 && <span style={{ background: TV.blue, color: "#fff", borderRadius: 10, fontSize: 11, fontWeight: 700, padding: "1px 6px", marginLeft: 2 }}>{unseen}</span>}</TvBtn>)}
           <span style={{ fontSize: 12, color: TV.muted, marginLeft: 6 }}>Session : <b style={{ color: TV.text }}>{curSess().title}</b></span>
           <div style={{ flex: 1 }} />
+<select value={R.rows ? tvYear(R.rows[R.ci][0]) : ""} onChange={(e) => { jumpTo(e.target.value + "-01-02"); e.target.blur(); }} title="Changer d'année (les positions restent ouvertes)" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 700, color: TV.text, cursor: "pointer" }}>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select>
           <span style={{ fontSize: 13, whiteSpace: "nowrap" }}>Solde <b>{tvMoney(balance())}</b> · Équité <b>{tvMoney(balance() + upnl)}</b> · P&L ouvert <b style={{ color: upnl >= 0 ? TV.green : TV.red }}>{tvMoney(upnl)}</b></span>
         </div>
         {panel && (
           <div style={{ height: 170, overflow: "auto", padding: "4px 12px 10px", fontSize: 13 }}>
             {tab === "pos" && (opened.length ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead><tr style={{ color: TV.muted, textAlign: "left" }}><th>#</th><th>Sens</th><th>Lots</th><th>Entrée</th><th>SL</th><th>TP</th><th>Statut</th><th>PD arrays</th><th>P&L</th><th></th></tr></thead>
+                <thead><tr style={{ color: TV.muted, textAlign: "left" }}><th>#</th><th>Sens</th><th>Lots</th><th>Entrée</th><th>SL</th><th>TP</th><th>Statut</th><th>PD arrays</th><th>P&L</th><th></th><th></th></tr></thead>
                 <tbody>{opened.map((t) => { const pl = t.status === "open" ? (((t.side > 0 ? bid() : ask()) - t.entry) * t.side / TV_PIP) * TV_PIPVAL * t.lots : 0; return (
                   <tr key={t.id} style={{ borderTop: `1px solid ${TV.border}` }}>
-                    <td><b>#{dispNo(t)}</b></td><td style={{ color: t.side > 0 ? TV.blue : TV.red, fontWeight: 600 }}>{t.side > 0 ? "Long" : "Short"}</td><td>{t.lots.toFixed(2)}</td><td>{t.entry.toFixed(TV_DIG)}</td><td>{t.sl.toFixed(TV_DIG)}</td><td>{t.tp.toFixed(TV_DIG)}</td><td>{t.status === "open" ? "Ouvert" : "En attente"}</td><td style={{ fontSize: 12 }}>{pdText(t) || "—"}</td>
+                    <td><b>#{dispNo(t)}</b></td><td style={{ color: t.side > 0 ? TV.blue : TV.red, fontWeight: 600 }}>{t.side > 0 ? "Long" : "Short"}</td><td>{t.lots.toFixed(2)}</td><td>{t.entry.toFixed(TV_DIG)}</td><td>{t.sl.toFixed(TV_DIG)}</td><td>{t.tp.toFixed(TV_DIG)}</td><td>{t.status === "open" ? "Ouvert" : "En attente"}</td><td style={{ fontSize: 12 }}><TvPdPicker tr={t} addPd={addPd} delPd={delPd} /></td>
                     <td style={{ color: pl >= 0 ? TV.green : TV.red }}>{tvMoney(pl)}</td>
-                    <td><button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => toBE(t)} title="Stop au point mort">BE</button> <button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => closeOne(t)}>{t.status === "open" ? "Fermer" : "Annuler"}</button></td>
+                    <td style={{ whiteSpace: "nowrap" }}>{t.status === "open" && <button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => toBE(t)} title="Stop au point mort">BE</button>} <button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => closeOne(t)}>{t.status === "open" ? "Fermer" : "Annuler"}</button> <button title="Supprimer" style={{ ...inp, width: "auto", cursor: "pointer", color: TV.red }} onClick={() => delTrade(t)}><Trash2 size={13} /></button></td>
                   </tr>); })}</tbody>
               </table>) : <div style={{ color: TV.muted, padding: 8 }}>Aucune position. Clique BUY / SELL en haut à gauche du graphique, ou choisis l'outil Position longue / courte et clique sur le prix voulu. Glisse ensuite les bords vert et rouge pour régler le TP et le SL.</div>)}
-            {tab === "hist" && (closed.length ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
-                {closed.slice().sort((a, b) => b.openT - a.openT).map((t) => {
-                  const win = t.r > 0.05, be = Math.abs(t.r) <= 0.05, col = be ? TV.muted : win ? TV.green : TV.red;
+            {tab === "hist" && (() => {
+              const all = [...(R.archive || []), ...closed]; const mk = (t) => tvNyIso(t.openT).slice(0, 7);
+              const curK = R.rows ? tvNyIso(R.rows[R.ci][0]).slice(0, 7) : ""; const months = [...new Set(all.map(mk))].sort().reverse();
+              const key = histM === "cur" ? curK : histM; const list = histM === "all" ? all : all.filter((t) => mk(t) === key);
+              const mName = (k) => { const [y, m] = k.split("-"); return TV_MOIS[+m - 1] + " " + y; };
+              const tot = list.reduce((a, t) => a + (t.r || 0), 0), pnl = list.reduce((a, t) => a + (t.pnl || 0), 0);
+              return <>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", padding: "4px 0" }}>
+                  <select value={histM} onChange={(e) => { setHistM(e.target.value); e.target.blur(); }} style={{ fontSize: 13, padding: "3px 6px", fontFamily: TV_FONT }}>
+                    <option value="cur">Ce mois-ci ({curK ? mName(curK) : ""})</option><option value="all">Tous les mois</option>
+                    {months.map((k) => <option key={k} value={k}>{mName(k)} · {all.filter((t) => mk(t) === k).length} trade(s)</option>)}
+                  </select>
+                  <span style={{ fontSize: 13, color: TV.muted }}>{list.length} trade(s) · <b style={{ color: tot >= 0 ? TV.green : TV.red }}>{(tot >= 0 ? "+" : "") + tot.toFixed(2)} R</b> · <b style={{ color: pnl >= 0 ? TV.green : TV.red }}>{tvMoney(pnl)}</b></span>
+                </div>
+                {list.length ? <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
+                {list.slice().sort((a, b) => b.openT - a.openT).map((t) => {
+                  const be = tvIsBE(t), win = !be && t.pnl > 0, col = be ? TV.muted : win ? TV.green : TV.red;
                   const chip = (txt, bg, fg) => <span style={{ background: bg, color: fg, borderRadius: 10, padding: "2px 8px", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>{txt}</span>;
                   return (
-                    <div key={t.id} onClick={(e) => { if (e.target.closest("button")) return; R.selTr = t; rerender(); }} style={{ display: "grid", gridTemplateColumns: "4px 44px 170px 72px 1fr auto auto 34px", alignItems: "center", gap: 10, padding: "8px 10px", border: `1px solid ${R.selTr === t ? TV.blue : TV.border}`, borderRadius: 8, background: "#fff", cursor: "pointer" }}>
+                    <div key={t.id} onClick={(e) => { if (e.target.closest("button,select")) return; R.selTr = t; rerender(); }} style={{ display: "grid", gridTemplateColumns: "4px 44px 170px 72px 1fr auto auto 34px", alignItems: "center", gap: 10, padding: "8px 10px", border: `1px solid ${R.selTr === t ? TV.blue : TV.border}`, borderRadius: 8, background: "#fff", cursor: "pointer" }}>
                       <span style={{ alignSelf: "stretch", borderRadius: 2, background: col }} />
                       <b style={{ fontSize: 14 }}>#{dispNo(t)}</b>
                       <span style={{ fontSize: 13 }}>{tvFmtTime(t.openT, R.tz, "full")}<br /><span style={{ color: TV.muted, fontSize: 12 }}>→ {tvFmtTime(t.closeT, R.tz, "full")}</span></span>
                       {chip(t.side > 0 ? "Long" : "Short", t.side > 0 ? "rgba(41,98,255,0.12)" : "rgba(242,54,69,0.12)", t.side > 0 ? TV.blue : TV.red)}
                       <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
                         <span style={{ fontSize: 12.5, color: TV.muted }}>{t.entry.toFixed(TV_DIG)} → {t.exit.toFixed(TV_DIG)} · {t.lots.toFixed(2)} lot · {t.pips.toFixed(1)} pips</span>
-                        {(t.pd || []).map((x, i) => <span key={i}>{chip(x.pd + " " + x.tf, TV.hover, TV.text)}</span>)}
+                        <TvPdPicker tr={t} addPd={addPd} delPd={delPd} />
                       </span>
                       {chip(t.reason === "TP" ? "TP" : t.reason === "SL" ? (be ? "BE" : "SL") : t.reason, be ? TV.hover : win ? "rgba(8,153,129,0.12)" : "rgba(242,54,69,0.12)", col)}
                       <span style={{ textAlign: "right", minWidth: 110 }}><b style={{ color: col, fontSize: 15 }}>{(t.r >= 0 ? "+" : "") + t.r.toFixed(2)} R</b><br /><span style={{ color: col, fontSize: 12.5 }}>{tvMoney(t.pnl)}</span></span>
@@ -2466,7 +2500,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
                     </div>
                   );
                 })}
-              </div>) : <div style={{ color: TV.muted, padding: 8 }}>Aucun trade fermé.</div>)}
+              </div> : <div style={{ color: TV.muted, padding: 8 }}>Aucun trade fermé ce mois-ci. Choisis un autre mois dans la liste.</div>}
+              </>;
+            })()}
             {tab === "stats" && (R.years || []).length > 0 && (
               <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
                 <thead><tr style={{ color: TV.muted, textAlign: "left" }}><th>Année</th><th>Trades</th><th>Win rate</th><th>Total R</th><th>P&L</th></tr></thead>
@@ -2622,6 +2658,19 @@ function TvLogoIcon({ size = 16, color = "currentColor", style }) {
     <svg width={size} height={size} viewBox="150 258 480 272" fill={color} style={style} aria-hidden="true">
       <path d="M175 283H352V505H262V372H175Z" /><circle cx="418" cy="326" r="44" /><path d="M520 283H610L518 505H415Z" />
     </svg>
+  );
+}
+
+/* choix des PD arrays d'un trade : timeframe + PD array (les 15 du site) */
+function TvPdPicker({ tr, addPd, delPd }) {
+  const [tf, setTf] = useState(tr.tf || "H4");
+  const sel = { fontSize: 12, padding: "1px 3px", fontFamily: TV_FONT, maxWidth: 140 };
+  return (
+    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+      {(tr.pd || []).map((x, i) => <span key={i} onClick={(e) => { e.stopPropagation(); delPd(tr, i); }} title="Retirer" style={{ background: x.auto ? "rgba(41,98,255,0.10)" : TV.hover, color: TV.text, borderRadius: 10, padding: "2px 8px", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{x.pd} {x.tf} ×</span>)}
+      <select value={tf} onChange={(e) => { setTf(e.target.value); e.target.blur(); }} title="Timeframe" style={sel}>{TV_PD_TFS.map((x) => <option key={x} value={x}>{x}</option>)}</select>
+      <select value="" onChange={(e) => { addPd(tr, tf, e.target.value); e.target.blur(); }} title="Ajouter un PD array" style={sel}><option value="">+ PD array</option>{tvPdList().map((x) => <option key={x} value={x}>{x}</option>)}<option value="MSS">MSS</option><option value="BOS">BOS</option></select>
+    </span>
   );
 }
 
@@ -9778,7 +9827,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs, appSettings 
               <div className="tnum" style={{ fontSize: 12, color: C.textMuted }}>{String(t.entryTime).slice(0, 10)}{t.entryPrice ? " · E " + t.entryPrice : ""}</div>
             </div>
             {t.screenshotBefore && <a href={t.screenshotBefore} target="_blank" rel="noreferrer" title="Photo du trade" style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, textDecoration: "none", padding: "3px 6px", borderRadius: 6, border: `1px solid ${C.border}` }}>Photo</a>}
-            {(t.rules || {}).replay && <button onClick={() => window.dispatchEvent(new CustomEvent("tjp-bt-goto", { detail: { t: Math.floor(new Date(t.entryTime).getTime() / 1000), session: (t.rules || {}).session } }))} title="Revivre ce trade dans le replay" style={{ fontSize: 11.5, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontFamily: "inherit" }}>▶ Revivre</button>}
+            {(t.rules || {}).replay && <button onClick={() => window.dispatchEvent(new CustomEvent("tjp-bt-goto", { detail: { t: Math.floor(new Date(t.entryTime).getTime() / 1000), session: (t.rules || {}).session, draws: (t.rules || {}).draws || [] } }))} title="Revivre ce trade dans le replay" style={{ fontSize: 11.5, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontFamily: "inherit" }}>▶ Revivre</button>}
             {(t.rules || {}).tradeNo ? <span className="tnum" style={{ fontSize: 12, color: C.textMuted }}>#{t.rules.tradeNo}</span> : null}
             <span className="tnum" style={{ fontSize: 15, fontWeight: 800, color: t.resultR > 0 ? C.teal : t.resultR < 0 ? C.red : C.textMuted }}>{fmtR(t.resultR || 0)}</span>
             <button onClick={() => { if (window.confirm("Supprimer ce trade de backtest ?")) onDelete(t.id); }} aria-label="Supprimer" style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", padding: 4 }}><Trash2 size={15} /></button>
