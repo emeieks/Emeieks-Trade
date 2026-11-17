@@ -1379,6 +1379,7 @@ const TvIco = {
   cut: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><circle cx="6.5" cy="6.5" r="2.8" /><circle cx="6.5" cy="17.5" r="2.8" /><path d="M8.6 8.4L20 18M8.6 15.6L20 6" /></svg>,
   play: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z" /></svg>,
   pause: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4" height="15" rx="1" /><rect x="14" y="4.5" width="4" height="15" rx="1" /></svg>,
+  candle: <svg width="26" height="18" viewBox="0 0 30 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M5 2v4M5 15v3" /><rect x="2" y="6" width="6" height="9" rx="1" fill="currentColor" /><text x="12" y="15" fontSize="11" fontWeight="700" fill="currentColor" stroke="none" fontFamily="Arial, sans-serif">+1</text></svg>,
   day: <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "Arial, sans-serif", lineHeight: "18px" }}>+1</span>,
   nfp: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.3" /><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M14.5 14.6c.8-.4 1.6-.6 2.5-.6 2.2 0 3.8 1.5 4.3 4" /></svg>,
   cpi: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4h2.2l2.3 11h10.8l2-7.5H6.4" /><circle cx="9" cy="19" r="1.5" /><circle cx="17" cy="19" r="1.5" /></svg>,
@@ -1515,6 +1516,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   const [unseen, setUnseen] = useState(0);
   const [indOpen, setIndOpen] = useState(false);
   const [selBar, setSelBar] = useState(false);
+  const [tfMenu, setTfMenu] = useState(false);
   const [botOn, setBotOn] = useState(false);
   const [rectKind, setRectKindS] = useState(() => { try { return localStorage.getItem("tjp_tv_rk") || "OB"; } catch (e) { return "OB"; } });
   const [rayKind, setRayKindS] = useState(() => { try { return localStorage.getItem("tjp_tv_yk") || "SSL"; } catch (e) { return "SSL"; } });
@@ -1537,7 +1539,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       grid: { vertLines: { color: "#f0f3fa", visible: !!R.cfg.grid }, horzLines: { color: "#f0f3fa", visible: !!R.cfg.grid } },
       crosshair: { mode: 0, vertLine: { color: "#9598a1", style: 3, labelBackgroundColor: TV.text }, horzLine: { color: "#9598a1", style: 3, labelBackgroundColor: TV.text } },
       rightPriceScale: { borderColor: TV.border, scaleMargins: { top: 0.12, bottom: 0.1 } },
-      timeScale: { borderColor: TV.border, timeVisible: true, secondsVisible: false, rightOffset: 25, barSpacing: 7, tickMarkFormatter: (t, type) => tvFmtTime(t, R.tz, type) },
+      timeScale: { borderColor: TV.border, timeVisible: true, secondsVisible: false, rightOffset: 32, barSpacing: 7, tickMarkFormatter: (t, type) => tvFmtTime(t, R.tz, type) },
       localization: { locale: "fr-FR", timeFormatter: (t) => tvFmtTime(t, R.tz, "full") },
     });
     const se = ch.addCandlestickSeries({ priceLineVisible: false, upColor: R.cfg.up, downColor: R.cfg.down, borderUpColor: R.cfg.down, borderDownColor: R.cfg.down, wickUpColor: R.cfg.down, wickDownColor: R.cfg.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
@@ -1760,14 +1762,16 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     if (!R.rows) return;
     const mkt = side > 0 ? ask() : bid();
     const entry = opt.entry ?? mkt; const type = Math.abs(entry - mkt) < TV_PIP * 0.3 ? "mkt" : (side > 0) === (entry < mkt) ? "lmt" : "stp";
-    const sl = entry - side * slP * TV_PIP, tp = entry + side * slP * TV_PIP * rr;
+    let dist = slP * TV_PIP;
+    if (!opt.sl && boxRef.current && R.series) { const h = boxRef.current.clientHeight - 30, top = yToP(0), bot = yToP(h); if (top != null && bot != null) dist = Math.max(dist, Math.round(((top - bot) * 0.1) / TV_PIP * 10) / 10 * TV_PIP); }
+    const sl = opt.sl ?? entry - side * dist, tp = opt.tp ?? entry + side * Math.abs(entry - sl) * rr;
     const lots = lotsFor(Math.abs(entry - sl) / TV_PIP); /* calcul automatique : stake % (1 % par défaut), SL, paire, prix */
     if (R.seq == null) R.seq = Math.max(0, ...R.trades.map((x) => x.no || 0));
     R.seq += 1;
     const tr = { id: Date.now() + Math.random(), no: R.seq, pd: [], riskPct: R.cfg.risk, type, side, entry, sl, tp, sl0: sl, lots, status: type === "mkt" ? "open" : "pending", openT: R.rows[R.ci][0], placedT: R.rows[R.ci][0], anchorT: Math.min(opt.at ?? R.rows[R.ci][0], R.rows[R.ci][0]), tf: TV_TFLAB[tf] };
     tr.risk = (Math.abs(entry - sl) / TV_PIP) * TV_PIPVAL * lots;
     tr.pd = autoPd(side, entry, R.rows[R.ci][0]);
-    tr.endT = tr.anchorT + 40 * tfSec(); /* largeur fixe comme TradingView */
+    tr.endT = tr.anchorT + 25 * tfSec(); /* largeur fixe comme TradingView */
     { const t0 = R.rows[R.ci][0], win = 20 * 86400, pr = 300 * TV_PIP; /* seulement les dessins proches du trade : 20 jours avant, ±300 pips */
       const near = R.draws.filter((d) => d.type !== "measure" && d.pts.some((q) => Math.abs(q.p - entry) <= pr) && (["hline", "hray"].includes(d.type) || d.pts.some((q) => q.t >= t0 - win && q.t <= t0 + 2 * 86400)));
       tr.drawSnap = JSON.parse(JSON.stringify(near.slice(-40))); }
@@ -1993,7 +1997,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
         };
         const upTop = tr.side > 0; /* long : cible en haut ; short : cible en bas */
         lab([`Cible: ${fx(dTp)} (${pc(dTp)}%) ${pts(dTp)}, Montant: ${usd(dTp)}`], upTop ? Math.min(yt, ye) : Math.max(yt, ye), TV.green, !upTop);
-        lab([`Stop: ${fx(dSl)} (${pc(dSl)}%) ${pts(dSl)}, Montant: ${usd(dSl)}`], upTop ? Math.max(ys, ye) : Math.min(ys, ye), TV.red, upTop);
+        lab([dSl < 0.05 * TV_PIP ? "Stop: BE (point d'entrée)" : `Stop: ${fx(dSl)} (${pc(dSl)}%) ${pts(dSl)}, Montant: ${usd(dSl)}`], upTop ? Math.max(ys, ye) : Math.min(ys, ye), TV.red, upTop);
         const pl = closed ? tr.pnl : tr.status === "open" ? (((tr.side > 0 ? bid() : ask()) - tr.entry) * tr.side / TV_PIP) * TV_PIPVAL * tr.lots : 0;
         const dt = tvFmtTime(tr.status === "pending" ? tr.placedT : tr.openT, R.tz, "full");
         const l0 = `#${dispNo(tr)} · ${dt}${(tr.pd || []).length ? " · " + pdText(tr) : ""}`;
@@ -2076,7 +2080,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     else if (T === "channel") { const [l1, l2] = chanLines(s); poly([l1[0], l1[1], l2[1], l2[0]], true); c.fillStyle = tvAlpha(col, 0.1); c.fill(); line(l1[0], l1[1]); line(l2[0], l2[1]); c.setLineDash([4, 4]); line({ x: (l1[0].x + l2[0].x) / 2, y: (l1[0].y + l2[0].y) / 2 }, { x: (l1[1].x + l2[1].x) / 2, y: (l1[1].y + l2[1].y) / 2 }); c.setLineDash([]); }
     else if (T === "rect") {
       const L = Math.min(a.x, b.x), Tp = Math.min(a.y, b.y), Wd = Math.abs(b.x - a.x), Hg = Math.abs(b.y - a.y);
-      c.fillStyle = tvAlpha(col, 0.15); c.fillRect(L, Tp, Wd, Hg); c.strokeStyle = tvAlpha(col, 0.9); c.strokeRect(L + 0.5, Tp + 0.5, Wd, Hg);
+      c.fillStyle = tvAlpha(col, 0.13); c.fillRect(L, Tp, Wd, Hg); c.lineWidth = 1; c.strokeStyle = tvAlpha(col, 0.75); c.strokeRect(Math.round(L) + 0.5, Math.round(Tp) + 0.5, Math.round(Wd), Math.round(Hg));
+      if (selected) { c.setLineDash([1, 3]); c.strokeStyle = tvAlpha(col, 0.6); c.beginPath(); c.moveTo(L, Tp + Hg / 2); c.lineTo(L + Wd, Tp + Hg / 2); c.stroke(); c.setLineDash([]); }
       if (s.kind) { font(11, true); const txt = s.kind + (s.tf ? " " + s.tf : ""); const w = c.measureText(txt).width; c.fillStyle = col; c.fillText(txt, L + Wd - w - 6, Tp + Hg / 2 + 4); }
     }
     else if (T === "circle") { c.beginPath(); c.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.abs(b.x - a.x) / 2 || 1, Math.abs(b.y - a.y) / 2 || 1, 0, 0, 7); c.fillStyle = tvAlpha(col, 0.15); c.fill(); c.stroke(); }
@@ -2104,7 +2109,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     else if (T === "text") { font(s.size || 14); c.fillStyle = col; c.fillText(s.text || "Texte", a.x, a.y); }
     else if (T === "label") { font(12); const txt = s.text || s.pts[0].p.toFixed(TV_DIG); const w = c.measureText(txt).width + 14; c.fillStyle = col; c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(a.x + 8, a.y - 11); c.lineTo(a.x + 8 + w, a.y - 11); c.lineTo(a.x + 8 + w, a.y + 11); c.lineTo(a.x + 8, a.y + 11); c.closePath(); c.fill(); c.fillStyle = "#fff"; c.fillText(txt, a.x + 14, a.y + 4); }
     c.setLineDash([]);
-    if (selected) { for (const [hx, hy] of handlesOf(s)) { c.fillStyle = "#fff"; c.strokeStyle = TV.blue; c.lineWidth = 1.5; c.beginPath(); c.arc(hx, hy, 5, 0, 7); c.fill(); c.stroke(); } }
+    if (selected) { for (const [hx, hy, m] of handlesOf(s)) { c.fillStyle = "#fff"; c.strokeStyle = TV.blue; c.lineWidth = 1.5; if (/^e[xy]/.test(m)) { c.fillRect(hx - 4.5, hy - 4.5, 9, 9); c.strokeRect(hx - 4.5, hy - 4.5, 9, 9); } else { c.beginPath(); c.arc(hx, hy, 5, 0, 7); c.fill(); c.stroke(); } } }
   }
   function hitShape(p) {
     const box = boxRef.current, cw = box.clientWidth - R.chart.priceScale("right").width(), ch = box.clientHeight;
@@ -2132,7 +2137,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     const t = xToT(x); let pr = yToP(y);
     if ((R.magnet || force) && R.agg) {
       const lg = Math.round(R.chart.timeScale().coordinateToLogical(x));
-      if (lg >= 0 && lg <= R.k) { const b = lg === R.k ? liveBar() : R.agg.bars[lg]; let bd = 1e9; for (const v of [b.open, b.high, b.low, b.close]) { const d = Math.abs(pToY(v) - y); if (d < bd && d < 30) { bd = d; pr = v; } } }
+      if (lg >= 0 && lg <= R.k) { const b = lg === R.k ? liveBar() : R.agg.bars[lg]; let bd = 1e9; for (const v of [b.open, b.high, b.low, b.close]) { const d = Math.abs(pToY(v) - y); if (d < bd) { bd = d; pr = v; } } }
     }
     return { t, p: pr };
   }
@@ -2206,7 +2211,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       if (R.drag) {
         e.stopPropagation(); e.preventDefault(); const pr = yToP(p.y); const { tr, kind } = R.drag; if (pr === null) return;
         if (kind === "tp" && (pr - tr.entry) * tr.side > 0) tr.tp = pr;
-        if (kind === "sl" && (tr.entry - pr) * tr.side > 0) { tr.sl = pr; if (tr.status === "pending") { tr.sl0 = pr; tr.lots = Math.max(0.01, Math.round(((balance() * (tr.riskPct ?? R.cfg.risk)) / 100 / (Math.max(0.1, Math.abs(tr.entry - tr.sl) / TV_PIP) * TV_PIPVAL)) * 100) / 100); tr.risk = (Math.abs(tr.entry - tr.sl) / TV_PIP) * TV_PIPVAL * tr.lots; } }
+        if (kind === "sl" && (tr.entry - pr) * tr.side > 0) { tr.sl = pr;
+          if (tr.status === "open" && (tr.entry - pr) * tr.side > 0.5 * TV_PIP) { tr.sl0 = pr; tr.risk = (Math.abs(tr.entry - pr) / TV_PIP) * TV_PIPVAL * tr.lots; } /* nouveau stop = nouveau risque : le R reste juste */
+          if (tr.status === "pending") { tr.sl0 = pr; tr.lots = Math.max(0.01, Math.round(((balance() * (tr.riskPct ?? R.cfg.risk)) / 100 / (Math.max(0.1, Math.abs(tr.entry - tr.sl) / TV_PIP) * TV_PIPVAL)) * 100) / 100); tr.risk = (Math.abs(tr.entry - tr.sl) / TV_PIP) * TV_PIPVAL * tr.lots; } }
         if (kind === "move" || kind === "body") { /* déplace la boîte où tu veux ; le prix bouge seulement si l'ordre est en attente */
           const D = R.drag; const t = xToT(p.x);
           if (D.t0 == null) { D.t0 = t; D.p0 = pr; D.a0 = tr.anchorT ?? (tr.status === "pending" ? tr.placedT : tr.openT); D.e0 = tr.endT; D.en0 = tr.entry; D.sl0 = tr.sl; D.tp0 = tr.tp; }
@@ -2391,9 +2398,13 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}>{TV_PAIR}</div>
         {sep}
         {TV_TFS.filter(([n]) => ["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <TvBtn key={n} active={tf === m} onClick={() => setTf(m)}>{n}</TvBtn>)}
-        <select value={["15m", "1h", "4h", "D", "W", "M"].includes((TV_TFS.find((x) => x[1] === tf) || [])[0]) ? "" : tf} onChange={(e) => e.target.value && setTf(+e.target.value)} title="Autres timeframes" style={{ border: "none", background: "transparent", fontSize: 14, color: TV.text, cursor: "pointer", width: 54 }}>
-          <option value="">⌄</option>{TV_TFS.filter(([n]) => !["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <option key={n} value={m}>{n}</option>)}
-        </select>
+        <div style={{ position: "relative" }}>
+          {(() => { const extra = TV_TFS.find((x) => x[1] === tf && !["15m", "1h", "4h", "D", "W", "M"].includes(x[0])); return <TvBtn active={!!extra || tfMenu} title="Autres timeframes" onClick={() => setTfMenu((v) => !v)}>{extra ? extra[0] : ""}<ChevronDown size={15} /></TvBtn>; })()}
+          {tfMenu && <div style={{ position: "absolute", left: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 0", minWidth: 150 }}>
+            <div style={{ fontSize: 11, color: TV.muted, padding: "2px 14px 6px", letterSpacing: 0.6 }}>MINUTES / HEURES</div>
+            {TV_TFS.filter(([n]) => !["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <div key={n} onClick={() => { setTf(m); setTfMenu(false); }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = tf === m ? TV.hover : "transparent")} style={{ padding: "7px 14px", fontSize: 14, cursor: "pointer", background: tf === m ? TV.hover : "transparent", color: tf === m ? TV.blue : TV.text }}>{({ "30m": "30 minutes", "2h": "2 heures", "3h": "3 heures", "6h": "6 heures", "8h": "8 heures", "12h": "12 heures" })[n] || n}</div>)}
+          </div>}
+        </div>
         {sep}
         <TvBtn title="Bougies"><CandlestickChart size={18} /></TvBtn>
         {sep}
@@ -2401,6 +2412,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
         <TvBtn title="Annuler (Ctrl+Z)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); }}><Undo2 size={17} /></TvBtn>
         <TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); }}><Redo2 size={17} /></TvBtn>
         {sep}
+        <TvBtn title="Revenir au début de l'année (2 janvier)" onClick={() => { if (!R.rows) return; const y = tvYear(R.rows[R.ci][0]); goToIndex(tvBsRows(R.rows, Date.UTC(y, 0, 2) / 1000)); setMsg(`Retour au début de ${y}.`); }} style={{ fontSize: 13, fontWeight: 600 }}><Rewind size={15} />Début d'année</TvBtn>
         <select value={sess.cur} onChange={(e) => { if (e.target.value === "__new") setShowNew(true); else openSess(e.target.value); }} title="Session de backtest" style={{ border: `1px solid ${TV.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 14, fontWeight: 600, color: TV.text, background: "#fff", maxWidth: 220, fontFamily: TV_FONT }}>
           {sess.list.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
           <option value="__new">+ Nouvelle session…</option>
@@ -2461,9 +2473,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
           <div ref={barRef} style={{ position: "absolute", display: "none", zIndex: 8, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.15)", padding: 3, gap: 2, alignItems: "center" }}>
             {!["rect", "hray"].includes((R.draws[R.sel] || {}).type) && TV_COLORS.map((col) => <button key={col} title="Couleur" onClick={() => { const s = R.draws[R.sel]; if (s) { s.color = col; rerender(); } }} style={{ width: 20, height: 20, borderRadius: 4, border: (R.draws[R.sel] || {}).color === col ? `2px solid ${TV.text}` : `1px solid ${TV.border}`, background: col, cursor: "pointer", padding: 0 }} />)}
             <span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} />
-            {[1, 2, 3].map((w) => <TvBtn key={w} title={`Épaisseur ${w}`} active={((R.draws[R.sel] || {}).w || 1.5) === w || (w === 1 && !(R.draws[R.sel] || {}).w)} onClick={() => { const s = R.draws[R.sel]; if (s) { s.w = w; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, height: w + 0.5, background: TV.text }} /></TvBtn>)}
+            {(R.draws[R.sel] || {}).type !== "rect" && [1, 2, 3].map((w) => <TvBtn key={w} title={`Épaisseur ${w}`} active={((R.draws[R.sel] || {}).w || 1.5) === w || (w === 1 && !(R.draws[R.sel] || {}).w)} onClick={() => { const s = R.draws[R.sel]; if (s) { s.w = w; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, height: w + 0.5, background: TV.text }} /></TvBtn>)}
             <span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} />
-            <TvBtn title="Ligne pointillée" active={!!(R.draws[R.sel] || {}).dash} onClick={() => { const s = R.draws[R.sel]; if (s) { s.dash = !s.dash; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, borderTop: `2px dashed ${TV.text}` }} /></TvBtn>
+            {(R.draws[R.sel] || {}).type !== "rect" && <TvBtn title="Ligne pointillée" active={!!(R.draws[R.sel] || {}).dash} onClick={() => { const s = R.draws[R.sel]; if (s) { s.dash = !s.dash; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, borderTop: `2px dashed ${TV.text}` }} /></TvBtn>}
             {(R.draws[R.sel] || {}).type === "rect" && <>{Object.keys(TV_ZONE).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = k; s.color = undefined; s.tf = s.tf || TV_TFLAB[R.agg.min]; rerender(); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_ZONE[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
             {["trend", "hline"].includes((R.draws[R.sel] || {}).type) && <>{Object.keys(TV_STRUCT).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = s.kind === k ? undefined : k; s.tf = s.tf || TV_TFLAB[R.agg.min]; s.color = undefined; rerender(); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_STRUCT[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
             {(R.draws[R.sel] || {}).type === "hray" && <>{Object.keys(TV_LIQ).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = k; s.color = undefined; rerender(); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_LIQ[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
@@ -2501,6 +2513,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
               {lb && <span style={{ fontSize: 13, color: lcol }}>O<span>{lb.open.toFixed(TV_DIG)}</span> H{lb.high.toFixed(TV_DIG)} B{lb.low.toFixed(TV_DIG)} C{lb.close.toFixed(TV_DIG)} {chg >= 0 ? "+" : ""}{(chg / TV_PIP).toFixed(1)} ({prevC ? ((chg / prevC) * 100).toFixed(2) : "0.00"}%)</span>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, pointerEvents: "auto" }}>
+              {priceBox(-1)}
+              <div title="Risque par trade (modifiable sous le stop de la position)" style={{ textAlign: "center", fontSize: 11, color: TV.muted, minWidth: 44, lineHeight: 1.25 }}>1:1<br /><b style={{ color: TV.text }}>{String(R.cfg.risk).replace(".", ",")} %</b></div>
+              {priceBox(1)}
             </div>
           </div>
           {/* barre de replay compacte et déplaçable */}
@@ -2511,6 +2526,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
             <input ref={dateRef} className="tv-hidden-date" type="date" onChange={(e) => jumpTo(e.target.value)} style={{ position: "absolute", opacity: 0, width: 1, height: 1, left: 20, bottom: 0, pointerEvents: "none" }} aria-label="Date de départ" />
             <TvBtn title="Sélectionner la barre : clique sur une bougie pour reprendre le replay à partir de là" active={selBar} onClick={() => { setPlaying(false); R.selBar = !selBar; setSelBar(!selBar); }} style={{ padding: "5px 6px" }}>{TvIco.cut}</TvBtn>
             <TvBtn title="Lecture / pause (Espace) · → avancer · ← reculer" onClick={() => setPlaying((p) => !p)} style={{ padding: "5px 6px" }}>{playing ? TvIco.pause : TvIco.play}</TvBtn>
+            <TvBtn title="Bougie suivante : affiche une seule nouvelle bougie, complète" onClick={() => { if (!R.agg) return; const A = R.agg; const endK = (k) => (k + 1 < A.start.length ? A.start[k + 1] - 1 : R.rows.length - 1); let tgt = endK(R.k); if (tgt <= R.ci) tgt = endK(R.k + 1); step(Math.max(1, tgt - R.ci)); }} style={{ padding: "5px 5px" }}>{TvIco.candle}</TvBtn>
             <TvBtn title="Avancer d'une journée" onClick={() => goToIndex(tvBsRows(R.rows, R.rows[R.ci][0] + 86400))} style={{ padding: "5px 6px" }}>{TvIco.day}</TvBtn>
             {botOn && <TvBtn title="Le bot place ses trades pendant le replay · clique pour l'arrêter" onClick={stopBot} style={{ padding: "4px 8px", fontSize: 12, fontWeight: 700, color: "#9c27b0" }}><Cpu size={15} />Bot</TvBtn>}
             <select value={spd} onChange={(e) => { setSpd(+e.target.value); e.target.blur(); }} title="Vitesse" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_SPEEDS.map(([v]) => <option key={v} value={v}>{String(v).replace(".", ",")}x</option>)}</select>
