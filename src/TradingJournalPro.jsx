@@ -8,7 +8,7 @@ import {
   Settings,
   BookOpen, Newspaper, RefreshCw, MoreHorizontal, CalendarDays,
   Target, Zap, ThumbsUp, ThumbsDown, Share2, Star, AlertTriangle, Check, Clipboard, FolderOpen, LineChart, Timer, SlidersHorizontal, ArrowLeftRight, Lightbulb, Coins, CircleDot,
-  Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward,
+  Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward, SeparatorVertical, Radio, Minimize2, Maximize2, Magnet, Copy,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -1237,21 +1237,39 @@ function tvParse(txt) {
   return out;
 }
 /* bougies : jour / H4 / semaine alignés sur 17:00 New York (22:00 UTC), mois du 1er au dernier jour */
-function tvBucket(t, min) {
-  if (min === 43200) { const d = new Date((t + 7200) * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000 - 7200; }
-  if (min === 10080) return Math.floor((t - 338400) / 604800) * 604800 + 338400;
-  const s = min * 60;
-  if (min >= 240) return Math.floor((t + 7200) / s) * s - 7200;
-  return Math.floor(t / s) * s;
+/* décalage de New York (heure d'été : 2e dimanche de mars → 1er dimanche de novembre) */
+const tvDst = {};
+function tvNyOff(t) {
+  const y = new Date(t * 1000).getUTCFullYear(); let r = tvDst[y];
+  if (!r) { const sun = (m, n) => { const d = new Date(Date.UTC(y, m, 1)); return Date.UTC(y, m, 1 + ((7 - d.getUTCDay()) % 7) + 7 * (n - 1)) / 1000; }; r = tvDst[y] = [sun(2, 2) + 7 * 3600, sun(10, 1) + 6 * 3600]; }
+  return t >= r[0] && t < r[1] ? -4 * 3600 : -5 * 3600;
 }
-function tvBuild(rows, min) {
+/* bougies H2 et plus alignées sur la clôture de New York (17:00 NY), comme TradingView / OANDA.
+   Sans ça, la reprise du dimanche soir crée une mini-bougie plate (les « pointillés ») en daily. */
+function tvBucket(t, min) {
+  if (min < 120) { const s = min * 60; return Math.floor(t / s) * s; }
+  const off = tvNyOff(t) + 7 * 3600, loc = t + off; /* 17:00 NY devient 00:00 */
+  if (min === 43200) { const d = new Date(loc * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000 - off; }
+  if (min === 10080) { const day = Math.floor(loc / 86400), dow = (day + 4) % 7; return (day - ((dow + 6) % 7)) * 86400 - off; }
+  const s = min * 60; return Math.floor(loc / s) * s - off;
+}
+function tvBuild(rows, min, hideFlat) {
   const bars = [], start = []; let cur = null;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i], b = tvBucket(r[0], min);
     if (!cur || cur.time !== b) { cur = { time: b, open: r[1], high: r[2], low: r[3], close: r[4] }; bars.push(cur); start.push(i); }
     else { if (r[2] > cur.high) cur.high = r[2]; if (r[3] < cur.low) cur.low = r[3]; cur.close = r[4]; }
   }
-  return { bars, start, min };
+  if (!hideFlat || bars.length < 3) return { bars, start, min, hideFlat };
+  /* bougies quasi plates (reprise du dimanche, jours fériés, fin d'année) : fusionnées dans la suivante, sans espace */
+  const rg = bars.map((b) => b.high - b.low).sort((a, b) => a - b), lim = Math.max(rg[Math.floor(rg.length / 2)] * 0.08, 0.00003);
+  const B = [], S = [];
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    if (i < bars.length - 1 && b.high - b.low < lim) { const n = bars[i + 1]; n.open = b.open; n.high = Math.max(n.high, b.high); n.low = Math.min(n.low, b.low); start[i + 1] = start[i]; continue; }
+    B.push(b); S.push(start[i]);
+  }
+  return { bars: B, start: S, min, hideFlat };
 }
 function tvDemo() {
   let s = 11; const R = () => (s = (s * 16807) % 2147483647) / 2147483647; const g = () => Math.sqrt(-2 * Math.log(R() + 1e-9)) * Math.cos(6.283 * R());
@@ -1269,9 +1287,79 @@ function TvBtn({ active, children, onClick, title, style }) {
     style={{ background: active ? TV.hover : h ? TV.hover : "transparent", color: active ? TV.blue : TV.text, border: "none", borderRadius: 4, padding: "6px 8px", fontSize: 14, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, ...style }}>{children}</button>;
 }
 
+/* ---------- outils de dessin (mêmes groupes que la barre de gauche de TradingView) ---------- */
+const TV_TOOLS = {
+  cursor: { n: "Croix", mode: 0 },
+  trend: { n: "Ligne de tendance", k: "Alt+T", mode: 2 }, ray: { n: "Rayon", mode: 2 }, ext: { n: "Ligne étendue", mode: 2 },
+  hline: { n: "Ligne horizontale", k: "Alt+H", mode: 1 }, hray: { n: "Rayon horizontal", mode: 1 }, vline: { n: "Ligne verticale", k: "Alt+V", mode: 1 },
+  cross: { n: "Ligne croisée", k: "Alt+C", mode: 1 }, channel: { n: "Canal parallèle", mode: 2 },
+  fib: { n: "Retracement de Fibonacci", k: "Alt+F", mode: 2 }, fibext: { n: "Extension de Fibonacci basée sur la tendance", mode: 3 },
+  long: { n: "Position longue", mode: "pos" }, short: { n: "Position courte", mode: "pos" },
+  pricerange: { n: "Plage de prix", mode: 2 }, daterange: { n: "Plage de dates", mode: 2 }, measure: { n: "Plage de dates et de prix", mode: 2 },
+  brush: { n: "Pinceau", mode: "free" }, highlight: { n: "Surligneur", mode: "free" }, rect: { n: "Rectangle", k: "Alt+Maj+R", mode: 2 },
+  circle: { n: "Cercle", mode: 2 }, triangle: { n: "Triangle", mode: 3 }, path: { n: "Chemin (double-clic pour finir)", mode: "multi" },
+  text: { n: "Texte", mode: 1 }, label: { n: "Étiquette de prix", mode: 1 },
+};
+const TV_GROUPS = [
+  { id: "cur", n: "Curseurs", items: ["cursor"] },
+  { id: "lines", n: "Lignes", items: ["trend", "ray", "ext", "hline", "hray", "vline", "cross", "channel"] },
+  { id: "fibs", n: "Fibonacci", items: ["fib", "fibext"] },
+  { id: "proj", n: "Prévision et mesure", items: ["long", "short", "pricerange", "daterange", "measure"] },
+  { id: "shapes", n: "Formes", items: ["brush", "highlight", "rect", "circle", "triangle", "path"] },
+  { id: "notes", n: "Annotations", items: ["text", "label"] },
+];
+const TV_FAV_DEFAULT = ["cursor", "trend", "brush", "rect", "hray", "short", "fib", "long", "path", "text"];
+const TV_ICON = {
+  cursor: "M14 5v7M14 16v7M5 14h7M16 14h7",
+  trend: "M7 21L21 7|c7,21|c21,7",
+  ray: "M7 21L23 5|c7,21|c14,14",
+  ext: "M4 24L24 4|c10,18|c18,10",
+  hline: "M3 14h22|c14,14",
+  hray: "M9 14h16|c7,14",
+  vline: "M14 3v22|c14,14",
+  cross: "M3 14h22M14 3v22|c14,14",
+  channel: "M4 18L18 6M10 24L24 12|c4,18|c18,6",
+  fib: "M4 6h20M4 11h20M4 17h20M4 22h20|c4,6|c4,22",
+  fibext: "M4 22L10 8L16 16M14 6h10M14 11h10M14 17h10|c4,22|c10,8|c16,16",
+  long: "M4 7h18M4 14h18M4 21h18|tL",
+  short: "M4 7h18M4 14h18M4 21h18|tS",
+  pricerange: "M6 5h16M6 23h16M14 8v12M11 11l3-3 3 3M11 17l3 3 3-3",
+  daterange: "M5 6v16M23 6v16M8 14h12M11 11l-3 3 3 3M17 11l3 3-3 3",
+  measure: "M4 20L20 4L24 8L8 24ZM8 16l2 2M11 13l2 2M14 10l2 2M17 7l2 2",
+  brush: "M5 20c3 0 4-3 6-5s5-1 6-4 4-5 6-5M5 20c0 2 1 3 3 3",
+  highlight: "M6 22l3-3 10-10 3 3-10 10-3 3ZM6 22h6",
+  rect: "M6 6h16v16H6Z|c6,6|c22,6|c6,22|c22,22",
+  circle: "M14 4a10 10 0 1 0 0.01 0",
+  triangle: "M14 5L24 22H4Z",
+  path: "M4 20L10 12L16 17L24 8M20 8h4v4",
+  text: "M7 7h14M14 7v15M11 22h6",
+  label: "M4 14L9 8h15v12H9Z",
+  magnet: "M7 5v9a7 7 0 0 0 14 0V5h-4v9a3 3 0 0 1-6 0V5ZM7 9h4M17 9h4",
+  stay: "M6 22l3-1 11-11-2-2L7 19ZM16 6l2 2M19 18h6v6h-6ZM20 18v-2a2 2 0 0 1 4 0v2",
+  lock: "M8 13h12v10H8ZM10 13V9a4 4 0 0 1 8 0v4",
+  eye: "M3 14s4-7 11-7 11 7 11 7-4 7-11 7S3 14 3 14ZM14 11a3 3 0 1 0 0.01 0",
+  eyeoff: "M3 14s4-7 11-7 11 7 11 7-4 7-11 7S3 14 3 14ZM5 23L23 5",
+  trash: "M6 8h16M10 8V5h8v3M8 8l1 15h10l1-15M12 12v7M16 12v7",
+  star: "M14 4l3 6.5 7 .8-5.2 4.8 1.4 7L14 19.6 7.8 23l1.4-7L4 11.3l7-.8Z",
+  grip: "",
+};
+function TvIcon({ id, size = 28, color = "currentColor" }) {
+  const spec = TV_ICON[id] || ""; const parts = spec.split("|");
+  return (
+    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {parts[0] && <path d={parts[0]} />}
+      {parts.slice(1).map((p, i) => p[0] === "c" ? <circle key={i} cx={p.slice(1).split(",")[0]} cy={p.slice(1).split(",")[1]} r="2.3" fill="#fff" /> : p[0] === "t" ? <text key={i} x="10.5" y="18.5" fontSize="8" fill={color} stroke="none" fontWeight="700">{p.slice(1)}</text> : null)}
+    </svg>
+  );
+}
+const tvDur = (s) => { const m = Math.round(s / 60); if (m < 60) return m + " min"; if (m < 1440) return Math.floor(m / 60) + " h " + (m % 60 ? (m % 60) + " min" : ""); const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60); return d + " j" + (h ? " " + h + " h" : ""); };
+function tvLoadFav() { try { const v = JSON.parse(localStorage.getItem("tjp_tv_fav")); if (Array.isArray(v)) return v; } catch (e) {} return TV_FAV_DEFAULT; }
+function tvSaveFav(v) { try { localStorage.setItem("tjp_tv_fav", JSON.stringify(v)); } catch (e) {} }
+
 function BacktestLab() {
   const wrapRef = useRef(null), boxRef = useRef(null), ovRef = useRef(null), fileRef = useRef(null), dateRef = useRef(null);
-  const R = useRef({ rows: null, ci: 0, agg: null, k: -1, chart: null, series: null, trades: [], draws: [], hist: [], redo: [], tool: "cursor", pend: null, drag: null, mouse: null, off: 0 }).current;
+  const R = useRef({ rows: null, ci: 0, agg: null, k: -1, chart: null, series: null, trades: [], draws: [], hist: [], redo: [], tool: "cursor", pend: null, drag: null, mouse: null, off: 0, sel: -1, dragS: null, magnet: false, clip: null }).current;
+  const barRef = useRef(null);
   const [, force] = useState(0); const rerender = () => force((x) => x + 1);
   const [tf, setTf] = useState(240);
   const [tool, setToolS] = useState("cursor");
@@ -1289,6 +1377,19 @@ function BacktestLab() {
   const [msg, setMsg] = useState("");
   const [tz, setTz] = useState(-5);
   const [legend, setLegend] = useState(null);
+  const [fs, setFs] = useState(false);
+  const [live, setLive] = useState(false);
+  const [magnet, setMagnetS] = useState(false);
+  const [groupLast, setGroupLast] = useState({});
+  const [hideFlat, setHideFlat] = useState(true);
+  const [fly, setFly] = useState(null);
+  const [fav, setFav] = useState(tvLoadFav);
+  const [favOpen, setFavOpen] = useState(true);
+  const [favPos, setFavPos] = useState({ x: 10, y: 110 });
+  const [stay, setStay] = useState(false);
+  const [lockAll, setLockAll] = useState(false);
+  const pickTool = (id) => { const g = TV_GROUPS.find((x) => x.items.includes(id)); if (g) setGroupLast((o) => ({ ...o, [g.id]: id })); R.pend = null; setTool(id); };
+  const setMagnet = (v) => { R.magnet = v; setMagnetS(v); };
   const setTool = (t) => { R.tool = t; setToolS(t); };
   const tfSec = () => (R.agg ? R.agg.min * 60 : 900);
 
@@ -1322,7 +1423,7 @@ function BacktestLab() {
     rebuild(tf, true);
   };
   useEffect(() => { load(); }, []);
-  useEffect(() => { if (R.rows) rebuild(tf, false); }, [tf, tz]);
+  useEffect(() => { if (R.rows) rebuild(tf, false); }, [tf, tz, hideFlat]);
 
   function liveBar() {
     const A = R.agg; if (!A || R.k < 0) return null; const i0 = A.start[R.k];
@@ -1331,7 +1432,7 @@ function BacktestLab() {
   }
   function rebuild(min, scroll) {
     R.off = tz * 3600;
-    if (!R.agg || R.agg.min !== min || R.agg.src !== R.rows) { R.agg = tvBuild(R.rows, min); R.agg.src = R.rows; }
+    if (!R.agg || R.agg.min !== min || R.agg.src !== R.rows || R.agg.hideFlat !== hideFlat) { R.agg = tvBuild(R.rows, min, hideFlat); R.agg.src = R.rows; }
     R.k = tvBs(R.agg.start, R.ci);
     const data = new Array(R.k + 1);
     for (let i = 0; i < R.k; i++) { const b = R.agg.bars[i]; data[i] = { time: b.time + R.off, open: b.open, high: b.high, low: b.low, close: b.close }; }
@@ -1378,6 +1479,8 @@ function BacktestLab() {
   };
   const randomDate = () => { if (R.trades.some((t) => t.status !== "closed")) { setMsg("Ferme tes positions avant de changer de date."); return; } R.ci = 2000 + Math.floor(Math.random() * Math.max(1, R.rows.length - 4000)); setPlaying(false); rebuild(tf, true); };
 
+  const openDate = () => { const d = dateRef.current; if (!d) return; try { d.showPicker ? d.showPicker() : d.click(); } catch (err) { d.click(); } };
+
   /* ---------- ordres ---------- */
   const bid = () => R.rows[R.ci][4], ask = () => R.rows[R.ci][4] + TV_SPREAD * TV_PIP;
   const balance = () => cap + R.trades.filter((t) => t.status === "closed").reduce((a, t) => a + t.pnl, 0);
@@ -1400,9 +1503,7 @@ function BacktestLab() {
     if (i < 0) lg = (t - A.bars[0].time) / tfSec();
     else if (i >= R.k) lg = R.k + (t - A.bars[R.k].time) / tfSec();
     else lg = i + (t - A.bars[i].time) / ((A.bars[i + 1].time - A.bars[i].time) || tfSec());
-    const f0 = Math.floor(lg), a = ts.logicalToCoordinate(f0), b = ts.logicalToCoordinate(f0 + 1);
-    if (a === null || b === null) return null;
-    return a + (lg - f0) * (b - a);
+    return ts.logicalToCoordinate(lg);
   };
   const xToT = (x) => {
     const A = R.agg, lg = R.chart.timeScale().coordinateToLogical(x); if (lg === null) return null;
@@ -1452,34 +1553,121 @@ function BacktestLab() {
       if (tr.status !== "closed") { tagList.push([tr.tp, TV.green], [tr.entry, "#787b86"], [tr.sl, TV.red]); }
     }
     /* dessins */
-    const all = R.pend ? [...R.draws, R.pend] : R.draws;
-    for (const s of all) drawShape(c, s, cw);
+    const all = [...R.draws, ...(R.lastMeasure ? [R.lastMeasure] : []), ...(R.pend ? [R.pend] : [])];
+    all.forEach((s, i) => drawShape(c, s, cw, ch, i === R.sel && s !== R.pend && !R.lockAll));
+    const tb = barRef.current;
+    if (tb) {
+      const s = R.draws[R.sel];
+      if (s && !R.dragS && !R.hidden && !R.lockAll) { const { x1, y1, x2, y2 } = shapePts(s); const top = Math.min(y1 ?? 40, y2 ?? y1 ?? 40); const left = Math.max(10, Math.min(cw - 260, ((x1 ?? cw / 2) + (x2 ?? x1 ?? cw / 2)) / 2 - 120)); tb.style.display = "flex"; tb.style.left = left + "px"; tb.style.top = Math.max(60, top - 50) + "px"; }
+      else tb.style.display = "none";
+    }
     /* mesure */
     c.restore();
     /* étiquettes sur l'échelle de prix */
     for (const [p, col] of tagList) { const y = pToY(p); if (y === null || y < 0 || y > ch) continue; c.fillStyle = col; c.fillRect(cw + 1, y - 10, psw - 1, 20); c.fillStyle = "#fff"; c.fillText(p.toFixed(TV_DIG), cw + 6, y + 4); }
   }
-  function drawShape(c, s, cw) {
-    c.lineWidth = 1.5; c.strokeStyle = TV.blue; c.fillStyle = TV.blue;
-    const y1 = pToY(s.p1); const x1 = s.t1 !== undefined ? tToX(s.t1) : 0; if (y1 === null) return;
-    if (s.type === "hline") { c.beginPath(); c.moveTo(0, y1); c.lineTo(cw, y1); c.stroke(); return; }
-    if (s.type === "hray") { c.beginPath(); c.moveTo(x1, y1); c.lineTo(cw, y1); c.stroke(); return; }
-    if (s.p2 === undefined) return; const x2 = tToX(s.t2), y2 = pToY(s.p2);
-    if (s.type === "trend") { c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); [[x1, y1], [x2, y2]].forEach(([x, y]) => { c.fillStyle = "#fff"; c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); c.stroke(); }); }
-    if (s.type === "rect") { c.fillStyle = "rgba(41,98,255,0.13)"; c.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); c.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); }
-    if (s.type === "fib") {
-      const lv = [[1, "#787b86"], [0.79, "#089981"], [0.705, "#f2a636"], [0.62, "#089981"], [0.5, "#787b86"], [0, "#787b86"], [-0.27, "#2962ff"], [-0.62, "#2962ff"], [-1, "#2962ff"]];
-      const xl = Math.min(x1, x2), xr = Math.max(x1, x2) + 40;
-      const yA = pToY(s.p2 + (s.p1 - s.p2) * 0.62), yB = pToY(s.p2 + (s.p1 - s.p2) * 0.79); c.fillStyle = "rgba(8,153,129,0.10)"; c.fillRect(xl, Math.min(yA, yB), xr - xl, Math.abs(yB - yA));
-      c.setLineDash([4, 3]); c.strokeStyle = "#787b86"; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); c.setLineDash([]);
-      c.font = "11px -apple-system, Roboto, sans-serif";
-      for (const [v, col] of lv) { const p = s.p2 + (s.p1 - s.p2) * v, y = pToY(p); c.strokeStyle = col; c.lineWidth = 1; c.beginPath(); c.moveTo(xl, y); c.lineTo(xr, y); c.stroke(); c.fillStyle = col; c.fillText(`${v} (${p.toFixed(TV_DIG)})`, xr + 4, y + 4); }
+  /* ---------- dessins : modèle générique (liste de points {t, p}) ---------- */
+  const PX = (pt) => ({ x: tToX(pt.t), y: pToY(pt.p) });
+  function shapePts(s) {
+    const P = s.pts.map(PX); const xs = P.map((q) => q.x).filter((v) => v !== null), ys = P.map((q) => q.y).filter((v) => v !== null);
+    if (s.type === "text" || s.type === "label") { const w = Math.max(40, (s.text || "").length * 7.5 + 16); return { x1: P[0].x, y1: P[0].y - 22, x2: P[0].x + w, y2: P[0].y }; }
+    return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
+  }
+  const segDist = (px, py, x1, y1, x2, y2) => { const dx = x2 - x1, dy = y2 - y1, L = dx * dx + dy * dy || 1; const u = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / L)); return Math.hypot(px - (x1 + u * dx), py - (y1 + u * dy)); };
+  /* prolonge un segment jusqu'au bord du graphique (rayon, ligne étendue) */
+  const extend = (a, b, cw, ch, both) => {
+    const dx = b.x - a.x, dy = b.y - a.y; if (!dx && !dy) return [a, b]; const big = (cw + ch) * 4 / Math.hypot(dx, dy);
+    return [both ? { x: a.x - dx * big, y: a.y - dy * big } : a, { x: b.x + dx * big, y: b.y + dy * big }];
+  };
+  function chanLines(s) { const a = s.pts[0], b = s.pts[1]; return [[PX(a), PX(b)], [PX({ t: a.t, p: a.p + s.off }), PX({ t: b.t, p: b.p + s.off })]]; }
+  function handlesOf(s) {
+    const P = s.pts.map(PX);
+    if (s.type === "rect") { const [a, b] = P; return [[a.x, a.y, "0"], [b.x, b.y, "1"], [a.x, b.y, "c3"], [b.x, a.y, "c4"], [(a.x + b.x) / 2, a.y, "ey0"], [(a.x + b.x) / 2, b.y, "ey1"], [a.x, (a.y + b.y) / 2, "ex0"], [b.x, (a.y + b.y) / 2, "ex1"]]; }
+    if (s.type === "channel") { const [, l2] = chanLines(s); return [[P[0].x, P[0].y, "0"], [P[1].x, P[1].y, "1"], [(l2[0].x + l2[1].x) / 2, (l2[0].y + l2[1].y) / 2, "off"]]; }
+    if (s.type === "brush" || s.type === "highlight") return [[P[0].x, P[0].y, "x"], [P[P.length - 1].x, P[P.length - 1].y, "x"]];
+    if (s.type === "hline") return [[(boxRef.current.clientWidth - 60) / 2, P[0].y, "0"]];
+    if (s.type === "vline") return [[P[0].x, boxRef.current.clientHeight / 2, "0"]];
+    return P.map((q, i) => [q.x, q.y, String(i)]);
+  }
+  function drawShape(c, s, cw, ch, selected) {
+    if (R.hidden && s !== R.pend) return;
+    const col = s.color || (s.type === "highlight" ? "#f2a636" : TV.blue); const lw = s.w || 1.5;
+    c.lineWidth = lw; c.strokeStyle = col; c.fillStyle = col; c.setLineDash(s.dash ? [6, 4] : []);
+    const P = s.pts.map(PX); if (P.some((q) => q.x === null || q.y === null) && !["hline", "vline"].includes(s.type)) return;
+    const line = (a, b) => { c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke(); };
+    const poly = (pts, close) => { c.beginPath(); pts.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); if (close) c.closePath(); };
+    const font = (px) => (c.font = `${px}px -apple-system, Roboto, sans-serif`);
+    const T = s.type, [a, b] = P;
+    if (T === "hline") line({ x: 0, y: a.y }, { x: cw, y: a.y });
+    else if (T === "hray") line(a, { x: cw, y: a.y });
+    else if (T === "vline") line({ x: a.x, y: 0 }, { x: a.x, y: ch });
+    else if (T === "cross") { line({ x: 0, y: a.y }, { x: cw, y: a.y }); line({ x: a.x, y: 0 }, { x: a.x, y: ch }); }
+    else if (T === "trend") line(a, b);
+    else if (T === "ray") { const [p, q] = extend(a, b, cw, ch, false); line(p, q); }
+    else if (T === "ext") { const [p, q] = extend(a, b, cw, ch, true); line(p, q); }
+    else if (T === "channel") { const [l1, l2] = chanLines(s); poly([l1[0], l1[1], l2[1], l2[0]], true); c.fillStyle = tvAlpha(col, 0.1); c.fill(); line(l1[0], l1[1]); line(l2[0], l2[1]); c.setLineDash([4, 4]); line({ x: (l1[0].x + l2[0].x) / 2, y: (l1[0].y + l2[0].y) / 2 }, { x: (l1[1].x + l2[1].x) / 2, y: (l1[1].y + l2[1].y) / 2 }); c.setLineDash([]); }
+    else if (T === "rect") { c.fillStyle = tvAlpha(col, 0.15); c.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); c.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); }
+    else if (T === "circle") { c.beginPath(); c.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.abs(b.x - a.x) / 2 || 1, Math.abs(b.y - a.y) / 2 || 1, 0, 0, 7); c.fillStyle = tvAlpha(col, 0.15); c.fill(); c.stroke(); }
+    else if (T === "triangle") { poly(P, P.length > 2); c.fillStyle = tvAlpha(col, 0.15); if (P.length > 2) c.fill(); c.stroke(); }
+    else if (T === "path") { poly(P, false); c.stroke(); if (P.length > 1) { const p = P[P.length - 2], q = P[P.length - 1], ang = Math.atan2(q.y - p.y, q.x - p.x); c.beginPath(); c.moveTo(q.x, q.y); c.lineTo(q.x - 10 * Math.cos(ang - 0.4), q.y - 10 * Math.sin(ang - 0.4)); c.moveTo(q.x, q.y); c.lineTo(q.x - 10 * Math.cos(ang + 0.4), q.y - 10 * Math.sin(ang + 0.4)); c.stroke(); } }
+    else if (T === "brush") { c.lineJoin = c.lineCap = "round"; poly(P, false); c.stroke(); }
+    else if (T === "highlight") { c.lineJoin = c.lineCap = "round"; c.lineWidth = Math.max(10, lw * 7); c.strokeStyle = tvAlpha(col, 0.35); poly(P, false); c.stroke(); }
+    else if (T === "fib" || T === "fibext") {
+      const lv = T === "fib" ? [[1, "#787b86"], [0.79, "#089981"], [0.705, "#f2a636"], [0.62, "#089981"], [0.5, "#787b86"], [0, "#787b86"], [-0.27, "#2962ff"], [-0.62, "#2962ff"], [-1, "#2962ff"]] : [[0, "#787b86"], [0.618, "#089981"], [1, "#787b86"], [1.272, "#2962ff"], [1.618, "#2962ff"], [2, "#9c27b0"], [2.618, "#f23645"]];
+      const lvl = (v) => (T === "fib" ? s.pts[1].p + (s.pts[0].p - s.pts[1].p) * v : (s.pts[2] || s.pts[1]).p + (s.pts[1].p - s.pts[0].p) * v);
+      const xl = Math.min(...P.map((q) => q.x)), xr = Math.max(...P.map((q) => q.x)) + 40;
+      if (T === "fib") { const yA = pToY(lvl(0.62)), yB = pToY(lvl(0.79)); c.fillStyle = "rgba(8,153,129,0.10)"; c.fillRect(xl, Math.min(yA, yB), xr - xl, Math.abs(yB - yA)); }
+      c.setLineDash([4, 3]); c.strokeStyle = "#787b86"; c.lineWidth = 1; poly(P, false); c.stroke(); c.setLineDash([]); font(11);
+      if (T === "fib" || P.length > 2) for (const [v, lc] of lv) { const p = lvl(v), y = pToY(p); c.strokeStyle = lc; line({ x: xl, y }, { x: xr, y }); c.fillStyle = lc; c.fillText(`${v} (${p.toFixed(TV_DIG)})`, xr + 4, y + 4); }
     }
-    if (s.type === "measure") {
-      const pips = (s.p2 - s.p1) / TV_PIP, up = pips >= 0; c.fillStyle = up ? "rgba(41,98,255,0.15)" : "rgba(242,54,69,0.15)"; c.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
-      const bars = Math.round(Math.abs(s.t2 - s.t1) / tfSec()); const txt = `${pips.toFixed(1)} pips (${((pips * TV_PIP) / s.p1 * 100).toFixed(2)}%) · ${bars} barres`;
-      const w = c.measureText(txt).width + 14; c.fillStyle = up ? TV.blue : TV.red; c.fillRect((x1 + x2) / 2 - w / 2, Math.max(y1, y2) + 6, w, 22); c.fillStyle = "#fff"; c.fillText(txt, (x1 + x2) / 2 - w / 2 + 7, Math.max(y1, y2) + 21);
+    else if (T === "measure" || T === "pricerange" || T === "daterange") {
+      const pips = (s.pts[1].p - s.pts[0].p) / TV_PIP, up = pips >= 0, bars = Math.round((s.pts[1].t - s.pts[0].t) / tfSec());
+      const bg = up ? "rgba(41,98,255,0.15)" : "rgba(242,54,69,0.15)", fg = up ? TV.blue : TV.red;
+      c.fillStyle = bg; c.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); c.strokeStyle = fg; c.lineWidth = 1;
+      if (T !== "daterange") line({ x: (a.x + b.x) / 2, y: a.y }, { x: (a.x + b.x) / 2, y: b.y });
+      if (T !== "pricerange") line({ x: a.x, y: (a.y + b.y) / 2 }, { x: b.x, y: (a.y + b.y) / 2 });
+      const txt = T === "pricerange" ? `${pips.toFixed(1)} pips (${((pips * TV_PIP) / s.pts[0].p * 100).toFixed(2)}%)` : T === "daterange" ? `${Math.abs(bars)} barres · ${tvDur(Math.abs(s.pts[1].t - s.pts[0].t))}` : `${pips.toFixed(1)} pips (${((pips * TV_PIP) / s.pts[0].p * 100).toFixed(2)}%) · ${Math.abs(bars)} barres · ${tvDur(Math.abs(s.pts[1].t - s.pts[0].t))}`;
+      font(12); const w = c.measureText(txt).width + 14; c.fillStyle = fg; c.fillRect((a.x + b.x) / 2 - w / 2, Math.max(a.y, b.y) + 6, w, 22); c.fillStyle = "#fff"; c.fillText(txt, (a.x + b.x) / 2 - w / 2 + 7, Math.max(a.y, b.y) + 21);
     }
+    else if (T === "text") { font(s.size || 14); c.fillStyle = col; c.fillText(s.text || "Texte", a.x, a.y); }
+    else if (T === "label") { font(12); const txt = s.text || s.pts[0].p.toFixed(TV_DIG); const w = c.measureText(txt).width + 14; c.fillStyle = col; c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(a.x + 8, a.y - 11); c.lineTo(a.x + 8 + w, a.y - 11); c.lineTo(a.x + 8 + w, a.y + 11); c.lineTo(a.x + 8, a.y + 11); c.closePath(); c.fill(); c.fillStyle = "#fff"; c.fillText(txt, a.x + 14, a.y + 4); }
+    c.setLineDash([]);
+    if (selected) { for (const [hx, hy] of handlesOf(s)) { c.fillStyle = "#fff"; c.strokeStyle = TV.blue; c.lineWidth = 1.5; c.beginPath(); c.arc(hx, hy, 5, 0, 7); c.fill(); c.stroke(); } }
+  }
+  function hitShape(p) {
+    const box = boxRef.current, cw = box.clientWidth - R.chart.priceScale("right").width(), ch = box.clientHeight;
+    const idx = R.draws.map((_, i) => i).reverse(); if (R.sel >= 0) idx.unshift(R.sel);
+    for (const i of idx) {
+      const s = R.draws[i]; if (!s || s.locked) continue;
+      for (const [hx, hy, mode] of handlesOf(s)) if (mode !== "x" && Math.hypot(p.x - hx, p.y - hy) < 8) return { i, mode };
+      const P = s.pts.map(PX), T = s.type, [a, b] = P; let hit = false;
+      if (T === "hline") hit = Math.abs(p.y - a.y) < 6;
+      else if (T === "hray") hit = p.x >= a.x - 4 && Math.abs(p.y - a.y) < 6;
+      else if (T === "vline") hit = Math.abs(p.x - a.x) < 6;
+      else if (T === "cross") hit = Math.abs(p.y - a.y) < 6 || Math.abs(p.x - a.x) < 6;
+      else if (T === "trend") hit = segDist(p.x, p.y, a.x, a.y, b.x, b.y) < 6;
+      else if (T === "ray" || T === "ext") { const [u, v] = extend(a, b, cw, ch, T === "ext"); hit = segDist(p.x, p.y, u.x, u.y, v.x, v.y) < 6; }
+      else if (T === "path" || T === "brush" || T === "highlight" || T === "triangle" || T === "fibext") { const Q = T === "triangle" ? [...P, P[0]] : P; for (let j = 1; j < Q.length; j++) if (segDist(p.x, p.y, Q[j - 1].x, Q[j - 1].y, Q[j].x, Q[j].y) < (T === "highlight" ? 10 : 6)) hit = true; }
+      else if (T === "channel") { const [l1, l2] = chanLines(s); hit = segDist(p.x, p.y, l1[0].x, l1[0].y, l1[1].x, l1[1].y) < 6 || segDist(p.x, p.y, l2[0].x, l2[0].y, l2[1].x, l2[1].y) < 6; if (!hit) { const yA = l1[0].y + ((p.x - l1[0].x) / ((l1[1].x - l1[0].x) || 1)) * (l1[1].y - l1[0].y), yB = yA + (l2[0].y - l1[0].y); hit = p.x >= Math.min(a.x, b.x) && p.x <= Math.max(a.x, b.x) && p.y >= Math.min(yA, yB) && p.y <= Math.max(yA, yB); } }
+      else { const bb = shapePts(s); const pad = T === "fib" ? 40 : 0; hit = p.x >= bb.x1 - 4 && p.x <= bb.x2 + pad + 4 && p.y >= bb.y1 - 4 && p.y <= bb.y2 + 4; }
+      if (hit) return { i, mode: "move" };
+    }
+    return null;
+  }
+  /* aimant : colle au plus proche O/H/L/C de la bougie (mode Aimant de TradingView) */
+  function snapPt(x, y, force) {
+    const t = xToT(x); let pr = yToP(y);
+    if ((R.magnet || force) && R.agg) {
+      const lg = Math.round(R.chart.timeScale().coordinateToLogical(x));
+      if (lg >= 0 && lg <= R.k) { const b = lg === R.k ? liveBar() : R.agg.bars[lg]; let bd = 1e9; for (const v of [b.open, b.high, b.low, b.close]) { const d = Math.abs(pToY(v) - y); if (d < bd && d < 30) { bd = d; pr = v; } } }
+    }
+    return { t, p: pr };
+  }
+  function commit(s) {
+    if (s.type === "triangle" && s.pts.length < 3) return;
+    if ((s.type === "path") && s.pts.length < 2) return;
+    R.draws.push(s); R.sel = R.draws.length - 1; R.redo = [];
+    if (!R.stay) setTool("cursor"); rerender();
   }
 
   /* ---------- souris : dessins et glisser SL/TP ---------- */
@@ -1496,16 +1684,38 @@ function BacktestLab() {
       return null;
     };
     const down = (e) => {
-      if (!R.agg) return; const p = pos(e);
+      if (!R.agg || (e.button !== undefined && e.button !== 0)) return; const p = pos(e);
+      if (R.lastMeasure) R.lastMeasure = null;
       if (p.x > el.clientWidth - R.chart.priceScale("right").width()) return;
-      const hit = R.tool === "cursor" ? hitTrade(p) : null;
-      if (!hit && R.tool === "cursor") return;
+      const tool = R.tool;
+      if (tool === "cursor") {
+        const th = hitTrade(p);
+        if (th) { e.stopPropagation(); e.preventDefault(); R.drag = th; return; }
+        const sh = R.lockAll || R.hidden ? null : hitShape(p);
+        if (sh) {
+          e.stopPropagation(); e.preventDefault();
+          let i = sh.i; if (e.ctrlKey || e.metaKey) { const cp = JSON.parse(JSON.stringify(R.draws[i])); R.draws.push(cp); i = R.draws.length - 1; } /* Ctrl + glisser = cloner */
+          R.sel = i; R.dragS = { i, mode: sh.mode, x0: p.x, y0: p.y, a0: { t: xToT(p.x), p: yToP(p.y) }, orig: JSON.parse(JSON.stringify(R.draws[i])) }; rerender(); return;
+        }
+        if (R.sel !== -1) { R.sel = -1; rerender(); }
+        return;
+      }
       e.stopPropagation(); e.preventDefault();
-      if (hit) { R.drag = hit; return; }
-      const t = xToT(p.x), pr = yToP(p.y);
-      if (R.tool === "long" || R.tool === "short") { order(R.tool === "long" ? 1 : -1, { entry: pr, byRisk: true }); setTool("cursor"); return; }
-      if (R.tool === "hline" || R.tool === "hray") { R.draws.push({ type: R.tool, t1: t, p1: pr }); R.hist.push("d"); setTool("cursor"); rerender(); return; }
-      R.pend = { type: R.tool, t1: t, p1: pr, t2: t, p2: pr };
+      const pt = snapPt(p.x, p.y, e.ctrlKey), def = TV_TOOLS[tool];
+      if (def.mode === "pos") { order(tool === "long" ? 1 : -1, { entry: pt.p, byRisk: true }); if (!R.stay) setTool("cursor"); return; }
+      if (def.mode === 1) {
+        const s = { type: tool, pts: [pt] };
+        if (tool === "text") { const txt = window.prompt("Texte :", "Texte"); if (!txt) return; s.text = txt; }
+        commit(s); return;
+      }
+      if (def.mode === "free") { R.pend = { type: tool, pts: [pt] }; return; }
+      if (def.mode === 3 || def.mode === "multi") {
+        if (!R.pend) R.pend = { type: tool, pts: [pt, { ...pt }] };
+        else { R.pend.pts[R.pend.pts.length - 1] = pt; if (def.mode === 3 && R.pend.pts.length >= 3) { const s = R.pend; R.pend = null; commit(s); return; } R.pend.pts.push({ ...pt }); }
+        return;
+      }
+      R.pend = { type: tool, pts: [pt, { ...pt }], drag: true };
+      if (tool === "channel") R.pend.off = -20 * TV_PIP;
     };
     const move = (e) => {
       if (!R.agg) return; const p = pos(e); R.mouse = p;
@@ -1516,31 +1726,79 @@ function BacktestLab() {
         if (kind === "entry") { const d = pr - tr.entry; tr.entry += d; tr.sl += d; tr.tp += d; }
         return;
       }
-      if (R.pend) { e.stopPropagation(); e.preventDefault(); R.pend.t2 = xToT(p.x); R.pend.p2 = yToP(p.y); return; }
-      el.style.cursor = R.tool !== "cursor" ? "crosshair" : hitTrade(p) ? "ns-resize" : "";
+      if (R.dragS) {
+        e.stopPropagation(); e.preventDefault();
+        const D = R.dragS, s = R.draws[D.i], o = D.orig; if (!s) return;
+        const pt = snapPt(p.x, p.y, e.ctrlKey), m = D.mode;
+        if (m === "move") {
+          let dt = xToT(p.x) - D.a0.t, dp = yToP(p.y) - D.a0.p;
+          if (e.shiftKey) { if (Math.abs(p.x - D.x0) > Math.abs(p.y - D.y0)) dp = 0; else dt = 0; } /* Maj = un seul axe */
+          if (s.type === "hline") dt = 0; if (s.type === "vline") dp = 0;
+          s.pts = o.pts.map((q) => ({ t: q.t + dt, p: q.p + dp }));
+        } else if (m === "off") { const a = s.pts[0], b = s.pts[1]; const pl = a.p + ((pt.t - a.t) / ((b.t - a.t) || 1)) * (b.p - a.p); s.off = pt.p - pl; }
+        else if (m === "c3") { s.pts[0].t = pt.t; s.pts[1].p = pt.p; }
+        else if (m === "c4") { s.pts[1].t = pt.t; s.pts[0].p = pt.p; }
+        else if (m === "ey0") s.pts[0].p = pt.p; else if (m === "ey1") s.pts[1].p = pt.p;
+        else if (m === "ex0") s.pts[0].t = pt.t; else if (m === "ex1") s.pts[1].t = pt.t;
+        else { const j = +m; if (s.type === "hline") s.pts[j].p = pt.p; else if (s.type === "vline") s.pts[j].t = pt.t; else s.pts[j] = pt; }
+        return;
+      }
+      if (R.pend) {
+        e.stopPropagation(); e.preventDefault(); const pt = snapPt(p.x, p.y, e.ctrlKey), P = R.pend.pts;
+        if (TV_TOOLS[R.pend.type].mode === "free") { const last = PX(P[P.length - 1]); if (Math.hypot(last.x - p.x, last.y - p.y) > 3) P.push(pt); }
+        else { P[P.length - 1] = pt; if (e.shiftKey && R.pend.type === "trend") P[1].p = P[0].p; }
+        return;
+      }
+      if (R.tool !== "cursor") { el.style.cursor = "crosshair"; return; }
+      const sh = R.lockAll || R.hidden ? null : hitShape(p);
+      el.style.cursor = hitTrade(p) ? "ns-resize" : sh ? (sh.mode === "move" ? "move" : "pointer") : "";
     };
     const up = () => {
       if (R.drag) { R.drag = null; rerender(); }
-      if (R.pend) { if (R.pend.t2 !== R.pend.t1 || R.pend.p2 !== R.pend.p1) { if (R.pend.type !== "measure") { R.draws.push(R.pend); R.hist.push("d"); } } R.pend = null; setTool("cursor"); rerender(); }
+      if (R.dragS) { R.dragS = null; rerender(); }
+      if (R.pend && (R.pend.drag || TV_TOOLS[R.pend.type].mode === "free")) {
+        const s = R.pend; R.pend = null; delete s.drag;
+        const a = PX(s.pts[0]), b = PX(s.pts[s.pts.length - 1]);
+        if (s.pts.length > 1 && Math.hypot(a.x - b.x, a.y - b.y) > 3) { if (s.type === "measure") { R.lastMeasure = s; rerender(); if (!R.stay) setTool("cursor"); } else commit(s); }
+        else if (!R.stay) setTool("cursor");
+      }
+    };
+    const dbl = (e) => {
+      if (R.pend && TV_TOOLS[R.pend.type].mode === "multi") { e.stopPropagation(); const s = R.pend; R.pend = null; s.pts.pop(); if (s.pts.length > 2 && Math.hypot(PX(s.pts[s.pts.length - 1]).x - PX(s.pts[s.pts.length - 2]).x, 0) < 3) s.pts.pop(); commit(s); return; }
+      const sh = hitShape(pos(e)); if (sh && (R.draws[sh.i].type === "text" || R.draws[sh.i].type === "label")) { const s = R.draws[sh.i]; const txt = window.prompt("Texte :", s.text || ""); if (txt !== null) { s.text = txt; rerender(); } }
     };
     const leave = () => { R.mouse = null; };
     el.addEventListener("mousedown", down, true); el.addEventListener("touchstart", down, { capture: true, passive: false });
     el.addEventListener("mousemove", move, true); el.addEventListener("touchmove", move, { capture: true, passive: false });
+    el.addEventListener("dblclick", dbl, true);
     window.addEventListener("mouseup", up); window.addEventListener("touchend", up); el.addEventListener("mouseleave", leave);
-    return () => { el.removeEventListener("mousedown", down, true); el.removeEventListener("touchstart", down, true); el.removeEventListener("mousemove", move, true); el.removeEventListener("touchmove", move, true); window.removeEventListener("mouseup", up); window.removeEventListener("touchend", up); el.removeEventListener("mouseleave", leave); };
+    return () => { el.removeEventListener("mousedown", down, true); el.removeEventListener("touchstart", down, true); el.removeEventListener("mousemove", move, true); el.removeEventListener("touchmove", move, true); el.removeEventListener("dblclick", dbl, true); window.removeEventListener("mouseup", up); window.removeEventListener("touchend", up); el.removeEventListener("mouseleave", leave); };
   }, [slP, rr, risk, qty, cap]);
 
-  /* ---------- clavier (comme TradingView : Maj+→ avance) ---------- */
+  /* ---------- clavier : raccourcis de TradingView ---------- */
   useEffect(() => {
     const k = (e) => {
       if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
-      if (e.key === "ArrowRight" && (e.shiftKey || true)) { e.preventDefault(); stepMinutes(); }
-      else if (e.key === " ") { e.preventDefault(); setPlaying((p) => !p); }
-      else if (e.key === "Escape") { setTool("cursor"); R.pend = null; }
-      else if (e.altKey && (e.key === "t" || e.key === "T")) setTool("trend");
-      else if (e.altKey && (e.key === "h" || e.key === "H")) setTool("hline");
-      else if (e.altKey && (e.key === "f" || e.key === "F")) setTool("fib");
-      else if ((e.ctrlKey || e.metaKey) && e.key === "z") { R.draws.pop(); rerender(); }
+      const key = e.key.toLowerCase(), sel = R.draws[R.sel];
+      if (R.pend && (e.key === "Enter" || e.key === "Escape") && TV_TOOLS[R.pend.type].mode === "multi") { const s = R.pend; R.pend = null; s.pts.pop(); commit(s); return; }
+      if ((key === "delete" || key === "backspace") && sel) { e.preventDefault(); R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; rerender(); return; }
+      if (e.key.startsWith("Arrow") && sel && !e.shiftKey) { /* flèches = décaler le dessin sélectionné */
+        e.preventDefault(); const dt = e.key === "ArrowRight" ? tfSec() : e.key === "ArrowLeft" ? -tfSec() : 0, dp = e.key === "ArrowUp" ? TV_PIP : e.key === "ArrowDown" ? -TV_PIP : 0;
+        sel.pts = sel.pts.map((q) => ({ t: q.t + dt, p: q.p + dp })); rerender(); return;
+      }
+      if (e.key === "ArrowRight") { e.preventDefault(); stepMinutes(); return; }
+      if (e.shiftKey && e.key === "ArrowDown") { e.preventDefault(); setPlaying((p) => !p); return; }
+      if (e.key === " ") { e.preventDefault(); setPlaying((p) => !p); return; }
+      if (e.key === "Escape") { if (R.tool !== "cursor" || R.pend) { setTool("cursor"); R.pend = null; } else if (R.sel !== -1) { R.sel = -1; rerender(); } else if (fs) setFs(false); return; }
+      if (e.altKey && e.shiftKey && key === "r") { e.preventDefault(); setTool("rect"); return; }
+      const alt = { t: "trend", h: "hline", v: "vline", c: "cross", f: "fib" };
+      if (e.altKey && alt[key]) { e.preventDefault(); setTool(alt[key]); return; }
+      if (e.altKey && key === "g") { e.preventDefault(); openDate(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.altKey && key === "h") { e.preventDefault(); R.hidden = !R.hidden; rerender(); return; }
+      if ((e.ctrlKey || e.metaKey) && key === "c" && sel) { R.clip = JSON.parse(JSON.stringify(sel)); return; }
+      if ((e.ctrlKey || e.metaKey) && key === "v" && R.clip) { e.preventDefault(); const c = JSON.parse(JSON.stringify(R.clip)); c.pts = c.pts.map((q) => ({ t: q.t, p: q.p + 5 * TV_PIP })); R.draws.push(c); R.sel = R.draws.length - 1; rerender(); return; }
+      if ((e.ctrlKey || e.metaKey) && key === "z") { e.preventDefault(); const d = R.draws.pop(); if (d) R.redo.push(d); R.sel = -1; rerender(); return; }
+      if ((e.ctrlKey || e.metaKey) && key === "y") { e.preventDefault(); const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); return; }
     };
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
   });
@@ -1565,7 +1823,6 @@ function BacktestLab() {
   const wins = closed.filter((t) => t.pnl > 0), gw = wins.reduce((a, t) => a + t.pnl, 0), gl = -closed.filter((t) => t.pnl <= 0).reduce((a, t) => a + t.pnl, 0);
   const curT = R.rows ? new Date((R.rows[R.ci][0] + tz * 3600) * 1000).toISOString().slice(0, 16).replace("T", " ") : "";
   const tfName = TV_TFS.find((x) => x[1] === tf)[0];
-  const tools = [["cursor", Crosshair, "Curseur"], ["trend", Slash, "Ligne de tendance (Alt+T)"], ["hline", Minus, "Ligne horizontale (Alt+H)"], ["hray", MoveHorizontal, "Rayon horizontal"], ["fib", Baseline, "Retracement de Fibonacci (Alt+F)"], ["rect", Square, "Rectangle"], ["long", ArrowUpToLine, "Position longue"], ["short", ArrowDownToLine, "Position courte"], ["measure", Ruler, "Mesurer"]];
   const sep = <span style={{ width: 1, height: 24, background: TV.border, margin: "0 4px" }} />;
   const inp = { border: `1px solid ${TV.border}`, borderRadius: 4, padding: "4px 6px", fontSize: 13, width: 70, color: TV.text, background: "#fff" };
   const priceBox = (side) => (
@@ -1575,7 +1832,7 @@ function BacktestLab() {
   );
 
   return (
-    <div ref={wrapRef} style={{ background: TV.bg, color: TV.text, border: `1px solid ${TV.border}`, borderRadius: 6, overflow: "hidden", display: "flex", flexDirection: "column", height: "calc(100vh - 40px)", minHeight: 560, fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif" }}>
+    <div ref={wrapRef} style={{ background: TV.bg, color: TV.text, border: fs ? "none" : `1px solid ${TV.border}`, borderRadius: fs ? 0 : 6, overflow: "hidden", display: "flex", flexDirection: "column", ...(fs ? { position: "fixed", inset: 0, zIndex: 9999, height: "100vh" } : { height: "calc(100vh - 40px)", minHeight: 560 }), fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif" }}>
       {/* barre du haut */}
       <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, overflowX: "auto", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}><Search size={15} />{TV_PAIR}</div>
@@ -1588,21 +1845,68 @@ function BacktestLab() {
         <TvBtn title="Annuler (Ctrl+Z)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); }}><Undo2 size={17} /></TvBtn>
         <TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); }}><Redo2 size={17} /></TvBtn>
         <div style={{ flex: 1 }} />
+        <TvBtn active={live} title="Graphique TradingView en direct (toutes les paires)" onClick={() => setLive((v) => !v)}><Radio size={16} />{live ? "Retour au backtest" : "Live"}</TvBtn>
         <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />Données</TvBtn>
+        <TvBtn title={fs ? "Quitter le plein écran (Échap)" : "Plein écran"} onClick={() => setFs((v) => !v)}>{fs ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</TvBtn>
         <input ref={fileRef} type="file" accept=".csv,.txt" multiple hidden onChange={(e) => onFiles([...e.target.files])} />
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        {/* barre d'outils de gauche */}
-        <div style={{ width: 52, borderRight: `4px solid ${TV.hover}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, paddingTop: 6, flexShrink: 0 }}>
-          {tools.map(([id, Ic, title]) => <TvBtn key={id} title={title} active={tool === id} onClick={() => setTool(id)} style={{ padding: 8 }}><Ic size={20} strokeWidth={1.5} /></TvBtn>)}
+        {/* barre d'outils de gauche (groupes avec menu, comme TradingView) */}
+        <div style={{ width: 52, borderRight: `4px solid ${TV.hover}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, paddingTop: 4, flexShrink: 0, position: "relative", zIndex: 30 }}>
+          {TV_GROUPS.map((g) => {
+            const cur = g.items.includes(tool) ? tool : groupLast[g.id] || g.items[0];
+            return (
+              <div key={g.id} style={{ position: "relative", display: "flex", alignItems: "center" }} className="tv-grp">
+                <TvBtn title={TV_TOOLS[cur].n + (TV_TOOLS[cur].k ? ` (${TV_TOOLS[cur].k})` : "")} active={tool === cur} onClick={() => pickTool(cur)} style={{ padding: 2 }}><TvIcon id={cur} /></TvBtn>
+                {g.items.length > 1 && <button title={g.n} onClick={() => setFly(fly === g.id ? null : g.id)} style={{ position: "absolute", right: -9, width: 10, height: 24, border: "none", background: "transparent", color: TV.muted, cursor: "pointer", padding: 0, fontSize: 11 }}>›</button>}
+                {fly === g.id && (
+                  <div style={{ position: "absolute", left: 50, top: 0, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 0", minWidth: 300, zIndex: 40 }}>
+                    <div style={{ fontSize: 11, color: TV.muted, padding: "2px 14px 6px", textTransform: "uppercase", letterSpacing: 0.6 }}>{g.n}</div>
+                    {g.items.map((id) => (
+                      <div key={id} onClick={() => { pickTool(id); setFly(null); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 14px", cursor: "pointer", background: tool === id ? TV.hover : "transparent", fontSize: 14, color: TV.text }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = tool === id ? TV.hover : "transparent")}>
+                        <TvIcon id={id} /> <span style={{ flex: 1 }}>{TV_TOOLS[id].n}</span>
+                        {TV_TOOLS[id].k && <span style={{ fontSize: 12, color: TV.muted }}>{TV_TOOLS[id].k}</span>}
+                        <span title={fav.includes(id) ? "Retirer des favoris" : "Ajouter aux favoris"} onClick={(e) => { e.stopPropagation(); const v = fav.includes(id) ? fav.filter((x) => x !== id) : [...fav, id]; setFav(v); tvSaveFav(v); }} style={{ color: fav.includes(id) ? "#f2a636" : TV.border, display: "flex" }}><svg width="18" height="18" viewBox="0 0 28 28" fill={fav.includes(id) ? "#f2a636" : "none"} stroke="currentColor" strokeWidth="1.4"><path d={TV_ICON.star} /></svg></span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <span style={{ width: 28, height: 1, background: TV.border, margin: "4px 0" }} />
+          <TvBtn title="Mode aimant : colle au plus haut, plus bas, ouverture ou clôture (Ctrl = temporaire)" active={magnet} onClick={() => setMagnet(!magnet)} style={{ padding: 2 }}><TvIcon id="magnet" /></TvBtn>
+          <TvBtn title="Rester en mode dessin" active={stay} onClick={() => { R.stay = !stay; setStay(!stay); }} style={{ padding: 2 }}><TvIcon id="stay" /></TvBtn>
+          <TvBtn title="Verrouiller tous les dessins" active={lockAll} onClick={() => { R.lockAll = !lockAll; setLockAll(!lockAll); R.sel = -1; }} style={{ padding: 2 }}><TvIcon id="lock" /></TvBtn>
+          <TvBtn title="Masquer tous les dessins (Ctrl+Alt+H)" active={R.hidden} onClick={() => { R.hidden = !R.hidden; R.sel = -1; rerender(); }} style={{ padding: 2 }}><TvIcon id={R.hidden ? "eyeoff" : "eye"} /></TvBtn>
+          <TvBtn title={favOpen ? "Masquer la barre des favoris" : "Afficher la barre des favoris"} active={favOpen} onClick={() => setFavOpen(!favOpen)} style={{ padding: 2 }}><TvIcon id="star" /></TvBtn>
           <div style={{ flex: 1 }} />
-          <TvBtn title="Supprimer tous les dessins" onClick={() => { R.draws = []; rerender(); }} style={{ padding: 8, marginBottom: 8 }}><Trash2 size={20} strokeWidth={1.5} /></TvBtn>
+          <TvBtn title="Supprimer tous les dessins" onClick={() => { R.redo = [...R.draws]; R.draws = []; R.sel = -1; rerender(); }} style={{ padding: 2, marginBottom: 8 }}><TvIcon id="trash" /></TvBtn>
         </div>
 
         {/* graphique */}
-        <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+        <div style={{ position: "relative", flex: 1, minWidth: 0 }} onMouseDown={() => fly && setFly(null)}>
+          {live && <div style={{ position: "absolute", inset: 0, zIndex: 20, background: TV.bg }}><TvLive /></div>}
           <div ref={boxRef} style={{ position: "absolute", inset: 0 }} />
+          <div ref={barRef} style={{ position: "absolute", display: "none", zIndex: 8, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.15)", padding: 3, gap: 2, alignItems: "center" }}>
+            {TV_COLORS.map((col) => <button key={col} title="Couleur" onClick={() => { const s = R.draws[R.sel]; if (s) { s.color = col; rerender(); } }} style={{ width: 20, height: 20, borderRadius: 4, border: (R.draws[R.sel] || {}).color === col ? `2px solid ${TV.text}` : `1px solid ${TV.border}`, background: col, cursor: "pointer", padding: 0 }} />)}
+            <span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} />
+            {[1, 2, 3].map((w) => <TvBtn key={w} title={`Épaisseur ${w}`} active={((R.draws[R.sel] || {}).w || 1.5) === w || (w === 1 && !(R.draws[R.sel] || {}).w)} onClick={() => { const s = R.draws[R.sel]; if (s) { s.w = w; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, height: w + 0.5, background: TV.text }} /></TvBtn>)}
+            <span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} />
+            <TvBtn title="Ligne pointillée" active={!!(R.draws[R.sel] || {}).dash} onClick={() => { const s = R.draws[R.sel]; if (s) { s.dash = !s.dash; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, borderTop: `2px dashed ${TV.text}` }} /></TvBtn>
+            <TvBtn title="Verrouiller ce dessin" onClick={() => { const s = R.draws[R.sel]; if (s) { s.locked = true; R.sel = -1; rerender(); } }} style={{ padding: "4px 6px" }}><TvIcon id="lock" size={18} /></TvBtn>
+            <TvBtn title="Cloner (Ctrl + glisser)" onClick={() => { const s = R.draws[R.sel]; if (s) { const c = JSON.parse(JSON.stringify(s)); c.pts = c.pts.map((q) => ({ t: q.t, p: q.p + 5 * TV_PIP })); R.draws.push(c); R.sel = R.draws.length - 1; rerender(); } }} style={{ padding: "4px 6px" }}><Copy size={16} /></TvBtn>
+            <TvBtn title="Supprimer (Suppr)" onClick={() => { if (R.sel >= 0) { R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; rerender(); } }} style={{ padding: "4px 6px" }}><Trash2 size={16} /></TvBtn>
+          </div>
+                    {/* barre des favoris flottante (déplaçable) */}
+          {favOpen && !live && (
+            <div style={{ position: "absolute", left: favPos.x, top: favPos.y, zIndex: 9, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", padding: "3px 4px", gap: 1 }}>
+              <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); const sx = e.clientX - favPos.x, sy = e.clientY - favPos.y; const mv = (ev) => setFavPos({ x: Math.max(0, ev.clientX - sx), y: Math.max(0, ev.clientY - sy) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
+                style={{ cursor: "grab", padding: "0 4px", color: TV.muted, fontSize: 14, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>
+              {fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={id} title={TV_TOOLS[id].n} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><TvIcon id={id} /></TvBtn>)}
+            </div>
+          )}
           <canvas ref={ovRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 3 }} />
           {/* légende OHLC + SELL / BUY */}
           <div style={{ position: "absolute", left: 10, top: 6, zIndex: 4, pointerEvents: "none" }}>
@@ -1619,7 +1923,7 @@ function BacktestLab() {
           </div>
           {/* barre de replay */}
           <div style={{ position: "absolute", left: "50%", bottom: 42, transform: "translateX(-50%)", zIndex: 5, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 2, padding: 4, whiteSpace: "nowrap" }}>
-            <TvBtn title="Sélectionner la date" onClick={() => dateRef.current.showPicker ? dateRef.current.showPicker() : dateRef.current.click()}><CalendarDays size={17} />Sélectionner la date</TvBtn>
+            <TvBtn title="Aller à la date (Alt+G)" onClick={openDate}><CalendarDays size={17} />Sélectionner la date</TvBtn>
             <input ref={dateRef} type="date" onChange={(e) => jumpTo(e.target.value)} style={{ position: "absolute", opacity: 0, width: 1, height: 1, left: 20, bottom: 0 }} aria-label="Date de départ" />
             <TvBtn title="Date aléatoire" onClick={randomDate}>?</TvBtn>
             {sep}
@@ -1678,16 +1982,23 @@ function BacktestLab() {
                 <label>Capital<br /><input type="number" value={cap} onChange={(e) => setCap(+e.target.value)} style={{ ...inp, width: 90 }} /></label>
                 <label>SL par défaut (pips)<br /><input type="number" step="0.5" value={slP} onChange={(e) => setSlP(+e.target.value)} style={inp} /></label>
                 <label>TP (R)<br /><input type="number" step="0.5" value={rr} onChange={(e) => setRr(+e.target.value)} style={inp} /></label>
+                <label style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={hideFlat} onChange={(e) => setHideFlat(e.target.checked)} />Masquer les bougies plates (pointillés)</label>
                 <label>Risque % (outil position)<br /><input type="number" step="0.1" value={risk} onChange={(e) => setRisk(+e.target.value)} style={inp} /></label>
                 <button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={closeAll}>Tout fermer</button>
                 <button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => { R.trades = []; R.draws = []; rerender(); }}>Réinitialiser la session</button>
-                <div style={{ color: TV.muted, fontSize: 12, maxWidth: 420 }}>Spread 0,2 pip. → ou Espace pour le replay, Alt+T tendance, Alt+H horizontale, Alt+F Fibonacci, Échap pour annuler l'outil.</div>
+                <div style={{ color: TV.muted, fontSize: 12, maxWidth: 420 }}>Spread 0,2 pip. Replay : → ou Maj+→ bougie suivante, Espace ou Maj+↓ lecture. Dessins : Alt+T tendance, Alt+H horizontale, Alt+V verticale, Alt+F Fibonacci, Alt+Maj+R rectangle. Clique un dessin pour le sélectionner, glisse-le pour le déplacer, glisse une poignée pour le modifier. Maj = un seul axe, Ctrl + glisser = cloner, Ctrl+C / Ctrl+V, flèches = décaler, Suppr = effacer.</div>
               </div>)}
           </div>
         )}
       </div>
     </div>
   );
+}
+function tvAlpha(hex, a) { const h = hex.replace("#", ""); const n = parseInt(h.length === 3 ? h.split("").map((x) => x + x).join("") : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
+const TV_COLORS = ["#2962ff", "#f23645", "#089981", "#f2a636", "#9c27b0", "#131722"];
+function TvLive() {
+  useEffect(() => { if (!document.querySelector("script[data-tv-adv]")) { const sc = document.createElement("script"); sc.type = "module"; sc.src = "https://widgets.tradingview-widget.com/w/en/tv-advanced-chart.js"; sc.dataset.tvAdv = "1"; document.head.appendChild(sc); } }, []);
+  return React.createElement("tv-advanced-chart", { "allow-symbol-change": "", symbol: "OANDA:EURUSD", interval: "240", theme: "light", style: { display: "block", width: "100%", height: "100%" } });
 }
 function tvBsBars(bars, t) { let lo = 0, hi = bars.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (bars[m].time <= t) { r = m; lo = m + 1; } else hi = m - 1; } return r; }
 
