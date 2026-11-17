@@ -8,7 +8,7 @@ import {
   Settings,
   BookOpen, Newspaper, RefreshCw, MoreHorizontal, CalendarDays,
   Target, Zap, ThumbsUp, ThumbsDown, Share2, Star, AlertTriangle, Check, Clipboard, FolderOpen, LineChart, Timer, SlidersHorizontal, ArrowLeftRight, Lightbulb, Coins, CircleDot,
-  Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward, StepBack, Scissors, SkipForward, SeparatorVertical, Radio, Minimize2, Maximize2, Magnet, Copy,
+  Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward, StepBack, Scissors, SkipForward, Cpu, SeparatorVertical, Radio, Minimize2, Maximize2, Magnet, Copy,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -1497,6 +1497,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   const [unseen, setUnseen] = useState(0);
   const [indOpen, setIndOpen] = useState(false);
   const [selBar, setSelBar] = useState(false);
+  const [botOn, setBotOn] = useState(false);
   const [rectKind, setRectKindS] = useState(() => { try { return localStorage.getItem("tjp_tv_rk") || "OB"; } catch (e) { return "OB"; } });
   const [rayKind, setRayKindS] = useState(() => { try { return localStorage.getItem("tjp_tv_yk") || "SSL"; } catch (e) { return "SSL"; } });
   const setRectKind = (k) => { setRectKindS(k); R.rectKind = k; try { localStorage.setItem("tjp_tv_rk", k); } catch (e) {} };
@@ -1644,12 +1645,12 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     tr.status = "closed"; tr.exit = px; tr.closeT = t ?? R.rows[R.ci][0]; tr.reason = why;
     tr.pips = ((px - tr.entry) * tr.side) / TV_PIP; tr.pnl = tr.pips * TV_PIPVAL * tr.lots; tr.r = tr.risk ? tr.pnl / tr.risk : 0;
     R.unseenAdd = (R.unseenAdd || 0) + 1;
-    if (R.onSave && !R.demo && !tr.appId) { tr.appId = uid(); R.saveApp(tr); }
+    if (R.onSave && !R.demo && !tr.appId && !tr.bot && !(curSess() || {}).bot) { tr.appId = uid(); R.saveApp(tr); }
   }
   function step(n) {
     if (!R.rows) return; const end = Math.min(R.rows.length - 1, R.ci + n);
     while (R.ci < end) {
-      R.ci++; fill(R.ci); yearCheck(R.rows[R.ci][0]);
+      R.ci++; fill(R.ci); yearCheck(R.rows[R.ci][0]); if (R.botOn) botTick();
       const k = tvBs(R.agg.start, R.ci);
       if (k !== R.k) { const pb = R.agg.bars[R.k]; R.series.update({ time: pb.time + R.off, open: pb.open, high: pb.high, low: pb.low, close: pb.close }); R.k = k; }
     }
@@ -1660,12 +1661,42 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   }
   const stepMinutes = () => { const target = R.rows[R.ci][0] + stepTf * 60; let i = R.ci; while (i < R.rows.length - 1 && R.rows[i + 1][0] <= target) i++; step(Math.max(1, i - R.ci)); };
   useEffect(() => { if (!playing) return; const id = setInterval(stepMinutes, TV_SPEEDS.find((s) => s[0] === spd)[1]); return () => clearInterval(id); }, [playing, spd, stepTf, tf]);
+  /* ---------- bot en direct : les trades du bot apparaissent quand le replay arrive à leur heure ---------- */
+  const kindPd = { BISI: "BISI", SIBI: "SIBI", OB: "OB", BB: "Breaker Block" };
+  function botTick() {
+    const Q = R.botQ; if (!Q) return; const now = R.rows[R.ci][0];
+    while (R.botPtr < Q.length && Q[R.botPtr].t <= now) {
+      const q = Q[R.botPtr++]; if (R.trades.some((x) => x.bot && x.status !== "closed")) continue;
+      if (R.seq == null) R.seq = Math.max(0, ...R.trades.map((x) => x.no || 0)); R.seq += 1;
+      const lots = Math.max(0.01, Math.round(((balance() * R.cfg.risk) / 100 / (Math.abs(q.entry - q.sl) / TV_PIP * TV_PIPVAL)) * 100) / 100);
+      const tr = { id: Date.now() + Math.random(), no: R.seq, bot: true, pd: [{ tf: q.tf, pd: kindPd[q.kind] || q.kind, auto: true }], riskPct: R.cfg.risk, type: "lmt", side: q.dir, entry: q.entry, sl: q.sl, tp: q.tp, sl0: q.sl, lots, status: "open", openT: q.t, placedT: q.t, anchorT: q.formT, tf: q.tf };
+      tr.risk = (Math.abs(q.entry - q.sl) / TV_PIP) * TV_PIPVAL * lots; tr.endT = q.t + 40 * tfSec();
+      R.trades.push(tr);
+      R.draws.push({ type: "rect", kind: q.kind === "BB" ? "BB" : q.kind, tf: q.tf, bot: true, pts: [{ t: q.formT, p: q.top }, { t: q.t + 20 * tfSec(), p: q.bot }] });
+      R.unseenAdd = R.unseenAdd || 0;
+    }
+  }
+  const botResync = () => { if (!R.botQ) return; const now = R.rows[R.ci][0]; let lo = 0, hi = R.botQ.length; while (lo < hi) { const m = (lo + hi) >> 1; if (R.botQ[m].t <= now) lo = m + 1; else hi = m; } R.botPtr = lo; };
+  const startBot = () => {
+    if (!R.rows || R.demo) { setMsg("Importe tes données Dukascopy pour lancer le bot."); return; }
+    const bc = botLoadCfg(); setMsg("Calcul des trades du bot…");
+    setTimeout(() => {
+      R.botQ = botRun(R.rows, bc).sort((a, b) => a.t - b.t);
+      let ses = sess.list.find((x) => x.bot);
+      const go = (id, base) => { openSess(id, base); setTimeout(() => { goToIndex(tvBsRows(R.rows, Date.UTC(bc.y0, 0, 2) / 1000)); botResync(); R.botOn = true; setBotOn(true); setStepTf(60); setSpd(5); setPlaying(true); setMsg(`Bot lancé depuis ${bc.y0} : ${R.botQ.length} trades vont se placer pendant le replay. Ils restent à part (pas dans Saisie & stats).`); }, 60); };
+      if (ses) go(ses.id);
+      else { const id = "s" + Date.now(); const base = snapSess(sess); base.list = [...base.list, { id, title: "🤖 Bot", bot: true, ci: null, tf, draws: [], trades: [] }]; go(id, base); }
+    }, 30);
+  };
+  const stopBot = () => { R.botOn = false; setBotOn(false); setPlaying(false); setMsg("Bot arrêté."); };
+  useEffect(() => { const h = () => startBot(); window.addEventListener("tjp-bot-live", h); return () => window.removeEventListener("tjp-bot-live", h); });
+
   /* aller à un index : en avançant, les positions ouvertes continuent (SL / TP vérifiés sur les bougies sautées) */
   const goToIndex = (i) => {
     i = Math.max(50, Math.min(R.rows.length - 1, i)); setPlaying(false);
     if (i > R.ci && R.trades.some((t) => t.status !== "closed")) { for (let j = R.ci + 1; j <= i; j++) { fill(j); yearCheck(R.rows[j][0]); } }
     else if (i > R.ci) { for (let j = R.ci + 1; j <= i; j += 96) yearCheck(R.rows[j][0]); yearCheck(R.rows[i][0]); }
-    R.ci = i; R.curYear = tvYear(R.rows[i][0]);
+    R.ci = i; R.curYear = tvYear(R.rows[i][0]); if (R.botQ) botResync();
     if (R.yearMsg) { setMsg(R.yearMsg); R.yearMsg = null; }
     if (R.unseenAdd) { const n = R.unseenAdd; R.unseenAdd = 0; setUnseen((u) => u + n); }
     rebuild(tf, true);
@@ -2438,6 +2469,12 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
             </div>
           )}
           <canvas ref={ovRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 3 }} />
+          {/* pas de bougies inventées : sans tes données Dukascopy, le graphique reste vide */}
+          {demo && <div style={{ position: "absolute", inset: 0, zIndex: 30, background: TV.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, textAlign: "center", padding: 24 }}>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>Aucune donnée réelle chargée sur cet appareil</div>
+            <div style={{ fontSize: 14, color: TV.muted, maxWidth: 460, lineHeight: 1.5 }}>Le replay utilise uniquement tes vraies bougies EURUSD (Dukascopy, M15 depuis 2010). Importe ton fichier CSV une fois : il reste ensuite dans ce navigateur.</div>
+            <button onClick={() => fileRef.current.click()} style={{ border: "none", background: TV.text, color: "#fff", borderRadius: 8, padding: "10px 18px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: TV_FONT }}>Importer mes données</button>
+          </div>}
           {/* légende OHLC + SELL / BUY */}
           <div style={{ position: "absolute", left: 10, top: 6, zIndex: 4, pointerEvents: "none" }}>
             <div style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 14 }}>
@@ -2457,6 +2494,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
             <TvBtn title="Sélectionner la barre : clique sur une bougie pour reprendre le replay à partir de là" active={selBar} onClick={() => { setPlaying(false); R.selBar = !selBar; setSelBar(!selBar); }} style={{ padding: "5px 6px" }}>{TvIco.cut}</TvBtn>
             <TvBtn title="Lecture / pause (Espace) · → avancer · ← reculer" onClick={() => setPlaying((p) => !p)} style={{ padding: "5px 6px" }}>{playing ? TvIco.pause : TvIco.play}</TvBtn>
             <TvBtn title="Avancer d'une journée" onClick={() => goToIndex(tvBsRows(R.rows, R.rows[R.ci][0] + 86400))} style={{ padding: "5px 6px" }}>{TvIco.day}</TvBtn>
+            {botOn && <TvBtn title="Le bot place ses trades pendant le replay · clique pour l'arrêter" onClick={stopBot} style={{ padding: "4px 8px", fontSize: 12, fontWeight: 700, color: "#9c27b0" }}><Cpu size={15} />Bot</TvBtn>}
             <select value={spd} onChange={(e) => { setSpd(+e.target.value); e.target.blur(); }} title="Vitesse" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_SPEEDS.map(([v]) => <option key={v} value={v}>{String(v).replace(".", ",")}x</option>)}</select>
             <select value={stepTf} onChange={(e) => { setStepTf(+e.target.value); e.target.blur(); }} title="Pas de lecture" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_TFS.slice(0, 10).map(([n, m]) => <option key={n} value={m}>{n}</option>)}</select>
           </div>
@@ -9670,9 +9708,261 @@ function btAgg(list) {
   return { n, w, l, wr: w + l ? w / (w + l) * 100 : 0, R, avg: n ? R / n : 0, pf: gl ? gw / gl : (gw ? Infinity : 0), dd };
 }
 
+/* ============================================================================
+   BOT DE BACKTEST — prend automatiquement les zones ICT selon tes filtres
+   (résultats à part : rien n'est envoyé dans Saisie & stats ni dans Supabase)
+   ============================================================================ */
+const BOT_TFS = [["M15", 15], ["H1", 60], ["H4", 240], ["D", 1440]];
+const BOT_CFG0 = {
+  bisi: true, sibi: true, ob: false, bb: false, /* setups (toujours au 1er contact) */
+  tfs: [60],                                    /* timeframes des zones */
+  trend: true, trendTf: 240,                    /* dans le sens de la tendance */
+  fresh: true,                                  /* zone jamais touchée avant l'entrée */
+  ote: "none",                                  /* none | discount | ote */
+  nest: false, nestTf: 240,                     /* zone dans un FVG du timeframe supérieur */
+  kz: false,                                    /* entrée seulement en killzone (London / New York) */
+  entry: "edge",                                /* edge = bord de la zone, ce = milieu (CE) */
+  rr: 2, be: true, buf: 1, maxSl: 40, minSl: 3, expire: 60, one: true,
+  y0: 2010, y1: 2026,
+};
+function botLoadCfg() { try { const v = { ...BOT_CFG0, ...JSON.parse(localStorage.getItem("tjp_bot_cfg") || "{}") }; v.fresh = true; if (v.fvg !== undefined && v.bisi === undefined) { v.bisi = v.sibi = !!v.fvg; } return v; } catch (e) { return BOT_CFG0; } }
+
+/* swings confirmés (3 bougies de chaque côté) et tendance de structure, sans regarder le futur */
+function botStructure(B) {
+  const n = 3, N = B.length, lastSH = new Array(N).fill(null), lastSL = new Array(N).fill(null), trend = new Array(N).fill(0);
+  let sh = null, sl = null, tr = 0, usedH = false, usedL = false;
+  for (let i = 0; i < N; i++) {
+    const c = i - n; /* le swing en c est confirmé à la clôture de i */
+    if (c >= n) {
+      let hi = true, lo = true;
+      for (let j = 1; j <= n; j++) { if (B[c].high <= B[c - j].high || B[c].high < B[c + j].high) hi = false; if (B[c].low >= B[c - j].low || B[c].low > B[c + j].low) lo = false; }
+      if (hi) { sh = B[c].high; usedH = false; } if (lo) { sl = B[c].low; usedL = false; }
+    }
+    if (sh !== null && !usedH && B[i].close > sh) { tr = 1; usedH = true; }
+    if (sl !== null && !usedL && B[i].close < sl) { tr = -1; usedL = true; }
+    lastSH[i] = sh; lastSL[i] = sl; trend[i] = tr;
+  }
+  return { lastSH, lastSL, trend };
+}
+/* zones d'un timeframe : FVG (BISI / SIBI), order blocks clairs (avec displacement + FVG), breakers */
+function botZones(Z, cfg) {
+  const B = Z.bars, out = [], minGap = 0.5 * TV_PIP * Math.sqrt(Z.min / 15), obsBear = [], obsBull = [];
+  const body = (b) => Math.abs(b.close - b.open);
+  /* gap fort : la bougie du milieu est un vrai displacement (corps ≥ 1,5 × le corps moyen des 10 bougies d'avant) */
+  const strong = (i) => { let s = 0, n = 0; for (let j = Math.max(0, i - 11); j < i - 1; j++) { s += body(B[j]); n++; } return n && body(B[i - 1]) >= 1.5 * (s / n); };
+  const lastOpp = (i, bull) => { for (let j = i - 1; j >= Math.max(0, i - 5); j--) if (bull ? B[j].close < B[j].open : B[j].close > B[j].open) return j; return -1; };
+  for (let i = 2; i < B.length - 1; i++) {
+    const bullF = B[i].low - B[i - 2].high >= minGap && strong(i), bearF = B[i - 2].low - B[i].high >= minGap && strong(i);
+    if (bullF && (cfg.bisi || cfg.fvg)) out.push({ dir: 1, kind: "BISI", top: B[i].low, bot: B[i - 2].high, form: i });
+    if (bearF && (cfg.sibi || cfg.fvg)) out.push({ dir: -1, kind: "SIBI", top: B[i - 2].low, bot: B[i].high, form: i });
+    if (bullF) { const o = lastOpp(i - 1, true); if (o >= 0 && B[i].close > B[o].high) { if (cfg.ob) out.push({ dir: 1, kind: "OB", top: B[o].high, bot: B[o].low, form: i }); obsBull.push({ i: o, top: B[o].high, bot: B[o].low, at: i }); } }
+    if (bearF) { const o = lastOpp(i - 1, false); if (o >= 0 && B[i].close < B[o].low) { if (cfg.ob) out.push({ dir: -1, kind: "OB", top: B[o].high, bot: B[o].low, form: i }); obsBear.push({ i: o, top: B[o].high, bot: B[o].low, at: i }); } }
+    if (cfg.bb) { /* breaker : un OB cassé à la clôture change de camp */
+      for (let k = obsBear.length - 1; k >= 0; k--) { const ob = obsBear[k]; if (i - ob.at > 100) { obsBear.splice(k, 1); continue; } if (i > ob.at && B[i].close > ob.top) { out.push({ dir: 1, kind: "BB", top: ob.top, bot: ob.bot, form: i }); obsBear.splice(k, 1); } }
+      for (let k = obsBull.length - 1; k >= 0; k--) { const ob = obsBull[k]; if (i - ob.at > 100) { obsBull.splice(k, 1); continue; } if (i > ob.at && B[i].close < ob.bot) { out.push({ dir: -1, kind: "BB", top: ob.top, bot: ob.bot, form: i }); obsBull.splice(k, 1); } }
+    }
+  }
+  return out;
+}
+const botKz = (t) => { const loc = t + tvNyOff(t), m = Math.floor((((loc % 86400) + 86400) % 86400) / 60); return (m >= 120 && m < 300) || (m >= 420 && m < 600); }; /* comme le guide : London 2h-5h, NY AM 7h-10h (heure de New York) */
+
+function botRun(rows, cfg) {
+  const aggs = {}, get = (m) => (aggs[m] = aggs[m] || tvBuild(rows, m, true));
+  const T = get(cfg.trendTf), TS = botStructure(T.bars);
+  const trendAt = (t) => { const k = tvBsBars(T.bars, t) - 1; return k >= 0 ? TS.trend[k] : 0; };
+  const rowEnd = (Z, i) => (i + 1 < Z.start.length ? Z.start[i + 1] : rows.length);
+  /* FVG du timeframe supérieur, valides jusqu'à une clôture au-delà */
+  let htf = [];
+  if (cfg.nest) {
+    const H = get(cfg.nestTf), hz = botZones(H, { fvg: true });
+    htf = hz.map((z) => { const act = rowEnd(H, z.form); let inv = rows.length; for (let j = act; j < rows.length && j < act + 20000; j++) { const c = rows[j][4]; if (z.dir > 0 ? c < z.bot : c > z.top) { inv = j; break; } } return { ...z, act, inv }; });
+  }
+  const t0 = Date.UTC(cfg.y0, 0, 1) / 1000, t1 = Date.UTC(cfg.y1 + 1, 0, 1) / 1000;
+  const cands = [];
+  for (const tfm of cfg.tfs) {
+    const Z = get(tfm), ZS = botStructure(Z.bars), zones = botZones(Z, cfg), expRows = Math.round(cfg.expire * tfm / 15);
+    for (const z of zones) {
+      const act = rowEnd(Z, z.form); if (act >= rows.length) continue; const tAct = rows[act][0]; if (tAct < t0 || tAct >= t1) continue;
+      if (cfg.trend && trendAt(tAct) !== z.dir) continue;
+      const entry = cfg.entry === "ce" ? (z.top + z.bot) / 2 : z.dir > 0 ? z.top : z.bot;
+      if (cfg.ote !== "none") {
+        const hi = ZS.lastSH[z.form], lo = ZS.lastSL[z.form]; if (hi == null || lo == null || hi <= lo) continue;
+        const pos = (entry - lo) / (hi - lo); /* 0 = bas du range, 1 = haut */
+        if (cfg.ote === "discount" && (z.dir > 0 ? pos > 0.5 : pos < 0.5)) continue;
+        if (cfg.ote === "ote" && (z.dir > 0 ? pos < 0.21 || pos > 0.38 : pos < 0.62 || pos > 0.79)) continue; /* retracement 62 % – 79 % */
+      }
+      if (cfg.nest && !htf.some((h) => h.dir === z.dir && h.act <= act && h.inv > act && z.bot <= h.top && z.top >= h.bot)) continue;
+      const sl = z.dir > 0 ? z.bot - cfg.buf * TV_PIP : z.top + cfg.buf * TV_PIP, risk = Math.abs(entry - sl);
+      if (risk < cfg.minSl * TV_PIP || risk > cfg.maxSl * TV_PIP) continue;
+      const tp = entry + z.dir * risk * cfg.rr;
+      /* 1er contact avec la zone : c'est la seule chance (zone jamais touchée) */
+      let fill = -1;
+      for (let j = act; j < Math.min(rows.length, act + expRows); j++) {
+        const [, , h, l, c] = rows[j];
+        const touched = z.dir > 0 ? l <= z.top : h >= z.bot;
+        if (touched) { const reach = z.dir > 0 ? l <= entry : h >= entry; if (reach && (!cfg.kz || botKz(rows[j][0]))) fill = j; break; } /* toujours le 1er contact : après, la zone est consommée */
+        if (z.dir > 0 ? c < sl : c > sl) break;
+      }
+      if (fill < 0) continue;
+      /* gestion : SL prioritaire si SL et TP dans la même bougie ; BE automatique à 50 % du TP */
+      let s = sl, out = -1, exit = 0, why = "", be = false;
+      for (let j = fill; j < Math.min(rows.length, fill + 6000); j++) {
+        const [, , h, l] = rows[j];
+        if (z.dir > 0 ? l <= s : h >= s) { out = j; exit = s; why = be ? "BE" : "SL"; break; }
+        if (j > fill && (z.dir > 0 ? h >= tp : l <= tp)) { out = j; exit = tp; why = "TP"; break; }
+        if (cfg.be && !be && j > fill && (z.dir > 0 ? h >= entry + (tp - entry) * 0.5 : l <= entry - (entry - tp) * 0.5)) { s = entry; be = true; }
+      }
+      if (out < 0) continue;
+      const r = ((exit - entry) * z.dir) / risk;
+      cands.push({ kind: z.kind, tf: TV_TFLAB[tfm], dir: z.dir, top: z.top, bot: z.bot, formT: Z.bars[z.form].time, fill, out, t: rows[fill][0], tOut: rows[out][0], entry, sl, tp, r: Math.abs(r) <= 0.1 ? 0 : r, why, pips: ((exit - entry) * z.dir) / TV_PIP });
+    }
+  }
+  cands.sort((a, b) => a.fill - b.fill);
+  const trades = []; let busy = -1;
+  for (const c of cands) { if (cfg.one && c.fill <= busy) continue; trades.push(c); busy = Math.max(busy, c.out); }
+  return trades;
+}
+function botAgg(l) {
+  const n = l.length, w = l.filter((t) => t.r > 0).length, lo = l.filter((t) => t.r < 0).length, R = l.reduce((a, t) => a + t.r, 0);
+  const gw = l.filter((t) => t.r > 0).reduce((a, t) => a + t.r, 0), gl = -l.filter((t) => t.r < 0).reduce((a, t) => a + t.r, 0);
+  let pk = 0, cur = 0, dd = 0, ls = 0, mls = 0; l.forEach((t) => { cur += t.r; pk = Math.max(pk, cur); dd = Math.min(dd, cur - pk); ls = t.r < 0 ? ls + 1 : 0; mls = Math.max(mls, ls); });
+  return { n, w, lo, be: n - w - lo, wr: w + lo ? (w / (w + lo)) * 100 : 0, R, avg: n ? R / n : 0, pf: gl ? gw / gl : gw ? Infinity : 0, dd, mls };
+}
+
+function BacktestBot() {
+  const [cfg, setCfgS] = useState(botLoadCfg);
+  const setCfg = (p) => setCfgS((o) => { const v = { ...o, ...p }; try { localStorage.setItem("tjp_bot_cfg", JSON.stringify(v)); } catch (e) {} return v; });
+  const [rows, setRows] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState(() => { try { return JSON.parse(localStorage.getItem("tjp_bot_res") || "null"); } catch (e) { return null; } });
+  useEffect(() => { /* si le navigateur n'a rien (autre appareil), on reprend le dernier calcul enregistré dans Supabase */
+    if (res) return; try { const c = JSON.parse(localStorage.getItem("tjp_bot_remote") || "null"); if (c && c.t) setRes({ at: c.at, cfg: c.cfg, ms: 0, trades: c.t.map((a) => ({ t: a[0], tOut: a[1], dir: a[2], kind: a[3], tf: a[4], entry: a[5], sl: a[6], tp: a[7], r: a[8], why: a[9], formT: a[10], top: a[11], bot: a[12] })) }); } catch (e) {}
+  }, []);
+  const [show, setShow] = useState(60);
+  useEffect(() => { tvGet(TV_PAIR).then((d) => setRows(d && d.rows && d.rows.length ? d.rows : null)); }, []);
+  const run = () => {
+    if (!rows) return; setBusy(true);
+    setTimeout(() => {
+      const t0 = performance.now(); const trades = botRun(rows, cfg);
+      const r = { at: Date.now(), ms: Math.round(performance.now() - t0), cfg, trades: trades.map((t) => ({ ...t, fill: undefined, out: undefined })) };
+      setRes(r); setShow(60); try { localStorage.setItem("tjp_bot_res", JSON.stringify(r)); } catch (e) {} setBusy(false);
+      try { /* Supabase : dernier calcul en version compacte (1 seule écriture) */
+        const cmp = { at: r.at, cfg: r.cfg, t: r.trades.map((x) => [x.t, x.tOut, x.dir, x.kind, x.tf, +x.entry.toFixed(5), +x.sl.toFixed(5), +x.tp.toFixed(5), +x.r.toFixed(2), x.why, x.formT, +x.top.toFixed(5), +x.bot.toFixed(5)]) };
+        saveSettingsPatch({ bot_runs: cmp });
+      } catch (e) {}
+    }, 30);
+  };
+  const T = (res && res.trades) || [], A = botAgg(T);
+  const group = (fn) => { const m = {}; T.forEach((t) => { const k = fn(t); (m[k] = m[k] || []).push(t); }); return Object.entries(m).map(([k, l]) => ({ k, ...botAgg(l) })).sort((a, b) => b.R - a.R); };
+  const curve = useMemo(() => { let c = 0; return T.map((t, i) => ({ i: i + 1, r: +(c += t.r).toFixed(2) })); }, [res]);
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, marginBottom: 12 };
+  const chip = (on) => ({ padding: "7px 12px", borderRadius: 10, border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purple + "26" : "transparent", color: on ? C.purpleBright : C.textSecondary, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" });
+  const lab = { fontSize: 12, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, margin: "12px 0 6px" };
+  const ck = (k, label) => <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: C.text, cursor: "pointer", padding: "3px 0" }}><input type="checkbox" checked={!!cfg[k]} onChange={(e) => setCfg({ [k]: e.target.checked })} style={{ width: 16, height: 16, accentColor: C.purple }} />{label}</label>;
+  const tfChips = (k, multi) => BOT_TFS.map(([n, m]) => { const on = multi ? cfg[k].includes(m) : cfg[k] === m; return <button key={n} onClick={() => setCfg({ [k]: multi ? (on ? cfg[k].filter((x) => x !== m) : [...cfg[k], m]).filter(Boolean) : m })} style={chip(on)}>{n}</button>; });
+  const yrs = Array.from({ length: new Date().getFullYear() - 2009 }, (_, i) => 2010 + i);
+  const Tbl = ({ title, rows: rs }) => rs.length < 1 ? null : (
+    <div style={{ ...card, marginBottom: 0 }}><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{title}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 46px 52px 70px", gap: 6, fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}><span /><span style={{ textAlign: "center" }}>N</span><span style={{ textAlign: "center" }}>WR</span><span style={{ textAlign: "right" }}>Total</span></div>
+      {rs.map((r) => <div key={r.k} style={{ display: "grid", gridTemplateColumns: "1fr 46px 52px 70px", gap: 6, padding: "7px 0", borderTop: `1px solid ${C.border}`, fontSize: 13.5, opacity: r.n < 10 ? 0.5 : 1 }}>
+        <b>{r.k}</b><span style={{ textAlign: "center", color: C.textMuted }}>{r.n}</span><span style={{ textAlign: "center", color: r.wr >= 50 ? C.teal : C.red, fontWeight: 700 }}>{Math.round(r.wr)}%</span><span style={{ textAlign: "right", fontWeight: 800, color: r.R >= 0 ? C.teal : C.red }}>{fmtR(r.R)}</span></div>)}
+    </div>);
+  return (
+    <div style={{ maxWidth: 980, margin: "0 auto", padding: "8px 0 120px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Bot de backtest</h1>
+        <span style={{ fontSize: 13, color: C.textMuted }}>Données à part · rien n'est ajouté à Saisie & stats</span>
+      </div>
+      <div style={card}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))", gap: 18 }}>
+          <div>
+            <div style={lab}>Setups · toujours au 1er contact</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[["bisi", "BISI"], ["sibi", "SIBI"], ["ob", "Order block"], ["bb", "Breaker"]].map(([k, n]) => <button key={k} onClick={() => setCfg({ [k]: !cfg[k] })} style={chip(cfg[k])}>{n}</button>)}
+            </div>
+            <div style={lab}>Timeframe des zones</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{tfChips("tfs", true)}</div>
+            <div style={lab}>Tendance</div>
+            {ck("trend", "Seulement dans le sens de la tendance de")}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", opacity: cfg.trend ? 1 : 0.4 }}>{tfChips("trendTf", false)}</div>
+          </div>
+          <div>
+            <div style={lab}>Filtres</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "6px 0" }}>
+              {[["none", "Pas de filtre range"], ["discount", "Discount / premium (50 %)"], ["ote", "Zone OTE (62–79 %)"]].map(([k, n]) => <button key={k} onClick={() => setCfg({ ote: k })} style={chip(cfg.ote === k)}>{n}</button>)}
+            </div>
+            {ck("nest", "Zone à l'intérieur d'un FVG du timeframe")}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", opacity: cfg.nest ? 1 : 0.4 }}>{tfChips("nestTf", false)}</div>
+            {ck("kz", "Entrée seulement en killzone (London 2h-5h, NY 7h-10h)")}
+          </div>
+          <div>
+            <div style={lab}>Gestion</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{[["edge", "Entrée au bord"], ["ce", "Entrée au milieu (CE)"]].map(([k, n]) => <button key={k} onClick={() => setCfg({ entry: k })} style={chip(cfg.entry === k)}>{n}</button>)}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>{[1, 1.5, 2, 3, 4].map((v) => <button key={v} onClick={() => setCfg({ rr: v })} style={chip(cfg.rr === v)}>TP {String(v).replace(".", ",")}R</button>)}</div>
+            <div style={{ marginTop: 6 }}>{ck("be", "BE automatique à 50 % du TP")}{ck("one", "Une seule position à la fois")}</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 13, color: C.textSecondary, marginTop: 4 }}>
+              SL max <input type="number" value={cfg.maxSl} onChange={(e) => setCfg({ maxSl: +e.target.value || 40 })} style={{ width: 58, height: 32, padding: "0 6px", fontSize: 13 }} /> pips · Marge <input type="number" step="0.5" value={cfg.buf} onChange={(e) => setCfg({ buf: +e.target.value || 0 })} style={{ width: 52, height: 32, padding: "0 6px", fontSize: 13 }} /> pip
+            </div>
+            <div style={lab}>Période</div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <select value={cfg.y0} onChange={(e) => setCfg({ y0: +e.target.value })} style={{ height: 34, fontSize: 13 }}>{yrs.map((y) => <option key={y}>{y}</option>)}</select> →
+              <select value={cfg.y1} onChange={(e) => setCfg({ y1: +e.target.value })} style={{ height: 34, fontSize: 13 }}>{yrs.map((y) => <option key={y}>{y}</option>)}</select>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 16, flexWrap: "wrap" }}>
+          <button disabled={!rows || busy || !cfg.tfs.length || !(cfg.bisi || cfg.sibi || cfg.ob || cfg.bb)} onClick={run} style={{ padding: "11px 22px", borderRadius: 12, border: "none", background: C.purple, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", opacity: !rows || busy ? 0.5 : 1, fontFamily: "inherit" }}>{busy ? "Calcul en cours…" : "Lancer le bot"}</button>
+          <button disabled={!rows} onClick={() => window.dispatchEvent(new CustomEvent("tjp-bot-live"))} style={{ padding: "11px 18px", borderRadius: 12, border: `1px solid ${C.purple}`, background: "transparent", color: C.purpleBright, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>▶ Regarder le bot en replay</button>
+          <span style={{ fontSize: 12.5, color: C.textMuted }}>{rows ? rows.length.toLocaleString("fr-CA") + " bougies M15 EURUSD" : "Importe tes données dans l'onglet Graphique (bouton Données)"}{res ? ` · dernier calcul : ${res.trades.length} trades en ${res.ms} ms` : ""}</span>
+        </div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>Règles (comme le guide) : seuls les gaps forts comptent (bougie du milieu = displacement), la zone est active à la clôture de la bougie qui la crée, et elle se trade au 1er contact seulement. Ordre limite au bord ou au CE, SL de l'autre côté de la zone + marge. Si le SL et le TP sont touchés dans la même bougie de 15 min, le SL est compté (prudent). Spread non compté.</div>
+      </div>
+
+      {res && <>
+        <div style={card}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
+            {[["Trades", A.n], ["Réussite", A.n ? Math.round(A.wr) + " %" : "—"], ["Total", fmtR(A.R)], ["Moyenne", A.n ? fmtR(A.avg) : "—"], ["Profit factor", A.pf === Infinity ? "∞" : A.pf ? A.pf.toFixed(2) : "—"], ["Drawdown max", fmtR(A.dd)], ["Pertes d'affilée", A.mls], ["Gagnés / perdus / BE", `${A.w} / ${A.lo} / ${A.be}`]].map(([k, v]) => (
+              <div key={k}><div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}>{k}</div><div style={{ fontSize: 19, fontWeight: 800, marginTop: 2, color: k === "Total" ? (A.R >= 0 ? C.teal : C.red) : C.text }}>{v}</div></div>))}
+          </div>
+          {curve.length > 1 && <div style={{ height: 180, marginTop: 14 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={curve} margin={{ top: 5, right: 4, left: -18, bottom: 0 }}>
+                <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="i" hide /><YAxis tick={{ fill: C.textMuted, fontSize: 11 }} tickFormatter={(v) => v + "R"} />
+                <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10 }} formatter={(v) => [v + "R", "Cumul"]} />
+                <Area type="monotone" dataKey="r" stroke={A.R >= 0 ? C.teal : C.red} strokeWidth={2} fill={(A.R >= 0 ? C.teal : C.red) + "22"} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12, marginBottom: 12 }}>
+          <Tbl title="Par setup" rows={group((t) => t.kind + " " + t.tf)} />
+          <Tbl title="Par session d'entrée" rows={group((t) => getSession(new Date(t.t * 1000).toISOString()).replace(" Session", ""))} />
+          <Tbl title="Par année" rows={group((t) => String(new Date(t.t * 1000).getUTCFullYear())).sort((a, b) => a.k.localeCompare(b.k))} />
+          <Tbl title="Par sens" rows={group((t) => (t.dir > 0 ? "Long" : "Short"))} />
+          <Tbl title="Par jour" rows={group((t) => ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"][new Date((t.t + tvNyOff(t.t)) * 1000).getUTCDay()])} />
+        </div>
+        <div style={card}>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Trades du bot <span style={{ fontWeight: 500, color: C.textMuted, fontSize: 13 }}>· ▶ Voir ouvre le graphique juste avant, avec la zone dessinée</span></div>
+          {T.slice().reverse().slice(0, show).map((t, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${C.border}`, fontSize: 13.5 }}>
+              <span style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: t.r > 0 ? C.teal : t.r < 0 ? C.red : C.textMuted }} />
+              <span style={{ width: 120, color: C.textSecondary }}>{tvFmtTime(t.t, "ny", "full")}</span>
+              <b style={{ color: t.dir > 0 ? C.teal : C.red, width: 44 }}>{t.dir > 0 ? "Long" : "Short"}</b>
+              <span style={{ flex: 1 }}>{t.kind} {t.tf} · {t.entry.toFixed(5)} · {t.why}</span>
+              <b style={{ color: t.r > 0 ? C.teal : t.r < 0 ? C.red : C.textMuted }}>{fmtR(t.r)}</b>
+              <button onClick={() => window.dispatchEvent(new CustomEvent("tjp-bt-goto", { detail: { t: t.t, draws: [{ type: "rect", kind: t.kind === "OB" || t.kind === "BB" ? t.kind : t.kind, tf: t.tf, pts: [{ t: t.formT, p: t.top }, { t: t.t + 86400, p: t.bot }] }] } }))} style={{ fontSize: 12, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontFamily: "inherit" }}>▶ Voir</button>
+            </div>))}
+          {T.length > show && <button onClick={() => setShow((s) => s + 200)} style={{ marginTop: 8, padding: "8px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.text, cursor: "pointer", fontFamily: "inherit" }}>Voir plus ({T.length - show} restants)</button>}
+        </div>
+      </>}
+    </div>
+  );
+}
+
 function BacktestPage(props) {
   const [tab, setTab] = useState("chart");
-  useEffect(() => { const h = () => setTab("chart"); window.addEventListener("tjp-bt-goto", h); return () => window.removeEventListener("tjp-bt-goto", h); }, []);
+  useEffect(() => { const h = () => setTab("chart"); window.addEventListener("tjp-bt-goto", h); window.addEventListener("tjp-bot-live", h); return () => { window.removeEventListener("tjp-bt-goto", h); window.removeEventListener("tjp-bot-live", h); }; }, []);
   /* anciens trades de replay entre -0,1 R et +0,1 R : enregistrés comme BE (0 R), pas comme perdants */
   useEffect(() => {
     props.trades.filter((t) => t.accountId === BT_ACC && (t.rules || {}).replay && t.status !== "breakeven" && t.resultR != null && Math.abs(t.resultR) <= 0.1)
@@ -9692,9 +9982,11 @@ function BacktestPage(props) {
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         <button onClick={() => setTab("chart")} style={tb(tab === "chart")}><TvLogoIcon size={16} />Graphique</button>
         <button onClick={() => setTab("stats")} style={tb(tab === "stats")}><BarChart3 size={16} />Saisie & stats <span style={{ fontSize: 12, opacity: 0.8 }}>{n}</span></button>
+        <button onClick={() => setTab("bot")} style={tb(tab === "bot")}><Cpu size={16} />Bot</button>
       </div>
       <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLab onSave={props.onSave} onDelete={props.onDelete} appTrades={props.trades} /></div>
       {tab === "stats" && <BacktestView {...props} />}
+      {tab === "bot" && <BacktestBot />}
     </div>
   );
 }
@@ -10054,6 +10346,7 @@ export default function TradingJournalApp() {
         if (Object.keys(setPend).length) flushSettings();
         if (r.weekly_goals) { try { localStorage.setItem("weekly_goals", JSON.stringify(r.weekly_goals)); } catch {} }
         tvApplyRemote(r);
+        try { if (r.bot_runs) localStorage.setItem("tjp_bot_remote", JSON.stringify(r.bot_runs)); } catch (e) {}
         const s = dbToSettings(r);
         if (s) setAppSettings(s);
 
