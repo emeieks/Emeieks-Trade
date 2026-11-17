@@ -1212,6 +1212,31 @@ function RessourcesICT() {
 const TV = { bg: "#ffffff", border: "#e0e3eb", text: "#131722", muted: "#787b86", hover: "#f0f3fa", blue: "#2962ff", red: "#f23645", green: "#089981", up: "#7fd1bd", down: "#131722" };
 const TV_TFS = [["15m", 15], ["30m", 30], ["1h", 60], ["2h", 120], ["3h", 180], ["4h", 240], ["6h", 360], ["8h", 480], ["12h", 720], ["D", 1440], ["W", 10080], ["M", 43200]];
 const TV_PAIR = "EURUSD", TV_PIP = 0.0001, TV_PIPVAL = 10, TV_DIG = 5, TV_SPREAD = 0.2;
+const TV_FONT = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+const TV_TFLAB = { 15: "M15", 30: "M30", 60: "H1", 120: "H2", 180: "H3", 240: "H4", 360: "H6", 480: "H8", 720: "H12", 1440: "D", 10080: "W", 43200: "M" };
+const TV_ZONE = { OB: "#2962ff", SIBI: "#f23645", BISI: "#089981", BB: "#9c27b0", IFVG: "#f5b700" };
+const TV_LIQ = { BSL: "#8b0000", SSL: "#089981" };
+/* killzones en heure de New York (heure d'été gérée automatiquement depuis 2010) */
+const KZ_SESS = [["asia", "Asia"], ["london", "London"], ["ny", "New York"], ["lc", "London Close"], ["nypm", "NY PM"]];
+const KZ_PRESETS = {
+  ict: { n: "ICT (heure de New York)", s: { asia: ["20:00", "00:00"], london: ["02:00", "05:00"], ny: ["07:00", "10:00"], lc: ["10:00", "12:00"], nypm: ["13:30", "16:00"] } },
+  hugo: { n: "HugoFX (Asia 2h-6h / London 7h-11h / NY 13h-17h, heure de Paris)", s: { asia: ["20:00", "00:00"], london: ["01:00", "05:00"], ny: ["07:00", "11:00"] } },
+  forex: { n: "Forex/Gold/Cryptos (Asia 2h-6h / London 8h-11h / NY 13h-16h / LC 16h-18h, Paris)", s: { asia: ["20:00", "00:00"], london: ["02:00", "05:00"], ny: ["07:00", "10:00"], lc: ["10:00", "12:00"] } },
+  indices: { n: "Indices (Asia 2h-6h / London 8h-11h / NY 14h30-17h + 19h30-22h, Paris)", s: { asia: ["20:00", "00:00"], london: ["02:00", "05:00"], ny: ["08:30", "11:00"], nypm: ["13:30", "16:00"] } },
+};
+const TV_CFG0 = {
+  kz: { show: true, preset: "ict", on: { asia: true, london: true, ny: true, lc: false, nypm: true }, times: { ...KZ_PRESETS.ict.s }, days: 30, transp: 88, mid: false, labels: true,
+        color: { asia: "#4caf50", london: "#2962ff", ny: "#f23645", lc: "#9c27b0", nypm: "#ff9800" } },
+  lv: { pd: true, pw: true, pdColor: "#131722", pwColor: "#2962ff" },
+  grid: false, hideFlat: true, up: "#7fd1bd", down: "#131722",
+  cap: 50000, slP: 15, rr: 2, risk: 0.5, qty: 1,
+};
+function tvLoadCfg() { try { const v = JSON.parse(localStorage.getItem("tjp_tv_cfg")); if (v) return { ...TV_CFG0, ...v, kz: { ...TV_CFG0.kz, ...v.kz, color: { ...TV_CFG0.kz.color, ...(v.kz || {}).color } }, lv: { ...TV_CFG0.lv, ...v.lv } }; } catch (e) {} return TV_CFG0; }
+const tvHm = (s) => { const [h, m] = String(s).split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+/* sessions de backtest (titre, position du replay, dessins, positions) */
+function tvLoadSess() { try { const v = JSON.parse(localStorage.getItem("tjp_bt_sess")); if (v && v.list && v.list.length) return v; } catch (e) {} return { cur: "s1", list: [{ id: "s1", title: "Backtest libre", ci: null, tf: 240, draws: [], trades: [] }] }; }
+function tvSaveSess(v) { try { localStorage.setItem("tjp_bt_sess", JSON.stringify(v)); } catch (e) {} }
+const tvNyIso = (t) => new Date((t + tvNyOff(t)) * 1000).toISOString().slice(0, 19) + ".000Z";
 
 /* --- stockage local (IndexedDB) --- */
 function tvDB() { return new Promise((res) => { try { const q = indexedDB.open("tjp_backtest", 1); q.onupgradeneeded = () => q.result.createObjectStore("bars"); q.onsuccess = () => res(q.result); q.onerror = () => res(null); } catch (e) { res(null); } }); }
@@ -1291,24 +1316,25 @@ function TvBtn({ active, children, onClick, title, style }) {
 const TV_TOOLS = {
   cursor: { n: "Croix", mode: 0 },
   trend: { n: "Ligne de tendance", k: "Alt+T", mode: 2 }, ray: { n: "Rayon", mode: 2 }, ext: { n: "Ligne étendue", mode: 2 },
-  hline: { n: "Ligne horizontale", k: "Alt+H", mode: 1 }, hray: { n: "Rayon horizontal", mode: 1 }, vline: { n: "Ligne verticale", k: "Alt+V", mode: 1 },
+  hline: { n: "Ligne horizontale", k: "Alt+H", mode: 1 }, hray: { n: "Rayon horizontal", mode: 1 }, bsl: { n: "BSL · Buyside liquidity", mode: 1, as: "hray", kind: "BSL" }, ssl: { n: "SSL · Sellside liquidity", mode: 1, as: "hray", kind: "SSL" }, vline: { n: "Ligne verticale", k: "Alt+V", mode: 1 },
   cross: { n: "Ligne croisée", k: "Alt+C", mode: 1 }, channel: { n: "Canal parallèle", mode: 2 },
   fib: { n: "Retracement de Fibonacci", k: "Alt+F", mode: 2 }, fibext: { n: "Extension de Fibonacci basée sur la tendance", mode: 3 },
   long: { n: "Position longue", mode: "pos" }, short: { n: "Position courte", mode: "pos" },
   pricerange: { n: "Plage de prix", mode: 2 }, daterange: { n: "Plage de dates", mode: 2 }, measure: { n: "Plage de dates et de prix", mode: 2 },
-  brush: { n: "Pinceau", mode: "free" }, highlight: { n: "Surligneur", mode: "free" }, rect: { n: "Rectangle", k: "Alt+Maj+R", mode: 2 },
+  brush: { n: "Pinceau", mode: "free" }, highlight: { n: "Surligneur", mode: "free" }, rect: { n: "Rectangle", k: "Alt+Maj+R", mode: 2 }, ob: { n: "Order Block (OB)", mode: 2, as: "rect", kind: "OB" }, bisi: { n: "BISI (FVG haussier)", mode: 2, as: "rect", kind: "BISI" }, sibi: { n: "SIBI (FVG baissier)", mode: 2, as: "rect", kind: "SIBI" }, bb: { n: "Breaker Block (BB)", mode: 2, as: "rect", kind: "BB" }, ifvg: { n: "Inverse FVG (IFVG)", mode: 2, as: "rect", kind: "IFVG" },
   circle: { n: "Cercle", mode: 2 }, triangle: { n: "Triangle", mode: 3 }, path: { n: "Chemin (double-clic pour finir)", mode: "multi" },
   text: { n: "Texte", mode: 1 }, label: { n: "Étiquette de prix", mode: 1 },
 };
 const TV_GROUPS = [
   { id: "cur", n: "Curseurs", items: ["cursor"] },
-  { id: "lines", n: "Lignes", items: ["trend", "ray", "ext", "hline", "hray", "vline", "cross", "channel"] },
+  { id: "lines", n: "Lignes", items: ["trend", "ray", "ext", "hline", "hray", "bsl", "ssl", "vline", "cross", "channel"] },
   { id: "fibs", n: "Fibonacci", items: ["fib", "fibext"] },
   { id: "proj", n: "Prévision et mesure", items: ["long", "short", "pricerange", "daterange", "measure"] },
+  { id: "zones", n: "Zones ICT", items: ["ob", "bisi", "sibi", "bb", "ifvg"] },
   { id: "shapes", n: "Formes", items: ["brush", "highlight", "rect", "circle", "triangle", "path"] },
   { id: "notes", n: "Annotations", items: ["text", "label"] },
 ];
-const TV_FAV_DEFAULT = ["cursor", "trend", "brush", "rect", "hray", "short", "fib", "long", "path", "text"];
+const TV_FAV_DEFAULT = ["cursor", "trend", "ob", "bisi", "sibi", "bb", "ifvg", "bsl", "ssl", "short", "fib", "long", "brush", "text"];
 const TV_ICON = {
   cursor: "M14 5v7M14 16v7M5 14h7M16 14h7",
   trend: "M7 21L21 7|c7,21|c21,7",
@@ -1316,6 +1342,13 @@ const TV_ICON = {
   ext: "M4 24L24 4|c10,18|c18,10",
   hline: "M3 14h22|c14,14",
   hray: "M9 14h16|c7,14",
+  bsl: "M9 17h16|c7,17|uBSL",
+  ssl: "M9 17h16|c7,17|uSSL",
+  ob: "M4 7h20v14H4Z|tOB",
+  bisi: "M4 7h20v14H4Z|tBISI",
+  sibi: "M4 7h20v14H4Z|tSIBI",
+  bb: "M4 7h20v14H4Z|tBB",
+  ifvg: "M4 7h20v14H4Z|tIFVG",
   vline: "M14 3v22|c14,14",
   cross: "M3 14h22M14 3v22|c14,14",
   channel: "M4 18L18 6M10 24L24 12|c4,18|c18,6",
@@ -1348,7 +1381,7 @@ function TvIcon({ id, size = 28, color = "currentColor" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" fill="none" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {parts[0] && <path d={parts[0]} />}
-      {parts.slice(1).map((p, i) => p[0] === "c" ? <circle key={i} cx={p.slice(1).split(",")[0]} cy={p.slice(1).split(",")[1]} r="2.3" fill="#fff" /> : p[0] === "t" ? <text key={i} x="10.5" y="18.5" fontSize="8" fill={color} stroke="none" fontWeight="700">{p.slice(1)}</text> : null)}
+      {parts.slice(1).map((p, i) => p[0] === "c" ? <circle key={i} cx={p.slice(1).split(",")[0]} cy={p.slice(1).split(",")[1]} r="2.3" fill="#fff" /> : p[0] === "t" || p[0] === "u" ? <text key={i} x="14" y={p[0] === "u" ? 11 : 17} textAnchor="middle" fontSize={p.length > 3 ? 6.5 : 8} fill={color} stroke="none" fontWeight="700" fontFamily="Arial, sans-serif">{p.slice(1)}</text> : null)}
     </svg>
   );
 }
@@ -1356,22 +1389,27 @@ const tvDur = (s) => { const m = Math.round(s / 60); if (m < 60) return m + " mi
 function tvLoadFav() { try { const v = JSON.parse(localStorage.getItem("tjp_tv_fav")); if (Array.isArray(v)) return v; } catch (e) {} return TV_FAV_DEFAULT; }
 function tvSaveFav(v) { try { localStorage.setItem("tjp_tv_fav", JSON.stringify(v)); } catch (e) {} }
 
-function BacktestLab() {
+function BacktestLab({ onSave, onDelete }) {
   const wrapRef = useRef(null), boxRef = useRef(null), ovRef = useRef(null), fileRef = useRef(null), dateRef = useRef(null);
   const R = useRef({ rows: null, ci: 0, agg: null, k: -1, chart: null, series: null, trades: [], draws: [], hist: [], redo: [], tool: "cursor", pend: null, drag: null, mouse: null, off: 0, sel: -1, dragS: null, magnet: false, clip: null }).current;
   const barRef = useRef(null);
   const [, force] = useState(0); const rerender = () => force((x) => x + 1);
-  const [tf, setTf] = useState(240);
+  const [cfg, setCfgS] = useState(tvLoadCfg);
+  const setCfg = (v) => { setCfgS(v); R.cfg = v; try { localStorage.setItem("tjp_tv_cfg", JSON.stringify(v)); } catch (e) {} };
+  R.cfg = cfg; R.onSave = onSave;
+  const [tf, setTfS] = useState(() => { const v = tvLoadSess(); const c = v.list.find((x) => x.id === v.cur); return (c && c.tf) || 240; });
   const [tool, setToolS] = useState("cursor");
   const [playing, setPlaying] = useState(false);
   const [spd, setSpd] = useState(1);
   const [stepTf, setStepTf] = useState(15);
+  /* changer de timeframe adapte aussi le pas du replay (à côté de 1x) */
+  const setTf = (m) => { setTfS(m); setStepTf(Math.min(m, 1440)); };
   const [demo, setDemo] = useState(true);
-  const [qty, setQty] = useState(1);
-  const [risk, setRisk] = useState(0.5);
-  const [slP, setSlP] = useState(15);
-  const [rr, setRr] = useState(2);
-  const [cap, setCap] = useState(50000);
+  const qty = cfg.qty, setQty = (v) => setCfg({ ...R.cfg, qty: v });
+  const risk = cfg.risk, setRisk = (v) => setCfg({ ...R.cfg, risk: v });
+  const slP = cfg.slP, setSlP = (v) => setCfg({ ...R.cfg, slP: v });
+  const rr = cfg.rr, setRr = (v) => setCfg({ ...R.cfg, rr: v });
+  const cap = cfg.cap, setCap = (v) => setCfg({ ...R.cfg, cap: v });
   const [panel, setPanel] = useState(true);
   const [tab, setTab] = useState("pos");
   const [msg, setMsg] = useState("");
@@ -1381,13 +1419,17 @@ function BacktestLab() {
   const [live, setLive] = useState(false);
   const [magnet, setMagnetS] = useState(false);
   const [groupLast, setGroupLast] = useState({});
-  const [hideFlat, setHideFlat] = useState(true);
+  const hideFlat = cfg.hideFlat, setHideFlat = (v) => setCfg({ ...R.cfg, hideFlat: v });
   const [fly, setFly] = useState(null);
   const [fav, setFav] = useState(tvLoadFav);
   const [favOpen, setFavOpen] = useState(true);
   const [favPos, setFavPos] = useState({ x: 10, y: 110 });
   const [stay, setStay] = useState(false);
-  const [lockAll, setLockAll] = useState(false);
+  const [sess, setSessS] = useState(tvLoadSess);
+  const [showSet, setShowSet] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [ctx, setCtx] = useState(null);
+  const [unseen, setUnseen] = useState(0);
   const pickTool = (id) => { const g = TV_GROUPS.find((x) => x.items.includes(id)); if (g) setGroupLast((o) => ({ ...o, [g.id]: id })); R.pend = null; setTool(id); };
   const setMagnet = (v) => { R.magnet = v; setMagnetS(v); };
   const setTool = (t) => { R.tool = t; setToolS(t); };
@@ -1397,14 +1439,14 @@ function BacktestLab() {
   useEffect(() => {
     const ch = createChart(boxRef.current, {
       autoSize: true,
-      layout: { background: { color: TV.bg }, textColor: TV.text, fontSize: 12, fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif" },
-      grid: { vertLines: { color: "#f0f3fa" }, horzLines: { color: "#f0f3fa" } },
+      layout: { background: { color: TV.bg }, textColor: TV.text, fontSize: 12, fontFamily: TV_FONT },
+      grid: { vertLines: { color: "#f0f3fa", visible: !!R.cfg.grid }, horzLines: { color: "#f0f3fa", visible: !!R.cfg.grid } },
       crosshair: { mode: 0, vertLine: { color: "#9598a1", style: 3, labelBackgroundColor: TV.text }, horzLine: { color: "#9598a1", style: 3, labelBackgroundColor: TV.text } },
       rightPriceScale: { borderColor: TV.border, scaleMargins: { top: 0.12, bottom: 0.1 } },
       timeScale: { borderColor: TV.border, timeVisible: true, secondsVisible: false, rightOffset: 25, barSpacing: 7 },
       localization: { locale: "fr-FR" },
     });
-    const se = ch.addCandlestickSeries({ upColor: TV.up, downColor: TV.down, borderUpColor: TV.down, borderDownColor: TV.down, wickUpColor: TV.down, wickDownColor: TV.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
+    const se = ch.addCandlestickSeries({ upColor: R.cfg.up, downColor: R.cfg.down, borderUpColor: R.cfg.down, borderDownColor: R.cfg.down, wickUpColor: R.cfg.down, wickDownColor: R.cfg.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
     R.chart = ch; R.series = se;
     ch.subscribeCrosshairMove((p) => {
       if (!R.agg) return; let b = p && p.time !== undefined ? p.seriesData.get(se) : null;
@@ -1415,11 +1457,38 @@ function BacktestLab() {
     return () => { cancelAnimationFrame(raf); ch.remove(); R.chart = null; };
   }, []);
 
+  useEffect(() => {
+    if (!R.chart) return;
+    R.chart.applyOptions({ grid: { vertLines: { visible: !!cfg.grid }, horzLines: { visible: !!cfg.grid } } });
+    R.series.applyOptions({ upColor: cfg.up, downColor: cfg.down, borderUpColor: cfg.down, borderDownColor: cfg.down, wickUpColor: cfg.down, wickDownColor: cfg.down });
+  }, [cfg.grid, cfg.up, cfg.down]);
+
+  /* ---------- sessions de backtest ---------- */
+  const curSess = () => sess.list.find((x) => x.id === sess.cur) || sess.list[0];
+  const snapSess = (v) => ({ ...v, list: v.list.map((x) => (x.id === v.cur ? { ...x, ci: R.ci, tf, draws: R.draws, trades: R.trades } : x)) });
+  useEffect(() => { const id = setTimeout(() => { if (R.rows && !R.demo) { const v = snapSess(sess); tvSaveSess(v); } }, 800); return () => clearTimeout(id); });
+  const openSess = (id, base) => {
+    const v = snapSess(base || sess); const n = { ...v, cur: id }; setSessS(n); tvSaveSess(n);
+    const c = n.list.find((x) => x.id === id); setPlaying(false);
+    R.trades = c.trades || []; R.draws = c.draws || []; R.sel = -1;
+    R.ci = c.ci != null && c.ci < R.rows.length ? c.ci : Math.min(R.rows.length - 1, 2000 + Math.floor(Math.random() * Math.max(1, R.rows.length - 4000)));
+    if (c.tf && c.tf !== tf) setTf(c.tf); else rebuild(c.tf || tf, true);
+  };
+  const createSess = (title, mode, date) => {
+    const id = "s" + Date.now(); let ci = null;
+    if (mode === "date" && date) { const t = Date.parse(date + "T00:00:00Z") / 1000; const i = R.rows.findIndex((r) => r[0] >= t); ci = i < 0 ? R.rows.length - 1 : Math.max(50, i); }
+    const base = snapSess(sess); base.list = [...base.list, { id, title: title || "Session " + (base.list.length + 1), ci, tf, draws: [], trades: [] }];
+    openSess(id, base); setShowNew(false);
+  };
+  const delSess = (id) => { if (sess.list.length < 2) return; const v = snapSess(sess); v.list = v.list.filter((x) => x.id !== id); if (v.cur === id) { openSess(v.list[0].id, v); } else { setSessS(v); tvSaveSess(v); } };
+
   /* ---------- données ---------- */
   const load = async () => {
     const d = await tvGet(TV_PAIR);
     if (d && d.rows && d.rows.length) { R.rows = d.rows; setDemo(false); } else { R.rows = tvDemo(); setDemo(true); }
-    R.ci = Math.min(R.rows.length - 1, 600); R.trades = []; R.draws = [];
+    R.demo = !(d && d.rows && d.rows.length);
+    const c = curSess(); R.trades = (!R.demo && c.trades) || []; R.draws = (!R.demo && c.draws) || [];
+    R.ci = !R.demo && c.ci != null && c.ci < R.rows.length ? c.ci : Math.min(R.rows.length - 1, 600);
     rebuild(tf, true);
   };
   useEffect(() => { load(); }, []);
@@ -1459,6 +1528,19 @@ function BacktestLab() {
   function closeTrade(tr, px, why, t) {
     tr.status = "closed"; tr.exit = px; tr.closeT = t ?? R.rows[R.ci][0]; tr.reason = why;
     tr.pips = ((px - tr.entry) * tr.side) / TV_PIP; tr.pnl = tr.pips * TV_PIPVAL * tr.lots; tr.r = tr.risk ? tr.pnl / tr.risk : 0;
+    R.unseenAdd = (R.unseenAdd || 0) + 1;
+    if (R.onSave && !R.demo && !tr.appId) {
+      const title = (curSess() || {}).title || "Backtest";
+      const app = {
+        id: uid(), accountId: BT_ACC, pair: TV_PAIR, direction: tr.side > 0 ? "long" : "short",
+        entryTime: tvNyIso(tr.openT), exitTime: tvNyIso(tr.closeT), timeframe: tr.tf || "H4",
+        entryPrice: +tr.entry.toFixed(5), stopLoss: +(tr.sl0 ?? tr.sl).toFixed(5), takeProfit: +tr.tp.toFixed(5), exitPrice: +px.toFixed(5),
+        resultR: +tr.r.toFixed(2), resultUsd: +tr.pnl.toFixed(2), status: Math.abs(tr.r) < 0.05 ? "breakeven" : "closed",
+        tags: [title, tr.tf].filter(Boolean), notes: null,
+        rules: { backtest: true, replay: true, session: title, rr: +(Math.abs(tr.tp - tr.entry) / Math.abs(tr.entry - (tr.sl0 ?? tr.sl))).toFixed(2), exitReason: why, tfSetups: [{ tf: tr.tf, setups: [] }] },
+      };
+      tr.appId = app.id; try { R.onSave(app); } catch (e) {}
+    }
   }
   function step(n) {
     if (!R.rows) return; const end = Math.min(R.rows.length - 1, R.ci + n);
@@ -1469,6 +1551,7 @@ function BacktestLab() {
     }
     R.series.update(liveBar());
     if (R.ci >= R.rows.length - 1) setPlaying(false);
+    if (R.unseenAdd) { const n = R.unseenAdd; R.unseenAdd = 0; setUnseen((u) => u + n); }
     setLegend(liveBar()); rerender();
   }
   const stepMinutes = () => { const target = R.rows[R.ci][0] + stepTf * 60; let i = R.ci; while (i < R.rows.length - 1 && R.rows[i + 1][0] <= target) i++; step(Math.max(1, i - R.ci)); };
@@ -1490,11 +1573,16 @@ function BacktestLab() {
     const entry = opt.entry ?? mkt; const type = Math.abs(entry - mkt) < TV_PIP * 0.3 ? "mkt" : "lmt";
     const sl = entry - side * slP * TV_PIP, tp = entry + side * slP * TV_PIP * rr;
     const lots = opt.byRisk ? Math.max(0.01, Math.round(((balance() * risk) / 100 / (slP * TV_PIPVAL)) * 100) / 100) : qty;
-    const tr = { id: Date.now() + Math.random(), side, entry, sl, tp, lots, status: type === "mkt" ? "open" : "pending", openT: R.rows[R.ci][0], placedT: R.rows[R.ci][0] };
+    const tr = { id: Date.now() + Math.random(), side, entry, sl, tp, sl0: sl, lots, status: type === "mkt" ? "open" : "pending", openT: R.rows[R.ci][0], placedT: R.rows[R.ci][0], anchorT: Math.min(opt.at ?? R.rows[R.ci][0], R.rows[R.ci][0]), tf: TV_TFLAB[tf] };
     tr.risk = (Math.abs(entry - sl) / TV_PIP) * TV_PIPVAL * lots;
     R.trades.push(tr); rerender();
   }
-  const closeAll = () => { for (const t of R.trades) if (t.status === "open") closeTrade(t, t.side > 0 ? bid() : ask(), "Manuel"); R.trades = R.trades.filter((t) => t.status !== "pending"); rerender(); };
+  const closeAll = () => { for (const t of R.trades) if (t.status === "open") closeTrade(t, t.side > 0 ? bid() : ask(), "Manuel"); R.trades = R.trades.filter((t) => t.status !== "pending"); if (R.unseenAdd) { setUnseen((u) => u + R.unseenAdd); R.unseenAdd = 0; } rerender(); };
+  const closeOne = (t) => { if (t.status === "open") closeTrade(t, t.side > 0 ? bid() : ask(), "Manuel"); else R.trades = R.trades.filter((x) => x !== t); if (R.unseenAdd) { setUnseen((u) => u + R.unseenAdd); R.unseenAdd = 0; } rerender(); };
+  const toBE = (t) => { t.sl = t.entry; rerender(); };
+  const delTrade = (t) => { R.trades = R.trades.filter((x) => x !== t); if (t.appId && onDelete) onDelete(t.appId); rerender(); };
+
+  R.api = { toBE, closeOne, order, setCtx, openSet: () => setShowSet(true) };
 
   /* ---------- coordonnées ---------- */
   const tToX = (t) => {
@@ -1503,7 +1591,9 @@ function BacktestLab() {
     if (i < 0) lg = (t - A.bars[0].time) / tfSec();
     else if (i >= R.k) lg = R.k + (t - A.bars[R.k].time) / tfSec();
     else lg = i + (t - A.bars[i].time) / ((A.bars[i + 1].time - A.bars[i].time) || tfSec());
-    return ts.logicalToCoordinate(lg);
+    const xk = ts.logicalToCoordinate(R.k), xk1 = ts.logicalToCoordinate(R.k + 1);
+    const bs = xk !== null && xk1 !== null ? xk1 - xk : ts.options().barSpacing;
+    return xk === null ? null : xk + (lg - R.k) * bs;
   };
   const xToT = (x) => {
     const A = R.agg, lg = R.chart.timeScale().coordinateToLogical(x); if (lg === null) return null;
@@ -1514,6 +1604,52 @@ function BacktestLab() {
   };
   const pToY = (p) => R.series.priceToCoordinate(p), yToP = (y) => R.series.coordinateToPrice(y);
 
+  /* ---------- indicateurs : killzones (heure de New York) ---------- */
+  function drawKillzones(c, cw, ch) {
+    const K = R.cfg.kz; if (!K.show || !R.agg || R.agg.min > 60) return;
+    const ts = R.chart.timeScale(), lr = ts.getVisibleLogicalRange(); if (!lr) return;
+    const from = Math.max(0, Math.floor(lr.from)), to = Math.min(R.k, Math.ceil(lr.to)); const A = R.agg, now = R.rows[R.ci][0];
+    const bs = (ts.logicalToCoordinate(1) - ts.logicalToCoordinate(0)) || 6; const alpha = Math.max(0.03, 1 - K.transp / 100);
+    const ses = KZ_SESS.filter(([id]) => K.on[id] && K.times[id]).map(([id, n]) => ({ id, n, a: tvHm(K.times[id][0]), b: tvHm(K.times[id][1]) || 1440 }));
+    const inS = (m, s) => (s.a < s.b ? m >= s.a && m < s.b : m >= s.a || m < s.b);
+    for (const s of ses) {
+      let run = null;
+      const flush = () => {
+        if (!run) return; const xa = ts.logicalToCoordinate(run.i0) - bs / 2, xb = ts.logicalToCoordinate(run.i1) + bs / 2, ya = pToY(run.h), yb = pToY(run.l);
+        const col = K.color[s.id] || "#2962ff"; c.fillStyle = tvAlpha(col, alpha); c.fillRect(xa, ya, xb - xa, yb - ya);
+        c.strokeStyle = tvAlpha(col, Math.min(1, alpha * 4)); c.lineWidth = 1; c.strokeRect(xa, ya, xb - xa, yb - ya);
+        if (K.mid) { const ym = pToY((run.h + run.l) / 2); c.setLineDash([4, 3]); c.beginPath(); c.moveTo(xa, ym); c.lineTo(xb, ym); c.stroke(); c.setLineDash([]); }
+        if (K.labels) { c.fillStyle = col; c.font = "11px " + TV_FONT; c.fillText(s.n, xa + 2, ya - 4); }
+        run = null;
+      };
+      for (let i = from; i <= to; i++) {
+        const t = A.bars[i].time; if (now - t > K.days * 86400) { continue; }
+        const loc = t + tvNyOff(t), m = Math.floor((((loc % 86400) + 86400) % 86400) / 60);
+        if (inS(m, s)) { const b = i === R.k ? liveBar() : A.bars[i]; if (run && i === run.i1 + 1 && t - run.t1 < 6 * 3600) { run.i1 = i; run.t1 = t; run.h = Math.max(run.h, b.high); run.l = Math.min(run.l, b.low); } else { flush(); run = { i0: i, i1: i, t1: t, h: b.high, l: b.low }; } }
+        else flush();
+      }
+      flush();
+    }
+  }
+  /* ---------- indicateurs : PDH / PDL / PWH / PWL ---------- */
+  function drawLevels(c, cw, ch) {
+    const L = R.cfg.lv; if (!(L.pd || L.pw) || !R.rows) return;
+    const key = R.rows.length + "|" + R.cfg.hideFlat;
+    if (!R.lvc || R.lvc.key !== key) R.lvc = { key, D: tvBuild(R.rows, 1440, R.cfg.hideFlat), W: tvBuild(R.rows, 10080, R.cfg.hideFlat) };
+    const one = (A, col, hiName, loName) => {
+      const k = tvBs(A.start, R.ci); if (k < 1) return; const pb = A.bars[k - 1];
+      const xa = Math.max(0, tToX(pb.time) ?? 0), xb = cw; if (xa >= cw) return;
+      c.setLineDash([6, 4]); c.lineWidth = 1; c.strokeStyle = col; c.fillStyle = col; c.font = "12px " + TV_FONT;
+      for (const [p, n, up] of [[pb.high, hiName, true], [pb.low, loName, false]]) {
+        const y = pToY(p); if (y === null) continue; c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke();
+        const w = c.measureText(n).width; const xm = Math.min(cw - w - 70, Math.max(xa + 4, (xa + xb) / 2 - w / 2)); c.fillText(n, xm, up ? y - 6 : y + 15);
+      }
+      c.setLineDash([]);
+    };
+    if (L.pw) one(R.lvc.W, L.pwColor, "PWH", "PWL");
+    if (L.pd) one(R.lvc.D, L.pdColor, "PDH", "PDL");
+  }
+
   /* ---------- calque de dessin (positions, outils) ---------- */
   function drawOverlay() {
     const cv = ovRef.current, box = boxRef.current; if (!cv || !box || !R.chart || !R.agg || !R.rows) return;
@@ -1522,11 +1658,13 @@ function BacktestLab() {
     const c = cv.getContext("2d"); c.setTransform(d, 0, 0, d, 0, 0); c.clearRect(0, 0, W, H);
     const psw = R.chart.priceScale("right").width(), tsh = R.chart.timeScale().height(); const cw = W - psw, ch = H - tsh;
     c.save(); c.beginPath(); c.rect(0, 0, cw, ch); c.clip();
-    c.font = "12px -apple-system, Roboto, sans-serif";
+    c.font = "12px " + TV_FONT;
     const now = R.rows[R.ci][0], tagList = [];
+    drawKillzones(c, cw, ch); drawLevels(c, cw, ch);
     /* positions longues / courtes façon TradingView */
+    c.font = "12px " + TV_FONT;
     for (const tr of R.trades) {
-      const x1 = tToX(tr.status === "pending" ? tr.placedT : tr.openT); if (x1 === null) continue;
+      const x1 = tToX(tr.anchorT ?? (tr.status === "pending" ? tr.placedT : tr.openT)); if (x1 === null) continue;
       const x2 = tr.status === "closed" ? Math.max(tToX(tr.closeT), x1 + 30) : Math.max(tToX(now) + 60, x1 + 140);
       const ye = pToY(tr.entry), ys = pToY(tr.sl), yt = pToY(tr.tp); if (ye === null) continue;
       const fade = tr.status === "closed" ? 0.55 : 1;
@@ -1554,11 +1692,11 @@ function BacktestLab() {
     }
     /* dessins */
     const all = [...R.draws, ...(R.lastMeasure ? [R.lastMeasure] : []), ...(R.pend ? [R.pend] : [])];
-    all.forEach((s, i) => drawShape(c, s, cw, ch, i === R.sel && s !== R.pend && !R.lockAll));
+    all.forEach((s, i) => drawShape(c, s, cw, ch, i === R.sel && s !== R.pend));
     const tb = barRef.current;
     if (tb) {
       const s = R.draws[R.sel];
-      if (s && !R.dragS && !R.hidden && !R.lockAll) { const { x1, y1, x2, y2 } = shapePts(s); const top = Math.min(y1 ?? 40, y2 ?? y1 ?? 40); const left = Math.max(10, Math.min(cw - 260, ((x1 ?? cw / 2) + (x2 ?? x1 ?? cw / 2)) / 2 - 120)); tb.style.display = "flex"; tb.style.left = left + "px"; tb.style.top = Math.max(60, top - 50) + "px"; }
+      if (s && !R.dragS && !R.hidden) { const { x1, y1, x2, y2 } = shapePts(s); const top = Math.min(y1 ?? 40, y2 ?? y1 ?? 40); const left = Math.max(10, Math.min(cw - 260, ((x1 ?? cw / 2) + (x2 ?? x1 ?? cw / 2)) / 2 - 120)); tb.style.display = "flex"; tb.style.left = left + "px"; tb.style.top = Math.max(60, top - 50) + "px"; }
       else tb.style.display = "none";
     }
     /* mesure */
@@ -1591,29 +1729,33 @@ function BacktestLab() {
   }
   function drawShape(c, s, cw, ch, selected) {
     if (R.hidden && s !== R.pend) return;
-    const col = s.color || (s.type === "highlight" ? "#f2a636" : TV.blue); const lw = s.w || 1.5;
+    const col = s.color || (s.kind && (TV_ZONE[s.kind] || TV_LIQ[s.kind])) || (s.type === "highlight" ? "#f2a636" : TV.blue); const lw = s.w || (s.type === "rect" ? 1 : 1.5);
     c.lineWidth = lw; c.strokeStyle = col; c.fillStyle = col; c.setLineDash(s.dash ? [6, 4] : []);
     const P = s.pts.map(PX); if (P.some((q) => q.x === null || q.y === null) && !["hline", "vline"].includes(s.type)) return;
     const line = (a, b) => { c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke(); };
     const poly = (pts, close) => { c.beginPath(); pts.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); if (close) c.closePath(); };
-    const font = (px) => (c.font = `${px}px -apple-system, Roboto, sans-serif`);
+    const font = (px, b) => (c.font = `${b ? "600 " : ""}${px}px ${TV_FONT}`);
     const T = s.type, [a, b] = P;
     if (T === "hline") line({ x: 0, y: a.y }, { x: cw, y: a.y });
-    else if (T === "hray") line(a, { x: cw, y: a.y });
+    else if (T === "hray") { line(a, { x: cw, y: a.y }); if (s.kind) { font(11, true); c.fillStyle = col; c.fillText(s.kind, a.x + 2, a.y - 5); } }
     else if (T === "vline") line({ x: a.x, y: 0 }, { x: a.x, y: ch });
     else if (T === "cross") { line({ x: 0, y: a.y }, { x: cw, y: a.y }); line({ x: a.x, y: 0 }, { x: a.x, y: ch }); }
     else if (T === "trend") line(a, b);
     else if (T === "ray") { const [p, q] = extend(a, b, cw, ch, false); line(p, q); }
     else if (T === "ext") { const [p, q] = extend(a, b, cw, ch, true); line(p, q); }
     else if (T === "channel") { const [l1, l2] = chanLines(s); poly([l1[0], l1[1], l2[1], l2[0]], true); c.fillStyle = tvAlpha(col, 0.1); c.fill(); line(l1[0], l1[1]); line(l2[0], l2[1]); c.setLineDash([4, 4]); line({ x: (l1[0].x + l2[0].x) / 2, y: (l1[0].y + l2[0].y) / 2 }, { x: (l1[1].x + l2[1].x) / 2, y: (l1[1].y + l2[1].y) / 2 }); c.setLineDash([]); }
-    else if (T === "rect") { c.fillStyle = tvAlpha(col, 0.15); c.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); c.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); }
+    else if (T === "rect") {
+      const L = Math.min(a.x, b.x), Tp = Math.min(a.y, b.y), Wd = Math.abs(b.x - a.x), Hg = Math.abs(b.y - a.y);
+      c.fillStyle = tvAlpha(col, 0.15); c.fillRect(L, Tp, Wd, Hg); c.strokeStyle = tvAlpha(col, 0.9); c.strokeRect(L + 0.5, Tp + 0.5, Wd, Hg);
+      if (s.kind) { font(11, true); const txt = s.kind + (s.tf ? " " + s.tf : ""); const w = c.measureText(txt).width; c.fillStyle = col; c.fillText(txt, L + Wd - w - 6, Tp + Hg / 2 + 4); }
+    }
     else if (T === "circle") { c.beginPath(); c.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.abs(b.x - a.x) / 2 || 1, Math.abs(b.y - a.y) / 2 || 1, 0, 0, 7); c.fillStyle = tvAlpha(col, 0.15); c.fill(); c.stroke(); }
     else if (T === "triangle") { poly(P, P.length > 2); c.fillStyle = tvAlpha(col, 0.15); if (P.length > 2) c.fill(); c.stroke(); }
     else if (T === "path") { poly(P, false); c.stroke(); if (P.length > 1) { const p = P[P.length - 2], q = P[P.length - 1], ang = Math.atan2(q.y - p.y, q.x - p.x); c.beginPath(); c.moveTo(q.x, q.y); c.lineTo(q.x - 10 * Math.cos(ang - 0.4), q.y - 10 * Math.sin(ang - 0.4)); c.moveTo(q.x, q.y); c.lineTo(q.x - 10 * Math.cos(ang + 0.4), q.y - 10 * Math.sin(ang + 0.4)); c.stroke(); } }
     else if (T === "brush") { c.lineJoin = c.lineCap = "round"; poly(P, false); c.stroke(); }
     else if (T === "highlight") { c.lineJoin = c.lineCap = "round"; c.lineWidth = Math.max(10, lw * 7); c.strokeStyle = tvAlpha(col, 0.35); poly(P, false); c.stroke(); }
     else if (T === "fib" || T === "fibext") {
-      const lv = T === "fib" ? [[1, "#787b86"], [0.79, "#089981"], [0.705, "#f2a636"], [0.62, "#089981"], [0.5, "#787b86"], [0, "#787b86"], [-0.27, "#2962ff"], [-0.62, "#2962ff"], [-1, "#2962ff"]] : [[0, "#787b86"], [0.618, "#089981"], [1, "#787b86"], [1.272, "#2962ff"], [1.618, "#2962ff"], [2, "#9c27b0"], [2.618, "#f23645"]];
+      const lv = T === "fib" ? [[1, "#131722"], [0.79, "#131722"], [0.705, "#131722"], [0.62, "#131722"], [0.5, "#131722"], [0, "#131722"]] : [[0, "#787b86"], [0.618, "#089981"], [1, "#787b86"], [1.272, "#2962ff"], [1.618, "#2962ff"], [2, "#9c27b0"], [2.618, "#f23645"]];
       const lvl = (v) => (T === "fib" ? s.pts[1].p + (s.pts[0].p - s.pts[1].p) * v : (s.pts[2] || s.pts[1]).p + (s.pts[1].p - s.pts[0].p) * v);
       const xl = Math.min(...P.map((q) => q.x)), xr = Math.max(...P.map((q) => q.x)) + 40;
       if (T === "fib") { const yA = pToY(lvl(0.62)), yB = pToY(lvl(0.79)); c.fillStyle = "rgba(8,153,129,0.10)"; c.fillRect(xl, Math.min(yA, yB), xr - xl, Math.abs(yB - yA)); }
@@ -1691,7 +1833,7 @@ function BacktestLab() {
       if (tool === "cursor") {
         const th = hitTrade(p);
         if (th) { e.stopPropagation(); e.preventDefault(); R.drag = th; return; }
-        const sh = R.lockAll || R.hidden ? null : hitShape(p);
+        const sh = R.hidden ? null : hitShape(p);
         if (sh) {
           e.stopPropagation(); e.preventDefault();
           let i = sh.i; if (e.ctrlKey || e.metaKey) { const cp = JSON.parse(JSON.stringify(R.draws[i])); R.draws.push(cp); i = R.draws.length - 1; } /* Ctrl + glisser = cloner */
@@ -1702,9 +1844,9 @@ function BacktestLab() {
       }
       e.stopPropagation(); e.preventDefault();
       const pt = snapPt(p.x, p.y, e.ctrlKey), def = TV_TOOLS[tool];
-      if (def.mode === "pos") { order(tool === "long" ? 1 : -1, { entry: pt.p, byRisk: true }); if (!R.stay) setTool("cursor"); return; }
+      if (def.mode === "pos") { order(tool === "long" ? 1 : -1, { entry: pt.p, byRisk: true, at: pt.t }); if (!R.stay) setTool("cursor"); return; }
       if (def.mode === 1) {
-        const s = { type: tool, pts: [pt] };
+        const s = { type: def.as || tool, kind: def.kind, pts: [pt] };
         if (tool === "text") { const txt = window.prompt("Texte :", "Texte"); if (!txt) return; s.text = txt; }
         commit(s); return;
       }
@@ -1714,7 +1856,7 @@ function BacktestLab() {
         else { R.pend.pts[R.pend.pts.length - 1] = pt; if (def.mode === 3 && R.pend.pts.length >= 3) { const s = R.pend; R.pend = null; commit(s); return; } R.pend.pts.push({ ...pt }); }
         return;
       }
-      R.pend = { type: tool, pts: [pt, { ...pt }], drag: true };
+      R.pend = { type: def.as || tool, kind: def.kind, tf: def.kind ? TV_TFLAB[R.agg.min] : undefined, pts: [pt, { ...pt }], drag: true };
       if (tool === "channel") R.pend.off = -20 * TV_PIP;
     };
     const move = (e) => {
@@ -1750,7 +1892,7 @@ function BacktestLab() {
         return;
       }
       if (R.tool !== "cursor") { el.style.cursor = "crosshair"; return; }
-      const sh = R.lockAll || R.hidden ? null : hitShape(p);
+      const sh = R.hidden ? null : hitShape(p);
       el.style.cursor = hitTrade(p) ? "ns-resize" : sh ? (sh.mode === "move" ? "move" : "pointer") : "";
     };
     const up = () => {
@@ -1767,12 +1909,33 @@ function BacktestLab() {
       if (R.pend && TV_TOOLS[R.pend.type].mode === "multi") { e.stopPropagation(); const s = R.pend; R.pend = null; s.pts.pop(); if (s.pts.length > 2 && Math.hypot(PX(s.pts[s.pts.length - 1]).x - PX(s.pts[s.pts.length - 2]).x, 0) < 3) s.pts.pop(); commit(s); return; }
       const sh = hitShape(pos(e)); if (sh && (R.draws[sh.i].type === "text" || R.draws[sh.i].type === "label")) { const s = R.draws[sh.i]; const txt = window.prompt("Texte :", s.text || ""); if (txt !== null) { s.text = txt; rerender(); } }
     };
+    const ctxm = (e) => {
+      e.preventDefault(); e.stopPropagation(); if (!R.agg) return; const p = pos(e); const pr = yToP(p.y);
+      const items = [];
+      const trHit = R.trades.find((tr) => { if (tr.status === "closed") return false; const x1 = tToX(tr.anchorT ?? tr.openT), x2 = Math.max(tToX(R.rows[R.ci][0]) + 60, x1 + 140); const ya = pToY(tr.sl), yb = pToY(tr.tp); return p.x >= x1 && p.x <= x2 && p.y >= Math.min(ya, yb) - 4 && p.y <= Math.max(ya, yb) + 4; });
+      const sh = !trHit && !R.hidden ? hitShape(p) : null;
+      if (trHit) {
+        if (trHit.status === "open") items.push(["Stop au point mort (BE)", () => R.api.toBE(trHit)], ["Fermer la position", () => R.api.closeOne(trHit)]);
+        else items.push(["Annuler l'ordre", () => R.api.closeOne(trHit)]);
+      } else if (sh) {
+        R.sel = sh.i; const d = R.draws[sh.i];
+        items.push(["Cloner", () => { const c = JSON.parse(JSON.stringify(d)); c.pts = c.pts.map((q) => ({ t: q.t, p: q.p + 5 * TV_PIP })); R.draws.push(c); R.sel = R.draws.length - 1; }], ["Copier", () => { R.clip = JSON.parse(JSON.stringify(d)); }], ["Mettre au premier plan", () => { R.draws.splice(sh.i, 1); R.draws.push(d); R.sel = R.draws.length - 1; }], null, ["Supprimer", () => { R.redo.push(R.draws.splice(sh.i, 1)[0]); R.sel = -1; }, true]);
+      } else {
+        items.push(["Réinitialiser la vue", () => { R.chart.timeScale().scrollToRealTime(); R.chart.priceScale("right").applyOptions({ autoScale: true }); }], null,
+          ["Buy limite à " + pr.toFixed(TV_DIG), () => R.api.order(1, { entry: pr, byRisk: true, at: xToT(p.x) })], ["Sell limite à " + pr.toFixed(TV_DIG), () => R.api.order(-1, { entry: pr, byRisk: true, at: xToT(p.x) })],
+          ["Ligne horizontale à " + pr.toFixed(TV_DIG), () => { R.draws.push({ type: "hline", pts: [{ t: xToT(p.x), p: pr }] }); }], null,
+          ["Copier le prix " + pr.toFixed(TV_DIG), () => { try { navigator.clipboard.writeText(pr.toFixed(TV_DIG)); } catch (er) {} }],
+          [R.hidden ? "Afficher les dessins" : "Masquer les dessins", () => { R.hidden = !R.hidden; }], ["Supprimer tous les dessins", () => { R.redo = [...R.draws]; R.draws = []; R.sel = -1; }, true], null,
+          ["Paramètres…", () => R.api.openSet()]);
+      }
+      R.api.setCtx({ x: p.x, y: p.y, items });
+    };
     const leave = () => { R.mouse = null; };
     el.addEventListener("mousedown", down, true); el.addEventListener("touchstart", down, { capture: true, passive: false });
     el.addEventListener("mousemove", move, true); el.addEventListener("touchmove", move, { capture: true, passive: false });
-    el.addEventListener("dblclick", dbl, true);
+    el.addEventListener("dblclick", dbl, true); el.addEventListener("contextmenu", ctxm, true);
     window.addEventListener("mouseup", up); window.addEventListener("touchend", up); el.addEventListener("mouseleave", leave);
-    return () => { el.removeEventListener("mousedown", down, true); el.removeEventListener("touchstart", down, true); el.removeEventListener("mousemove", move, true); el.removeEventListener("touchmove", move, true); el.removeEventListener("dblclick", dbl, true); window.removeEventListener("mouseup", up); window.removeEventListener("touchend", up); el.removeEventListener("mouseleave", leave); };
+    return () => { el.removeEventListener("mousedown", down, true); el.removeEventListener("touchstart", down, true); el.removeEventListener("mousemove", move, true); el.removeEventListener("touchmove", move, true); el.removeEventListener("dblclick", dbl, true); el.removeEventListener("contextmenu", ctxm, true); window.removeEventListener("mouseup", up); window.removeEventListener("touchend", up); el.removeEventListener("mouseleave", leave); };
   }, [slP, rr, risk, qty, cap]);
 
   /* ---------- clavier : raccourcis de TradingView ---------- */
@@ -1782,7 +1945,7 @@ function BacktestLab() {
       const key = e.key.toLowerCase(), sel = R.draws[R.sel];
       if (R.pend && (e.key === "Enter" || e.key === "Escape") && TV_TOOLS[R.pend.type].mode === "multi") { const s = R.pend; R.pend = null; s.pts.pop(); commit(s); return; }
       if ((key === "delete" || key === "backspace") && sel) { e.preventDefault(); R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; rerender(); return; }
-      if (e.key.startsWith("Arrow") && sel && !e.shiftKey) { /* flèches = décaler le dessin sélectionné */
+      if (e.key.startsWith("Arrow") && sel && (e.ctrlKey || e.metaKey)) { /* Ctrl + flèches = décaler le dessin sélectionné (→ seul = replay) */
         e.preventDefault(); const dt = e.key === "ArrowRight" ? tfSec() : e.key === "ArrowLeft" ? -tfSec() : 0, dp = e.key === "ArrowUp" ? TV_PIP : e.key === "ArrowDown" ? -TV_PIP : 0;
         sel.pts = sel.pts.map((q) => ({ t: q.t + dt, p: q.p + dp })); rerender(); return;
       }
@@ -1832,7 +1995,8 @@ function BacktestLab() {
   );
 
   return (
-    <div ref={wrapRef} style={{ background: TV.bg, color: TV.text, border: fs ? "none" : `1px solid ${TV.border}`, borderRadius: fs ? 0 : 6, overflow: "hidden", display: "flex", flexDirection: "column", ...(fs ? { position: "fixed", inset: 0, zIndex: 9999, height: "100vh" } : { height: "calc(100vh - 40px)", minHeight: 560 }), fontFamily: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif" }}>
+    <div ref={wrapRef} className="tvw" style={{ background: TV.bg, color: TV.text, border: fs ? "none" : `1px solid ${TV.border}`, borderRadius: fs ? 0 : 6, overflow: "hidden", display: "flex", flexDirection: "column", ...(fs ? { position: "fixed", inset: 0, zIndex: 9999, height: "100vh" } : { height: "calc(100vh - 96px)", minHeight: 560 }), fontFamily: TV_FONT, fontSize: 14 }}>
+      <style>{`.tvw input:not([type=checkbox]):not([type=color]), .tvw select { background: #fff !important; color: ${TV.text} !important; -webkit-text-fill-color: ${TV.text} !important; opacity: 1 !important; border: 1px solid ${TV.border} !important; border-radius: 6px !important; box-shadow: none !important; color-scheme: light; } .tvw select[title="Pas de lecture"] { border: none !important; } .tvw option { color: ${TV.text}; background: #fff; } .tvw td, .tvw th { color: inherit; padding: 4px 6px; } .tvw table { color: ${TV.text}; }`}</style>
       {/* barre du haut */}
       <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, overflowX: "auto", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}><Search size={15} />{TV_PAIR}</div>
@@ -1844,7 +2008,13 @@ function BacktestLab() {
         <TvBtn style={{ background: TV.text, color: "#fff" }} title="Mode replay"><Rewind size={16} />Replay</TvBtn>
         <TvBtn title="Annuler (Ctrl+Z)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); }}><Undo2 size={17} /></TvBtn>
         <TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); }}><Redo2 size={17} /></TvBtn>
+        {sep}
+        <select value={sess.cur} onChange={(e) => { if (e.target.value === "__new") setShowNew(true); else openSess(e.target.value); }} title="Session de backtest" style={{ border: `1px solid ${TV.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 14, fontWeight: 600, color: TV.text, background: "#fff", maxWidth: 220, fontFamily: TV_FONT }}>
+          {sess.list.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
+          <option value="__new">+ Nouvelle session…</option>
+        </select>
         <div style={{ flex: 1 }} />
+        <TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
         <TvBtn active={live} title="Graphique TradingView en direct (toutes les paires)" onClick={() => setLive((v) => !v)}><Radio size={16} />{live ? "Retour au backtest" : "Live"}</TvBtn>
         <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />Données</TvBtn>
         <TvBtn title={fs ? "Quitter le plein écran (Échap)" : "Plein écran"} onClick={() => setFs((v) => !v)}>{fs ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</TvBtn>
@@ -1878,7 +2048,6 @@ function BacktestLab() {
           <span style={{ width: 28, height: 1, background: TV.border, margin: "4px 0" }} />
           <TvBtn title="Mode aimant : colle au plus haut, plus bas, ouverture ou clôture (Ctrl = temporaire)" active={magnet} onClick={() => setMagnet(!magnet)} style={{ padding: 2 }}><TvIcon id="magnet" /></TvBtn>
           <TvBtn title="Rester en mode dessin" active={stay} onClick={() => { R.stay = !stay; setStay(!stay); }} style={{ padding: 2 }}><TvIcon id="stay" /></TvBtn>
-          <TvBtn title="Verrouiller tous les dessins" active={lockAll} onClick={() => { R.lockAll = !lockAll; setLockAll(!lockAll); R.sel = -1; }} style={{ padding: 2 }}><TvIcon id="lock" /></TvBtn>
           <TvBtn title="Masquer tous les dessins (Ctrl+Alt+H)" active={R.hidden} onClick={() => { R.hidden = !R.hidden; R.sel = -1; rerender(); }} style={{ padding: 2 }}><TvIcon id={R.hidden ? "eyeoff" : "eye"} /></TvBtn>
           <TvBtn title={favOpen ? "Masquer la barre des favoris" : "Afficher la barre des favoris"} active={favOpen} onClick={() => setFavOpen(!favOpen)} style={{ padding: 2 }}><TvIcon id="star" /></TvBtn>
           <div style={{ flex: 1 }} />
@@ -1886,7 +2055,7 @@ function BacktestLab() {
         </div>
 
         {/* graphique */}
-        <div style={{ position: "relative", flex: 1, minWidth: 0 }} onMouseDown={() => fly && setFly(null)}>
+        <div style={{ position: "relative", flex: 1, minWidth: 0 }} onMouseDown={() => { if (fly) setFly(null); if (ctx) setCtx(null); }}>
           {live && <div style={{ position: "absolute", inset: 0, zIndex: 20, background: TV.bg }}><TvLive /></div>}
           <div ref={boxRef} style={{ position: "absolute", inset: 0 }} />
           <div ref={barRef} style={{ position: "absolute", display: "none", zIndex: 8, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.15)", padding: 3, gap: 2, alignItems: "center" }}>
@@ -1895,7 +2064,8 @@ function BacktestLab() {
             {[1, 2, 3].map((w) => <TvBtn key={w} title={`Épaisseur ${w}`} active={((R.draws[R.sel] || {}).w || 1.5) === w || (w === 1 && !(R.draws[R.sel] || {}).w)} onClick={() => { const s = R.draws[R.sel]; if (s) { s.w = w; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, height: w + 0.5, background: TV.text }} /></TvBtn>)}
             <span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} />
             <TvBtn title="Ligne pointillée" active={!!(R.draws[R.sel] || {}).dash} onClick={() => { const s = R.draws[R.sel]; if (s) { s.dash = !s.dash; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, borderTop: `2px dashed ${TV.text}` }} /></TvBtn>
-            <TvBtn title="Verrouiller ce dessin" onClick={() => { const s = R.draws[R.sel]; if (s) { s.locked = true; R.sel = -1; rerender(); } }} style={{ padding: "4px 6px" }}><TvIcon id="lock" size={18} /></TvBtn>
+            {(R.draws[R.sel] || {}).type === "rect" && <>{Object.keys(TV_ZONE).map((k) => <TvBtn key={k} title={k} active={R.draws[R.sel].kind === k} onClick={() => { const s = R.draws[R.sel]; s.kind = k; s.color = undefined; s.tf = s.tf || TV_TFLAB[R.agg.min]; rerender(); }} style={{ padding: "3px 5px", fontSize: 11, fontWeight: 700, color: TV_ZONE[k] }}>{k}</TvBtn>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
+            {(R.draws[R.sel] || {}).type === "hray" && <>{Object.keys(TV_LIQ).map((k) => <TvBtn key={k} title={k} active={R.draws[R.sel].kind === k} onClick={() => { const s = R.draws[R.sel]; s.kind = k; s.color = undefined; rerender(); }} style={{ padding: "3px 5px", fontSize: 11, fontWeight: 700, color: TV_LIQ[k] }}>{k}</TvBtn>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
             <TvBtn title="Cloner (Ctrl + glisser)" onClick={() => { const s = R.draws[R.sel]; if (s) { const c = JSON.parse(JSON.stringify(s)); c.pts = c.pts.map((q) => ({ t: q.t, p: q.p + 5 * TV_PIP })); R.draws.push(c); R.sel = R.draws.length - 1; rerender(); } }} style={{ padding: "4px 6px" }}><Copy size={16} /></TvBtn>
             <TvBtn title="Supprimer (Suppr)" onClick={() => { if (R.sel >= 0) { R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; rerender(); } }} style={{ padding: "4px 6px" }}><Trash2 size={16} /></TvBtn>
           </div>
@@ -1932,8 +2102,16 @@ function BacktestLab() {
             <TvBtn title="Vitesse" onClick={() => { const i = TV_SPEEDS.findIndex((s) => s[0] === spd); setSpd(TV_SPEEDS[(i + 1) % TV_SPEEDS.length][0]); }}>{spd}x</TvBtn>
             <select value={stepTf} onChange={(e) => setStepTf(+e.target.value)} title="Pas de lecture" style={{ border: "none", background: "transparent", fontSize: 14, fontWeight: 500, color: TV.text, cursor: "pointer" }}>{TV_TFS.slice(0, 10).map(([n, m]) => <option key={n} value={m}>{n}</option>)}</select>
           </div>
+          {/* boutons de l'échelle : A = ajustement auto, » = revenir aux dernières bougies */}
+          <div style={{ position: "absolute", right: 4, bottom: 34, zIndex: 6, display: "flex", gap: 4 }}>
+            <button title="Revenir aux dernières bougies" onClick={() => R.chart.timeScale().scrollToRealTime()} style={{ width: 26, height: 22, border: `1px solid ${TV.border}`, borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, color: TV.text, padding: 0 }}>»</button>
+            <button title="Ajustement automatique du graphique (A)" onClick={() => { R.chart.priceScale("right").applyOptions({ autoScale: true }); R.chart.timeScale().scrollToRealTime(); }} style={{ width: 26, height: 22, border: `1px solid ${TV.border}`, borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: TV.blue, padding: 0, fontFamily: TV_FONT }}>A</button>
+          </div>
+          {ctx && <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: Math.min(ctx.x, (boxRef.current ? boxRef.current.clientWidth : 800) - 270), top: Math.min(ctx.y, (boxRef.current ? boxRef.current.clientHeight : 600) - 30 * ctx.items.length), zIndex: 50, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 0", minWidth: 250, fontFamily: TV_FONT }}>
+            {ctx.items.map((it, i) => it ? <div key={i} onClick={() => { it[1](); setCtx(null); rerender(); }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")} style={{ padding: "6px 16px", fontSize: 14, cursor: "pointer", color: it[2] ? TV.red : TV.text }}>{it[0]}</div> : <div key={i} style={{ height: 1, background: TV.border, margin: "5px 0" }} />)}
+          </div>}
           {/* heure */}
-          <div style={{ position: "absolute", right: 70, bottom: 32, zIndex: 4, fontSize: 12, color: TV.text, background: "rgba(255,255,255,0.85)", padding: "2px 6px", display: "flex", gap: 6, alignItems: "center" }}>
+          <div style={{ position: "absolute", right: 130, bottom: 32, zIndex: 4, fontSize: 12, color: TV.text, background: "rgba(255,255,255,0.85)", padding: "2px 6px", display: "flex", gap: 6, alignItems: "center" }}>
             {curT}
             <select value={tz} onChange={(e) => setTz(+e.target.value)} style={{ border: "none", background: "transparent", fontSize: 12, color: TV.text }} aria-label="Fuseau">
               <option value={0}>UTC</option><option value={-5}>UTC-5</option><option value={-4}>UTC-4</option><option value={7}>UTC+7</option>
@@ -1943,12 +2121,15 @@ function BacktestLab() {
         </div>
       </div>
 
+      {showSet && <TvSettings cfg={cfg} onClose={() => setShowSet(false)} onApply={(v) => { setCfg(v); setShowSet(false); }} onCloseAll={closeAll} onReset={() => { R.trades = []; R.draws = []; rerender(); }} />}
+      {showNew && <TvNewSession list={sess.list} onClose={() => setShowNew(false)} onCreate={createSess} onDelete={delSess} />}
       {/* panneau Replay Trading */}
       <div style={{ borderTop: `4px solid ${TV.hover}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", overflowX: "auto" }}>
-          <TvBtn onClick={() => setPanel((p) => !p)} style={{ fontWeight: 600 }}><Rewind size={15} />Replay Trading <ChevronDown size={14} style={{ transform: panel ? "none" : "rotate(180deg)" }} /></TvBtn>
+          <TvBtn onClick={() => setPanel((p) => !p)} style={{ fontWeight: 600 }}><Rewind size={15} />Replay Trading {unseen > 0 && <span style={{ background: TV.blue, color: "#fff", borderRadius: 10, fontSize: 11, fontWeight: 700, padding: "1px 6px" }}>{unseen}</span>}<ChevronDown size={14} style={{ transform: panel ? "none" : "rotate(180deg)" }} /></TvBtn>
           {sep}
-          {[["pos", `Positions (${opened.length})`], ["hist", `Historique (${closed.length})`], ["stats", "Statistiques"], ["set", "Réglages"]].map(([id, n]) => <TvBtn key={id} active={panel && tab === id} onClick={() => { setTab(id); setPanel(true); }}>{n}</TvBtn>)}
+          {[["pos", `Positions (${opened.length})`], ["hist", `Historique (${closed.length})`], ["stats", "Statistiques"]].map(([id, n]) => <TvBtn key={id} active={panel && tab === id} onClick={() => { setTab(id); setPanel(true); if (id === "hist") setUnseen(0); }}>{n}{id === "hist" && unseen > 0 && <span style={{ background: TV.blue, color: "#fff", borderRadius: 10, fontSize: 11, fontWeight: 700, padding: "1px 6px", marginLeft: 2 }}>{unseen}</span>}</TvBtn>)}
+          <span style={{ fontSize: 12, color: TV.muted, marginLeft: 6 }}>Session : <b style={{ color: TV.text }}>{curSess().title}</b></span>
           <div style={{ flex: 1 }} />
           <span style={{ fontSize: 13, whiteSpace: "nowrap" }}>Solde <b>{tvMoney(balance())}</b> · Équité <b>{tvMoney(balance() + upnl)}</b> · P&L ouvert <b style={{ color: upnl >= 0 ? TV.green : TV.red }}>{tvMoney(upnl)}</b></span>
         </div>
@@ -1961,15 +2142,16 @@ function BacktestLab() {
                   <tr key={t.id} style={{ borderTop: `1px solid ${TV.border}` }}>
                     <td style={{ color: t.side > 0 ? TV.blue : TV.red, fontWeight: 600 }}>{t.side > 0 ? "Long" : "Short"}</td><td>{t.lots.toFixed(2)}</td><td>{t.entry.toFixed(TV_DIG)}</td><td>{t.sl.toFixed(TV_DIG)}</td><td>{t.tp.toFixed(TV_DIG)}</td><td>{t.status === "open" ? "Ouvert" : "En attente"}</td>
                     <td style={{ color: pl >= 0 ? TV.green : TV.red }}>{tvMoney(pl)}</td>
-                    <td><button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => { t.sl = t.entry; rerender(); }}>BE</button> <button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => { if (t.status === "open") closeTrade(t, t.side > 0 ? bid() : ask(), "Manuel"); else R.trades = R.trades.filter((x) => x !== t); rerender(); }}>Fermer</button></td>
+                    <td><button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => toBE(t)} title="Stop au point mort">BE</button> <button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => closeOne(t)}>{t.status === "open" ? "Fermer" : "Annuler"}</button></td>
                   </tr>); })}</tbody>
               </table>) : <div style={{ color: TV.muted, padding: 8 }}>Aucune position. Clique BUY / SELL en haut à gauche du graphique, ou choisis l'outil Position longue / courte et clique sur le prix voulu. Glisse ensuite les bords vert et rouge pour régler le TP et le SL.</div>)}
             {tab === "hist" && (closed.length ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead><tr style={{ color: TV.muted, textAlign: "left" }}><th>Ouverture</th><th>Sens</th><th>Lots</th><th>Entrée</th><th>Sortie</th><th>Pips</th><th>R</th><th>P&L</th><th>Sortie par</th></tr></thead>
+                <thead><tr style={{ color: TV.muted, textAlign: "left" }}><th>Ouverture (NY)</th><th>Sens</th><th>Lots</th><th>Entrée</th><th>Sortie</th><th>Pips</th><th>R</th><th>P&L</th><th>Sortie par</th><th></th></tr></thead>
                 <tbody>{closed.slice().reverse().map((t) => (
                   <tr key={t.id} style={{ borderTop: `1px solid ${TV.border}` }}>
-                    <td>{new Date((t.openT + tz * 3600) * 1000).toISOString().slice(0, 16).replace("T", " ")}</td><td style={{ color: t.side > 0 ? TV.blue : TV.red, fontWeight: 600 }}>{t.side > 0 ? "Long" : "Short"}</td><td>{t.lots.toFixed(2)}</td><td>{t.entry.toFixed(TV_DIG)}</td><td>{t.exit.toFixed(TV_DIG)}</td><td>{t.pips.toFixed(1)}</td><td>{t.r.toFixed(2)}</td><td style={{ color: t.pnl >= 0 ? TV.green : TV.red }}>{tvMoney(t.pnl)}</td><td>{t.reason}</td>
+                    <td>{tvNyIso(t.openT).slice(0, 16).replace("T", " ")}</td><td style={{ color: t.side > 0 ? TV.blue : TV.red, fontWeight: 600 }}>{t.side > 0 ? "Long" : "Short"}</td><td>{t.lots.toFixed(2)}</td><td>{t.entry.toFixed(TV_DIG)}</td><td>{t.exit.toFixed(TV_DIG)}</td><td>{t.pips.toFixed(1)}</td><td>{t.r.toFixed(2)}</td><td style={{ color: t.pnl >= 0 ? TV.green : TV.red }}>{tvMoney(t.pnl)}</td><td>{t.reason}</td>
+                  <td><button title="Supprimer ce trade (aussi dans Saisie & stats)" onClick={() => delTrade(t)} style={{ ...inp, width: "auto", cursor: "pointer", padding: "1px 6px" }}><Trash2 size={13} /></button></td>
                   </tr>))}</tbody>
               </table>) : <div style={{ color: TV.muted, padding: 8 }}>Aucun trade fermé.</div>)}
             {tab === "stats" && (
@@ -1977,17 +2159,7 @@ function BacktestLab() {
                 {[["P&L net", tvMoney(gw - gl), gw - gl >= 0 ? TV.green : TV.red], ["Rendement", (((gw - gl) / cap) * 100).toFixed(2) + " %"], ["Trades", closed.length], ["Win rate", closed.length ? ((wins.length / closed.length) * 100).toFixed(1) + " %" : "—"], ["Profit factor", gl ? (gw / gl).toFixed(2) : "—"], ["Total R", closed.reduce((a, t) => a + t.r, 0).toFixed(2) + " R"], ["Gain moyen", wins.length ? tvMoney(gw / wins.length) : "—"], ["Perte moyenne", closed.length - wins.length ? tvMoney(-gl / (closed.length - wins.length)) : "—"]].map(([k, v, col]) => (
                   <div key={k} style={{ border: `1px solid ${TV.border}`, borderRadius: 6, padding: "8px 10px" }}><div style={{ color: TV.muted, fontSize: 12 }}>{k}</div><div style={{ fontSize: 17, fontWeight: 600, color: col || TV.text }}>{v}</div></div>))}
               </div>)}
-            {tab === "set" && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 16, paddingTop: 6, alignItems: "flex-end" }}>
-                <label>Capital<br /><input type="number" value={cap} onChange={(e) => setCap(+e.target.value)} style={{ ...inp, width: 90 }} /></label>
-                <label>SL par défaut (pips)<br /><input type="number" step="0.5" value={slP} onChange={(e) => setSlP(+e.target.value)} style={inp} /></label>
-                <label>TP (R)<br /><input type="number" step="0.5" value={rr} onChange={(e) => setRr(+e.target.value)} style={inp} /></label>
-                <label style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={hideFlat} onChange={(e) => setHideFlat(e.target.checked)} />Masquer les bougies plates (pointillés)</label>
-                <label>Risque % (outil position)<br /><input type="number" step="0.1" value={risk} onChange={(e) => setRisk(+e.target.value)} style={inp} /></label>
-                <button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={closeAll}>Tout fermer</button>
-                <button style={{ ...inp, width: "auto", cursor: "pointer" }} onClick={() => { R.trades = []; R.draws = []; rerender(); }}>Réinitialiser la session</button>
-                <div style={{ color: TV.muted, fontSize: 12, maxWidth: 420 }}>Spread 0,2 pip. Replay : → ou Maj+→ bougie suivante, Espace ou Maj+↓ lecture. Dessins : Alt+T tendance, Alt+H horizontale, Alt+V verticale, Alt+F Fibonacci, Alt+Maj+R rectangle. Clique un dessin pour le sélectionner, glisse-le pour le déplacer, glisse une poignée pour le modifier. Maj = un seul axe, Ctrl + glisser = cloner, Ctrl+C / Ctrl+V, flèches = décaler, Suppr = effacer.</div>
-              </div>)}
+
           </div>
         )}
       </div>
@@ -1995,12 +2167,124 @@ function BacktestLab() {
   );
 }
 function tvAlpha(hex, a) { const h = hex.replace("#", ""); const n = parseInt(h.length === 3 ? h.split("").map((x) => x + x).join("") : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
-const TV_COLORS = ["#2962ff", "#f23645", "#089981", "#f2a636", "#9c27b0", "#131722"];
+const TV_COLORS = ["#2962ff", "#f23645", "#089981", "#f5b700", "#9c27b0", "#ff9800"];
 function TvLive() {
   useEffect(() => { if (!document.querySelector("script[data-tv-adv]")) { const sc = document.createElement("script"); sc.type = "module"; sc.src = "https://widgets.tradingview-widget.com/w/en/tv-advanced-chart.js"; sc.dataset.tvAdv = "1"; document.head.appendChild(sc); } }, []);
   return React.createElement("tv-advanced-chart", { "allow-symbol-change": "", symbol: "OANDA:EURUSD", interval: "240", theme: "light", style: { display: "block", width: "100%", height: "100%" } });
 }
 function tvBsBars(bars, t) { let lo = 0, hi = bars.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (bars[m].time <= t) { r = m; lo = m + 1; } else hi = m - 1; } return r; }
+
+
+/* ---------- fenêtres façon TradingView : Paramètres et Nouvelle session ---------- */
+function TvModal({ title, children, onClose, onOk, okLabel = "D'accord", left }) {
+  return (
+    <div onMouseDown={onClose} style={{ position: "fixed", inset: 0, background: "rgba(19,23,34,0.35)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: TV_FONT }}>
+      <div onMouseDown={(e) => e.stopPropagation()} style={{ background: "#fff", color: TV.text, borderRadius: 8, boxShadow: "0 10px 40px rgba(0,0,0,0.25)", width: "min(720px, calc(100vw - 32px))", maxHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", alignItems: "center", padding: "16px 20px", borderBottom: `1px solid ${TV.border}` }}>
+          <div style={{ fontSize: 20, fontWeight: 600, flex: 1 }}>{title}</div>
+          <button onClick={onClose} aria-label="Fermer" style={{ border: "none", background: "transparent", cursor: "pointer", color: TV.muted, padding: 4 }}><X size={20} /></button>
+        </div>
+        <div style={{ display: "flex", minHeight: 0, flex: 1 }}>{children}</div>
+        <div style={{ display: "flex", gap: 10, padding: "14px 20px", borderTop: `1px solid ${TV.border}`, alignItems: "center" }}>
+          {left}<div style={{ flex: 1 }} />
+          <button onClick={onClose} style={{ border: `1px solid ${TV.text}`, background: "#fff", color: TV.text, borderRadius: 8, padding: "8px 18px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: TV_FONT }}>Annuler</button>
+          <button onClick={onOk} style={{ border: "none", background: TV.text, color: "#fff", borderRadius: 8, padding: "8px 18px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: TV_FONT }}>{okLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+const tvChk = (checked, onChange, label, extra) => (
+  <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, cursor: "pointer", padding: "5px 0" }}>
+    <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 18, height: 18, accentColor: TV.text, cursor: "pointer" }} />
+    <span style={{ flex: 1 }}>{label}</span>{extra}
+  </label>
+);
+const tvColor = (v, onChange, title) => (
+  <label title={title} style={{ width: 34, height: 34, border: `1px solid ${TV.border}`, borderRadius: 6, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", position: "relative" }}>
+    <span style={{ width: 22, height: 22, borderRadius: 3, background: v }} />
+    <input type="color" value={v} onChange={(e) => onChange(e.target.value)} style={{ position: "absolute", opacity: 0, inset: 0, cursor: "pointer" }} />
+  </label>
+);
+function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset }) {
+  const [d, setD] = useState(() => JSON.parse(JSON.stringify(cfg)));
+  const [tab, setTab] = useState("kz");
+  const K = d.kz, set = (fn) => setD((o) => { const n = JSON.parse(JSON.stringify(o)); fn(n); return n; });
+  const num = { width: 120, height: 38, border: `1px solid ${TV.border}`, borderRadius: 8, padding: "0 10px", fontSize: 15, color: TV.text, fontFamily: TV_FONT };
+  const row = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "6px 0", fontSize: 15 };
+  const tabs = [["kz", "Killzones"], ["lv", "Niveaux"], ["chart", "Graphique"], ["trade", "Trading"]];
+  return (
+    <TvModal title="Paramètres" onClose={onClose} onOk={() => onApply(d)}>
+      <div style={{ width: 170, borderRight: `1px solid ${TV.border}`, padding: "10px 0", flexShrink: 0 }}>
+        {tabs.map(([id, n]) => <div key={id} onClick={() => setTab(id)} style={{ padding: "10px 20px", fontSize: 15, cursor: "pointer", background: tab === id ? TV.hover : "transparent", fontWeight: tab === id ? 600 : 400 }}>{n}</div>)}
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: "14px 22px" }}>
+        {tab === "kz" && <>
+          <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>KILLZONES · HEURE DE NEW YORK (HEURE D'ÉTÉ INCLUSE)</div>
+          {tvChk(K.show, (v) => set((n) => { n.kz.show = v; }), "Afficher")}
+          {Object.entries(KZ_PRESETS).map(([id, p]) => tvChk(K.preset === id, () => set((n) => { n.kz.preset = id; n.kz.times = { ...n.kz.times, ...p.s }; KZ_SESS.forEach(([sid]) => { n.kz.on[sid] = !!p.s[sid]; }); }), p.n))}
+          {tvChk(K.mid, (v) => set((n) => { n.kz.mid = v; }), "Session Mid (ligne du milieu)")}
+          {tvChk(K.labels, (v) => set((n) => { n.kz.labels = v; }), "Afficher le nom des sessions")}
+          <div style={{ height: 8 }} />
+          {KZ_SESS.map(([id, nm]) => (
+            <div key={id} style={{ ...row, flexWrap: "wrap" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 150, cursor: "pointer" }}><input type="checkbox" checked={!!K.on[id]} onChange={(e) => set((n) => { n.kz.on[id] = e.target.checked; })} style={{ width: 18, height: 18, accentColor: TV.text }} />{nm}</label>
+              <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input type="time" value={(K.times[id] || ["00:00", "00:00"])[0]} onChange={(e) => set((n) => { n.kz.times[id] = [e.target.value, (n.kz.times[id] || [])[1] || "00:00"]; })} style={{ ...num, width: 110 }} />
+                <span style={{ color: TV.muted }}>→</span>
+                <input type="time" value={(K.times[id] || ["00:00", "00:00"])[1]} onChange={(e) => set((n) => { n.kz.times[id] = [(n.kz.times[id] || [])[0] || "00:00", e.target.value]; })} style={{ ...num, width: 110 }} />
+                {tvColor(K.color[id], (v) => set((n) => { n.kz.color[id] = v; }), "Couleur " + nm)}
+              </span>
+            </div>))}
+          <div style={row}><span>Killzone Display Days</span><input type="number" value={K.days} onChange={(e) => set((n) => { n.kz.days = +e.target.value || 1; })} style={num} /></div>
+          <div style={row}><span>Transparency</span><input type="number" min="0" max="100" value={K.transp} onChange={(e) => set((n) => { n.kz.transp = Math.max(0, Math.min(100, +e.target.value)); })} style={num} /></div>
+          <div style={{ fontSize: 12, color: TV.muted, marginTop: 8, lineHeight: 1.5 }}>Les horaires sont en heure de New York : le passage à l'heure d'été (2e dimanche de mars → 1er dimanche de novembre) est appliqué à chaque date depuis 2010. Visible jusqu'au H1.</div>
+        </>}
+        {tab === "lv" && <>
+          <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>PLUS HAUTS / PLUS BAS PRÉCÉDENTS</div>
+          {tvChk(d.lv.pd, (v) => set((n) => { n.lv.pd = v; }), "Previous Day High / Low (PDH / PDL)", tvColor(d.lv.pdColor, (v) => set((n) => { n.lv.pdColor = v; }), "Couleur PDH/PDL"))}
+          {tvChk(d.lv.pw, (v) => set((n) => { n.lv.pw = v; }), "Previous Week High / Low (PWH / PWL)", tvColor(d.lv.pwColor, (v) => set((n) => { n.lv.pwColor = v; }), "Couleur PWH/PWL"))}
+          <div style={{ fontSize: 12, color: TV.muted, marginTop: 8 }}>Jour et semaine coupés à 17:00 New York, comme TradingView.</div>
+        </>}
+        {tab === "chart" && <>
+          <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BOUGIES</div>
+          <div style={row}><span>Corps haussier</span>{tvColor(d.up, (v) => set((n) => { n.up = v; }))}</div>
+          <div style={row}><span>Corps baissier, mèches et bordures</span>{tvColor(d.down, (v) => set((n) => { n.down = v; }))}</div>
+          {tvChk(d.hideFlat, (v) => set((n) => { n.hideFlat = v; }), "Masquer les bougies plates (pointillés), la bougie suivante se colle")}
+          {tvChk(d.grid, (v) => set((n) => { n.grid = v; }), "Quadrillage en arrière-plan")}
+        </>}
+        {tab === "trade" && <>
+          <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>COMPTE ET ORDRES</div>
+          {[["Capital ($)", "cap", 1000], ["SL par défaut (pips)", "slP", 0.5], ["TP (R)", "rr", 0.5], ["Risque % (outils position)", "risk", 0.1], ["Lots (boutons BUY / SELL)", "qty", 0.01]].map(([l, k, st]) => (
+            <div key={k} style={row}><span>{l}</span><input type="number" step={st} value={d[k]} onChange={(e) => set((n) => { n[k] = +e.target.value; })} style={num} /></div>))}
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button onClick={onCloseAll} style={{ ...num, width: "auto", cursor: "pointer", background: "#fff" }}>Tout fermer</button>
+            <button onClick={onReset} style={{ ...num, width: "auto", cursor: "pointer", background: "#fff", color: TV.red }}>Vider la session (positions et dessins)</button>
+          </div>
+        </>}
+      </div>
+    </TvModal>
+  );
+}
+function TvNewSession({ list, onClose, onCreate, onDelete }) {
+  const [title, setTitle] = useState(""); const [mode, setMode] = useState("random"); const [date, setDate] = useState("2015-01-05");
+  const num = { height: 38, border: `1px solid ${TV.border}`, borderRadius: 8, padding: "0 10px", fontSize: 15, color: TV.text, fontFamily: TV_FONT };
+  return (
+    <TvModal title="Nouvelle session de backtest" onClose={onClose} onOk={() => onCreate(title.trim(), mode, date)} okLabel="Créer">
+      <div style={{ flex: 1, padding: "16px 22px", display: "flex", flexDirection: "column", gap: 12, overflow: "auto" }}>
+        <label style={{ fontSize: 15 }}>Titre<br /><input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. FVG H4" style={{ ...num, width: "100%", marginTop: 6 }} onKeyDown={(e) => e.key === "Enter" && onCreate(title.trim(), mode, date)} /></label>
+        {tvChk(mode === "random", () => setMode("random"), "Commencer à une date aléatoire")}
+        {tvChk(mode === "date", () => setMode("date"), "Commencer à une date précise", mode === "date" && <input type="date" min="2010-01-01" value={date} onChange={(e) => setDate(e.target.value)} style={num} />)}
+        <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginTop: 8 }}>SESSIONS EXISTANTES</div>
+        {list.map((x) => (
+          <div key={x.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, padding: "4px 0", borderTop: `1px solid ${TV.border}` }}>
+            <span style={{ flex: 1 }}>{x.title}</span><span style={{ color: TV.muted, fontSize: 13 }}>{(x.trades || []).filter((t) => t.status === "closed").length} trades</span>
+            {list.length > 1 && <button title="Supprimer la session (les trades restent dans Saisie & stats)" onClick={() => onDelete(x.id)} style={{ border: "none", background: "transparent", cursor: "pointer", color: TV.muted }}><Trash2 size={15} /></button>}
+          </div>))}
+      </div>
+    </TvModal>
+  );
+}
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid },
@@ -2009,7 +2293,7 @@ const NAV_ITEMS = [
   { id: "previsions", label: "Prévisions", short: "Prévis.", icon: TrendingUp },
   { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3 },
   { id: "playbooks", label: "Playbooks", short: "Playbooks", icon: Target },
-  { id: "backtest", label: "Backtest", short: "Backtest", icon: LineChart },
+  { id: "backtest", label: "Backtest", short: "Backtest", icon: CandlestickChart },
   { id: "ressources", label: "Ressources ICT", short: "Ressources", icon: FolderOpen },
   { id: "settings", label: "Réglages", short: "Réglages", icon: Settings },
 ];
@@ -2024,7 +2308,7 @@ function MobileNav({ view, setView, onNewTrade }) {
     { id: "calendar", label: "Calendrier", icon: CalendarDays },
     { id: "calculator", label: "Calculatrice", icon: Calculator },
     { id: "coach", label: "IA Coach", icon: Brain },
-    { id: "backtest", label: "Backtest", icon: LineChart },
+    { id: "backtest", label: "Backtest", icon: CandlestickChart },
     { id: "ressources", label: "Ressources", icon: FolderOpen },
     { id: "settings", label: "Réglages", icon: Settings },
   ];
@@ -2086,7 +2370,7 @@ function Sidebar({ view, setView, onNewTrade, totalPnl = 0, totalR = 0 }) {
 
         <nav style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 1 }}>
           {NAV_ITEMS.map((it) => {
-            const active = view === it.id || (view === "backtest" && it.id === "settings") || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
+            const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
             const Icon = it.icon;
             return (
               <button key={it.id} className="nav-btn nav-item-row" onClick={() => setView(it.id)} title={it.label} style={{
@@ -8939,7 +9223,7 @@ async function analyzeChartScreenshot(src, instruments = [], baseDate = null) {
    BACKTESTING 2010 → 2025 — saisie express + lecture auto des screenshots
    ============================================================================ */
 const BT_ACC = "__backtest__";
-const BT_YEARS = Array.from({ length: 16 }, (_, i) => 2010 + i);
+const BT_YEARS = Array.from({ length: new Date().getFullYear() - 2009 }, (_, i) => 2010 + i);
 function btAddDays(d, n) { const x = new Date(d + "T12:00:00"); x.setDate(x.getDate() + n); return ymd(x); }
 function btClampDate(d) { if (!d) return d; if (d < "2010-01-01") return "2010-01-01"; if (d > "2025-12-31") return "2025-12-31"; return d; }
 function btAgg(list) {
@@ -8948,6 +9232,22 @@ function btAgg(list) {
   const gw = list.filter((t) => t.resultR > 0).reduce((s, t) => s + t.resultR, 0), gl = Math.abs(list.filter((t) => t.resultR < 0).reduce((s, t) => s + t.resultR, 0));
   let peak = 0, cur = 0, dd = 0; [...list].sort((a, b) => String(a.entryTime).localeCompare(String(b.entryTime))).forEach((t) => { cur += t.resultR || 0; peak = Math.max(peak, cur); dd = Math.min(dd, cur - peak); });
   return { n, w, l, wr: w + l ? w / (w + l) * 100 : 0, R, avg: n ? R / n : 0, pf: gl ? gw / gl : (gw ? Infinity : 0), dd };
+}
+
+function BacktestPage(props) {
+  const [tab, setTab] = useState("chart");
+  const n = props.trades.filter((t) => t.accountId === BT_ACC).length;
+  const tb = (on) => ({ padding: "8px 16px", borderRadius: 10, border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purple + "26" : "transparent", color: on ? C.purpleBright : C.textSecondary, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8 });
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        <button onClick={() => setTab("chart")} style={tb(tab === "chart")}><CandlestickChart size={16} />Graphique</button>
+        <button onClick={() => setTab("stats")} style={tb(tab === "stats")}><BarChart3 size={16} />Saisie & stats <span style={{ fontSize: 12, opacity: 0.8 }}>{n}</span></button>
+      </div>
+      <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLab onSave={props.onSave} onDelete={props.onDelete} /></div>
+      {tab === "stats" && <BacktestView {...props} />}
+    </div>
+  );
 }
 
 function BacktestView({ trades, onSave, onDelete, showToast, pairs, appSettings }) {
@@ -8980,7 +9280,9 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs, appSettings 
   const bt = useMemo(() => trades.filter((t) => t.accountId === BT_ACC).sort((a, b) => String(b.entryTime).localeCompare(String(a.entryTime))), [trades]);
   const setups = useMemo(() => { const m = {}; bt.forEach((t) => (t.tags || []).forEach((g) => { m[g] = (m[g] || 0) + 1; })); return Object.entries(m).sort((a, b) => b[1] - a[1]).map((x) => x[0]).slice(0, 8); }, [bt]);
   const btPairs = useMemo(() => [...new Set([pair, ...(pairs || []), ...bt.map((t) => t.pair)])].filter(Boolean).slice(0, 10), [bt, pairs, pair]);
-  const filtered = bt.filter((t) => (yearF === "all" || String(t.entryTime).slice(0, 4) === String(yearF)) && (pairF === "all" || t.pair === pairF));
+  const [sessF, setSessF] = useState("all");
+  const btSess = useMemo(() => [...new Set(bt.map((t) => (t.rules || {}).session).filter(Boolean))], [bt]);
+  const filtered = bt.filter((t) => (yearF === "all" || String(t.entryTime).slice(0, 4) === String(yearF)) && (pairF === "all" || t.pair === pairF) && (sessF === "all" || (t.rules || {}).session === sessF));
   const A = btAgg(filtered);
   const rrN = parseFloat(String(rr).replace(",", ".")) || 0;
   const pxRR = (() => { const e = parseFloat(px.e), s = parseFloat(px.sl), p = parseFloat(px.tp); return e && s && p && Math.abs(e - s) > 0 ? Math.abs(p - e) / Math.abs(e - s) : null; })();
@@ -9033,21 +9335,9 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs, appSettings 
     catch (e) { showToast("Envoi impossible : " + (e.message || e), true); }
     setAfterBusy(false);
   };
-  useEffect(() => { const h = (e) => { const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); if (afterId) attachAfter(it.getAsFile()); else readShot(it.getAsFile()); } }; window.addEventListener("paste", h); return () => window.removeEventListener("paste", h); });
   const pasteBtn = async (e) => { e.stopPropagation();
     try { const items = await navigator.clipboard.read(); for (const it of items) { const ty = it.types.find((x) => x.startsWith("image/")); if (ty) { const b = await it.getType(ty); const f = new File([b], "capture.png", { type: ty }); if (afterId) attachAfter(f); else readShot(f); return; } } showToast("Pas d'image dans le presse-papiers", true); }
     catch { showToast("Autorise l'accès au presse-papiers, ou fais Ctrl+V sur la page", true); } };
-  // raccourcis clavier (ordi)
-  useEffect(() => {
-    const h = (e) => {
-      if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || editId) return;
-      const k = e.key.toLowerCase();
-      if (k === "l") setDir("long"); else if (k === "s") setDir("short");
-      else if (k === "t") add("tp"); else if (k === "x") add("sl"); else if (k === "b") add("be");
-      else if (e.key === "ArrowRight") setDate((d) => btClampDate(btAddDays(d, 1))); else if (e.key === "ArrowLeft") setDate((d) => btClampDate(btAddDays(d, -1)));
-    };
-    window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
-  });
 
   const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, marginBottom: 12 };
   const lab = { fontSize: 12.5, fontWeight: 600, color: C.textSecondary, marginBottom: 8 };
@@ -9073,82 +9363,16 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs, appSettings 
     <div style={{ maxWidth: 760, margin: "0 auto", padding: "8px 0 120px" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>Backtesting</h1>
-        <span style={{ fontSize: 13, color: C.textMuted }}>2010 → 2025 · {bt.length} trades</span>
+        <span style={{ fontSize: 13, color: C.textMuted }}>Trades enregistrés depuis le replay · {bt.length}</span>
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-        {[["saisie", "Saisie & stats"], ["playbook", "Playbook"]].map(([k, l]) => <button key={k} onClick={() => setBtTab(k)} style={{ ...chip(btTab === k), padding: "9px 16px", fontSize: 14 }}>{l}</button>)}
-      </div>
       {editId && (() => { const t = bt.find((x) => x.id === editId); return t ? <QuickTradeModal key={t.id} trade={t} appSettings={appSettings} onClose={() => setEditId(null)} onPatch={(id, data) => onSave({ ...t, ...data, accountId: BT_ACC, rules: { ...(data.rules || t.rules || {}), backtest: true } })} /> : null; })()}
-      {btTab === "playbook" && <Playbooks trades={filtered} />}
       {btTab === "saisie" && <>
-      {/* ── Saisie express ── */}
-      <div style={card}>
-        <div style={lab}>Année du backtest</div>
-        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, marginBottom: 10 }}>{BT_YEARS.map((y) => <button key={y} onClick={() => setYear(y)} style={{ ...chip(String(y) === yearOf), flexShrink: 0 }}>{y}</button>)}</div>
-        <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); readShot(e.dataTransfer.files?.[0]); }} tabIndex={0}
-          onClick={() => !shot && fileRef.current?.click()}
-          style={{ border: `1.5px dashed ${reading ? C.purple : C.border}`, borderRadius: 12, padding: shot ? 0 : "16px 12px", textAlign: "center", cursor: shot ? "default" : "pointer", overflow: "hidden", position: "relative", outline: "none", marginBottom: 14 }}>
-          {shot ? <>
-            <img src={shot} alt="Screenshot" style={{ width: "100%", maxHeight: 220, objectFit: "contain", display: "block" }} />
-            {reading && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, gap: 8 }}><Sparkles size={16} className="spin-slow" /> Lecture du graphique…</div>}
-            <button onClick={(e) => { e.stopPropagation(); setShot(null); setShotFile(null); setFound(null); }} aria-label="Retirer" style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 15, border: "none", background: "rgba(0,0,0,.6)", color: "#fff", cursor: "pointer" }}>✕</button>
-          </> : <div style={{ color: C.textSecondary, fontSize: 13.5 }}><Upload size={18} style={{ verticalAlign: -4, marginRight: 8 }} />Screenshot TradingView (Ctrl+V, glisse ou touche) — tout se remplit seul
-            <div style={{ marginTop: 10 }}><button onClick={pasteBtn} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: C.purple, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit" }}>📋 Coller l'image</button></div></div>}
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { readShot(e.target.files?.[0]); e.target.value = ""; }} />
-        </div>
-        {found && found.trades.length > 1 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: -6, marginBottom: 12 }}>
-          {found.trades.map((t, i) => <button key={i} onClick={() => applyFound(t, found)} style={chip(px.e === String(t.entryPrice), t.direction === "long" ? C.teal : C.red)}>{t.direction === "long" ? "Long" : "Short"} {t.entryPrice}{t.date ? " · " + t.date : ""}</button>)}
-        </div>}
-
-        <div style={lab}>Paire</div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>{btPairs.map((p) => <button key={p} onClick={() => setPair(p)} style={chip(pair === p)}>{PAIR_LABEL[p] || p}</button>)}</div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div>
-            <div style={lab}>Date <span style={{ fontWeight: 500, color: C.textMuted }}>· l'année choisie s'applique aux captures</span></div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => setDate((d) => btClampDate(btAddDays(d, -1)))} style={{ ...chip(false), padding: "0 12px" }} aria-label="Jour précédent">‹</button>
-              <input type="date" min="2010-01-01" max="2025-12-31" value={date} onChange={(e) => setDate(btClampDate(e.target.value))} style={{ ...inp, colorScheme: "dark", minWidth: 0 }} />
-              <button onClick={() => setDate((d) => btClampDate(btAddDays(d, 1)))} style={{ ...chip(false), padding: "0 12px" }} aria-label="Jour suivant">›</button>
-            </div>
-          </div>
-          <div>
-            <div style={lab}>Sens</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => setDir("long")} style={{ ...chip(dir === "long", C.teal), flex: 1, height: 44 }}>Long</button>
-              <button onClick={() => setDir("short")} style={{ ...chip(dir === "short", C.red), flex: 1, height: 44 }}>Short</button>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, marginTop: 12 }}>
-          {[["Entrée", "e"], ["Stop loss", "sl"], ["Take profit", "tp"]].map(([l, k]) => (
-            <div key={k}><div style={lab}>{l}</div><input inputMode="decimal" value={String(px[k]).replace(".", ",")} onChange={(e) => setPx((o) => ({ ...o, [k]: autoPrice(e.target.value, pair) }))} placeholder="optionnel" style={inp} /></div>))}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10, marginTop: 12 }}>
-          <div><div style={lab}>Timeframe</div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{[...new Set([...DEFAULT_TFS, tf].filter(Boolean))].map((x) => <button key={x} onClick={() => setTf(x)} style={chip(tf === x)}>{x}</button>)}</div></div>
-          <div><div style={lab}>Heure (optionnel)</div><input type="time" value={tm} onChange={(e) => setTm(e.target.value)} style={inp} /></div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10, marginTop: 12 }}>
-          <div><div style={lab}>R:R du TP</div><input inputMode="decimal" value={pxRR != null && px.tp ? pxRR.toFixed(2) : rr} onChange={(e) => setRr(e.target.value)} disabled={pxRR != null && !!px.tp} style={inp} /></div>
-          <div><div style={lab}>Setup (optionnel)</div>
-            <input list="bt-setups" value={setup} onChange={(e) => setSetup(e.target.value)} placeholder="FVG, OB, SIBI…" style={inp} />
-            <datalist id="bt-setups">{setups.map((s2) => <option key={s2} value={s2} />)}</datalist></div>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button onClick={() => add("tp")} style={big(C.teal)}><span>TP</span><span style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.9 }}>{fmtR(pxRR != null && px.tp ? pxRR : rrN)}</span></button>
-          <button onClick={() => add("sl")} style={big(C.red)}><span>SL</span><span style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.9 }}>−1R</span></button>
-          <button onClick={() => add("be")} style={big("#4B5563")}><span>BE</span><span style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.9 }}>0R</span></button>
-        </div>
-        <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, fontSize: 13, color: C.textSecondary, cursor: "pointer" }}>
-          <input type="checkbox" checked={autoEdit} onChange={(e) => setAutoEdit(e.target.checked)} /> Après l'ajout, ouvrir la fiche (session, PD arrays, note)</label>
-        <div className="desktop-only" style={{ fontSize: 11.5, color: C.textMuted, marginTop: 10, textAlign: "center" }}>Clavier : L / S = sens · T = TP · X = SL · B = BE · ← → = jour</div>
-      </div>
-
       {/* ── Filtres ── */}
+      {btSess.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        <button onClick={() => setSessF("all")} style={chip(sessF === "all")}>Toutes les sessions</button>
+        {btSess.map((x) => <button key={x} onClick={() => setSessF(x)} style={chip(sessF === x)}>{x}</button>)}
+      </div>}
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, marginBottom: 6 }}>
         <button onClick={() => setYearF("all")} style={chip(yearF === "all")}>Tout</button>
         {BT_YEARS.map((y) => <button key={y} onClick={() => setYearF(y)} style={{ ...chip(yearF === y), flexShrink: 0 }}>{y}</button>)}
@@ -9160,7 +9384,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs, appSettings 
 
       {/* ── Résumé ── */}
       <div style={card}>
-        <div style={{ fontSize: 13, color: C.textMuted, fontWeight: 600 }}>Résultat {yearF === "all" ? "2010 → 2025" : yearF}{pairF !== "all" ? " · " + pairF : ""}</div>
+        <div style={{ fontSize: 13, color: C.textMuted, fontWeight: 600 }}>Résultat {yearF === "all" ? "2010 → " + new Date().getFullYear() : yearF}{pairF !== "all" ? " · " + pairF : ""}</div>
         <div className="tnum" style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.2, color: A.R >= 0 ? C.teal : C.red }}>{fmtR(A.R)}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 10 }}>
           {[["Trades", A.n], ["Réussite", A.n ? Math.round(A.wr) + "%" : "—"], ["Moyenne", A.n ? fmtR(A.avg) : "—"], ["Profit factor", A.pf === Infinity ? "∞" : A.pf ? A.pf.toFixed(2) : "—"], ["Drawdown max", A.n ? fmtR(A.dd) : "—"], ["Gagnés / perdus", A.w + " / " + A.l]].map(([l, v]) => (
@@ -9197,7 +9421,7 @@ function BacktestView({ trades, onSave, onDelete, showToast, pairs, appSettings 
       <div style={{ ...card, marginTop: 12 }}>
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Trades</div>
 
-        {filtered.length === 0 && <div style={{ color: C.textMuted, fontSize: 13.5, padding: "12px 0" }}>Aucun trade de backtest pour l'instant.</div>}
+        {filtered.length === 0 && <div style={{ color: C.textMuted, fontSize: 13.5, padding: "12px 0" }}>Aucun trade pour l'instant. Prends des trades dans l'onglet Graphique : chaque trade fermé arrive ici avec sa vraie date.</div>}
         {(showAll ? filtered : filtered.slice(0, 30)).map((t) => (
           <div key={t.id} onClick={(e) => { if (e.target.closest("a,button")) return; setEditId(t.id); }} title="Modifier (session, PD arrays, note…)" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${C.border}`, cursor: "pointer" }}>
             <span style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: t.resultR > 0 ? C.teal : t.resultR < 0 ? C.red : C.textMuted }} />
@@ -9653,7 +9877,7 @@ export default function TradingJournalApp() {
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
               {view === "dashboard" && <Dashboard extra={<>{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} />}<ScoreCard trades={accountTrades} balance={initialBalance} /><WeekRecap trades={accountTrades} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
-              {view === "backtest" && <BacktestView trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
+              {view === "backtest" && <BacktestPage trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
                 <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} appSettings={appSettings} onRetroSave={(id, data) => patchTrade(id, data, 800)} onPatch={(id, data) => patchTrade(id, data)} />
@@ -9668,7 +9892,6 @@ export default function TradingJournalApp() {
               {view === "previsions" && <Previsions pairs={["DXY", ...(appSettings?.pairs || PAIRS)]} />}
               {view === "coach" && <AiCoach trades={accountTrades} />}
               {view === "ressources" && <RessourcesICT />}
-              {view === "backtest" && <BacktestLab />}
               {view === "settings" && <SettingsPage trades={trades} onImport={importTrades} onOpenBacktest={() => setView("backtest")} settings={appSettings} setSettings={saveSettings} accounts={accounts} activeAccountId={activeAccountId} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} />}
               {view === "calendar" && <><TradingCalendar trades={accountTrades} onSelectDay={() => {}} /><EcoCalendar /></>}
             </div>
