@@ -2919,17 +2919,19 @@ function TvPdPicker({ tr, addPd, delPd }) {
 }
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid, g: "Trader" },
-  { id: "trades", label: "Mes trades", short: "Trades", icon: NotebookPen, g: "Trader" },
-  { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3, g: "Trader" },
-  { id: "erreurs", label: "Mes erreurs", short: "Erreurs", icon: AlertCircle, g: "Progresser" },
-  { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon, g: "Progresser" },
-  { id: "playbooks", label: "Playbooks", short: "Playbooks", icon: Target, g: "Progresser" },
-  { id: "plan", label: "Plan", short: "Plan", icon: BookOpen, g: "Préparer" },
-  { id: "previsions", label: "Prévisions", short: "Prévis.", icon: TrendingUp, g: "Préparer" },
-  { id: "ressources", label: "Ressources ICT", short: "Ressources", icon: FolderOpen, g: "Préparer" },
-  { id: "settings", label: "Réglages", short: "Réglages", icon: Settings, g: "" },
+  { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid, g: "" },
+  { id: "trades", label: "Trades", short: "Trades", icon: NotebookPen, g: "" },
+  { id: "stats", label: "Stats", short: "Stats", icon: BarChart3, g: "", also: ["erreurs", "calendar"] },
+  { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon, g: "" },
+  { id: "plan", label: "Préparation", short: "Prépa", icon: BookOpen, g: "", also: ["previsions", "playbooks", "ressources"] },
+  { id: "settings", label: "Réglages", short: "Réglages", icon: Settings, g: " " },
 ];
+/* sections regroupées en onglets */
+const NAV_TABS = { stats: [["stats", "Stats"], ["erreurs", "Erreurs"], ["calendar", "Calendrier"]], plan: [["plan", "Plan"], ["previsions", "Prévisions"], ["playbooks", "Playbooks"], ["ressources", "ICT"]] };
+function GroupTabs({ view, setView }) {
+  const g = Object.values(NAV_TABS).find((l) => l.some(([k]) => k === view)); if (!g) return null;
+  return <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14, overflowX: "auto" }}>{g.map(([k, l]) => <button key={k} onClick={() => setView(k)} style={{ flex: 1, border: "none", borderRadius: 9, padding: "8px 12px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: view === k ? C.purpleDim : "transparent", color: view === k ? C.purpleBright : C.textSecondary, fontFamily: "inherit" }}>{l}</button>)}</div>;
+}
 
 /* ============================================================================
    PROGRESSION — transforme ton backtest et tes trades réels en plan pour monter de niveau
@@ -3028,20 +3030,6 @@ function pgLadder(all, live) {
   return { steps, cur: cur < 0 ? steps.length : cur, best, proven, tgt, LS };
 }
 
-function ProgressCard({ all, live, onOpen }) {
-  const L = useMemo(() => pgLadder(all, live), [all, live]); const s = L.steps[Math.min(L.cur, 4)];
-  return (
-    <div onClick={onOpen} style={{ background: `radial-gradient(120% 120% at 0% 0%, ${C.purpleDim}, transparent 60%), ${C.card}`, border: `1px solid ${C.border}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14, cursor: "pointer" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: C.textMuted }}>Ta progression · étape {Math.min(L.cur + 1, 5)}/5</div>
-        <span style={{ fontSize: 12, color: C.purpleBright, fontWeight: 700 }}>Voir le plan →</span>
-      </div>
-      <div style={{ display: "flex", gap: 4, margin: "10px 0" }}>{L.steps.map((x, i) => <span key={i} style={{ flex: 1, height: 5, borderRadius: 3, background: x.done ? C.teal : i === L.cur ? C.purple : C.border }} />)}</div>
-      <div style={{ fontSize: 15, fontWeight: 700 }}>{L.cur >= 5 ? "Toutes les étapes sont validées 🎉" : s.t}</div>
-      <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 3, lineHeight: 1.45 }}>{L.cur >= 5 ? "Garde le même process, augmente le risque par petites marches." : s.todo}</div>
-    </div>
-  );
-}
 
 function Progression({ all, live, balance = 10000 }) {
   const [mode, setMode] = useState("setup");
@@ -3282,8 +3270,8 @@ function ReviewCard({ trades, onOpen }) {
     <div style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${todo ? C.amber + "66" : C.border}`, borderRadius: 18, padding: "12px 16px", marginBottom: 14 }}>
       <div style={{ width: 40, height: 40, borderRadius: 12, background: todo ? C.amberDim : C.tealDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{todo ? "📝" : "✓"}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14.5, fontWeight: 700 }}>{todo ? `${todo} trade${todo > 1 ? "s" : ""} à revoir` : "Tous tes trades ont leur photo après"}</div>
-        <div style={{ fontSize: 12.5, color: C.textMuted }}>{todo ? "Sans photo « après » : ajoute-la et note tes erreurs" : "Rien à revoir."}</div>
+        <div style={{ fontSize: 14.5, fontWeight: 700 }}>{todo ? `${todo} trade${todo > 1 ? "s" : ""} à revoir` : "Rien à revoir"}</div>
+        
       </div>
       {todo > 0 && <button onClick={onOpen} style={{ ...btn.primary, padding: "9px 14px", fontSize: 13, whiteSpace: "nowrap" }}>Revoir</button>}
     </div>
@@ -3360,20 +3348,20 @@ function ErrorsPage({ trades, appSettings, balance = 10000, onOpenTrade }) {
     <div className="fade-in" style={{ maxWidth: 900, margin: "0 auto" }}>
       <PageHeader title="Mes erreurs" action={<div style={{ display: "flex", gap: 2, padding: 2, borderRadius: 9, background: C.card, border: `1px solid ${C.border}` }}>{[["30", "30 j"], ["90", "90 j"], ["all", "Tout"]].map(([k, l]) => <button key={k} onClick={() => setPeriod(k)} style={{ border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", background: period === k ? C.purpleDim : "transparent", color: period === k ? C.purpleBright : C.textSecondary }}>{l}</button>)}</div>} />
       {todo > 0 && <div style={{ ...card, display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderColor: C.amber + "66" }}>
-        <div style={{ flex: 1, fontSize: 13, color: C.textSecondary, lineHeight: 1.45 }}><b style={{ color: C.text }}>{todo} trade{todo > 1 ? "s" : ""} pas encore revu{todo > 1 ? "s" : ""}</b> sur cette période. Plus tu revois, plus cette page dit vrai.</div>
+        <div style={{ flex: 1, fontSize: 13, color: C.textSecondary, lineHeight: 1.45 }}><b style={{ color: C.text }}>{todo} trade{todo > 1 ? "s" : ""} à revoir</b></div>
         <button onClick={() => window.dispatchEvent(new Event("tjp-review"))} style={{ ...btn.primary, padding: "9px 14px", fontSize: 13, whiteSpace: "nowrap" }}>Revue express</button>
       </div>}
-      {closed.length === 0 && <div style={{ ...card, padding: "26px 18px", textAlign: "center", color: C.textMuted, fontSize: 13.5 }}>Pas encore de trades fermés sur cette période.</div>}
+      {closed.length === 0 && <div style={{ ...card, padding: "26px 18px", textAlign: "center", color: C.textMuted, fontSize: 13.5 }}>Aucun trade.</div>}
       {closed.length > 0 && <div style={{ ...card, background: `radial-gradient(120% 90% at 0% 0%, ${A.s < 0 ? C.redDim : C.tealDim}, transparent 60%), ${C.card}` }}>
         <div style={{ padding: "18px 18px 6px" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Ce que tes erreurs t'ont coûté</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Coût des erreurs</div>
           <div className="tnum" style={{ fontSize: 34, fontWeight: 700, letterSpacing: -1, color: A.s < 0 ? C.red : C.teal, marginTop: 4 }}>{fmtR(A.s)}{A.u ? <span style={{ fontSize: 16, color: C.textSecondary, fontWeight: 600 }}> · {fmtUsdSigned(A.u)}</span> : null}</div>
-          <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}>Sans les trades avec erreur, tu serais à <b style={{ color: C.teal }}>{fmtR(K.s)}</b> au lieu de <b>{fmtR(T.s)}</b>.</div>
+          <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}>Sans erreurs : <b style={{ color: C.teal }}>{fmtR(K.s)} · réel </b><b>{fmtR(T.s)}</b>.</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, padding: "10px 16px" }}>
           <Big l="Trades propres" v={fmtR(K.avg) + " /trade"} c={K.avg >= 0 ? C.teal : C.red} sub={`${K.n} trades · ${K.wr.toFixed(0)} % gagnants`} />
           <Big l="Trades avec erreur" v={fmtR(A.avg) + " /trade"} c={A.avg >= 0 ? C.teal : C.red} sub={`${A.n} trades · ${A.wr.toFixed(0)} % gagnants`} />
-          <Big l="Discipline" v={rev.length ? Math.round((clean.length / rev.length) * 100) + " %" : "—"} c={C.purpleBright} sub="trades sans erreur (revus)" />
+          <Big l="Discipline" v={rev.length ? Math.round((clean.length / rev.length) * 100) + " %" : "—"} c={C.purpleBright} />
         </div>
         {curve.length > 2 && <div style={{ height: 170, padding: "6px 6px 10px" }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -3391,14 +3379,14 @@ function ErrorsPage({ trades, appSettings, balance = 10000, onOpenTrade }) {
       </div>}
       {top && <div style={{ ...card, borderColor: C.purple, background: `linear-gradient(135deg, ${C.purpleDim}, transparent 70%), ${C.card}` }}>
         <div style={{ padding: "14px 16px" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.purpleBright }}>Ta règle n°1 en ce moment</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.purpleBright }}>Règle n°1</div>
           <div style={{ fontSize: 16, fontWeight: 700, marginTop: 5 }}>{top.t}</div>
           <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 3, lineHeight: 1.45 }}>{top.d}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}><span style={{ fontSize: 13.5, fontWeight: 600 }}>« {top.fix} »</span><FixBtn fix={top.fix} rule={top.rule} /></div>
         </div>
       </div>}
       {errRows.length > 0 && <div style={card}>
-        <H sub="Classées par ce qu'elles te coûtent. La flèche compare les 30 derniers jours aux 30 d'avant.">Tes erreurs</H>
+        <H>Erreurs</H>
         {errRows.map((x) => (
           <div key={x.e} style={{ padding: "11px 16px", borderTop: `1px solid ${C.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
@@ -3409,7 +3397,7 @@ function ErrorsPage({ trades, appSettings, balance = 10000, onOpenTrade }) {
           </div>))}
       </div>}
       {pats.length > 0 && <div style={card}>
-        <H sub="Repérés tout seuls à partir des heures, des résultats et du risque de tes trades, sans rien cocher.">Comportements repérés</H>
+        <H>Comportements</H>
         {pats.map((x) => { const bad = x.d <= -0.25 && x.A.n >= 5; return (
           <div key={x.k} style={{ padding: "11px 16px", borderTop: `1px solid ${C.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
@@ -3420,7 +3408,7 @@ function ErrorsPage({ trades, appSettings, balance = 10000, onOpenTrade }) {
           </div>); })}
       </div>}
       {matrix && <div style={card}>
-        <H sub="Un bon trade perdant reste un bon trade. Un mauvais trade gagnant est le plus dangereux : il t'apprend une mauvaise habitude.">Process ou chance ?</H>
+        <H>Process / chance</H>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 16px 16px" }}>
           {[["Bons trades gagnants", matrix.gw, C.teal, "Le process qui paie"], ["Bons trades perdants", matrix.gl, C.textSecondary, "Normal : ça fait partie de l'edge"], ["Mauvais trades gagnants", matrix.bw, C.amber, "De la chance : à ne pas répéter"], ["Mauvais trades perdants", matrix.bl, C.red, "Évitable"]].map(([l, arr, c, s]) =>
             <div key={l} style={{ padding: "11px 12px", borderRadius: 12, background: C.inputBg || C.bg, borderLeft: `3px solid ${c}` }}><div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>{arr.length} <span style={{ fontSize: 12.5, color: c }}>{fmtR(arr.reduce((a, t) => a + rOf(t), 0))}</span></div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{s}</div></div>)}
@@ -3431,66 +3419,18 @@ function ErrorsPage({ trades, appSettings, balance = 10000, onOpenTrade }) {
 }
 
 /* « Tu peux trader ? » : tes limites du plan pour aujourd'hui, la semaine et le mois */
-function CanTradeCard({ trades, balance, acc }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id); }, []);
-  const rules = loadRules(); const B = Number(balance) || 10000;
-  const ch = acc && acc.type === "challenge" && acc.challenge ? { ...CH_DEFAULT, ...acc.challenge } : null;
-  const L = closedSorted(trades);
-  const d0 = new Date(now); d0.setHours(0, 0, 0, 0); const w0 = startOfWeek(now); const m0 = new Date(d0.getFullYear(), d0.getMonth(), 1);
-  const sum = (from) => L.filter((t) => new Date(t.entryTime) >= from).reduce((s, t) => s + usdOf(t), 0);
-  const nToday = L.filter((t) => new Date(t.entryTime) >= d0).length;
-  const lim = [
-    { k: "Jour", pct: ch ? ch.maxDaily : rules.maxLossDayPct, pnl: sum(d0), reset: new Date(d0.getTime() + 864e5) },
-    { k: "Semaine", pct: rules.maxLossWeekPct, pnl: sum(w0), reset: new Date(w0.getTime() + 7 * 864e5) },
-    { k: "Mois", pct: rules.maxLossMonthPct, pnl: sum(m0), reset: new Date(m0.getFullYear(), m0.getMonth() + 1, 1) },
-  ].filter((x) => x.pct);
-  if (!lim.length && !rules.maxTradesDay) return null;
-  const riskPer = (B * (rules.maxRiskPct || 1)) / 100;
-  const rows = lim.map((x) => { const max = (B * x.pct) / 100; const left = Math.max(0, max + Math.min(0, x.pnl)); return { ...x, max, left, used: clamp01(-Math.min(0, x.pnl) / max) }; });
-  const left = rows.length ? Math.min(...rows.map((r) => r.left)) : Infinity;
-  const tradesLeft = Math.min(Number.isFinite(left) ? Math.floor(left / riskPer + 1e-9) : 99, rules.maxTradesDay ? Math.max(0, rules.maxTradesDay - nToday) : 99);
-  /* règle « X pertes d'affilée = stop » de ton plan */
-  const todayL = L.filter((t) => new Date(t.entryTime) >= d0); let streak = 0; for (let k = todayL.length - 1; k >= 0 && rOf(todayL[k]) < 0; k--) streak++;
-  const stopStreak = !!rules.maxConsecLoss && streak >= rules.maxConsecLoss;
-  const ok = tradesLeft > 0 && !stopStreak;
-  const cd = (d) => { const ms = d - now; const h = Math.floor(ms / 36e5), m = Math.floor((ms % 36e5) / 6e4); return h >= 48 ? Math.floor(h / 24) + " j" : h + " h " + String(m).padStart(2, "0"); };
-  return (
-    <div style={{ background: ok ? `linear-gradient(135deg, ${C.tealDim}, transparent 60%), ${C.card}` : `linear-gradient(135deg, ${C.redDim}, transparent 60%), ${C.card}`, border: `1px solid ${(ok ? C.teal : C.red) + "55"}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: rows.length ? 12 : 0 }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, background: (ok ? C.teal : C.red) + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{ok ? "✓" : "✕"}</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: ok ? C.teal : C.red }}>{ok ? "Tu peux trader" : "Stop pour aujourd'hui"}</div>
-          <div className="tnum" style={{ fontSize: 12.5, color: C.textSecondary }}>{ok ? <>Encore <b style={{ color: C.text }}>{tradesLeft >= 99 ? "∞" : tradesLeft} trade{tradesLeft > 1 ? "s" : ""}</b> à {fmtUsd0(riskPer)} de risque{Number.isFinite(left) ? <> · marge {fmtUsd0(left)}</> : null}</> : stopStreak ? `${streak} pertes d'affilée aujourd'hui : ton plan dit stop. Reviens demain.` : "Une limite de ton plan est atteinte."}</div>
-        </div>
-      </div>
-      {rows.length > 0 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${rows.length}, minmax(0,1fr))`, gap: 8 }}>
-        {rows.map((r) => <div key={r.k} style={{ padding: "9px 10px", borderRadius: 12, background: C.card, border: `1px solid ${C.border}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "0 6px", fontSize: 11, color: C.textMuted, fontWeight: 600 }}><span>{r.k}</span><span style={{ whiteSpace: "nowrap" }} title="Remise à zéro dans">↻ {cd(r.reset)}</span></div>
-          <div className="tnum" style={{ fontSize: 15, fontWeight: 700, color: r.used >= 0.8 ? C.red : C.text, marginTop: 3 }}>{fmtUsd0(r.left)}<span style={{ fontSize: 11, color: C.textMuted, fontWeight: 500 }}> / {fmtUsd0(r.max)}</span></div>
-          <div style={{ height: 5, borderRadius: 3, background: C.border, marginTop: 6, overflow: "hidden" }}><div className="grow-x" style={{ width: r.used * 100 + "%", height: "100%", background: r.used >= 0.8 ? C.red : r.used >= 0.5 ? C.amber : C.teal }} /></div>
-        </div>)}
-      </div>}
-    </div>
-  );
-}
 
 function MobileNav({ view, setView, onNewTrade }) {
   const [more, setMore] = useState(false);
   const MAIN = [NAV_ITEMS[0], NAV_ITEMS[1], null, NAV_ITEMS.find(i => i.id === "stats")];
   const EXTRA = [
-    { id: "erreurs", label: "Mes erreurs", icon: AlertCircle },
     { id: "backtest", label: "Backtest", icon: TvLogoIcon },
-    { id: "plan", label: "Plan de trading", icon: BookOpen },
-    { id: "playbooks", label: "Playbooks", icon: Target },
-    { id: "previsions", label: "Prévisions", icon: TrendingUp },
-    { id: "calendar", label: "Calendrier", icon: CalendarDays },
+    { id: "plan", label: "Préparation", icon: BookOpen },
     { id: "calculator", label: "Calculatrice", icon: Calculator },
     { id: "coach", label: "IA Coach", icon: Brain },
-    { id: "ressources", label: "Ressources", icon: FolderOpen },
     { id: "settings", label: "Réglages", icon: Settings },
   ];
-  const extraActive = EXTRA.some(x => x.id === view);
+  const extraActive = EXTRA.some(x => x.id === view) || ["previsions", "playbooks", "ressources"].includes(view);
   const go = (id) => { setMore(false); setView(id); };
   const Item = ({ active, label, icon, onClick }) => (
     <button onClick={onClick} style={{ background: "none", border: "none", flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", padding: "0 2px", color: active ? "#9D8FFF" : "rgba(255,255,255,0.45)" }}>
@@ -3549,7 +3489,7 @@ function Sidebar({ view, setView, onNewTrade, totalPnl = 0, totalR = 0 }) {
         <nav style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 1 }}>
           {NAV_ITEMS.map((it, i) => {
             const head = it.g !== (NAV_ITEMS[i - 1] || {}).g ? <div key={"g" + it.g} className="nav-label" style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.9, textTransform: "uppercase", color: C.sidebarTextDim, opacity: 0.7, padding: i ? "14px 12px 5px" : "2px 12px 5px", borderTop: i && !it.g ? `1px solid rgba(255,255,255,0.06)` : "none", marginTop: i && !it.g ? 10 : 0 }}>{it.g}</div> : null;
-            const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
+            const active = view === it.id || (it.also || []).includes(view) || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
             const Icon = it.icon;
             return (<React.Fragment key={it.id}>{head}
               <button className="nav-btn nav-item-row" onClick={() => setView(it.id)} title={it.label} style={{
@@ -3880,9 +3820,6 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
         )}
       </Card>
 
-      <button onClick={() => setView("stats")} style={{ width: "100%", marginBottom: 14, padding: "12px 16px", borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, color: C.purpleBright, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span>Voir toutes les statistiques</span><span>→</span>
-      </button>
 
       {/* Ligne 4 — Trades récents */}
       <Card style={{ padding: 0, overflow: "hidden" }}>
@@ -5960,13 +5897,7 @@ function SimpleStats({ trades }) {
   return (
     <div className="fade-in" style={{ maxWidth: 860, margin: "0 auto" }}>
       <PageHeader title="Statistiques" action={<Seg v={unit} set={setUnit} opts={[["usd", "$"], ["r", "R"]]} />} />
-      {/* raccourcis vers l'analyse qui fait progresser */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-        {[["erreurs", "Mes erreurs", "Ce qui te coûte, et la règle pour l'éviter", AlertCircle], ["backtest", "Backtest", "Entraîne-toi sur les vraies bougies", TvLogoIcon]].map(([v, t, d, I]) => <button key={v} onClick={() => window.dispatchEvent(new CustomEvent("tjp-goto", { detail: v }))} style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: "11px 13px", borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, color: C.text, cursor: "pointer", fontFamily: "inherit", minWidth: 0 }}>
-          <span style={{ width: 32, height: 32, borderRadius: 10, background: C.purpleDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I size={16} color={C.purpleBright} /></span>
-          <span style={{ minWidth: 0 }}><span style={{ display: "block", fontSize: 13.5, fontWeight: 700 }}>{t} →</span><span style={{ display: "block", fontSize: 11.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d}</span></span>
-        </button>)}
-      </div>
+
       <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14 }}>
         {["tout", "7j", "30j", "90j"].map((p) => <button key={p} onClick={() => setPeriod(p)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: period === p ? C.purpleDim : "transparent", color: period === p ? C.purpleBright : C.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{p === "tout" ? "Tout" : p}</button>)}
       </div>
@@ -7366,57 +7297,7 @@ const startOfWeek = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.se
 const closedSorted = (trades) => byTime(closedOf(trades));
 
 /* ── Score /100 façon Zella : 5 axes ── */
-function proScore(trades, balance) {
-  const L = closedSorted(trades); if (L.length < 5) return null;
-  const B = Number(balance) || 10000;
-  const gw = L.filter((t) => rOf(t) > 0).reduce((s, t) => s + rOf(t), 0), gl = -L.filter((t) => rOf(t) < 0).reduce((s, t) => s + rOf(t), 0);
-  const pf = gl ? gw / gl : gw ? 3 : 1; const wr = L.filter((t) => rOf(t) > 0).length / L.length;
-  const W = L.filter((t) => rOf(t) > 0), Ls = L.filter((t) => rOf(t) < 0);
-  const ratio = Ls.length && W.length ? (gw / W.length) / (gl / Ls.length) : W.length ? 3 : 0;
-  let eq = B, pk = B, dd = 0; L.forEach((t) => { eq += usdOf(t); pk = Math.max(pk, eq); dd = Math.max(dd, (pk - eq) / pk); });
-  const chk = planCheck(L, loadRules(), B); const comp = chk.filter((x) => !x.v.length).length / chk.length;
-  const wk = {}; L.forEach((t) => { const k = startOfWeek(t.entryTime).toISOString(); wk[k] = (wk[k] || 0) + rOf(t); }); const Wv = Object.values(wk); const pos = Wv.filter((v) => v > 0).length / Wv.length;
-  const axes = [
-    { k: "Rentabilité", v: clamp01((pf - 0.8) / 1.7) * 100, txt: "PF " + pf.toFixed(2) },
-    { k: "Gain / perte", v: clamp01(ratio / 2.5) * 100, txt: ratio.toFixed(2) + " : 1" },
-    { k: "Winrate", v: clamp01((wr - 0.25) / 0.45) * 100, txt: Math.round(wr * 100) + " %" },
-    { k: "Risque", v: clamp01(1 - dd / 0.15) * 100, txt: "DD " + (dd * 100).toFixed(1) + " %" },
-    { k: "Régularité", v: pos * 100, txt: Math.round(pos * Wv.length) + "/" + Wv.length + " sem." },
-    { k: "Discipline", v: comp * 100, txt: Math.round(comp * 100) + " % plan" },
-  ];
-  return { score: Math.round(axes.reduce((s, a) => s + a.v, 0) / axes.length), axes, n: L.length };
-}
 
-function ScoreCard({ trades, balance }) {
-  const s = useMemo(() => proScore(trades, balance), [trades, balance]);
-  if (!s) return null;
-  const col = s.score >= 70 ? C.teal : s.score >= 50 ? C.amber : C.red;
-  const lab = s.score >= 80 ? "Excellent" : s.score >= 70 ? "Solide" : s.score >= 50 ? "En progrès" : "À risque";
-  const weak = [...s.axes].sort((a, b) => a.v - b.v)[0];
-  return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-      <div style={{ width: 250, height: 190, flexShrink: 0, margin: "0 auto" }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <RadarChart data={s.axes} outerRadius="62%" margin={{ top: 6, right: 30, bottom: 6, left: 30 }}>
-            <PolarGrid stroke={C.border} />
-            <PolarAngleAxis dataKey="k" tick={{ fontSize: 9.5, fill: C.textMuted }} />
-            <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-            <Radar dataKey="v" stroke={col} fill={col} fillOpacity={0.25} strokeWidth={2} />
-          </RadarChart>
-        </ResponsiveContainer>
-      </div>
-      <div style={{ flex: 1, minWidth: 200 }}>
-        <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}>Score trader</div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}><span className="tnum" style={{ fontSize: 40, fontWeight: 700, color: col, letterSpacing: -1 }}>{s.score}</span><span style={{ fontSize: 14, color: C.textMuted }}>/ 100</span><span style={{ fontSize: 14, fontWeight: 700, color: col, marginLeft: 6 }}>{lab}</span></div>
-        <div style={{ height: 7, borderRadius: 4, background: `linear-gradient(90deg, ${C.red}, ${C.amber}, ${C.teal})`, position: "relative", margin: "6px 0 10px", opacity: 0.85 }}><span style={{ position: "absolute", left: `calc(${s.score}% - 6px)`, top: -3, width: 12, height: 12, borderRadius: 6, background: C.text, border: `2px solid ${C.card}` }} /></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 14px" }}>
-          {s.axes.map((a) => <div key={a.k} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSecondary }}><span>{a.k}</span><span className="tnum" style={{ fontWeight: 700, color: a.v >= 70 ? C.teal : a.v >= 45 ? C.amber : C.red }}>{a.txt}</span></div>)}
-        </div>
-        
-      </div>
-    </div>
-  );
-}
 
 /* ── « Tu peux trader » : marge restante jour / semaine / mois ── */
 
@@ -7427,26 +7308,6 @@ function loadChecks() { try { return JSON.parse(localStorage.getItem(checkKey())
 function checklistDone() { const r = loadRules(); const items = r.checklist && r.checklist.length ? r.checklist : CHECK_DEFAULT; if (r.checklistOn === false) return true; const c = loadChecks(); return items.every((_, i) => c.includes(i)); }
 
 /* ── Récap de la semaine ── */
-function WeekRecap({ trades }) {
-  const L = closedSorted(trades); const w0 = startOfWeek(Date.now()); const p0 = new Date(w0.getTime() - 7 * 864e5);
-  const cur = L.filter((t) => new Date(t.entryTime) >= w0), prev = L.filter((t) => new Date(t.entryTime) >= p0 && new Date(t.entryTime) < w0);
-  if (!cur.length && !prev.length) return null;
-  const A = aggR(cur), P = aggR(prev); const best = cur.reduce((m, t) => (!m || rOf(t) > rOf(m) ? t : m), null);
-  const chk = planCheck(L, loadRules(), 10000).filter((x) => new Date(x.t.entryTime) >= w0); const comp = chk.length ? chk.filter((x) => !x.v.length).length / chk.length : null;
-  const d = A.sumR - P.sumR;
-  const Cell = ({ l, v, c, sub }) => <div style={{ minWidth: 0 }}><div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, color: c || C.text, marginTop: 2 }}>{v}</div>{sub && <div style={{ fontSize: 10.5, color: C.textMuted }}>{sub}</div>}</div>;
-  return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><span style={{ fontSize: 14.5, fontWeight: 700 }}>Cette semaine</span><span className="tnum" style={{ fontSize: 12, fontWeight: 700, color: d >= 0 ? C.teal : C.red }}>{d >= 0 ? "▲" : "▼"} {fmtRs(d)} vs sem. passée</span></div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 10 }}>
-        <Cell l="Résultat" v={fmtRs(A.sumR)} c={rCol(A.sumR)} sub={fmtUsdSigned(A.pnl)} />
-        <Cell l="Trades" v={A.n} sub={A.n ? A.wr.toFixed(0) + " % gagnés" : ""} />
-        <Cell l="Plan" v={comp == null ? "—" : Math.round(comp * 100) + " %"} c={comp == null ? null : comp >= 0.8 ? C.teal : comp >= 0.6 ? C.amber : C.red} sub="respecté" />
-        <Cell l="Meilleur" v={best ? fmtRs(rOf(best)) : "—"} c={C.teal} sub={best ? best.pair : ""} />
-      </div>
-    </div>
-  );
-}
 
 /* ── Heatmap jour × heure (régularité) ── */
 function HourHeatmap({ trades, useUsd }) {
@@ -9788,7 +9649,7 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <Dashboard extra={<><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} onDelete={(id) => { const rest = accounts.filter((a) => a.id !== id); saveAccounts(rest); if (rest[0]) switchAccount ? switchAccount(rest[0].id) : null; }} />}<ScoreCard trades={accountTrades} balance={initialBalance} /><WeekRecap trades={accountTrades} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
+              {view === "dashboard" && <Dashboard extra={<><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} onDelete={(id) => { const rest = accounts.filter((a) => a.id !== id); saveAccounts(rest); if (rest[0]) switchAccount ? switchAccount(rest[0].id) : null; }} />}</>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
               {view === "backtest" && <BacktestPage trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
@@ -9797,6 +9658,7 @@ export default function TradingJournalApp() {
               {view === "tradeForm" && (
                 <TradeFormV2 initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} trades={accountTrades} />
               )}
+              <GroupTabs view={view} setView={setView} />
               {view === "stats" && <SimpleStats trades={accountTrades} />}
               {view === "erreurs" && <ErrorsPage trades={accountTrades} appSettings={appSettings} balance={initialBalance} onOpenTrade={openTradeDetail} />}
               {view === "playbooks" && <Playbooks trades={accountTrades} />}
