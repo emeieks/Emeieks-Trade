@@ -8,7 +8,7 @@ import {
   Settings,
   BookOpen, Newspaper, RefreshCw, MoreHorizontal, CalendarDays,
   Target, Zap, ThumbsUp, ThumbsDown, Share2, Star, AlertTriangle, Check, Clipboard, FolderOpen, LineChart, Timer, SlidersHorizontal, ArrowLeftRight, Lightbulb, Coins, CircleDot,
-  Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward, StepBack, Scissors, SkipForward, Cpu, SeparatorVertical, Radio, Minimize2, Maximize2, Magnet, Copy,
+  Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward, StepBack, Scissors, SkipForward, Cpu, SeparatorVertical, Radio, Minimize2, Maximize2, Magnet, Copy, EyeOff,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -288,18 +288,6 @@ function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}
    SMART TRADE CAPTURE — extraction vision d'un screenshot TradingView
    ============================================================================ */
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      const base64 = result.split(",")[1];
-      resolve({ base64, mediaType: file.type });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 const EXTRACTION_PROMPT = `Tu analyses un screenshot de plateforme de trading (probablement TradingView). Extrais les informations visibles sur le graphique pour pré-remplir un journal de trading.
 
@@ -335,57 +323,6 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans markdown, sans texte avant o
 
 Si une information n'est pas visible ou pas claire sur l'image, mets null pour la valeur et "none" pour sa confiance, plutôt que de deviner. Ne fournis aucune explication, uniquement le JSON.`;
 
-async function extractTradeFromScreenshot(file) {
-  // 1) Lecture locale (sans IA) de l'outil Long/Short de TradingView
-  try {
-    const url = await new Promise((r, j) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = j; fr.readAsDataURL(file); });
-    const res = await analyzeChartScreenshot(url, ALL_INSTRUMENTS);
-    const t = res.trades[0];
-    if (t) {
-      const cf = (ok) => (ok ? "high" : "medium");
-      return { pair: res.pair, pairConfidence: res.pair ? "high" : "none", direction: t.direction, directionConfidence: "high",
-        entryPrice: t.entryPrice, entryConfidence: cf(t.sure.entry), stopLoss: t.stopLoss, stopLossConfidence: cf(t.sure.sl), takeProfit: t.takeProfit, takeProfitConfidence: cf(t.sure.tp),
-        riskReward: t.riskReward ? "1:" + t.riskReward : null, timeframe: res.timeframe, dateTimeVisible: t.date, date: t.date, confidence: "high", alternatives: res.trades };
-    }
-  } catch (e) { /* on tente l'IA ensuite */ }
-  // 2) Repli : analyse IA
-  const { base64, mediaType } = await fileToBase64(file);
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-            { type: "text", text: EXTRACTION_PROMPT },
-          ],
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Extraction échouée (${response.status})`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b) => b.type === "text");
-  if (!textBlock) throw new Error("Aucune réponse de l'analyse.");
-
-  const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
-  let parsed;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error("Réponse d'extraction non interprétable.");
-  }
-  return parsed;
-}
 
 /* ============================================================================
    AI COACH — analyse à la demande des trades et réflexions
@@ -660,6 +597,7 @@ function GlobalStyle() {
          ============================================================ */
       @media (max-width: 600px) { .desktop-only { display: none !important; } }
       @media (min-width: 601px) { .mobile-only { display: none !important; } }
+      @media (max-width: 600px) { .hide-sm { display: none !important; } }
       @media (min-width: 601px) and (max-width: 1024px) { .tablet-hide { display: none !important; } }
 
       /* ---- Responsive grid utilities : remplacent les grids inline fixes ---- */
@@ -1237,7 +1175,7 @@ const TV_CFG0 = {
   lv: { pd: true, pw: true, pdh: true, pdl: true, pwh: true, pwl: true, pdColor: "#131722", pwColor: "#2962ff" },
   st: { swings: false, bos: false, mss: false, eq: false, fvg: false, len: 3 },
   grid: false, hideFlat: true, up: "#7fd1bd", down: "#131722",
-  cap: 50000, slP: 15, rr: 1, risk: 1, qty: 1, yearReset: true, showClosed: false, autoBE: true, autoBEpct: 50,
+  cap: 50000, slP: 15, rr: 1, risk: 1, qty: 1, yearReset: true, showClosed: false, autoBE: true, autoBEpct: 50, layout: "1", ltf: [60, 15, 1440], miss: false,
 };
 function tvLoadCfg() { try { const v = JSON.parse(localStorage.getItem("tjp_tv_cfg")); if (v && !v.rr11) { v.rr = 1; v.rr11 = true; } if (v && !v.risk1) { v.risk = 1; v.risk1 = true; } if (v) return { ...TV_CFG0, ...v, kz: { ...TV_CFG0.kz, ...v.kz, color: { ...TV_CFG0.kz.color, ...(v.kz || {}).color } }, lv: { ...TV_CFG0.lv, ...v.lv }, st: { ...TV_CFG0.st, ...(v.st || {}) } }; } catch (e) {} return TV_CFG0; }
 const tvHm = (s) => { const [h, m] = String(s).split(":").map(Number); return (h || 0) * 60 + (m || 0); };
@@ -1272,9 +1210,11 @@ function tvApplyRemote(row) {
 /* fuseau d'affichage : "ny" = New York avec heure d'été, sinon décalage fixe en heures */
 const tvTzOff = (t, tz) => (tz === "ny" ? tvNyOff(t) : (+tz || 0) * 3600);
 const TV_MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+let TV_BLIND = false; /* mode à l'aveugle : dates cachées, seules les heures restent (killzones) */
 function tvFmtTime(t, tz, type) {
   const d = new Date((t + tvTzOff(t, tz)) * 1000), p2 = (n) => String(n).padStart(2, "0");
   const hm = p2(d.getUTCHours()) + ":" + p2(d.getUTCMinutes());
+  if (TV_BLIND) return type === "full" ? "•• •• ••  " + hm : typeof type === "number" && type < 3 ? "" : hm;
   if (type === "full") return `${d.getUTCDate()} ${TV_MOIS[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}  ${hm}`;
   const dd = new Date((t + tvTzOff(t, tz) + (tz === "ny" ? 7 * 3600 : 0)) * 1000); /* jour de trading (17:00 New York) pour les années, mois et jours */
   if (type === 0) return String(dd.getUTCFullYear());
@@ -1469,7 +1409,7 @@ const tvDur = (s) => { const m = Math.round(s / 60); if (m < 60) return m + " mi
 function tvLoadFav() { try { const v = JSON.parse(localStorage.getItem("tjp_tv_fav2")); if (Array.isArray(v)) return v; } catch (e) {} return TV_FAV_DEFAULT; }
 function tvSaveFav(v) { try { localStorage.setItem("tjp_tv_fav2", JSON.stringify(v)); } catch (e) {} }
 
-function BacktestLab({ onSave, onDelete, appTrades = [] }) {
+function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const wrapRef = useRef(null), boxRef = useRef(null), ovRef = useRef(null), fileRef = useRef(null), dateRef = useRef(null);
   const R = useRef({ rows: null, ci: 0, agg: null, k: -1, chart: null, series: null, trades: [], draws: [], hist: [], redo: [], tool: "cursor", pend: null, drag: null, mouse: null, off: 0, sel: -1, dragS: null, magnet: false, clip: null }).current;
   const barRef = useRef(null), trBarRef = useRef(null);
@@ -1499,7 +1439,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   const setTz = (v) => { setTzS(v); R.tz = v; try { localStorage.setItem("tjp_tv_tz", v); } catch (e) {} };
   if (R.tz === undefined) R.tz = tz;
   const [legend, setLegend] = useState(null);
-  const [fs, setFs] = useState(false);
+  const [fs, setFsS] = useState(false); const [zen, setZen] = useState(false);
+  const setFs = (v) => { setZen(false); setFsS(v); };
   const [live, setLive] = useState(false);
   const [magnet, setMagnetS] = useState(false);
   const [groupLast, setGroupLast] = useState({});
@@ -1515,6 +1456,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   const [ctx, setCtx] = useState(null);
   const [unseen, setUnseen] = useState(0);
   const [indOpen, setIndOpen] = useState(false);
+  const [layMenu, setLayMenu] = useState(false);
   const [indFav, setIndFav] = useState(() => { try { return JSON.parse(localStorage.getItem("tjp_tv_indfav")) || []; } catch (e) { return []; } });
   const togFav = (n) => setIndFav((f) => { const v = f.includes(n) ? f.filter((x) => x !== n) : [...f, n]; try { localStorage.setItem("tjp_tv_indfav", JSON.stringify(v)); } catch (e) {} return v; });
   const [selBar, setSelBar] = useState(false);
@@ -1569,7 +1511,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
 
   /* ---------- sessions de backtest ---------- */
   const curSess = () => sess.list.find((x) => x.id === sess.cur) || sess.list[0];
-  const snapSess = (v) => ({ ...v, list: v.list.map((x) => (x.id === v.cur ? { ...x, ci: R.ci, ciT: R.rows ? R.rows[R.ci][0] : x.ciT, tf: R.tfCur || tf, draws: R.draws, trades: R.trades, years: R.years || [], seq: R.seq || 0, archive: R.archive || [] } : x)) });
+  const snapSess = (v) => ({ ...v, list: v.list.map((x) => (x.id === v.cur ? { ...x, ci: R.ci, ciT: R.rows ? R.rows[R.ci][0] : x.ciT, tf: R.tfCur || tf, draws: R.draws, trades: R.trades, years: R.years || [], seq: R.seq || 0, archive: R.archive || [], prop: R.prop || x.prop || null } : x)) });
   R.snapNow = () => { if (R.rows && !R.demo) tvSaveSess(snapSess(R.sessCur || sess)); };
   R.sessCur = sess;
   useEffect(() => {
@@ -1581,14 +1523,14 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   const openSess = (id, base) => {
     const v = snapSess(base || sess); const n = { ...v, cur: id }; setSessS(n); tvSaveSess(n);
     const c = n.list.find((x) => x.id === id); setPlaying(false);
-    R.trades = c.trades || []; R.draws = c.draws || []; R.years = c.years || []; R.archive = c.archive || []; R.seq = c.seq ?? null; R.sel = -1; R.selTr = null;
+    R.trades = c.trades || []; R.draws = c.draws || []; R.years = c.years || []; R.archive = c.archive || []; R.seq = c.seq ?? null; R.sel = -1; R.selTr = null; R.prop = c.prop || null; R.missPtr = null;
     R.ci = c.ciT != null ? Math.max(50, tvBsRows(R.rows, c.ciT)) : c.ci != null && c.ci < R.rows.length ? c.ci : Math.min(R.rows.length - 1, 2000 + Math.floor(Math.random() * Math.max(1, R.rows.length - 4000)));
     if (c.tf && c.tf !== tf) setTf(c.tf); else rebuild(c.tf || tf, true);
   };
-  const createSess = (title, mode, date) => {
-    const id = "s" + Date.now(); let ci = null;
+  const createSess = (title, mode, date, ex = {}) => {
+    const id = "s" + Date.now(); let ci = null; if (ex.blind) mode = "random";
     if (mode === "date" && date) { const t = Date.parse(date + "T00:00:00Z") / 1000; const i = R.rows.findIndex((r) => r[0] >= t); ci = i < 0 ? R.rows.length - 1 : Math.max(50, i); }
-    const base = snapSess(sess); base.list = [...base.list, { id, title: title || "Session " + (base.list.length + 1), ci, tf, draws: [], trades: [] }];
+    const base = snapSess(sess); base.list = [...base.list, { id, title: title || (ex.prop ? "Challenge " + (ex.prop.size / 1000) + "k" : "Session " + (base.list.length + 1)), ci, tf, draws: [], trades: [], blind: !!ex.blind, noSave: !!ex.noSave, prop: ex.prop ? { ...ex.prop, phase: 0, status: "on", phaseT: 0, hist: [], tries: 1 } : null }];
     openSess(id, base); setShowNew(false);
   };
   const delSess = (id) => { if (sess.list.length < 2) return; const v = snapSess(sess); v.list = v.list.filter((x) => x.id !== id); if (v.cur === id) { openSess(v.list[0].id, v); } else { setSessS(v); tvSaveSess(v); } };
@@ -1598,7 +1540,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     const real = await tvAutoLoad(setMsg); const d = real ? { rows: real } : null;
     if (d && d.rows && d.rows.length) { R.rows = d.rows; setDemo(false); } else { R.rows = tvDemo(); setDemo(true); }
     R.demo = !(d && d.rows && d.rows.length);
-    const c = curSess(); R.trades = (!R.demo && c.trades) || []; R.draws = (!R.demo && c.draws) || []; R.years = (!R.demo && c.years) || []; R.archive = (!R.demo && c.archive) || []; R.seq = (!R.demo && c.seq) ?? null;
+    const c = curSess(); R.trades = (!R.demo && c.trades) || []; R.draws = (!R.demo && c.draws) || []; R.years = (!R.demo && c.years) || []; R.archive = (!R.demo && c.archive) || []; R.seq = (!R.demo && c.seq) ?? null; R.prop = (!R.demo && c.prop) || null;
     R.ci = !R.demo && c.ciT != null ? Math.max(50, tvBsRows(R.rows, c.ciT)) : !R.demo && c.ci != null && c.ci < R.rows.length ? c.ci : Math.min(R.rows.length - 1, 600);
     rebuild(tf, true);
   };
@@ -1667,7 +1609,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     tr.status = "closed"; tr.exit = px; tr.closeT = t ?? R.rows[R.ci][0]; tr.reason = why;
     tr.pips = ((px - tr.entry) * tr.side) / TV_PIP; tr.pnl = tr.pips * TV_PIPVAL * tr.lots; tr.r = tr.risk ? tr.pnl / tr.risk : 0;
     R.unseenAdd = (R.unseenAdd || 0) + 1;
-    if (R.onSave && !R.demo && !tr.appId && !tr.bot && !(curSess() || {}).bot) { tr.appId = uid(); R.saveApp(tr); }
+    if (R.onSave && !R.demo && !tr.appId && !tr.bot && !(curSess() || {}).bot && !(curSess() || {}).noSave) { tr.appId = uid(); R.saveApp(tr); }
+    if (R.prop && !tr.bot) propCheck(tr.closeT);
   }
   function step(n) {
     if (!R.rows) return; const end = Math.min(R.rows.length - 1, R.ci + n);
@@ -1677,9 +1620,24 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       if (k !== R.k) { const pb = R.agg.bars[R.k]; R.series.update({ time: pb.time + R.off, open: pb.open, high: pb.high, low: pb.low, close: pb.close }); R.k = k; }
     }
     R.series.update(liveBar());
+    missTick();
     if (R.ci >= R.rows.length - 1) setPlaying(false);
     if (R.yearMsg) { setMsg(R.yearMsg); R.yearMsg = null; }
     uiTick();
+  }
+  /* ---------- IA : setups manqués (BISI / SIBI / breakers H1 et H4 dans le sens de la tendance H4, 1er contact) ---------- */
+  const missTaken = (c) => [...(R.archive || []), ...R.trades].some((t) => !t.bot && t.side === c.dir && Math.abs((t.openT || t.placedT) - c.t) <= 86400 && t.entry <= Math.max(c.top, c.bot) + 15 * TV_PIP && t.entry >= Math.min(c.top, c.bot) - 15 * TV_PIP);
+  const missCalc = () => {
+    if (!R.rows || R.demo || R.missAll) return;
+    R.missAll = botRun(R.rows, { ...BOT_CFG0, bisi: true, sibi: true, ob: false, bb: true, tfs: [60, 240], trend: true, trendTf: 240, ote: "none", nest: false, kz: false, entry: "edge", rr: 2, be: true, buf: 1, maxSl: 40, minSl: 3, expire: 60, one: false, y0: 2010, y1: 2030 }).sort((a, b) => a.tOut - b.tOut);
+    R.missPtr = null; rerender();
+  };
+  useEffect(() => { if (cfg.miss && !demo && !R.missAll) { setMsg("IA : analyse des setups BISI / SIBI / breakers H1-H4…"); setTimeout(() => { missCalc(); setMsg("IA prête : les setups que tu laisses passer apparaîtront en orange."); }, 30); } }, [cfg.miss, demo]);
+  const missList = () => { if (!R.missAll || !R.rows) return []; const MC = R.missCache; if (MC && MC.ci === R.ci && MC.n === R.trades.length + (R.archive || []).length && MC.a === R.missAll) return MC.l; const now = R.rows[R.ci][0]; const l = []; for (const c of R.missAll) { if (c.t > now || c.t < now - 14 * 86400) continue; if (c.tOut <= now && c.r <= 0) continue; if (!missTaken(c)) l.push(c); } l.sort((a, b) => b.t - a.t); R.missCache = { ci: R.ci, n: R.trades.length + (R.archive || []).length, a: R.missAll, l }; return l; };
+  function missTick() {
+    if (!R.cfg.miss || !R.missAll) return; const now = R.rows[R.ci][0];
+    if (R.missPtr == null) { let lo = 0, hi = R.missAll.length; while (lo < hi) { const m = (lo + hi) >> 1; if (R.missAll[m].tOut <= now) lo = m + 1; else hi = m; } R.missPtr = lo; return; }
+    while (R.missPtr < R.missAll.length && R.missAll[R.missPtr].tOut <= now) { const c = R.missAll[R.missPtr++]; if (c.r > 0 && !missTaken(c)) R.yearMsg = `🤖 IA : tu as manqué un ${c.kind === "BB" ? "breaker" : c.kind} ${c.tf} ${c.dir > 0 ? "acheteur" : "vendeur"} (${tvFmtTime(c.t, R.tz, "full")}) → ${c.r > 0 ? "+" : ""}${c.r.toFixed(1)} R${c.why === "BE" ? " (BE)" : ""}.`; }
   }
   const stepMinutes = () => { const target = R.rows[R.ci][0] + stepTf * 60; let i = R.ci; while (i < R.rows.length - 1 && R.rows[i + 1][0] <= target) i++; step(Math.max(1, i - R.ci)); };
   useEffect(() => { if (!playing) return; const id = setInterval(stepMinutes, TV_SPEEDS.find((s) => s[0] === spd)[1]); return () => clearInterval(id); }, [playing, spd, stepTf, tf]);
@@ -1715,7 +1673,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
 
   /* aller à un index : en avançant, les positions ouvertes continuent (SL / TP vérifiés sur les bougies sautées) */
   const goToIndex = (i) => {
-    i = Math.max(50, Math.min(R.rows.length - 1, i)); setPlaying(false);
+    i = Math.max(50, Math.min(R.rows.length - 1, i)); setPlaying(false); R.missPtr = null;
     if (i > R.ci && R.trades.some((t) => t.status !== "closed")) { for (let j = R.ci + 1; j <= i; j++) { fill(j); yearCheck(R.rows[j][0]); } }
     else if (i > R.ci) { for (let j = R.ci + 1; j <= i; j += 96) yearCheck(R.rows[j][0]); yearCheck(R.rows[i][0]); }
     R.ci = i; R.curYear = tvYear(R.rows[i][0]); if (R.botQ) botResync();
@@ -1745,7 +1703,27 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
 
   /* ---------- ordres ---------- */
   const bid = () => R.rows[R.ci][4], ask = () => R.rows[R.ci][4] + TV_SPREAD * TV_PIP;
-  const balance = () => cap + R.trades.filter((t) => t.status === "closed").reduce((a, t) => a + t.pnl, 0);
+  const balance = () => (R.prop ? propState().eq : cap + R.trades.filter((t) => t.status === "closed").reduce((a, t) => a + t.pnl, 0));
+  /* ---------- challenge prop firm : Phase 1 -> Phase 2 -> compte financé ---------- */
+  const propDay = (t) => Math.floor((t + tvNyOff(t) + 7 * 3600) / 86400); /* journée de trading : 17h New York */
+  function propState() {
+    const P = R.prop; const l = [...(R.archive || []), ...R.trades].filter((t) => t.status === "closed" && !t.bot && (t.closeT || 0) >= (P.phaseT || 0));
+    const pnl = l.reduce((a, t) => a + t.pnl, 0), byDay = {}; l.forEach((t) => { const k = propDay(t.closeT); byDay[k] = (byDay[k] || 0) + t.pnl; });
+    let eq = P.size, peak = P.size, low = P.size; [...l].sort((a, b) => a.closeT - b.closeT).forEach((t) => { eq += t.pnl; low = Math.min(low, eq); peak = Math.max(peak, eq); });
+    const today = R.rows ? byDay[propDay(R.rows[R.ci][0])] || 0 : 0, worst = Math.min(0, ...Object.values(byDay));
+    const target = P.phase < P.steps ? (P.phase === 0 ? P.t1 : P.t2) : null;
+    return { eq: P.size + pnl, pnl, today, worst, low, target, n: l.length, days: Object.keys(byDay).length };
+  }
+  function propCheck(t) {
+    const P = R.prop; if (!P || P.status !== "on") return; const S = propState();
+    if (S.worst <= -P.daily / 100 * P.size) { P.status = "fail"; P.why = `perte journalière de ${P.daily} % dépassée`; R.yearMsg = `❌ Challenge échoué : ${P.why}.`; return; }
+    if (S.low <= P.size * (1 - P.max / 100)) { P.status = "fail"; P.why = `perte max de ${P.max} % atteinte`; R.yearMsg = `❌ Challenge échoué : ${P.why}.`; return; }
+    if (S.target != null && S.pnl >= S.target / 100 * P.size && S.days >= (P.minDays || 0)) {
+      P.hist = [...(P.hist || []), { phase: P.phase, pnl: +S.pnl.toFixed(2), n: S.n, t }]; P.phase += 1; P.phaseT = (t || R.rows[R.ci][0]) + 1;
+      R.yearMsg = P.phase >= P.steps ? `🎉 Objectif atteint : compte FINANCÉ de ${tvMoney(P.size)} ! Les pertes max restent actives, ta part des profits est de ${P.split} %.` : `✅ Phase ${P.phase} réussie (+${S.target} %) : passage en Phase ${P.phase + 1}, le solde repart à ${tvMoney(P.size)}.`;
+    }
+  }
+  const propRestart = () => { const P = R.prop; if (!P) return; P.phase = 0; P.status = "on"; P.why = ""; P.phaseT = R.rows[R.ci][0] + 1; P.tries = (P.tries || 1) + 1; P.hist = []; rerender(); };
   /* PD arrays reconnus automatiquement : zone (OB, BISI…) qui contient l'entrée, MSS / BOS tracés récemment */
   const autoPd = (side, entry, t) => {
     const out = [];
@@ -1820,7 +1798,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       entryPrice: +tr.entry.toFixed(5), stopLoss: +(tr.sl0 ?? tr.sl).toFixed(5), takeProfit: +tr.tp.toFixed(5), exitPrice: +tr.exit.toFixed(5),
       resultR: tvIsBE(tr) ? 0 : +tr.r.toFixed(2), resultUsd: +tr.pnl.toFixed(2), status: tvIsBE(tr) ? "breakeven" : "closed",
       tags: [...new Set([...pd.map((x) => x.pd), title])].filter(Boolean), notes: null,
-      rules: { backtest: true, replay: true, utc: true, session: title, tradeNo: dispNo(tr), rr: +(Math.abs(tr.tp - tr.entry) / Math.abs(tr.entry - (tr.sl0 ?? tr.sl))).toFixed(2), exitReason: tr.reason, pdArrays: pd, tfSetups, draws: tr.drawSnap || [] },
+      rules: { backtest: true, replay: true, utc: true, savedAt: tr.savedAt || (tr.savedAt = Date.now()), session: title, tradeNo: dispNo(tr), rr: +(Math.abs(tr.tp - tr.entry) / Math.abs(tr.entry - (tr.sl0 ?? tr.sl))).toFixed(2), exitReason: tr.reason, pdArrays: pd, tfSetups, draws: tr.drawSnap || [] },
     };
     try { R.onSave(app); } catch (e) {}
   };
@@ -1973,6 +1951,11 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     c.font = "12px " + TV_FONT;
     const now = R.rows[R.ci][0], tagList = [];
     drawKillzones(c, cw, ch); drawLevels(c, cw, ch); drawStructure(c, cw, ch); drawNews(c, cw, ch);
+    if (R.cfg.miss && R.missAll) for (const m of missList()) { /* setups manqués : rectangle orange pointillé */
+      const xa = tToX(m.formT), xb = tToX(Math.min(m.tOut, now)); if (xa == null && xb == null) continue; const X1 = xa ?? 0, X2 = Math.max(X1 + 6, xb ?? cw), y1 = pToY(m.top), y2 = pToY(m.bot); if (y1 == null || y2 == null) continue;
+      c.fillStyle = "rgba(255,152,0,0.10)"; c.fillRect(X1, Math.min(y1, y2), X2 - X1, Math.abs(y2 - y1)); c.setLineDash([4, 3]); c.strokeStyle = "#ff9800"; c.lineWidth = 1; c.strokeRect(X1, Math.min(y1, y2), X2 - X1, Math.abs(y2 - y1)); c.setLineDash([]);
+      c.font = "11px " + TV_FONT; c.fillStyle = "#e65100"; c.fillText(`Manqué ${m.kind === "BB" ? "Breaker" : m.kind} ${m.tf} · ${m.tOut <= now ? (m.r > 0 ? "+" : "") + m.r.toFixed(1) + " R" : "en cours"}`, X1 + 3, Math.min(y1, y2) - 3);
+    }
     /* positions longues / courtes façon TradingView */
     c.font = "12px " + TV_FONT;
     for (const tr of R.trades) {
@@ -2279,7 +2262,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
         items.push(["Cloner", () => { const c = JSON.parse(JSON.stringify(d)); c.pts = c.pts.map((q) => ({ t: q.t, p: q.p + 5 * TV_PIP })); R.draws.push(c); R.sel = R.draws.length - 1; }], ["Copier", () => { R.clip = JSON.parse(JSON.stringify(d)); }], ["Mettre au premier plan", () => { R.draws.splice(sh.i, 1); R.draws.push(d); R.sel = R.draws.length - 1; }], null, ["Supprimer", () => { R.redo.push(R.draws.splice(sh.i, 1)[0]); R.sel = -1; }, true]);
       } else {
         items.push(["Réinitialiser la vue", () => { R.chart.timeScale().scrollToRealTime(); R.chart.priceScale("right").applyOptions({ autoScale: true }); }], null,
-          ["Buy limite à " + pr.toFixed(TV_DIG), () => R.api.order(1, { entry: pr, byRisk: true, at: xToT(p.x) })], ["Sell limite à " + pr.toFixed(TV_DIG), () => R.api.order(-1, { entry: pr, byRisk: true, at: xToT(p.x) })],
+          [(pr < R.rows[R.ci][4] ? "Buy limite à " : "Buy stop à ") + pr.toFixed(TV_DIG), () => R.api.order(1, { entry: pr, byRisk: true, at: xToT(p.x) })], [(pr > R.rows[R.ci][4] ? "Sell limite à " : "Sell stop à ") + pr.toFixed(TV_DIG), () => R.api.order(-1, { entry: pr, byRisk: true, at: xToT(p.x) })],
           ["Ligne horizontale à " + pr.toFixed(TV_DIG), () => { R.draws.push({ type: "hline", pts: [{ t: xToT(p.x), p: pr }] }); }], null,
           ["Copier le prix " + pr.toFixed(TV_DIG), () => { try { navigator.clipboard.writeText(pr.toFixed(TV_DIG)); } catch (er) {} }],
           [R.hidden ? "Afficher les dessins" : "Masquer les dessins", () => { R.hidden = !R.hidden; }], ["Supprimer tous les dessins", () => { R.redo = [...R.draws]; R.draws = []; R.sel = -1; }, true], null,
@@ -2315,7 +2298,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       if (e.key === "ArrowLeft") { e.preventDefault(); stepBack(); return; }
       if (e.shiftKey && e.key === "ArrowDown") { e.preventDefault(); setPlaying((p) => !p); return; }
       if (e.key === " ") { e.preventDefault(); setPlaying((p) => !p); return; }
-      if (e.key === "Escape") { if (R.tool !== "cursor" || R.pend) { setTool("cursor"); R.pend = null; } else if (R.sel !== -1) { R.sel = -1; rerender(); } else if (fs) setFs(false); return; }
+      if (e.key === "Escape") { if (R.tool !== "cursor" || R.pend) { setTool("cursor"); R.pend = null; } else if (R.sel !== -1) { R.sel = -1; rerender(); } else setFs(false); return; }
       if (e.altKey && e.shiftKey && key === "r") { e.preventDefault(); setTool("rect"); return; }
       const alt = { t: "trend", h: "hline", v: "vline", c: "cross", f: "fib" };
       if (e.altKey && alt[key]) { e.preventDefault(); setTool(alt[key]); return; }
@@ -2332,20 +2315,26 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   /* ---------- revivre un trade cliqué dans Saisie & stats ---------- */
   useEffect(() => {
     const h = (e) => {
-      const { t, session, draws } = e.detail || {}; if (!R.rows || !t) return;
+      const { t, session, draws, create, noSave, msg: m } = e.detail || {}; if (!R.rows || R.demo || !t) return false;
       const go = () => {
         if (Array.isArray(draws) && draws.length) { const have = new Set(R.draws.map((d) => JSON.stringify(d.pts) + d.type)); draws.forEach((d) => { if (!have.has(JSON.stringify(d.pts) + d.type)) R.draws.push(d); }); }
-        goToIndex(tvBsRows(R.rows, t - 86400)); setMsg("Replay repris 24 h avant le trade, avec tes dessins : rejoue-le.");
+        if (t < R.rows[0][0] || t > R.rows[R.rows.length - 1][0]) { setMsg("Ce trade est en dehors de tes données de bougies."); return; }
+        goToIndex(tvBsRows(R.rows, t - 86400)); setMsg(m || "Replay repris 24 h avant le trade, avec tes dessins : rejoue-le.");
       };
       const sid = session && sess.list.find((x) => x.title === session);
-      if (sid && sid.id !== sess.cur) { openSess(sid.id); setTimeout(go, 50); } else go();
+      if (sid && sid.id !== sess.cur) { openSess(sid.id); setTimeout(go, 60); }
+      else if (!sid && session && create) { createSess(session, "random", null, { noSave }); setTimeout(go, 80); }
+      else go();
+      return true;
     };
+    /* demande venue d'une autre page (ex. « Rejouer » sur un trade réel) : exécutée dès que les bougies sont prêtes */
+    if (window.TJP_PENDING_GOTO && R.rows && !R.demo) { const d = window.TJP_PENDING_GOTO; window.TJP_PENDING_GOTO = null; setTimeout(() => h({ detail: d }), 30); }
     window.addEventListener("tjp-bt-goto", h); return () => window.removeEventListener("tjp-bt-goto", h);
   });
   /* ---------- effacer une année et recommencer ---------- */
   const clearYear = (y) => {
     const title = curSess().title;
-    (appTrades || []).filter((t) => t.accountId === BT_ACC && (t.rules || {}).session === title && new Date(t.entryTime).getUTCFullYear() === y).forEach((t) => onDelete && onDelete(t.id));
+    ((getApp ? getApp() : appTrades) || []).filter((t) => t.accountId === BT_ACC && (t.rules || {}).session === title && new Date(t.entryTime).getUTCFullYear() === y).forEach((t) => onDelete && onDelete(t.id));
     R.years = (R.years || []).filter((x) => x.year !== y);
     R.trades = R.trades.filter((t) => !(t.status === "closed" && tvYear(t.openT) === y));
     goToIndex(tvBsRows(R.rows, Date.UTC(y, 0, 2) / 1000)); setMsg(`Stats ${y} effacées pour « ${title} ». Le replay recommence au début de ${y}.`);
@@ -2369,7 +2358,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
   const closed = R.trades.filter((t) => t.status === "closed"), opened = R.trades.filter((t) => t.status !== "closed");
   const upnl = opened.filter((t) => t.status === "open").reduce((a, t) => a + (((t.side > 0 ? bid() : ask()) - t.entry) * t.side / TV_PIP) * TV_PIPVAL * t.lots, 0);
   const wins = closed.filter((t) => t.pnl > 0), gw = wins.reduce((a, t) => a + t.pnl, 0), gl = -closed.filter((t) => t.pnl <= 0).reduce((a, t) => a + t.pnl, 0);
-  const curT = R.rows ? new Date((R.rows[R.ci][0] + tvTzOff(R.rows[R.ci][0], tz)) * 1000).toISOString().slice(0, 16).replace("T", " ") : "";
+  const curT = R.rows ? new Date((R.rows[R.ci][0] + tvTzOff(R.rows[R.ci][0], tz)) * 1000).toISOString().slice(0, 16).replace("T", " ").replace(/^.{10}/, (x) => (TV_BLIND ? "••••-••-••" : x)) : "";
   const tfName = TV_TFS.find((x) => x[1] === tf)[0];
   const sep = <span style={{ width: 1, height: 24, background: TV.border, margin: "0 4px" }} />;
   const inp = { border: `1px solid ${TV.border}`, borderRadius: 4, padding: "4px 6px", fontSize: 13, width: 70, color: TV.text, background: "#fff" };
@@ -2379,6 +2368,13 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
     </button>
   );
 
+  { const bl = !!(curSess() || {}).blind; if (TV_BLIND !== bl) { TV_BLIND = bl; setTimeout(() => { if (R.chart) R.chart.timeScale().applyOptions({ tickMarkFormatter: (t, type) => tvFmtTime(t, R.tz, type) }); }, 0); } }
+  const LAY = { "1": [{ inset: 0 }, []], "2v": [{ left: 0, top: 0, bottom: 0, right: "calc(50% + 2px)" }, [{ left: "50%", top: 0, bottom: 0, right: 0 }]], "2h": [{ left: 0, top: 0, right: 0, bottom: "calc(50% + 2px)" }, [{ left: 0, right: 0, top: "50%", bottom: 0 }]], "3": [{ left: 0, top: 0, bottom: 0, right: "calc(50% + 2px)" }, [{ left: "50%", right: 0, top: 0, bottom: "calc(50% + 2px)" }, { left: "50%", right: 0, top: "50%", bottom: 0 }]], "4": [{ left: 0, top: 0, right: "calc(50% + 2px)", bottom: "calc(50% + 2px)" }, [{ left: "50%", right: 0, top: 0, bottom: "calc(50% + 2px)" }, { left: 0, right: "calc(50% + 2px)", top: "50%", bottom: 0 }, { left: "50%", right: 0, top: "50%", bottom: 0 }]] };
+  const lay = LAY[cfg.layout] || LAY["1"];
+  useEffect(() => { R.dirty = true; }, [cfg.layout]);
+  const getAgg = (m) => { if (!R.aggs || R.aggs.src !== R.rows) R.aggs = { src: R.rows }; const ak = m + "|" + hideFlat; if (!R.aggs[ak]) R.aggs[ak] = tvBuild(R.rows, m, hideFlat); return R.aggs[ak]; };
+  const propS = R.prop && R.rows ? propState() : null;
+  const missL = cfg.miss && R.missAll ? missList() : [];
   const indList = [["Killzones", R.cfg.kz.show, (v) => setCfg({ ...R.cfg, kz: { ...R.cfg.kz, show: v } })],
               ["Swing high / low", R.cfg.st.swings, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, swings: v } })],
               ["BOS", R.cfg.st.bos, (v) => setCfg({ ...R.cfg, st: { ...R.cfg.st, bos: v } })],
@@ -2389,18 +2385,19 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
               ["PDL", R.cfg.lv.pd && R.cfg.lv.pdl !== false, (v) => setCfg({ ...R.cfg, lv: { ...R.cfg.lv, pd: true, pdl: v } })],
               ["PWH", R.cfg.lv.pw && R.cfg.lv.pwh !== false, (v) => setCfg({ ...R.cfg, lv: { ...R.cfg.lv, pw: true, pwh: v } })],
               ["Positions fermées sur le graphique", !!R.cfg.showClosed, (v) => setCfg({ ...R.cfg, showClosed: v })],
-              ["PWL", R.cfg.lv.pw && R.cfg.lv.pwl !== false, (v) => setCfg({ ...R.cfg, lv: { ...R.cfg.lv, pw: true, pwl: v } })]];
+              ["PWL", R.cfg.lv.pw && R.cfg.lv.pwl !== false, (v) => setCfg({ ...R.cfg, lv: { ...R.cfg.lv, pw: true, pwl: v } })], ["IA · Setups manqués (BISI H4, breaker H1…)", !!R.cfg.miss, (v) => setCfg({ ...R.cfg, miss: v })]];
   return (
-    <div ref={wrapRef} className="tvw" style={{ position: "relative", background: TV.bg, color: TV.text, border: fs ? "none" : `1px solid ${TV.border}`, borderRadius: fs ? 0 : 6, overflow: "hidden", display: "flex", flexDirection: "column", ...(fs ? { position: "fixed", inset: 0, zIndex: 9999, height: "100vh" } : { height: "calc(100vh - 96px)", minHeight: 560 }), fontFamily: TV_FONT, fontSize: 14 }}>
+    <div ref={wrapRef} className={"tvw" + (zen ? " zen" : "")} style={{ position: "relative", background: TV.bg, color: TV.text, border: fs || zen ? "none" : `1px solid ${TV.border}`, borderRadius: fs || zen ? 0 : 6, overflow: "hidden", display: "flex", flexDirection: "column", ...(fs || zen ? { position: "fixed", inset: 0, zIndex: 9999, height: "100vh" } : { height: "calc(100vh - 96px)", minHeight: 560 }), fontFamily: TV_FONT, fontSize: 14 }}>
       <style>{`.tvw input:not([type=checkbox]):not([type=color]), .tvw select { background: #fff !important; color: ${TV.text} !important; -webkit-text-fill-color: ${TV.text} !important; opacity: 1 !important; border: 1px solid ${TV.border} !important; border-radius: 6px !important; box-shadow: none !important; color-scheme: light; } .tvw select[title="Pas de lecture"], .tvw select[title^="Changer"] { border: none !important; padding: 0 2px !important; } .tvw .tv-hidden-date { width: 1px !important; height: 1px !important; min-width: 0 !important; border: none !important; padding: 0 !important; opacity: 0 !important; } .tvw option { color: ${TV.text}; background: #fff; } .tvw td, .tvw th { color: inherit; padding: 4px 6px; } .tvw table { color: ${TV.text}; }`}</style>
           {indOpen && <div style={{ position: "absolute", right: 90, top: 46, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "8px 14px", minWidth: 230 }}>
             <div style={{ fontSize: 11, color: TV.muted, marginBottom: 4 }}>★ = afficher dans la légende du graphique</div>
             {indList.map(([n, on, fn]) => <div key={n} style={{ display: "flex", alignItems: "center", gap: 6 }}><span title={indFav.includes(n) ? "Retirer de la légende" : "Ajouter à la légende"} onClick={() => togFav(n)} style={{ cursor: "pointer", fontSize: 16, color: indFav.includes(n) ? "#f5a623" : "#c3c6ce", lineHeight: 1 }}>{indFav.includes(n) ? "★" : "☆"}</span><div style={{ flex: 1 }}>{tvChk(on, fn, n)}</div></div>)}
           </div>}
+      <style>{".tvw.zen .zh{display:none!important}"}</style>
       {/* barre du haut */}
       <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, flexWrap: "wrap", rowGap: 2, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}>{TV_PAIR}</div>
-        {sep}
+        <span className="zh" style={{ display: "contents" }}><div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}>{TV_PAIR}</div>
+        {sep}</span>
         {TV_TFS.filter(([n]) => ["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <TvBtn key={n} active={tf === m} onClick={() => setTf(m)}>{n}</TvBtn>)}
         <div style={{ position: "relative" }}>
           {(() => { const extra = TV_TFS.find((x) => x[1] === tf && !["15m", "1h", "4h", "D", "W", "M"].includes(x[0])); return <TvBtn active={!!extra || tfMenu} title="Autres timeframes" onClick={() => setTfMenu((v) => !v)}>{extra ? extra[0] : ""}<ChevronDown size={15} /></TvBtn>; })()}
@@ -2409,31 +2406,39 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
             {TV_TFS.filter(([n]) => !["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <div key={n} onClick={() => { setTf(m); setTfMenu(false); }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = tf === m ? TV.hover : "transparent")} style={{ padding: "7px 14px", fontSize: 14, cursor: "pointer", background: tf === m ? TV.hover : "transparent", color: tf === m ? TV.blue : TV.text }}>{({ "30m": "30 minutes", "2h": "2 heures", "3h": "3 heures", "6h": "6 heures", "8h": "8 heures", "12h": "12 heures" })[n] || n}</div>)}
           </div>}
         </div>
-        {sep}
+        <span className="zh" style={{ display: "contents" }}>{sep}
         <TvBtn title="Bougies"><CandlestickChart size={18} /></TvBtn>
         {sep}
         <TvBtn style={{ background: TV.text, color: "#fff" }} title="Mode replay"><Rewind size={16} />Replay</TvBtn>
         <TvBtn title="Annuler (Ctrl+Z)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); }}><Undo2 size={17} /></TvBtn>
         <TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); }}><Redo2 size={17} /></TvBtn>
         {sep}
-        <TvBtn title="Revenir au début de l'année (2 janvier)" onClick={() => { if (!R.rows) return; const y = tvYear(R.rows[R.ci][0]); goToIndex(tvBsRows(R.rows, Date.UTC(y, 0, 2) / 1000)); setMsg(`Retour au début de ${y}.`); }} style={{ fontSize: 13, fontWeight: 600 }}><Rewind size={15} />Début d'année</TvBtn>
+        {!(curSess() || {}).blind && <TvBtn title="Revenir au début de l'année (2 janvier)" onClick={() => { if (!R.rows) return; const y = tvYear(R.rows[R.ci][0]); goToIndex(tvBsRows(R.rows, Date.UTC(y, 0, 2) / 1000)); setMsg(`Retour au début de ${y}.`); }} style={{ fontSize: 13, fontWeight: 600 }}><Rewind size={15} />Début d'année</TvBtn>}
         <select value={sess.cur} onChange={(e) => { if (e.target.value === "__new") setShowNew(true); else openSess(e.target.value); }} title="Session de backtest" style={{ border: `1px solid ${TV.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 14, fontWeight: 600, color: TV.text, background: "#fff", maxWidth: 220, fontFamily: TV_FONT }}>
           {sess.list.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
           <option value="__new">+ Nouvelle session…</option>
         </select>
+        {(curSess() || {}).blind && <TvBtn active title="Mode à l'aveugle : dates cachées. Clique pour révéler la date." onClick={() => { const v = snapSess(sess); v.list = v.list.map((x) => (x.id === v.cur ? { ...x, blind: false } : x)); setSessS(v); tvSaveSess(v); }} style={{ fontSize: 13 }}><EyeOff size={15} />Aveugle</TvBtn>}
+        </span>
         <div style={{ flex: 1 }} />
+        <div style={{ position: "relative" }}>
+          <TvBtn active={layMenu || cfg.layout !== "1"} title="Disposition des graphiques (synchronisés sur le replay)" onClick={() => setLayMenu((v) => !v)}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="1.5" width="15" height="15" rx="1.5" /><path d="M9 1.5v15M1.5 9h15" /></svg></TvBtn>
+          {layMenu && <div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: 8, display: "flex", gap: 6 }}>
+            {[["1", "1 graphique", "M2 2h14v14H2z"], ["2v", "2 côte à côte", "M2 2h14v14H2zM9 2v14"], ["2h", "2 l'un sur l'autre", "M2 2h14v14H2zM2 9h14"], ["3", "3 graphiques", "M2 2h14v14H2zM9 2v14M9 9h7"], ["4", "4 graphiques", "M2 2h14v14H2zM9 2v14M2 9h14"]].map(([k, n, d]) => <button key={k} title={n} onClick={() => { setCfg({ ...R.cfg, layout: k }); setLayMenu(false); }} style={{ border: `1px solid ${cfg.layout === k ? TV.blue : TV.border}`, background: cfg.layout === k ? TV.hover : "#fff", borderRadius: 5, padding: 5, cursor: "pointer", color: cfg.layout === k ? TV.blue : TV.text, display: "flex" }}><svg width="22" height="22" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.3"><path d={d} /></svg></button>)}
+          </div>}
+        </div>
         <div style={{ position: "relative" }}>
           <TvBtn active={indOpen} title="Afficher / masquer les indicateurs" onClick={() => setIndOpen((v) => !v)}><LineChart size={17} />Indicateurs</TvBtn>
         </div>
-        <TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
-        <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />Données</TvBtn>
-        <TvBtn title={fs ? "Quitter le plein écran (Échap)" : "Plein écran"} onClick={() => setFs((v) => !v)}>{fs ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</TvBtn>
+        <span className="zh" style={{ display: "contents" }}><TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
+        <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />Données</TvBtn></span>
+        <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}>{zen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</TvBtn>
         <input ref={fileRef} type="file" accept=".csv,.txt" multiple hidden onChange={(e) => onFiles([...e.target.files])} />
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         {/* barre d'outils de gauche (groupes avec menu, comme TradingView) */}
-        <div style={{ width: 52, borderRight: `4px solid ${TV.hover}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, paddingTop: 4, flexShrink: 0, position: "relative", zIndex: 30 }}>
+        <div className="zh" style={{ width: 52, borderRight: `4px solid ${TV.hover}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, paddingTop: 4, flexShrink: 0, position: "relative", zIndex: 30 }}>
           {TV_GROUPS.map((g) => {
             const cur = g.items.includes(tool) ? tool : groupLast[g.id] || g.items[0];
             return (
@@ -2468,7 +2473,29 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
         {/* graphique */}
         <div style={{ position: "relative", flex: 1, minWidth: 0 }} onMouseDown={() => { if (fly) setFly(null); if (ctx) setCtx(null); }}>
           {live && <div style={{ position: "absolute", inset: 0, zIndex: 20, background: TV.bg }}><TvLive /></div>}
-          <div ref={boxRef} style={{ position: "absolute", inset: 0 }} />
+          <div ref={boxRef} style={{ position: "absolute", ...lay[0] }} />
+          {!demo && lay[1].map((pos, i) => <TvMini key={cfg.layout + i} pos={pos} rows={R.rows} ci={R.ci} getAgg={getAgg} min={(cfg.ltf || [])[i] || [60, 15, 1440][i]} setMin={(m) => { const l = [...(cfg.ltf || [60, 15, 1440])]; l[i] = m; setCfg({ ...R.cfg, ltf: l }); }} trades={R.trades} tz={tz} cfg={cfg} blind={TV_BLIND} />)}
+          {propS && <div className="zh" style={{ position: "absolute", left: 10, bottom: 44, zIndex: 6, background: "#fff", border: `1px solid ${R.prop.status === "fail" ? TV.red : R.prop.phase >= R.prop.steps ? TV.green : TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12 }}>
+            {(() => { const P = R.prop, ph = P.steps === 2 ? ["Phase 1", "Phase 2", "Compte financé"] : ["Challenge", "Compte financé"]; const bar = (v, max, col, lab) => <div style={{ marginTop: 5 }}><div style={{ display: "flex", justifyContent: "space-between", color: TV.muted }}><span>{lab}</span><b style={{ color: TV.text }}>{v.toFixed(2).replace(".", ",")} % / {max} %</b></div><div style={{ height: 5, background: TV.hover, borderRadius: 3, marginTop: 2 }}><div style={{ width: Math.max(0, Math.min(100, (v / max) * 100)) + "%", height: 5, background: col, borderRadius: 3 }} /></div></div>;
+              return <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><b style={{ fontSize: 13 }}>Prop {tvMoney(P.size).replace(",00", "")}</b><span style={{ fontWeight: 700, color: P.status === "fail" ? TV.red : P.phase >= P.steps ? TV.green : TV.blue }}>{P.status === "fail" ? "Échoué" : ph[P.phase]}</span></div>
+                <div style={{ display: "flex", gap: 4, marginTop: 5 }}>{ph.map((n, j) => <span key={n} style={{ flex: 1, height: 4, borderRadius: 2, background: j < P.phase ? TV.green : j === P.phase ? (P.status === "fail" ? TV.red : TV.blue) : TV.hover }} title={n} />)}</div>
+                <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between" }}><span style={{ color: TV.muted }}>Solde</span><b style={{ color: propS.pnl >= 0 ? TV.green : TV.red }}>{tvMoney(propS.eq)} ({propS.pnl >= 0 ? "+" : ""}{((propS.pnl / P.size) * 100).toFixed(2).replace(".", ",")} %)</b></div>
+                {propS.target != null && bar(Math.max(0, (propS.pnl / P.size) * 100), propS.target, TV.green, "Objectif de profit")}
+                {bar(Math.max(0, (-propS.today / P.size) * 100), P.daily, "#ff9800", "Perte du jour")}
+                {bar(Math.max(0, ((P.size - propS.low) / P.size) * 100), P.max, TV.red, "Perte max (plus bas)")}
+                {P.phase >= P.steps && P.status !== "fail" && <div style={{ marginTop: 6, color: TV.green }}>Ta part ({P.split} %) : <b>{tvMoney(Math.max(0, propS.pnl) * P.split / 100)}</b></div>}
+                {P.status === "fail" && <div style={{ marginTop: 6, color: TV.red }}>{P.why}. <button onClick={propRestart} style={{ border: `1px solid ${TV.red}`, background: "#fff", color: TV.red, borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "1px 6px", marginLeft: 4 }}>Recommencer (essai {(P.tries || 1) + 1})</button></div>}
+                {(P.hist || []).length > 0 && <div style={{ marginTop: 5, color: TV.muted }}>{P.hist.map((h) => `${ph[h.phase]} ✓ ${tvMoney(h.pnl)} en ${h.n} trades`).join(" · ")}</div>}
+              </>; })()}
+          </div>}
+          {cfg.miss && missL.length > 0 && <div style={{ position: "absolute", left: propS && !zen ? 270 : 10, bottom: 44, zIndex: 6, background: "#fff", border: "1px solid #ffcc80", borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12, maxHeight: 260, overflow: "auto" }}>
+            <b style={{ fontSize: 13, color: "#e65100" }}>🤖 IA · Trades gagnants manqués (14 j)</b>
+            <div style={{ color: TV.muted, margin: "3px 0 5px" }}>{missL.length} setups laissés passer · {(() => { const d = missL.filter((m) => m.tOut <= R.rows[R.ci][0]).reduce((a, m) => a + m.r, 0); return (d >= 0 ? "+" : "") + d.toFixed(1).replace(".", ",") + " R"; })()} sur la table</div>
+            {missL.slice(0, 12).map((m, j) => <div key={j} onClick={() => { const k = tvBs(R.agg.start, tvBsRows(R.rows, m.t)); R.chart.timeScale().setVisibleLogicalRange({ from: k - 60, to: k + 25 }); }} title="Afficher sur le graphique" style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "3px 0", borderTop: `1px solid ${TV.hover}`, cursor: "pointer" }}>
+              <span><b style={{ color: m.dir > 0 ? TV.green : TV.red }}>{m.kind === "BB" ? "Breaker" : m.kind} {m.tf}</b> <span style={{ color: TV.muted }}>{tvFmtTime(m.t, tz, "full")}</span></span>
+              <b style={{ color: m.tOut > R.rows[R.ci][0] ? TV.muted : m.r > 0 ? TV.green : m.r < 0 ? TV.red : TV.muted }}>{m.tOut > R.rows[R.ci][0] ? "en cours" : (m.r > 0 ? "+" : "") + m.r.toFixed(1) + " R"}</b></div>)}
+          </div>}
           {/* stake sous le SL de la position sélectionnée : 0,5 / 1 / 1,5 / 2 % (lots recalculés) */}
           <div ref={trBarRef} onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", display: "none", zIndex: 8, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", padding: 2, gap: 2, alignItems: "center", fontFamily: TV_FONT }}>
             {[0.5, 1, 1.5, 2].map((v) => { const t = R.selTr; const cur = t ? Math.round((t.riskPct ?? R.cfg.risk) * 10) / 10 : R.cfg.risk; return <button key={v} title={t && t.status === "open" ? "Mise d'une position déjà ouverte : non modifiable" : "Risquer " + v + " % sur ce trade"} disabled={!t || t.status !== "pending"} onClick={() => { if (!t) return; t.riskPct = v; t.lots = Math.max(0.01, Math.round(((balance() * v) / 100 / (Math.abs(t.entry - t.sl) / TV_PIP * TV_PIPVAL)) * 100) / 100); t.risk = (Math.abs(t.entry - t.sl) / TV_PIP) * TV_PIPVAL * t.lots; rerender(); }} style={{ border: "none", borderRadius: 4, padding: "3px 7px", fontSize: 12, fontWeight: 700, cursor: t && t.status === "pending" ? "pointer" : "default", background: cur === v ? TV.text : "transparent", color: cur === v ? "#fff" : TV.text, fontFamily: TV_FONT }}>{String(v).replace(".", ",")}%</button>; })}
@@ -2495,14 +2522,14 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
             </div>
           )}
           {/* barre des favoris flottante (déplaçable) */}
-          {favOpen && !live && (
+          {(favOpen || zen) && !live && (
             <div style={{ position: "absolute", left: favPos.x, top: favPos.y, zIndex: 9, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", padding: "3px 4px", gap: 1 }}>
               <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); const sx = e.clientX - favPos.x, sy = e.clientY - favPos.y; const mv = (ev) => setFavPos({ x: Math.max(0, ev.clientX - sx), y: Math.max(0, ev.clientY - sy) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
                 style={{ cursor: "grab", padding: "0 4px", color: TV.muted, fontSize: 14, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>
               {fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={id} title={TV_TOOLS[id].n} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><TvIcon id={id} /></TvBtn>)}
             </div>
           )}
-          <canvas ref={ovRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 3 }} />
+          <canvas ref={ovRef} style={{ position: "absolute", ...lay[0], width: lay[0].inset === 0 ? "100%" : undefined, height: lay[0].inset === 0 ? "100%" : undefined, pointerEvents: "none", zIndex: 3 }} />
           {/* pas de bougies inventées : sans tes données Dukascopy, le graphique reste vide */}
           {demo && <div style={{ position: "absolute", inset: 0, zIndex: 30, background: TV.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, textAlign: "center", padding: 24 }}>
             <div style={{ fontSize: 18, fontWeight: 600 }}>Aucune donnée réelle chargée sur cet appareil</div>
@@ -2548,7 +2575,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
             {ctx.items.map((it, i) => it ? <div key={i} onClick={() => { it[1](); setCtx(null); rerender(); }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")} style={{ padding: "6px 16px", fontSize: 14, cursor: "pointer", color: it[2] ? TV.red : TV.text }}>{it[0]}</div> : <div key={i} style={{ height: 1, background: TV.border, margin: "5px 0" }} />)}
           </div>}
           {/* heure */}
-          <div style={{ position: "absolute", right: 0, bottom: 0, height: 28, zIndex: 6, fontSize: 12, color: TV.text, background: "#fff", borderLeft: `1px solid ${TV.border}`, padding: "0 6px", display: "flex", gap: 6, alignItems: "center" }}>
+          <div className="zh" style={{ position: "absolute", right: 0, bottom: 0, height: 28, zIndex: 6, fontSize: 12, color: TV.text, background: "#fff", borderLeft: `1px solid ${TV.border}`, padding: "0 6px", display: "flex", gap: 6, alignItems: "center" }}>
             {curT}
             <select value={tz} onChange={(e) => setTz(e.target.value)} style={{ border: "none", background: "transparent", fontSize: 12, color: TV.text }} aria-label="Fuseau">
               <option value="ny">New York</option><option value="0">UTC</option><option value="1">Paris (UTC+1)</option><option value="7">Bangkok (UTC+7)</option>
@@ -2561,7 +2588,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [] }) {
       {showSet && <TvSettings years={years} curYear={R.rows ? tvYear(R.rows[R.ci][0]) : undefined} onClearYear={(y) => { clearYear(y); setShowSet(false); }} cfg={cfg} onClose={() => setShowSet(false)} onApply={(v) => { setCfg(v); setShowSet(false); }} onCloseAll={closeAll} onReset={() => { R.trades = []; R.draws = []; rerender(); }} />}
       {showNew && <TvNewSession list={sess.list} onClose={() => setShowNew(false)} onCreate={createSess} onDelete={delSess} />}
       {/* panneau Replay Trading */}
-      <div style={{ borderTop: `4px solid ${TV.hover}`, flexShrink: 0 }}>
+      <div className="zh" style={{ borderTop: `4px solid ${TV.hover}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", overflowX: "auto" }}>
           <TvBtn onClick={() => setPanel((p) => !p)} style={{ fontWeight: 600 }}><Rewind size={15} />Replay Trading {unseen > 0 && <span style={{ background: TV.blue, color: "#fff", borderRadius: 10, fontSize: 11, fontWeight: 700, padding: "1px 6px" }}>{unseen}</span>}<ChevronDown size={14} style={{ transform: panel ? "none" : "rotate(180deg)" }} /></TvBtn>
           {sep}
@@ -2761,13 +2788,25 @@ function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], on
 }
 function TvNewSession({ list, onClose, onCreate, onDelete }) {
   const [title, setTitle] = useState(""); const [mode, setMode] = useState("random"); const [date, setDate] = useState("2015-01-05");
+  const [blind, setBlind] = useState(false); const [isProp, setIsProp] = useState(false);
+  const [pp, setPp] = useState({ size: 100000, steps: 2, t1: 8, t2: 5, daily: 5, max: 10, split: 80, minDays: 0 });
+  const ex = () => ({ blind, prop: isProp ? { ...pp } : null });
+  const nf = (k, lab, suf = "%") => <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 3 }}>{lab}<span><input type="number" value={pp[k]} onChange={(e) => setPp({ ...pp, [k]: +e.target.value })} style={{ width: 64, height: 30, border: `1px solid ${TV.border}`, borderRadius: 6, padding: "0 6px", fontFamily: TV_FONT }} /> {suf}</span></label>;
   const num = { height: 38, border: `1px solid ${TV.border}`, borderRadius: 8, padding: "0 10px", fontSize: 15, color: TV.text, fontFamily: TV_FONT };
   return (
-    <TvModal title="Nouvelle session de backtest" onClose={onClose} onOk={() => onCreate(title.trim(), mode, date)} okLabel="Créer">
+    <TvModal title="Nouvelle session de backtest" onClose={onClose} onOk={() => onCreate(title.trim(), mode, date, ex())} okLabel="Créer">
       <div style={{ flex: 1, padding: "16px 22px", display: "flex", flexDirection: "column", gap: 12, overflow: "auto" }}>
-        <label style={{ fontSize: 15 }}>Titre<br /><input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. FVG H4" style={{ ...num, width: "100%", marginTop: 6 }} onKeyDown={(e) => e.key === "Enter" && onCreate(title.trim(), mode, date)} /></label>
+        <label style={{ fontSize: 15 }}>Titre<br /><input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. FVG H4" style={{ ...num, width: "100%", marginTop: 6 }} onKeyDown={(e) => e.key === "Enter" && onCreate(title.trim(), mode, date, ex())} /></label>
         {tvChk(mode === "random", () => setMode("random"), "Commencer à une date aléatoire")}
         {tvChk(mode === "date", () => setMode("date"), "Commencer à une date précise", mode === "date" && <input type="date" min="2010-01-01" value={date} onChange={(e) => setDate(e.target.value)} style={num} />)}
+        {tvChk(blind, setBlind, "Mode à l'aveugle (dates cachées, départ aléatoire)")}
+        {tvChk(isProp, setIsProp, "Challenge prop firm (Phase 1 → Phase 2 → compte financé)")}
+        {isProp && <div style={{ border: `1px solid ${TV.border}`, borderRadius: 8, padding: 12, display: "flex", flexWrap: "wrap", gap: 12 }}>
+          <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 3 }}>Taille du compte<select value={pp.size} onChange={(e) => setPp({ ...pp, size: +e.target.value })} style={{ height: 30, border: `1px solid ${TV.border}`, borderRadius: 6, fontFamily: TV_FONT }}>{[10000, 25000, 50000, 100000, 200000].map((v) => <option key={v} value={v}>{v / 1000} k$</option>)}</select></label>
+          <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 3 }}>Étapes<select value={pp.steps} onChange={(e) => setPp({ ...pp, steps: +e.target.value })} style={{ height: 30, border: `1px solid ${TV.border}`, borderRadius: 6, fontFamily: TV_FONT }}><option value={2}>2 phases (classique)</option><option value={1}>1 phase</option></select></label>
+          {nf("t1", "Objectif phase 1")}{pp.steps === 2 && nf("t2", "Objectif phase 2")}{nf("daily", "Perte max / jour")}{nf("max", "Perte max totale")}{nf("split", "Part des profits")}{nf("minDays", "Jours de trading min.", "j")}
+          <div style={{ fontSize: 12, color: TV.muted, width: "100%" }}>Pertes calculées sur les trades fermés (journée = 17h New York). Si tu réussis une phase, tu passes à la suivante avec un solde remis à zéro ; si une règle est cassée, le challenge échoue et tu peux recommencer.</div>
+        </div>}
         <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginTop: 8 }}>SESSIONS EXISTANTES</div>
         {list.map((x) => (
           <div key={x.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, padding: "4px 0", borderTop: `1px solid ${TV.border}` }}>
@@ -2776,6 +2815,37 @@ function TvNewSession({ list, onClose, onCreate, onDelete }) {
           </div>))}
       </div>
     </TvModal>
+  );
+}
+
+/* graphique secondaire synchronisé sur le replay (autre timeframe), comme les dispositions de TradingView */
+function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind }) {
+  const box = useRef(null), S = useRef({}).current; S.tz = tz;
+  useEffect(() => {
+    const ch = createChart(box.current, { autoSize: true, layout: { background: { color: TV.bg }, textColor: TV.text, fontSize: 11, fontFamily: TV_FONT }, grid: { vertLines: { visible: false }, horzLines: { visible: false } }, crosshair: { mode: 0 }, rightPriceScale: { borderColor: TV.border, scaleMargins: { top: 0.12, bottom: 0.08 } }, timeScale: { borderColor: TV.border, timeVisible: true, rightOffset: 10, barSpacing: 6, tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }, localization: { locale: "fr-FR", timeFormatter: (t) => tvFmtTime(t, S.tz, "full") } });
+    S.ch = ch; S.se = ch.addCandlestickSeries({ priceLineVisible: false, upColor: cfg.up, downColor: cfg.down, borderUpColor: cfg.down, borderDownColor: cfg.down, wickUpColor: cfg.down, wickDownColor: cfg.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
+    return () => { ch.remove(); S.se = null; S.A = null; };
+  }, []);
+  useEffect(() => { if (S.ch) S.ch.timeScale().applyOptions({ tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }); }, [blind, tz]);
+  useEffect(() => {
+    if (!rows || !S.se) return; const A = getAgg(min), k = tvBs(A.start, ci); if (k < 0) return;
+    const live = () => { let h = -1e9, l = 1e9; for (let i = A.start[k]; i <= ci; i++) { const r = rows[i]; if (r[2] > h) h = r[2]; if (r[3] < l) l = r[3]; } return { time: A.bars[k].time, open: rows[A.start[k]][1], high: h, low: l, close: rows[ci][4] }; };
+    const bar = (b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close });
+    if (S.A !== A || S.k == null || k < S.k || ci < S.ci) { const data = new Array(k + 1); for (let j = 0; j < k; j++) data[j] = bar(A.bars[j]); data[k] = live(); S.se.setData(data); if (S.A !== A) S.ch.timeScale().scrollToRealTime(); }
+    else { for (let j = S.k; j < k; j++) S.se.update(bar(A.bars[j])); S.se.update(live()); }
+    S.A = A; S.k = k; S.ci = ci;
+    const sig = trades.filter((t) => t.status !== "closed").map((t) => [t.entry, t.sl, t.tp].join()).join("|");
+    if (sig !== S.sig) { S.sig = sig; (S.lines || []).forEach((l) => S.se.removePriceLine(l)); S.lines = [];
+      for (const t of trades) if (t.status !== "closed") [[t.entry, "#787b86"], [t.sl, TV.red], [t.tp, TV.green]].forEach(([p, c]) => S.lines.push(S.se.createPriceLine({ price: p, color: c, lineWidth: 1, lineStyle: 2, axisLabelVisible: true }))); }
+  });
+  return (
+    <div style={{ position: "absolute", ...pos, background: TV.bg, borderLeft: pos.left === "50%" ? `4px solid ${TV.hover}` : "none", borderTop: pos.top === "50%" ? `4px solid ${TV.hover}` : "none", zIndex: 2 }}>
+      <div ref={box} style={{ position: "absolute", inset: 0 }} />
+      <div style={{ position: "absolute", left: 8, top: 5, zIndex: 3, display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+        <b style={{ fontWeight: 600 }}>EURUSD ·</b>
+        <select value={min} onChange={(e) => setMin(+e.target.value)} style={{ border: `1px solid ${TV.border}`, borderRadius: 4, fontSize: 12, padding: "1px 4px", fontFamily: TV_FONT, background: "#fff" }}>{TV_TFS.map(([n, m]) => <option key={m} value={m}>{n}</option>)}</select>
+      </div>
+    </div>
   );
 }
 
@@ -2802,28 +2872,573 @@ function TvPdPicker({ tr, addPd, delPd }) {
 }
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid },
-  { id: "trades", label: "Mes trades", short: "Trades", icon: NotebookPen },
-  { id: "plan", label: "Plan", short: "Plan", icon: BookOpen },
-  { id: "previsions", label: "Prévisions", short: "Prévis.", icon: TrendingUp },
-  { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3 },
-  { id: "playbooks", label: "Playbooks", short: "Playbooks", icon: Target },
-  { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon },
-  { id: "ressources", label: "Ressources ICT", short: "Ressources", icon: FolderOpen },
-  { id: "settings", label: "Réglages", short: "Réglages", icon: Settings },
+  { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid, g: "Trader" },
+  { id: "trades", label: "Mes trades", short: "Trades", icon: NotebookPen, g: "Trader" },
+  { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3, g: "Trader" },
+  { id: "progression", label: "Progression", short: "Progrès", icon: Trophy, g: "Progresser" },
+  { id: "erreurs", label: "Mes erreurs", short: "Erreurs", icon: AlertCircle, g: "Progresser" },
+  { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon, g: "Progresser" },
+  { id: "playbooks", label: "Playbooks", short: "Playbooks", icon: Target, g: "Progresser" },
+  { id: "plan", label: "Plan", short: "Plan", icon: BookOpen, g: "Préparer" },
+  { id: "previsions", label: "Prévisions", short: "Prévis.", icon: TrendingUp, g: "Préparer" },
+  { id: "ressources", label: "Ressources ICT", short: "Ressources", icon: FolderOpen, g: "Préparer" },
+  { id: "settings", label: "Réglages", short: "Réglages", icon: Settings, g: "" },
 ];
+
+/* ============================================================================
+   PROGRESSION — transforme ton backtest et tes trades réels en plan pour monter de niveau
+   1. un edge prouvé par les chiffres  2. exécuté comme en backtest  3. avec le bon risque
+   ============================================================================ */
+const PG_TARGETS = [1, 1.5, 2, 2.5, 3, 4, 5];
+const pgSess = (t) => { try { return getSession(t.entryTime); } catch (e) { return "Hors session"; } };
+const pgSetups = (t) => { const ts = t.rules?.tfSetups; if (Array.isArray(ts) && ts.length) { const l = ts.flatMap((r) => (r.setups || []).map((x) => x + (r.tf ? " " + r.tf : ""))); if (l.length) return l; } const tf = (t.tags || []).find((g) => ["M1", "M3", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "D", "W", "MN"].includes(g)); const l = (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")).map((x) => x + (tf ? " " + tf : "")); return l.length ? l : ["Sans setup"]; };
+const PG_MODES = [["setup", "Setup"], ["setupSess", "Setup + session"], ["sess", "Session"], ["day", "Jour"], ["combo", "Combinaison"]];
+const PG_DAYS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+const pgDay = (t) => { try { const d = new Date(t.entryTime); return PG_DAYS[new Date(d.getTime() - tvNyOff(d.getTime() / 1000) * -1000).getUTCDay()]; } catch (e) { return "?"; } };
+const pgKeys = (t, mode) => mode === "day" ? [pgDay(t)] : mode === "sess" ? [pgSess(t)] : mode === "setupSess" ? pgSetups(t).map((k) => k + " · " + pgSess(t).replace(" Session", "")) : mode === "combo" ? [[...new Set(pgSetups(t))].sort().join(" + ")] : [...new Set(pgSetups(t))];
+const pgClosed = (l) => l.filter((t) => t.status !== "open" && t.resultR != null && !Number.isNaN(Number(t.resultR)));
+
+/* statistiques d'un groupe de trades, avec l'intervalle de confiance de l'espérance */
+function pgStats(list) {
+  const seq = [...list].sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime)); const rs = seq.map((t) => Number(t.resultR) || 0); const n = rs.length;
+  if (!n) return { n: 0, w: 0, l: 0, wr: 0, avg: 0, sd: 0, lb: 0, pf: null, dd: 0, ls: 0, sum: 0, need: null, rs };
+  const sum = rs.reduce((a, b) => a + b, 0), avg = sum / n, w = rs.filter((r) => r > 0).length, l = rs.filter((r) => r < 0).length;
+  const sd = n > 1 ? Math.sqrt(rs.reduce((a, r) => a + (r - avg) ** 2, 0) / (n - 1)) : 0;
+  const gw = rs.filter((r) => r > 0).reduce((a, b) => a + b, 0), gl = -rs.filter((r) => r < 0).reduce((a, b) => a + b, 0);
+  let c = 0, pk = 0, dd = 0, s = 0, ls = 0; rs.forEach((r) => { c += r; pk = Math.max(pk, c); dd = Math.max(dd, pk - c); s = r < 0 ? s + 1 : r > 0 ? 0 : s; ls = Math.max(ls, s); });
+  const lb = n > 1 ? avg - 1.96 * (sd / Math.sqrt(n)) : -Infinity;
+  const need = avg > 0 && sd > 0 ? Math.max(0, Math.ceil((1.96 * sd / avg) ** 2) - n) : null;
+  return { n, w, l, wr: w + l ? (w / (w + l)) * 100 : 0, avg, sd, lb, pf: gl ? gw / gl : gw ? Infinity : null, dd, ls, sum, need, rs };
+}
+function pgVerdict(S) {
+  if (S.n < 30) return { k: "small", lab: "Échantillon trop petit", col: C.textSecondary, txt: `Encore ${30 - S.n} trade${30 - S.n > 1 ? "s" : ""} pour une première lecture fiable (30 minimum).` };
+  if (S.lb > 0) return { k: "proven", lab: "Edge prouvé", col: C.teal, txt: `${fmtR(S.avg)} par trade, et encore positif dans le pire cas statistique (${fmtR(S.lb)}).` };
+  if (S.avg > 0) return { k: "promising", lab: S.avg < 0.08 ? "Avantage trop faible" : "Prometteur", col: C.amber, txt: S.need != null && S.need <= 600 ? `Positif mais pas encore prouvé : environ ${S.need} trades de plus pour le confirmer.` : `Positif (${fmtR(S.avg)}) mais trop proche de zéro pour être prouvé : ajoute un filtre (session, tendance, killzone) pour le renforcer.` };
+  return { k: "none", lab: "Pas d'edge", col: C.red, txt: `${fmtR(S.avg)} par trade sur ${S.n} trades : arrête-le ou change une règle (session, timeframe, tendance).` };
+}
+function pgGroups(list, mode) { const m = {}; list.forEach((t) => pgKeys(t, mode).forEach((k) => { (m[k] = m[k] || []).push(t); })); return m; }
+
+/* Monte Carlo : 2 000 séries de trades tirées de ta vraie distribution de R */
+function pgRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function pgMonte(rs, risk, N = 100, P = 2000) {
+  if (!rs.length) return null; const rnd = pgRng(7); const dds = [], ends = []; let bust = 0, pass = 0;
+  for (let p = 0; p < P; p++) {
+    let eq = 1, pk = 1, dd = 0, done = false;
+    for (let i = 0; i < 300; i++) {
+      eq *= 1 + (rs[(rnd() * rs.length) | 0] * risk) / 100; if (eq > pk) pk = eq; const d = 1 - eq / pk; if (d > dd && i < N) dd = d;
+      if (!done) { if (eq >= 1.08) { pass++; done = true; } else if (eq <= 0.9) { bust++; done = true; } } /* challenge : +8 % avant −10 % */
+      if (i === N - 1) { dds.push(dd); ends.push(eq - 1); }
+      if (i >= N - 1 && done) break;
+    }
+  }
+  dds.sort((a, b) => a - b); ends.sort((a, b) => a - b);
+  return { ddMed: dds[P >> 1], dd95: dds[Math.floor(P * 0.95)], p10: dds.filter((x) => x >= 0.1).length / P, retMed: ends[P >> 1], ret5: ends[Math.floor(P * 0.05)], pPos: ends.filter((x) => x > 0).length / P, pPass: pass / P, pBust: bust / P };
+}
+
+/* optimiseur de sortie : avec les vraies bougies, jusqu'où le prix est allé avant de toucher le SL */
+function pgExit(rows, trades) {
+  const out = []; if (!rows || !rows.length) return out; const t0r = rows[0][0], t1r = rows[rows.length - 1][0];
+  for (const t of trades) {
+    if ((t.pair || "").toUpperCase() !== "EURUSD") continue;
+    const e = Number(t.entryPrice), sl = Number(t.stopLoss); if (!e || !sl) continue; const dir = t.direction === "long" ? 1 : -1; const risk = (e - sl) * dir; if (!(risk > 0)) continue;
+    const ts = Date.parse(t.entryTime) / 1000; if (!ts || ts < t0r || ts > t1r) continue;
+    const i0 = tvBsRows(rows, ts); let mfe = 0, mae = 0, hit = false, maeW = null; const r = Number(t.resultR) || 0;
+    for (let j = i0; j < Math.min(rows.length, i0 + 3000); j++) {
+      const h = rows[j][2], l = rows[j][3];
+      if (dir > 0 ? l <= sl : h >= sl) { hit = true; break; } /* SL d'abord si les deux sont dans la même bougie (prudent) */
+      const fav = dir > 0 ? (h - e) / risk : (e - l) / risk, adv = dir > 0 ? (e - l) / risk : (h - e) / risk;
+      if (adv > mae) mae = adv; if (fav > mfe) mfe = fav;
+      if (r > 0 && maeW == null && fav >= r) maeW = mae; /* recul maximal avant d'atteindre le résultat gagnant */
+    }
+    out.push({ t, mfe, mae, maeW, hit, r });
+  }
+  return out;
+}
+const pgExitExp = (ex, X) => ex.length ? ex.reduce((a, x) => a + (x.mfe >= X ? X : x.hit ? -1 : 0), 0) / ex.length : 0;
+
+/* parcours : 5 étapes, chacune avec une action concrète */
+function pgLadder(all, live) {
+  const bt = pgClosed(all.filter((t) => t.accountId === BT_ACC)), lv = pgClosed(live);
+  const G = Object.entries(pgGroups(bt, "setup")).filter(([k]) => k !== "Sans setup").map(([k, l]) => ({ k, S: pgStats(l) }));
+  const best = [...G].sort((a, b) => (b.S.n >= 30) - (a.S.n >= 30) || b.S.lb - a.S.lb || b.S.avg - a.S.avg)[0];
+  const proven = G.filter((g) => g.S.n >= 100 && g.S.lb > 0).sort((a, b) => b.S.avg - a.S.avg)[0];
+  const tgt = proven || best; const liveT = tgt ? lv.filter((t) => pgSetups(t).includes(tgt.k)) : []; const LS = pgStats(liveT);
+  const last = [...lv].sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime)).slice(0, 30); const revd = last.filter(isReviewed); const clean = revd.filter((t) => !(t.mistakes || []).length).length;
+  const mc = tgt && tgt.S.n >= 30 ? pgMonte(tgt.S.rs, 1) : null;
+  const steps = [
+    { t: "Trouver un setup gagnant", done: G.some((g) => g.S.n >= 30 && g.S.avg > 0), p: best ? Math.min(1, best.S.n / 30) : 0,
+      ok: best ? `« ${best.k} » est positif sur ${best.S.n} trades (${fmtR(best.S.avg)}).` : "",
+      todo: !best ? "Fais tes 30 premiers trades de backtest sur UN seul setup (ex. BISI H4 en London), toujours avec les mêmes règles." : best.S.n < 30 ? `Continue « ${best.k} » : ${best.S.n}/30 trades de backtest.` : `« ${best.k} » n'est pas positif (${fmtR(best.S.avg)}). Teste une autre session ou un autre timeframe.` },
+    { t: "Prouver l'edge sur 100 trades", done: !!proven, p: best ? Math.min(1, best.S.n / 100) : 0, ok: proven ? `« ${proven.k} » : ${fmtR(proven.S.avg)} par trade sur ${proven.S.n} trades, edge prouvé.` : "",
+      todo: best ? `« ${best.k} » : ${best.S.n}/100 trades${best.S.n >= 30 ? ", espérance " + fmtR(best.S.avg) + (best.S.need && best.S.need <= 600 ? ` (≈ ${best.S.need} trades de plus pour la prouver)` : "") : ""}.` : "Commence par l'étape 1." },
+    { t: "Le reproduire en réel", done: !!tgt && LS.n >= 20 && LS.avg >= 0.5 * tgt.S.avg && LS.avg > 0, p: Math.min(1, LS.n / 20), ok: tgt ? `${fmtR(LS.avg)} en réel sur ${LS.n} trades, cohérent avec le backtest.` : "",
+      todo: !tgt ? "D'abord un setup validé en backtest." : LS.n < 20 ? `Prends « ${tgt.k} » en réel ou en démo : ${LS.n}/20 trades. Seulement ce setup.` : `En réel tu fais ${fmtR(LS.avg)} contre ${fmtR(tgt.S.avg)} en backtest : regarde tes erreurs sur ce setup.` },
+    { t: "Exécuter sans erreur", ok: `${clean}/${revd.length} derniers trades revus sans erreur.`, done: last.length >= 20 && revd.length >= 0.8 * last.length && clean / revd.length >= 0.8, p: last.length ? Math.min(1, (revd.length ? clean / revd.length : 0) / 0.8) * Math.min(1, last.length / 20) : 0,
+      todo: last.length < 20 ? `${last.length}/20 trades réels pour mesurer ta discipline.` : revd.length < 0.8 * last.length ? `Revois tes trades : ${revd.length}/${last.length} revus. La revue express prend 15 secondes par trade.` : `${clean}/${revd.length} trades revus sans erreur (objectif 80 %).` },
+    { t: "Monter le risque / passer un challenge", ok: mc ? `${Math.round(mc.pPass * 100)} % de réussite simulée à 1 % de risque.` : "", done: !!mc && mc.pPass >= 0.6 && mc.p10 <= 0.05, p: mc ? Math.min(1, mc.pPass / 0.6) : 0,
+      todo: !mc ? "Il faut un setup avec au moins 30 trades de backtest." : `À 1 % de risque : ${Math.round(mc.pPass * 100)} % de chances de faire +8 % avant −10 %, ${Math.round(mc.p10 * 100)} % de risque d'un drawdown de 10 %.` },
+  ];
+  const cur = steps.findIndex((s) => !s.done);
+  return { steps, cur: cur < 0 ? steps.length : cur, best, proven, tgt, LS };
+}
+
+function ProgressCard({ all, live, onOpen }) {
+  const L = useMemo(() => pgLadder(all, live), [all, live]); const s = L.steps[Math.min(L.cur, 4)];
+  return (
+    <div onClick={onOpen} style={{ background: `radial-gradient(120% 120% at 0% 0%, ${C.purpleDim}, transparent 60%), ${C.card}`, border: `1px solid ${C.border}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14, cursor: "pointer" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: C.textMuted }}>Ta progression · étape {Math.min(L.cur + 1, 5)}/5</div>
+        <span style={{ fontSize: 12, color: C.purpleBright, fontWeight: 700 }}>Voir le plan →</span>
+      </div>
+      <div style={{ display: "flex", gap: 4, margin: "10px 0" }}>{L.steps.map((x, i) => <span key={i} style={{ flex: 1, height: 5, borderRadius: 3, background: x.done ? C.teal : i === L.cur ? C.purple : C.border }} />)}</div>
+      <div style={{ fontSize: 15, fontWeight: 700 }}>{L.cur >= 5 ? "Toutes les étapes sont validées 🎉" : s.t}</div>
+      <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 3, lineHeight: 1.45 }}>{L.cur >= 5 ? "Garde le même process, augmente le risque par petites marches." : s.todo}</div>
+    </div>
+  );
+}
+
+function Progression({ all, live, balance = 10000 }) {
+  const [mode, setMode] = useState("setup");
+  const [src, setSrc] = useState("bt");
+  const [sel, setSel] = useState(null);
+  const [risk, setRisk] = useState(1);
+  const [ex, setEx] = useState(null); const [exMsg, setExMsg] = useState("");
+  const bt = useMemo(() => pgClosed(all.filter((t) => t.accountId === BT_ACC)), [all]);
+  const lv = useMemo(() => pgClosed(live), [live]);
+  const L = useMemo(() => pgLadder(all, live), [all, live]);
+  /* régularité d'entraînement : jours réels où tu as fait du backtest */
+  const train = useMemo(() => {
+    const day = (ms) => { const d = new Date(ms); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); };
+    const days = new Set(), w0 = startOfWeek(Date.now()).getTime(); let week = 0;
+    bt.forEach((t) => { const ms = Number(t.rules?.savedAt || t.updatedAt) || 0; if (!ms) return; days.add(day(ms)); if (ms >= w0) week++; });
+    let streak = 0; const d = new Date(); if (!days.has(day(d.getTime()))) d.setDate(d.getDate() - 1);
+    while (days.has(day(d.getTime()))) { streak++; d.setDate(d.getDate() - 1); }
+    return { week, streak, days: days.size };
+  }, [bt]);
+  const rows = useMemo(() => {
+    const gb = pgGroups(bt, mode), gl = pgGroups(lv, mode); const keys = [...new Set([...Object.keys(gb), ...Object.keys(gl)])];
+    return keys.map((k) => { const B = pgStats(gb[k] || []), Lv = pgStats(gl[k] || []); return { k, B, L: Lv, v: pgVerdict(src === "bt" ? B : Lv), bl: gb[k] || [], ll: gl[k] || [] }; })
+      .sort((a, b) => ({ proven: 0, promising: 1, small: 2, none: 3 }[a.v.k] - { proven: 0, promising: 1, small: 2, none: 3 }[b.v.k]) || (src === "bt" ? b.B.avg - a.B.avg : b.L.avg - a.L.avg));
+  }, [bt, lv, mode, src]);
+  const scope = sel && rows.find((r) => r.k === sel); const scopeList = scope ? (src === "bt" ? scope.bl : scope.ll) : src === "bt" ? bt : lv;
+  const SS = useMemo(() => pgStats(scopeList), [scopeList]);
+  const mcs = useMemo(() => (SS.n >= 10 ? [0.25, 0.5, 1, 1.5, 2].map((r) => ({ r, m: pgMonte(SS.rs, r) })) : []), [SS]);
+  const mc = (mcs.find((x) => x.r === risk) || {}).m || null;
+  const safe = mcs.filter((x) => x.m.p10 <= 0.05).map((x) => x.r).pop();
+  /* plan d'action généré à partir de tes chiffres */
+  const actions = useMemo(() => {
+    const A = []; const gb = Object.entries(pgGroups(bt, "setup")).map(([k, l]) => ({ k, S: pgStats(l) })), gl = Object.entries(pgGroups(lv, "setup")).map(([k, l]) => ({ k, S: pgStats(l) }));
+    const top = gb.filter((g) => g.S.n >= 30 && g.S.lb > 0).sort((a, b) => b.S.avg - a.S.avg)[0];
+    if (top) A.push({ c: C.teal, t: `Concentre-toi sur « ${top.k} »`, d: `${fmtR(top.S.avg)} par trade sur ${top.S.n} trades de backtest, ${top.S.wr.toFixed(0)} % de réussite. C'est ton edge : ne prends que lui tant que le réel ne le confirme pas.` });
+    const bad = [...gb, ...gl].filter((g) => g.S.n >= 20 && g.S.avg < 0 && g.k !== "Sans setup").sort((a, b) => a.S.sum - b.S.sum)[0];
+    if (bad) A.push({ c: C.red, t: `Arrête « ${bad.k} »`, d: `${fmtR(bad.S.avg)} par trade sur ${bad.S.n} trades (${fmtR(bad.S.sum)} au total).` });
+    const cut = Date.now() - 60 * 864e5; const mm = {}; lv.filter((t) => new Date(t.entryTime).getTime() >= cut).forEach((t) => (t.mistakes || []).forEach((m) => { (mm[m] = mm[m] || []).push(Number(t.resultR) || 0); }));
+    const worstM = Object.entries(mm).map(([m, l]) => ({ m, n: l.length, s: l.reduce((a, b) => a + b, 0) })).filter((x) => x.s < 0).sort((a, b) => a.s - b.s)[0];
+    if (worstM) A.push({ c: C.amber, t: `Ton erreur la plus chère : « ${worstM.m} »`, d: `${fmtR(worstM.s)} sur ${worstM.n} trades ces 60 derniers jours. Écris une règle simple pour l'éviter : c'est le gain le plus rapide.` });
+    const gap = gb.map((g) => ({ ...g, Lv: (gl.find((x) => x.k === g.k) || {}).S })).filter((g) => g.Lv && g.Lv.n >= 10 && g.S.n >= 30 && g.Lv.avg < g.S.avg - 0.3).sort((a, b) => (a.Lv.avg - a.S.avg) - (b.Lv.avg - b.S.avg))[0];
+    if (gap) A.push({ c: C.purpleBright, t: `« ${gap.k} » : le problème c'est l'exécution`, d: `${fmtR(gap.Lv.avg)} en réel contre ${fmtR(gap.S.avg)} en backtest. La stratégie marche : compare tes entrées, tes SL et tes sorties avec le replay.` });
+    if (!bt.length) A.push({ c: C.purpleBright, t: "Lance ton premier backtest", d: "Va dans Backtest, choisis UN setup et fais 30 trades avec les mêmes règles. Chaque trade arrive ici tout seul." });
+    return A.slice(0, 4);
+  }, [bt, lv]);
+  const runExit = async () => {
+    setExMsg("Chargement des bougies EURUSD…"); const r = await tvAutoLoad(setExMsg);
+    if (!r || !r.length) { setExMsg("Pas de bougies sur cet appareil : ouvre une fois le Backtest pour les charger."); return; }
+    setTimeout(() => { const res = pgExit(r, [...bt, ...lv]); setEx(res); setExMsg(res.length ? "" : "Aucun trade EURUSD avec entrée et SL dans la période des données."); }, 20);
+  };
+  const exIds = new Set(scopeList.map((t) => String(t.id))); const exScope = ex ? ex.filter((x) => exIds.has(String(x.t.id))) : null;
+  const exRows = exScope && exScope.length ? PG_TARGETS.map((X) => ({ X, e: pgExitExp(exScope, X) })) : [];
+  const exBest = exRows.reduce((m, x) => (!m || x.e > m.e ? x : m), null);
+  const maeW = exScope ? exScope.filter((x) => x.maeW != null).map((x) => x.maeW).sort((a, b) => a - b) : [];
+  const q = (a, p) => (a.length ? a[Math.min(a.length - 1, Math.floor(a.length * p))] : null);
+
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, marginBottom: 14, overflow: "hidden" };
+  const H = ({ children, sub, right }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: "15px 16px 10px", flexWrap: "wrap" }}><div style={{ flex: "1 1 260px", minWidth: 0 }}><div style={{ fontSize: 15, fontWeight: 700 }}>{children}</div>{sub && <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 3, lineHeight: 1.45 }}>{sub}</div>}</div>{right && <div style={{ flexShrink: 0 }}>{right}</div>}</div>;
+  const Seg = ({ v, set, opts }) => <div style={{ display: "flex", gap: 2, padding: 2, borderRadius: 9, background: C.inputBg || C.bg, border: `1px solid ${C.border}`, flexWrap: "wrap" }}>{opts.map(([k, l]) => <button key={k} onClick={() => set(k)} style={{ border: "none", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: v === k ? C.purpleDim : "transparent", color: v === k ? C.purpleBright : C.textSecondary }}>{l}</button>)}</div>;
+  const pct = (v) => (v == null ? "—" : Math.round(v * 100) + " %");
+  const Kpi = ({ l, v, c, sub }) => <div style={{ padding: "10px 12px", borderRadius: 12, background: C.inputBg || C.bg, minWidth: 0 }}><div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, marginTop: 3, color: c || C.text }}>{v}</div>{sub && <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 2 }}>{sub}</div>}</div>;
+
+  return (
+    <div className="fade-in" style={{ maxWidth: 900, margin: "0 auto" }}>
+      <PageHeader title="Progression" />
+      {bt.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, marginBottom: 14 }}>
+        {[["Cette semaine", train.week + " trade" + (train.week > 1 ? "s" : ""), "de backtest"], ["Série", train.streak + " jour" + (train.streak > 1 ? "s" : ""), "d'entraînement d'affilée"], ["Au total", bt.length + " trades", train.days + " jour" + (train.days > 1 ? "s" : "") + " d'entraînement"]].map(([l, v, sub]) =>
+          <div key={l} style={{ padding: "10px 12px", borderRadius: 14, background: C.card, border: `1px solid ${C.border}`, minWidth: 0 }}><div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, marginTop: 2, color: l === "Série" && train.streak >= 3 ? C.teal : C.text }}>{v}</div><div style={{ fontSize: 10.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div></div>)}
+      </div>}
+      {/* parcours */}
+      <div style={{ ...card, background: `radial-gradient(120% 90% at 0% 0%, ${C.purpleDim}, transparent 60%), ${C.card}` }}>
+        <H sub="Le chemin des traders qui durent : prouver un edge, l'exécuter comme en backtest, puis seulement augmenter le risque.">Ton parcours</H>
+        <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {L.steps.map((s, i) => { const st = s.done ? "done" : i === L.cur ? "cur" : "next"; return (
+            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", borderRadius: 12, background: st === "cur" ? C.purpleDim : "transparent", border: `1px solid ${st === "cur" ? C.purple : C.border}`, opacity: st === "next" ? 0.6 : 1 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 13, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, background: s.done ? C.teal : st === "cur" ? C.purple : C.border, color: "#fff" }}>{s.done ? <Check size={15} /> : i + 1}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{s.t}</div>
+                <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 2, lineHeight: 1.45 }}>{s.done ? s.ok || "Validé." : s.todo}</div>
+                {!s.done && <div style={{ height: 4, borderRadius: 2, background: C.border, marginTop: 7, overflow: "hidden" }}><div style={{ width: Math.round(s.p * 100) + "%", height: 4, background: st === "cur" ? C.purple : C.textMuted }} /></div>}
+              </div>
+            </div>); })}
+        </div>
+      </div>
+      {/* plan d'action */}
+      {actions.length > 0 && <div style={card}>
+        <H sub="Calculé à partir de tes trades. Il change tout seul quand tu avances.">Plan d'action</H>
+        <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {actions.map((a, i) => <div key={i} style={{ borderLeft: `3px solid ${a.c}`, padding: "6px 12px", background: C.inputBg || C.bg, borderRadius: "0 10px 10px 0" }}><div style={{ fontSize: 14, fontWeight: 700 }}>{a.t}</div><div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 2, lineHeight: 1.45 }}>{a.d}</div></div>)}
+        </div>
+      </div>}
+      {/* edge par setup */}
+      <div style={card}>
+        <H sub="« Edge prouvé » = espérance positive même avec la marge d'erreur statistique (95 %). Clique une ligne pour l'analyser en dessous." right={<Seg v={src} set={(v) => { setSrc(v); setSel(null); }} opts={[["bt", `Backtest (${bt.length})`], ["live", `Réel (${lv.length})`]]} />}>Tes edges</H>
+        <div style={{ padding: "0 16px 10px" }}><Seg v={mode} set={(v) => { setMode(v); setSel(null); }} opts={PG_MODES} /></div>
+        {rows.length === 0 && <div style={{ padding: "8px 16px 18px", fontSize: 13, color: C.textMuted }}>Pas encore de trades. Les trades fermés du Backtest arrivent ici automatiquement.</div>}
+        {rows.map((r) => { const S = src === "bt" ? r.B : r.L, O = src === "bt" ? r.L : r.B, on = sel === r.k; if (!S.n) return null; return (
+          <div key={r.k} onClick={() => setSel(on ? null : r.k)} style={{ padding: "11px 16px", borderTop: `1px solid ${C.border}`, cursor: "pointer", background: on ? C.purpleDim : "transparent" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div style={{ minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.k}</div><div style={{ fontSize: 12, fontWeight: 700, color: r.v.col, marginTop: 1 }}>{r.v.lab}</div></div>
+              <div className="tnum" style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 16, fontWeight: 700, color: S.avg > 0 ? C.teal : S.avg < 0 ? C.red : C.textSecondary }}>{fmtR(S.avg)}<span style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}> /trade</span></div><div style={{ fontSize: 11.5, color: C.textMuted }}>{S.n} trades · {S.wr.toFixed(0)} % · PF {S.pf == null ? "—" : S.pf === Infinity ? "∞" : S.pf.toFixed(2)}</div></div>
+            </div>
+            <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 5, lineHeight: 1.4 }}>{r.v.txt}{O.n > 0 && <> · <b>{src === "bt" ? "En réel" : "En backtest"} : {fmtR(O.avg)}</b> sur {O.n} trades{src === "bt" && O.n >= 5 && S.n >= 20 ? (O.avg < S.avg - 0.3 ? " → écart d'exécution" : O.avg >= S.avg - 0.1 ? " → fidèle au backtest ✓" : "") : ""}</>}</div>
+          </div>); })}
+      </div>
+      {/* analyse du groupe choisi */}
+      <div style={card}>
+        <H sub={scope ? `Analyse de « ${scope.k} » (${src === "bt" ? "backtest" : "réel"}).` : `Analyse de tous tes trades ${src === "bt" ? "de backtest" : "réels"}. Choisis une ligne au-dessus pour un seul setup.`}>Risque et drawdown</H>
+        {SS.n < 10 ? <div style={{ padding: "0 16px 16px", fontSize: 13, color: C.textMuted }}>Il faut au moins 10 trades pour simuler.</div> : <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, padding: "0 16px 10px" }}>
+            <Kpi l="Espérance" v={fmtR(SS.avg)} c={SS.avg > 0 ? C.teal : C.red} sub={`marge 95 % : ${fmtR(SS.lb)}`} />
+            <Kpi l="Drawdown max réel" v={"−" + SS.dd.toFixed(1) + " R"} sub={`série de pertes : ${SS.ls}`} />
+            <Kpi l="Risque conseillé" v={safe ? String(safe).replace(".", ",") + " %" : "< 0,25 %"} c={C.purpleBright} sub="drawdown 10 % < 5 % de chances" />
+          </div>
+          <div style={{ padding: "0 16px 8px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span style={{ fontSize: 12.5, color: C.textMuted }}>Simuler avec un risque de</span><Seg v={risk} set={setRisk} opts={[0.25, 0.5, 1, 1.5, 2].map((r) => [r, String(r).replace(".", ",") + " %"])} /></div>
+          {mc && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, padding: "0 16px 10px" }}>
+            <Kpi l="Sur 100 trades (médiane)" v={(mc.retMed >= 0 ? "+" : "") + (mc.retMed * 100).toFixed(1) + " %"} c={mc.retMed >= 0 ? C.teal : C.red} sub={`5 % des cas : ${(mc.ret5 * 100).toFixed(1)} %`} />
+            <Kpi l="Drawdown typique" v={"−" + (mc.ddMed * 100).toFixed(1) + " %"} sub={`pire 5 % : −${(mc.dd95 * 100).toFixed(1)} %`} />
+            <Kpi l="Challenge +8 % avant −10 %" v={pct(mc.pPass)} c={mc.pPass >= 0.6 ? C.teal : mc.pPass >= 0.4 ? C.amber : C.red} sub={`échec : ${pct(mc.pBust)}`} />
+            <Kpi l="Positif après 100 trades" v={pct(mc.pPos)} sub="probabilité" />
+          </div>}
+          <div style={{ padding: "0 16px 14px", fontSize: 12, color: C.textMuted, lineHeight: 1.45 }}>2 000 simulations qui tirent au hasard dans tes vrais résultats. Plus l'échantillon est grand, plus c'est fiable.</div>
+        </>}
+      </div>
+      {/* optimiseur de sortie */}
+      <div style={card}>
+        <H sub="Avec tes vraies bougies EURUSD : jusqu'où le prix est allé avant de toucher ton SL. On en déduit le TP qui aurait le plus rapporté." right={!ex && <button onClick={runExit} style={{ border: "none", borderRadius: 9, padding: "8px 12px", background: C.purple, color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer", whiteSpace: "nowrap" }}>Analyser</button>}>Meilleur take profit</H>
+        {exMsg && <div style={{ padding: "0 16px 14px", fontSize: 13, color: C.textSecondary }}>{exMsg}</div>}
+        {ex && (!exScope || !exScope.length) && <div style={{ padding: "0 16px 14px", fontSize: 13, color: C.textMuted }}>Aucun trade EURUSD analysable dans cette sélection.</div>}
+        {exRows.length > 0 && <>
+          <div style={{ padding: "0 16px 6px", display: "flex", flexDirection: "column", gap: 6 }}>
+            {exRows.map((x) => { const mx = Math.max(0.01, ...exRows.map((y) => Math.abs(y.e))); return (
+              <div key={x.X} style={{ display: "grid", gridTemplateColumns: "56px 1fr 70px", gap: 8, alignItems: "center", fontSize: 12.5 }}>
+                <span style={{ fontWeight: 700, color: x === exBest ? C.teal : C.text }}>TP {String(x.X).replace(".", ",")}R</span>
+                <div style={{ height: 8, borderRadius: 4, background: C.inputBg || C.bg, overflow: "hidden" }}><div style={{ width: (Math.abs(x.e) / mx) * 100 + "%", height: 8, background: x.e >= 0 ? (x === exBest ? C.teal : C.purple) : C.red }} /></div>
+                <span className="tnum" style={{ textAlign: "right", fontWeight: 700, color: x.e >= 0 ? C.teal : C.red }}>{fmtR(x.e)}</span>
+              </div>); })}
+          </div>
+          <div style={{ padding: "8px 16px 14px", fontSize: 13, color: C.textSecondary, lineHeight: 1.5 }}>
+            Actuellement : <b>{fmtR(exScope.reduce((a, x) => a + x.r, 0) / exScope.length)}</b> par trade. Avec un TP fixe à <b>{String(exBest.X).replace(".", ",")}R</b> : <b style={{ color: C.teal }}>{fmtR(exBest.e)}</b>{exBest.e > exScope.reduce((a, x) => a + x.r, 0) / exScope.length ? <>, soit <b>{fmtR((exBest.e - exScope.reduce((a, x) => a + x.r, 0) / exScope.length) * 100)}</b> de plus sur 100 trades.</> : " : ta gestion actuelle fait mieux, garde-la."}
+            {maeW.length >= 5 && <div style={{ marginTop: 6 }}>Tes trades gagnants reculent en moyenne de <b>{(maeW.reduce((a, b) => a + b, 0) / maeW.length).toFixed(2)} R</b> avant de partir ; 80 % ne dépassent jamais <b>{q(maeW, 0.8).toFixed(2)} R</b> contre toi.{q(maeW, 0.8) < 0.6 ? " Ton SL est peut-être plus large que nécessaire." : ""}</div>}
+            <div style={{ marginTop: 6, fontSize: 12, color: C.textMuted }}>{exScope.length} trades analysés. Prudent : si le SL et le TP sont dans la même bougie, on compte le SL.</div>
+          </div>
+        </>}
+      </div>
+    </div>
+  );
+}
+
+
+/* ============================================================================
+   ERREURS — revue express, coût de chaque erreur, comportements repérés tout seuls
+   ============================================================================ */
+const isReviewed = (t) => !!((t.mistakes || []).length || (t.positives || []).length || t.rules?.clean || t.rules?.reviewed || t.verdict);
+const isCleanT = (t) => isReviewed(t) && !(t.mistakes || []).length;
+const errNames = (s) => { const h = s?.hiddenErrors || []; return [...DEFAULT_ERRORS.filter((e) => !h.includes(e)), ...(s?.customErrors || [])]; };
+const posNames = (s) => [...DEFAULT_POSITIVES, ...(s?.customPositives || [])];
+/* les plus utilisés d'abord : en un clic sur tes erreurs habituelles */
+const byFreq = (names, trades, field) => { const c = {}; (trades || []).forEach((t) => (t[field] || []).forEach((m) => { c[m] = (c[m] || 0) + 1; })); return [...new Set([...names, ...Object.keys(c)])].sort((a, b) => (c[b] || 0) - (c[a] || 0)); };
+const errAgg = (l) => { const n = l.length, s = l.reduce((a, t) => a + rOf(t), 0), u = l.reduce((a, t) => a + usdOf(t), 0), w = l.filter((t) => rOf(t) > 0).length, lo = l.filter((t) => rOf(t) < 0).length; return { n, s, u, avg: n ? s / n : 0, wr: w + lo ? (w / (w + lo)) * 100 : 0 }; };
+const ERR_CHECK = { "Entrer trop tôt": "J'attends la clôture de confirmation avant d'entrer", "Entrer trop tard": "Si le prix est parti, je laisse passer", "TP trop tôt": "Je laisse courir jusqu'à mon TP prévu", "SL trop serré": "Mon SL est derrière la zone, pas dedans", "SL trop large": "SL juste derrière la zone : pas plus", "Pas de confirmation MSS": "J'attends le MSS avant d'entrer", "Revenge trading": "Après une perte, je fais une pause", "Hors killzone": "Je ne trade qu'en killzone", "Pas de sweep de liquidité": "J'attends un sweep de liquidité", "FOMO": "Pas de setup = pas de trade (pas de FOMO)", "Sur-trader": "Maximum 2 trades par jour", "Ignorer le DXY": "J'ai regardé le DXY", "Contre le biais HTF": "Je trade dans le sens du biais HTF", "Long en premium / short en discount": "Achat en discount, vente en premium", "Pas de displacement": "Je veux un displacement clair", "Pas de draw on liquidity clair": "Je connais ma cible de liquidité", "Entrée avant la killzone": "J'attends l'ouverture de la killzone" };
+const addCheckItem = (txt) => { const r = loadRules(); const cur = r.checklist && r.checklist.length ? r.checklist : CHECK_DEFAULT; if (cur.includes(txt)) return false; saveRules({ ...r, checklist: [...cur, txt], checklistOn: true }); return true; };
+
+function TagPick({ items, value = [], onToggle, col, max = 8 }) {
+  const [all, setAll] = useState(false); const head = items.slice(0, max);
+  const list = all ? items : [...head, ...value.filter((v) => !head.includes(v))];
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {list.map((x) => { const on = value.includes(x); return <button key={x} type="button" onClick={() => onToggle(x)} style={{ padding: "7px 11px", borderRadius: 999, border: `1.5px solid ${on ? col : C.border}`, background: on ? col + "1A" : "transparent", color: on ? col : C.textSecondary, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{on ? "✓ " : ""}{x}</button>; })}
+      {items.length > max && <button type="button" onClick={() => setAll(!all)} style={{ padding: "7px 11px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMuted, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{all ? "Moins" : `+ ${items.length - max} autres`}</button>}
+    </div>
+  );
+}
+
+/* revue express : un trade à la fois, 3 clics, et tes stats d'erreurs deviennent fiables */
+function ReviewQueue({ trades, appSettings, onPatch, onClose }) {
+  const [queue] = useState(() => byTime(closedOf(trades)).reverse().filter((t) => !isReviewed(t)).map((t) => t.id));
+  const [i, setI] = useState(0); const [n, setN] = useState(0); const [img, setImg] = useState(null);
+  const t = trades.find((x) => x.id === queue[i]);
+  const [m, setM] = useState([]); const [p, setP] = useState([]); const [v, setV] = useState(null);
+  useEffect(() => { setM(t?.mistakes || []); setP(t?.positives || []); setV(t?.verdict || null); }, [t?.id]);
+  const errs = useMemo(() => byFreq(errNames(appSettings), trades, "mistakes"), []), poss = useMemo(() => byFreq(posNames(appSettings), trades, "positives"), []);
+  const next = () => setI((x) => x + 1);
+  const save = (clean) => { if (!t) return; onPatch(t.id, { mistakes: clean ? [] : m, positives: p, verdict: v, rules: { ...(t.rules || {}), reviewed: true, clean: clean || (!m.length && (t.rules || {}).clean) || false } }); setN((x) => x + 1); next(); };
+  const tog = (arr, set) => (x) => set(arr.includes(x) ? arr.filter((y) => y !== x) : [...arr, x]);
+  const r = t ? rOf(t) : 0; const st = t ? pgSetups(t).filter((x) => x !== "Sans setup") : [];
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "92vh", overflowY: "auto", background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}><div style={{ fontSize: 17, fontWeight: 700 }}>Revue express</div><div style={{ fontSize: 12.5, color: C.textMuted }}>{t ? `Trade ${i + 1} sur ${queue.length} · ce qui a été fait, pas le résultat` : "Terminé"}</div></div>
+          <button onClick={onClose} aria-label="Fermer" style={{ ...btn.ghost, padding: 8 }}><X size={16} /></button>
+        </div>
+        {queue.length > 0 && <div style={{ height: 4, borderRadius: 2, background: C.border, marginBottom: 14, overflow: "hidden" }}><div style={{ width: (Math.min(i, queue.length) / queue.length) * 100 + "%", height: 4, background: C.purple }} /></div>}
+        {!t ? (
+          <div style={{ textAlign: "center", padding: "24px 8px" }}>
+            <div style={{ fontSize: 40 }}>🎯</div>
+            <div style={{ fontSize: 17, fontWeight: 700, marginTop: 6 }}>{queue.length ? "Tous tes trades sont revus" : "Rien à revoir"}</div>
+            <div style={{ fontSize: 13, color: C.textMuted, marginTop: 6, lineHeight: 1.5 }}>{n ? `${n} trade${n > 1 ? "s" : ""} revu${n > 1 ? "s" : ""}. ` : ""}Tes statistiques d'erreurs sont à jour dans « Mes erreurs ».</div>
+            <button onClick={() => { onClose(); window.dispatchEvent(new CustomEvent("tjp-goto", { detail: "erreurs" })); }} style={{ ...btn.primary, marginTop: 16, justifyContent: "center" }}>Voir mes erreurs</button>
+          </div>
+        ) : (<>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, background: C.inputBg || C.bg }}>
+            <PairLogo pair={t.pair} size={34} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{t.pair} <span style={{ color: t.direction === "long" ? C.teal : C.red, fontSize: 12.5 }}>{t.direction === "long" ? "↗ Long" : "↘ Short"}</span></div>
+              <div style={{ fontSize: 12, color: C.textMuted }}>{fmtDateTime(t.entryTime)} · {pgSess(t).replace(" Session", "")}{st.length ? " · " + st.join(", ") : ""}</div>
+            </div>
+            <div className="tnum" style={{ fontSize: 19, fontWeight: 700, color: r > 0 ? C.teal : r < 0 ? C.red : C.textSecondary }}>{t.status === "breakeven" ? "BE" : fmtR(r)}</div>
+          </div>
+          {(t.screenshotBefore || t.screenshotAfter) && <div style={{ display: "flex", gap: 8, marginTop: 10 }}>{[t.screenshotBefore, t.screenshotAfter].filter(Boolean).map((s, k) => <img key={k} src={s} alt="" onClick={() => setImg(s)} style={{ flex: 1, minWidth: 0, height: 110, objectFit: "cover", borderRadius: 10, border: `1px solid ${C.border}`, cursor: "zoom-in" }} />)}</div>}
+          {t.notes && <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 8, fontStyle: "italic" }}>« {t.notes} »</div>}
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "14px 0 6px" }}>Selon ton plan, c'était…</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[["good", "👍 Bon trade", C.teal], ["bad", "👎 Mauvais trade", C.red]].map(([k, l, c]) => <button key={k} onClick={() => setV(v === k ? null : k)} style={{ flex: 1, padding: "11px 6px", borderRadius: 12, border: `1.5px solid ${v === k ? c : C.border}`, background: v === k ? c + "1A" : "transparent", color: v === k ? c : C.textSecondary, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>)}
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "14px 0 6px" }}>Erreurs</div>
+          <TagPick items={errs} value={m} onToggle={tog(m, setM)} col={C.red} max={8} />
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "14px 0 6px" }}>Bien fait</div>
+          <TagPick items={poss} value={p} onToggle={tog(p, setP)} col={C.teal} max={6} />
+          <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+            <button onClick={() => save(true)} disabled={m.length > 0} title="Aucune erreur sur ce trade" style={{ ...btn.ghost, flex: "1 1 140px", justifyContent: "center", color: C.teal, borderColor: C.teal + "66", opacity: m.length ? 0.4 : 1 }}>✓ Aucune erreur</button>
+            <button onClick={() => (m.length || p.length || v ? save(false) : next())} style={{ ...btn.primary, flex: "1 1 140px", justifyContent: "center" }}>{m.length || p.length || v ? "Enregistrer · suivant" : "Passer"}</button>
+          </div>
+        </>)}
+      </div>
+      {img && <LightBox src={img} label="" onClose={() => setImg(null)} />}
+    </div>
+  );
+}
+
+function ReviewCard({ trades, onOpen }) {
+  const L = closedOf(trades); const todo = L.filter((t) => !isReviewed(t)).length; if (!L.length) return null;
+  const pct = Math.round(((L.length - todo) / L.length) * 100);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${todo ? C.amber + "66" : C.border}`, borderRadius: 18, padding: "12px 16px", marginBottom: 14 }}>
+      <div style={{ width: 40, height: 40, borderRadius: 12, background: todo ? C.amberDim : C.tealDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{todo ? "📝" : "✓"}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700 }}>{todo ? `${todo} trade${todo > 1 ? "s" : ""} à revoir` : "Tous tes trades sont revus"}</div>
+        <div style={{ fontSize: 12.5, color: C.textMuted }}>{todo ? `${pct} % revus · environ ${Math.max(1, Math.round(todo * 0.25))} min pour comprendre tes erreurs` : "Tes statistiques d'erreurs sont fiables."}</div>
+      </div>
+      {todo > 0 && <button onClick={onOpen} style={{ ...btn.primary, padding: "9px 14px", fontSize: 13, whiteSpace: "nowrap" }}>Revoir</button>}
+    </div>
+  );
+}
+
+/* comportements repérés automatiquement (aucune case à cocher) */
+function errPatterns(closed, rules, balance) {
+  const L = byTime(closed); const risks = L.map((t) => Number(t.riskUsd)).filter((x) => x > 0).sort((a, b) => a - b); const med = risks.length ? risks[risks.length >> 1] : 0;
+  const viol = new Set(planCheck(L, rules, balance).filter((x) => x.v.length).map((x) => x.t.id));
+  const flags = L.map((t, i) => {
+    const d = dayKey(t.entryTime), te = new Date(t.entryTime).getTime(); const same = L.slice(0, i).filter((x) => dayKey(x.entryTime) === d); const prev = same[same.length - 1];
+    const p1 = L[i - 1], p2 = L[i - 2]; const ch = t.rules?.checks;
+    return {
+      afterLoss: !!prev && rOf(prev) < 0 && te - new Date(prev.entryTime).getTime() < 2 * 36e5,
+      after2: !!p1 && !!p2 && rOf(p1) < 0 && rOf(p2) < 0,
+      third: same.length >= 2,
+      bigWin: !!prev && rOf(prev) >= 2,
+      horsKz: (() => { try { return killzoneLabel(t.entryTime) === "Hors killzone"; } catch (e) { return false; } })(),
+      bigRisk: med > 0 && Number(t.riskUsd) > med * 1.3,
+      noSetup: pgSetups(t)[0] === "Sans setup",
+      checklist: Array.isArray(ch) && !t.rules?.checkAll,
+      plan: viol.has(t.id),
+    };
+  });
+  const DEF = [
+    ["afterLoss", "Juste après une perte (moins de 2 h)", "Après une perte, j'attends 2 h avant de reprendre", null],
+    ["after2", "Après 2 pertes d'affilée", "Après 2 pertes d'affilée, j'arrête pour la journée", { maxConsecLoss: 2 }],
+    ["third", "3e trade de la journée et plus", "Maximum 2 trades par jour", { maxTradesDay: 2 }],
+    ["bigWin", "Juste après un gros gain (≥ 2R)", "Après un gros gain, je m'arrête pour la session", null],
+    ["horsKz", "Hors killzone", "Je ne trade qu'en killzone", null],
+    ["bigRisk", "Risque plus gros que d'habitude", "Toujours le même risque par trade", null],
+    ["noSetup", "Sans setup noté", "Pas de setup clair = pas de trade", null],
+    ["checklist", "Check-list incomplète", "Je coche toute ma check-list avant d'entrer", null],
+    ["plan", "Règle du plan non respectée", "Je relis mes règles avant chaque trade", null],
+  ];
+  return DEF.map(([k, lab, fix, rule]) => {
+    const inn = L.filter((_, i) => flags[i][k]), out = L.filter((_, i) => !flags[i][k]); const A = errAgg(inn), B = errAgg(out);
+    return { k, lab, fix, rule, A, B, d: A.avg - B.avg, cost: A.s - A.n * B.avg };
+  }).filter((x) => x.A.n >= 3);
+}
+
+function ErrorsPage({ trades, appSettings, balance = 10000, onOpenTrade }) {
+  const [period, setPeriod] = useState("90");
+  const [added, setAdded] = useState({});
+  const rules = loadRules();
+  const all = useMemo(() => byTime(closedOf(trades)), [trades]);
+  const closed = useMemo(() => { const days = period === "all" ? null : Number(period); const cut = days ? Date.now() - days * 864e5 : 0; return all.filter((t) => !days || new Date(t.entryTime).getTime() >= cut); }, [all, period]);
+  const rev = closed.filter(isReviewed), withE = rev.filter((t) => (t.mistakes || []).length), clean = rev.filter((t) => !(t.mistakes || []).length);
+  const A = errAgg(withE), K = errAgg(clean), T = errAgg(closed);
+  const curve = useMemo(() => { let a = 0, b = 0; const out = [{ i: 0, a: 0, b: 0 }]; closed.forEach((t, i) => { a += rOf(t); if (!(t.mistakes || []).length) b += rOf(t); out.push({ i: i + 1, a: Math.round(a * 100) / 100, b: Math.round(b * 100) / 100 }); }); return out; }, [closed]);
+  const errRows = useMemo(() => {
+    const now = Date.now(), d30 = now - 30 * 864e5, d60 = now - 60 * 864e5; const m = {};
+    closed.forEach((t) => (t.mistakes || []).forEach((e) => { (m[e] = m[e] || []).push(t); }));
+    return Object.entries(m).map(([e, l]) => {
+      const S = errAgg(l); const r30 = all.filter((t) => (t.mistakes || []).includes(e) && new Date(t.entryTime).getTime() >= d30).length, p30 = all.filter((t) => (t.mistakes || []).includes(e) && new Date(t.entryTime).getTime() >= d60 && new Date(t.entryTime).getTime() < d30).length;
+      const last = Math.max(...l.map((t) => new Date(t.entryTime).getTime())); const cnt = (fn) => { const c = {}; l.forEach((t) => { const k = fn(t); c[k] = (c[k] || 0) + 1; }); const b = Object.entries(c).sort((x, y) => y[1] - x[1])[0]; return b && b[1] / l.length >= 0.5 && l.length >= 3 ? b : null; };
+      const ss = cnt((t) => pgSess(t).replace(" Session", "")), dd = cnt((t) => pgDay(t));
+      return { e, S, r30, p30, ago: Math.round((now - last) / 864e5), ctx: [ss && `${Math.round((ss[1] / l.length) * 100)} % ${ss[0] === "Hors session" ? "hors session" : "en " + ss[0]}`, dd && `souvent le ${dd[0].toLowerCase()}`].filter(Boolean).join(" · "), share: rev.length ? (l.length / rev.length) * 100 : 0 };
+    }).sort((a, b) => a.S.s - b.S.s);
+  }, [closed, all]);
+  const pats = useMemo(() => errPatterns(closed, rules, balance).sort((a, b) => a.cost - b.cost), [closed, balance]);
+  const top = [...errRows.filter((x) => x.S.s < 0).map((x) => ({ t: `Évite « ${x.e} »`, d: `${fmtR(x.S.s)} sur ${x.S.n} trades (${fmtR(x.S.avg)} par trade).`, fix: ERR_CHECK[x.e] || `J'évite : ${x.e}`, cost: x.S.s })), ...pats.filter((x) => x.cost < 0 && x.d <= -0.25 && x.A.n >= 5).map((x) => ({ t: x.lab, d: `${fmtR(x.A.avg)} par trade contre ${fmtR(x.B.avg)} le reste du temps (${x.A.n} trades).`, fix: x.fix, rule: x.rule, cost: x.cost }))].sort((a, b) => a.cost - b.cost)[0];
+  const matrix = useMemo(() => { const j = closed.filter((t) => t.verdict === "good" || t.verdict === "bad"); const c = (v, w) => j.filter((t) => t.verdict === v && (w ? rOf(t) > 0 : rOf(t) <= 0)); return j.length >= 4 ? { gw: c("good", true), gl: c("good", false), bw: c("bad", true), bl: c("bad", false), n: j.length } : null; }, [closed]);
+  const addFix = (fix, rule) => { if (rule) { saveRules({ ...loadRules(), ...rule }); } else addCheckItem(fix); setAdded((o) => ({ ...o, [fix]: true })); };
+
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, marginBottom: 14, overflow: "hidden" };
+  const H = ({ children, sub, right }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: "15px 16px 10px", flexWrap: "wrap" }}><div style={{ flex: "1 1 240px", minWidth: 0 }}><div style={{ fontSize: 15, fontWeight: 700 }}>{children}</div>{sub && <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 3, lineHeight: 1.45 }}>{sub}</div>}</div>{right && <div style={{ flexShrink: 0 }}>{right}</div>}</div>;
+  const FixBtn = ({ fix, rule }) => added[fix] ? <span style={{ fontSize: 12, color: C.teal, fontWeight: 700 }}>✓ Ajouté à ton plan</span> : <button onClick={() => addFix(fix, rule)} style={{ border: `1px solid ${C.purple}`, background: "transparent", color: C.purpleBright, borderRadius: 8, padding: "5px 9px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{rule ? "Appliquer la règle" : "+ Check-list"}</button>;
+  const Big = ({ l, v, c, sub }) => <div style={{ padding: "11px 12px", borderRadius: 12, background: C.inputBg || C.bg, minWidth: 0 }}><div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 18, fontWeight: 700, marginTop: 3, color: c || C.text }}>{v}</div>{sub && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{sub}</div>}</div>;
+  const todo = closed.length - rev.length;
+
+  return (
+    <div className="fade-in" style={{ maxWidth: 900, margin: "0 auto" }}>
+      <PageHeader title="Mes erreurs" action={<div style={{ display: "flex", gap: 2, padding: 2, borderRadius: 9, background: C.card, border: `1px solid ${C.border}` }}>{[["30", "30 j"], ["90", "90 j"], ["all", "Tout"]].map(([k, l]) => <button key={k} onClick={() => setPeriod(k)} style={{ border: "none", borderRadius: 7, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", background: period === k ? C.purpleDim : "transparent", color: period === k ? C.purpleBright : C.textSecondary }}>{l}</button>)}</div>} />
+      {todo > 0 && <div style={{ ...card, display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderColor: C.amber + "66" }}>
+        <div style={{ flex: 1, fontSize: 13, color: C.textSecondary, lineHeight: 1.45 }}><b style={{ color: C.text }}>{todo} trade{todo > 1 ? "s" : ""} pas encore revu{todo > 1 ? "s" : ""}</b> sur cette période. Plus tu revois, plus cette page dit vrai.</div>
+        <button onClick={() => window.dispatchEvent(new Event("tjp-review"))} style={{ ...btn.primary, padding: "9px 14px", fontSize: 13, whiteSpace: "nowrap" }}>Revue express</button>
+      </div>}
+      {closed.length === 0 && <div style={{ ...card, padding: "26px 18px", textAlign: "center", color: C.textMuted, fontSize: 13.5 }}>Pas encore de trades fermés sur cette période.</div>}
+      {closed.length > 0 && <div style={{ ...card, background: `radial-gradient(120% 90% at 0% 0%, ${A.s < 0 ? C.redDim : C.tealDim}, transparent 60%), ${C.card}` }}>
+        <div style={{ padding: "18px 18px 6px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Ce que tes erreurs t'ont coûté</div>
+          <div className="tnum" style={{ fontSize: 34, fontWeight: 700, letterSpacing: -1, color: A.s < 0 ? C.red : C.teal, marginTop: 4 }}>{fmtR(A.s)}{A.u ? <span style={{ fontSize: 16, color: C.textSecondary, fontWeight: 600 }}> · {fmtUsdSigned(A.u)}</span> : null}</div>
+          <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}>Sans les trades avec erreur, tu serais à <b style={{ color: C.teal }}>{fmtR(K.s)}</b> au lieu de <b>{fmtR(T.s)}</b>.</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, padding: "10px 16px" }}>
+          <Big l="Trades propres" v={fmtR(K.avg) + " /trade"} c={K.avg >= 0 ? C.teal : C.red} sub={`${K.n} trades · ${K.wr.toFixed(0)} % gagnants`} />
+          <Big l="Trades avec erreur" v={fmtR(A.avg) + " /trade"} c={A.avg >= 0 ? C.teal : C.red} sub={`${A.n} trades · ${A.wr.toFixed(0)} % gagnants`} />
+          <Big l="Discipline" v={rev.length ? Math.round((clean.length / rev.length) * 100) + " %" : "—"} c={C.purpleBright} sub="trades sans erreur (revus)" />
+        </div>
+        {curve.length > 2 && <div style={{ height: 170, padding: "6px 6px 10px" }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={curve} margin={{ top: 6, right: 12, left: -18, bottom: 0 }}>
+              <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="i" tick={{ fontSize: 10, fill: C.textMuted }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }} formatter={(v, n) => [fmtR(v), n === "b" ? "Sans erreurs" : "Réel"]} labelFormatter={(l) => "Trade " + l} />
+              <Area type="monotone" dataKey="b" stroke={C.teal} strokeWidth={2} fill={C.teal} fillOpacity={0.08} isAnimationActive={false} />
+              <Area type="monotone" dataKey="a" stroke={C.textSecondary} strokeWidth={1.6} strokeDasharray="4 3" fill="transparent" isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>}
+        <div style={{ display: "flex", gap: 14, padding: "0 16px 14px", fontSize: 12, color: C.textMuted }}><span><b style={{ color: C.teal }}>━</b> sans les trades avec erreur</span><span><b>┅</b> ta courbe réelle (R)</span></div>
+      </div>}
+      {top && <div style={{ ...card, borderColor: C.purple, background: `linear-gradient(135deg, ${C.purpleDim}, transparent 70%), ${C.card}` }}>
+        <div style={{ padding: "14px 16px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.purpleBright }}>Ta règle n°1 en ce moment</div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 5 }}>{top.t}</div>
+          <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 3, lineHeight: 1.45 }}>{top.d}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}><span style={{ fontSize: 13.5, fontWeight: 600 }}>« {top.fix} »</span><FixBtn fix={top.fix} rule={top.rule} /></div>
+        </div>
+      </div>}
+      {errRows.length > 0 && <div style={card}>
+        <H sub="Classées par ce qu'elles te coûtent. La flèche compare les 30 derniers jours aux 30 d'avant.">Tes erreurs</H>
+        {errRows.map((x) => (
+          <div key={x.e} style={{ padding: "11px 16px", borderTop: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div style={{ minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{x.e}</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 1 }}>{x.S.n} fois · {x.share.toFixed(0)} % des trades revus · il y a {x.ago} j{x.ctx ? " · " + x.ctx : ""}</div></div>
+              <div className="tnum" style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 16, fontWeight: 700, color: x.S.s < 0 ? C.red : C.teal }}>{fmtR(x.S.s)}</div><div style={{ fontSize: 11.5, color: x.r30 < x.p30 ? C.teal : x.r30 > x.p30 ? C.red : C.textMuted, fontWeight: 600 }}>{x.r30 < x.p30 ? "↓ en baisse" : x.r30 > x.p30 ? "↑ en hausse" : "= stable"} ({x.p30} → {x.r30})</div></div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.textSecondary }}>Règle : « {ERR_CHECK[x.e] || "J'évite : " + x.e} »</span><FixBtn fix={ERR_CHECK[x.e] || "J'évite : " + x.e} /></div>
+          </div>))}
+      </div>}
+      {pats.length > 0 && <div style={card}>
+        <H sub="Repérés tout seuls à partir des heures, des résultats et du risque de tes trades, sans rien cocher.">Comportements repérés</H>
+        {pats.map((x) => { const bad = x.d <= -0.25 && x.A.n >= 5; return (
+          <div key={x.k} style={{ padding: "11px 16px", borderTop: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div style={{ minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{bad ? "⚠ " : ""}{x.lab}</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 1 }}>{x.A.n} trades · {x.A.wr.toFixed(0)} % gagnants · le reste du temps {fmtR(x.B.avg)} /trade</div></div>
+              <div className="tnum" style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 16, fontWeight: 700, color: x.A.avg < 0 ? C.red : C.teal }}>{fmtR(x.A.avg)}<span style={{ fontSize: 11, color: C.textMuted }}> /trade</span></div><div style={{ fontSize: 11.5, color: x.d < 0 ? C.red : C.teal, fontWeight: 600 }}>{x.d >= 0 ? "+" : ""}{x.d.toFixed(2)} R vs normal</div></div>
+            </div>
+            {bad && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.textSecondary }}>Règle : « {x.fix} »</span><FixBtn fix={x.fix} rule={x.rule} /></div>}
+          </div>); })}
+      </div>}
+      {matrix && <div style={card}>
+        <H sub="Un bon trade perdant reste un bon trade. Un mauvais trade gagnant est le plus dangereux : il t'apprend une mauvaise habitude.">Process ou chance ?</H>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 16px 16px" }}>
+          {[["Bons trades gagnants", matrix.gw, C.teal, "Le process qui paie"], ["Bons trades perdants", matrix.gl, C.textSecondary, "Normal : ça fait partie de l'edge"], ["Mauvais trades gagnants", matrix.bw, C.amber, "De la chance : à ne pas répéter"], ["Mauvais trades perdants", matrix.bl, C.red, "Évitable"]].map(([l, arr, c, s]) =>
+            <div key={l} style={{ padding: "11px 12px", borderRadius: 12, background: C.inputBg || C.bg, borderLeft: `3px solid ${c}` }}><div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>{arr.length} <span style={{ fontSize: 12.5, color: c }}>{fmtR(arr.reduce((a, t) => a + rOf(t), 0))}</span></div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{s}</div></div>)}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+/* « Tu peux trader ? » : tes limites du plan pour aujourd'hui, la semaine et le mois */
+function CanTradeCard({ trades, balance, acc }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id); }, []);
+  const rules = loadRules(); const B = Number(balance) || 10000;
+  const ch = acc && acc.type === "challenge" && acc.challenge ? { ...CH_DEFAULT, ...acc.challenge } : null;
+  const L = closedSorted(trades);
+  const d0 = new Date(now); d0.setHours(0, 0, 0, 0); const w0 = startOfWeek(now); const m0 = new Date(d0.getFullYear(), d0.getMonth(), 1);
+  const sum = (from) => L.filter((t) => new Date(t.entryTime) >= from).reduce((s, t) => s + usdOf(t), 0);
+  const nToday = L.filter((t) => new Date(t.entryTime) >= d0).length;
+  const lim = [
+    { k: "Jour", pct: ch ? ch.maxDaily : rules.maxLossDayPct, pnl: sum(d0), reset: new Date(d0.getTime() + 864e5) },
+    { k: "Semaine", pct: rules.maxLossWeekPct, pnl: sum(w0), reset: new Date(w0.getTime() + 7 * 864e5) },
+    { k: "Mois", pct: rules.maxLossMonthPct, pnl: sum(m0), reset: new Date(m0.getFullYear(), m0.getMonth() + 1, 1) },
+  ].filter((x) => x.pct);
+  if (!lim.length && !rules.maxTradesDay) return null;
+  const riskPer = (B * (rules.maxRiskPct || 1)) / 100;
+  const rows = lim.map((x) => { const max = (B * x.pct) / 100; const left = Math.max(0, max + Math.min(0, x.pnl)); return { ...x, max, left, used: clamp01(-Math.min(0, x.pnl) / max) }; });
+  const left = rows.length ? Math.min(...rows.map((r) => r.left)) : Infinity;
+  const tradesLeft = Math.min(Number.isFinite(left) ? Math.floor(left / riskPer + 1e-9) : 99, rules.maxTradesDay ? Math.max(0, rules.maxTradesDay - nToday) : 99);
+  /* règle « X pertes d'affilée = stop » de ton plan */
+  const todayL = L.filter((t) => new Date(t.entryTime) >= d0); let streak = 0; for (let k = todayL.length - 1; k >= 0 && rOf(todayL[k]) < 0; k--) streak++;
+  const stopStreak = !!rules.maxConsecLoss && streak >= rules.maxConsecLoss;
+  const ok = tradesLeft > 0 && !stopStreak;
+  const cd = (d) => { const ms = d - now; const h = Math.floor(ms / 36e5), m = Math.floor((ms % 36e5) / 6e4); return h >= 48 ? Math.floor(h / 24) + " j" : h + " h " + String(m).padStart(2, "0"); };
+  return (
+    <div style={{ background: ok ? `linear-gradient(135deg, ${C.tealDim}, transparent 60%), ${C.card}` : `linear-gradient(135deg, ${C.redDim}, transparent 60%), ${C.card}`, border: `1px solid ${(ok ? C.teal : C.red) + "55"}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: rows.length ? 12 : 0 }}>
+        <div style={{ width: 42, height: 42, borderRadius: 12, background: (ok ? C.teal : C.red) + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{ok ? "✓" : "✕"}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: ok ? C.teal : C.red }}>{ok ? "Tu peux trader" : "Stop pour aujourd'hui"}</div>
+          <div className="tnum" style={{ fontSize: 12.5, color: C.textSecondary }}>{ok ? <>Encore <b style={{ color: C.text }}>{tradesLeft >= 99 ? "∞" : tradesLeft} trade{tradesLeft > 1 ? "s" : ""}</b> à {fmtUsd0(riskPer)} de risque{Number.isFinite(left) ? <> · marge {fmtUsd0(left)}</> : null}</> : stopStreak ? `${streak} pertes d'affilée aujourd'hui : ton plan dit stop. Reviens demain.` : "Une limite de ton plan est atteinte."}</div>
+        </div>
+      </div>
+      {rows.length > 0 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${rows.length}, minmax(0,1fr))`, gap: 8 }}>
+        {rows.map((r) => <div key={r.k} style={{ padding: "9px 10px", borderRadius: 12, background: C.card, border: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "0 6px", fontSize: 11, color: C.textMuted, fontWeight: 600 }}><span>{r.k}</span><span style={{ whiteSpace: "nowrap" }} title="Remise à zéro dans">↻ {cd(r.reset)}</span></div>
+          <div className="tnum" style={{ fontSize: 15, fontWeight: 700, color: r.used >= 0.8 ? C.red : C.text, marginTop: 3 }}>{fmtUsd0(r.left)}<span style={{ fontSize: 11, color: C.textMuted, fontWeight: 500 }}> / {fmtUsd0(r.max)}</span></div>
+          <div style={{ height: 5, borderRadius: 3, background: C.border, marginTop: 6, overflow: "hidden" }}><div className="grow-x" style={{ width: r.used * 100 + "%", height: "100%", background: r.used >= 0.8 ? C.red : r.used >= 0.5 ? C.amber : C.teal }} /></div>
+        </div>)}
+      </div>}
+    </div>
+  );
+}
 
 function MobileNav({ view, setView, onNewTrade }) {
   const [more, setMore] = useState(false);
   const MAIN = [NAV_ITEMS[0], NAV_ITEMS[1], null, NAV_ITEMS.find(i => i.id === "stats")];
   const EXTRA = [
+    { id: "progression", label: "Progression", icon: Trophy },
+    { id: "erreurs", label: "Mes erreurs", icon: AlertCircle },
+    { id: "backtest", label: "Backtest", icon: TvLogoIcon },
     { id: "plan", label: "Plan de trading", icon: BookOpen },
     { id: "playbooks", label: "Playbooks", icon: Target },
     { id: "previsions", label: "Prévisions", icon: TrendingUp },
     { id: "calendar", label: "Calendrier", icon: CalendarDays },
     { id: "calculator", label: "Calculatrice", icon: Calculator },
     { id: "coach", label: "IA Coach", icon: Brain },
-    { id: "backtest", label: "Backtest", icon: TvLogoIcon },
     { id: "ressources", label: "Ressources", icon: FolderOpen },
     { id: "settings", label: "Réglages", icon: Settings },
   ];
@@ -2884,18 +3499,19 @@ function Sidebar({ view, setView, onNewTrade, totalPnl = 0, totalR = 0 }) {
         </button>
 
         <nav style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 1 }}>
-          {NAV_ITEMS.map((it) => {
+          {NAV_ITEMS.map((it, i) => {
+            const head = it.g !== (NAV_ITEMS[i - 1] || {}).g ? <div key={"g" + it.g} className="nav-label" style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.9, textTransform: "uppercase", color: C.sidebarTextDim, opacity: 0.7, padding: i ? "14px 12px 5px" : "2px 12px 5px", borderTop: i && !it.g ? `1px solid rgba(255,255,255,0.06)` : "none", marginTop: i && !it.g ? 10 : 0 }}>{it.g}</div> : null;
             const active = view === it.id || (view === "tradeForm" && it.id === "trades") || (view === "tradeDetail" && it.id === "trades");
             const Icon = it.icon;
-            return (
-              <button key={it.id} className="nav-btn nav-item-row" onClick={() => setView(it.id)} title={it.label} style={{
+            return (<React.Fragment key={it.id}>{head}
+              <button className="nav-btn nav-item-row" onClick={() => setView(it.id)} title={it.label} style={{
                 ...getS().navItem,
                 background: active ? "rgba(139,124,246,0.18)" : "transparent",
                 color: active ? "#C4BAFB" : C.sidebarTextDim,
               }}>
                 <Icon size={16} strokeWidth={1.9} />
                 <span className="nav-label">{it.label}</span>
-              </button>
+              </button></React.Fragment>
             );
           })}
         </nav>
@@ -3094,19 +3710,6 @@ function computeStats(trades, initialBalance = 10000) {
   return { closed, wins, losses, totalPnl, winRate, avgRR, avgWin, avgLoss, curve, maxDD, currentBalance: bal, initialBalance, profitToday, profitWeek, profitMonth };
 }
 
-function groupBy(trades, keyFn) {
-  const map = {};
-  trades.forEach((t) => {
-    const key = keyFn(t);
-    if (key === null || key === undefined) return;
-    if (!map[key]) map[key] = { key, trades: [], pnl: 0, wins: 0, losses: 0 };
-    map[key].trades.push(t);
-    map[key].pnl += t.resultUsd || 0;
-    if (t.resultR > 0) map[key].wins += 1;
-    if (t.resultR < 0) map[key].losses += 1;
-  });
-  return Object.values(map).map((g) => ({ ...g, count: g.trades.length, winRate: g.trades.length ? (g.wins / g.trades.length) * 100 : 0 }));
-}
 
 
 function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalance = 10000, extra = null }) {
@@ -3457,6 +4060,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
                 <PairLogo pair={p} size={20} /><span style={{ flex: 1 }}>{p}</span><span className="tnum" style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 600 }}>{n} trade{n > 1 ? "s" : ""}</span></button>)}
             </div>; })()}
         </div>
+        {(() => { const n = trades.filter((t) => t.status !== "open" && !isReviewed(t)).length; return n > 0 && <button onClick={() => window.dispatchEvent(new Event("tjp-review"))} title="Revue express des trades pas encore revus" style={{ ...btn.ghost, flexShrink: 0, color: C.amber, borderColor: C.amber + "66" }}>📝 <span className="hide-sm">À revoir</span> {n}</button>; })()}
         <button
           onClick={() => setShowFilters((v) => !v)}
           style={{ ...btn.ghost, flexShrink: 0, color: activeFilterCount ? C.purpleBright : C.textSecondary, borderColor: activeFilterCount ? "rgba(139,124,246,0.35)" : C.border, background: activeFilterCount ? C.purpleDim : (C.inputBg || C.card) }}>
@@ -3818,6 +4422,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          {(trade.pair || "").toUpperCase() === "EURUSD" && <button onClick={() => { onClose(); replayRealTrade(trade); }} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ ...btn.ghost, justifyContent: "center" }}><Rewind size={13} /> Rejouer</button>}
           {onOpenFull && <button onClick={() => { onClose(); onOpenFull(trade.id); }} style={{ ...btn.ghost, flex: 1, justifyContent: "center" }}>Détail complet</button>}
           <button onClick={save} style={{ ...btn.primary, flex: 2, justifyContent: "center", padding: "12px" }}>Enregistrer</button>
         </div>
@@ -4117,8 +4722,10 @@ function SimulateurTPMasquable({ trade }) {
 function AmeliorerSection({ appSettings, trade, onPatch }) {
   const negChecked = trade.mistakes || [];
   const posChecked = trade.positives || [];
-  const toggleNeg = (err) => onPatch({ mistakes: negChecked.includes(err) ? negChecked.filter(e => e !== err) : [...negChecked, err] });
-  const togglePos = (p) => onPatch({ positives: posChecked.includes(p) ? posChecked.filter(e => e !== p) : [...posChecked, p] });
+  const R0 = trade.rules || {};
+  const toggleNeg = (err) => { const nx = negChecked.includes(err) ? negChecked.filter(e => e !== err) : [...negChecked, err]; onPatch({ mistakes: nx, rules: { ...R0, reviewed: true, clean: false } }); };
+  const togglePos = (p) => onPatch({ positives: posChecked.includes(p) ? posChecked.filter(e => e !== p) : [...posChecked, p], rules: { ...R0, reviewed: true } });
+  const setClean = () => onPatch({ mistakes: [], rules: { ...R0, reviewed: true, clean: !R0.clean || negChecked.length > 0 } });
 
   const hiddenErrors = appSettings?.hiddenErrors || [];
   const customErrors = appSettings?.customErrors || [];
@@ -4157,7 +4764,10 @@ function AmeliorerSection({ appSettings, trade, onPatch }) {
 
       {/* Points à améliorer */}
       <Card style={{ padding: 16 }}>
-        <CardLabel>À améliorer</CardLabel>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <CardLabel>À améliorer</CardLabel>
+          <button onClick={setClean} style={{ padding: "6px 11px", borderRadius: 999, border: `1.5px solid ${R0.clean && !negChecked.length ? C.teal : C.border}`, background: R0.clean && !negChecked.length ? C.tealDim : "transparent", color: R0.clean && !negChecked.length ? C.teal : C.textSecondary, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✓ Aucune erreur</button>
+        </div>
         <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 10, marginTop: 4 }}>Erreurs commises sur ce trade</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           {errors.map(err => <CheckItem key={err} label={err} checked={negChecked.includes(err)} onToggle={toggleNeg} color={C.red} />)}
@@ -4170,6 +4780,17 @@ function AmeliorerSection({ appSettings, trade, onPatch }) {
       </Card>
     </>
   );
+}
+
+/* rejouer un trade réel EURUSD dans le replay : contexte 24 h avant, entrée / SL / TP dessinés, session à part (pas comptée dans tes stats) */
+function replayRealTrade(t) {
+  const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const e = Number(t.entryPrice), sl = Number(t.stopLoss), tp = Number(t.takeProfit);
+  const draws = [];
+  if (e && tp) draws.push({ type: "rect", color: "#089981", pts: [{ t: t0, p: Math.max(e, tp) }, { t: t0 + 6 * 3600, p: Math.min(e, tp) }] });
+  if (e && sl) draws.push({ type: "rect", color: "#f23645", pts: [{ t: t0, p: Math.max(e, sl) }, { t: t0 + 6 * 3600, p: Math.min(e, sl) }] });
+  if (e) draws.push({ type: "hray", color: "#131722", pts: [{ t: t0, p: e }] });
+  window.TJP_PENDING_GOTO = { t: t0, draws, session: "Rejouer mes trades réels", create: true, noSave: true, msg: `Ton trade réel du ${fmtDateTime(t.entryTime)} : replay repris 24 h avant. Qu'aurais-tu dû voir ?` };
+  window.dispatchEvent(new CustomEvent("tjp-goto", { detail: "backtest" }));
 }
 
 function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetroSave, onPatch, appSettings }) {
@@ -4231,7 +4852,8 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
             <Clock size={12} /> {fmtDateTime(trade.entryTime)} · {getSession(trade.entryTime)}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {(trade.pair || "").toUpperCase() === "EURUSD" && trade.accountId !== BT_ACC && <button onClick={() => replayRealTrade(trade)} title="Rejoue ce trade dans le replay, 24 h avant l'entrée, avec ton entrée, ton SL et ton TP dessinés" style={btn.ghost}><Rewind size={13} /> Rejouer</button>}
           <button onClick={() => onEdit(trade)} style={btn.ghost}><Edit3 size={13} /> Modifier</button>
           <button onClick={() => shareTradeCard(trade)} style={btn.ghost} aria-label="Partager"><Share2 size={15} /></button>
           {confirmDelete
@@ -4541,173 +5163,6 @@ function DetailStat({ label, value, valueColor }) {
    SMART CAPTURE BOX — upload du screenshot "avant" avec extraction auto
    ============================================================================ */
 
-function SmartCaptureBox({ value, onChange, onExtracted }) {
-  const fileRef = useRef(null);
-  const [error, setError] = useState("");
-  const [status, setStatus] = useState("idle");
-  const [result, setResult] = useState(null);
-  const [smartFocused, setSmartFocused] = useState(false);
-
-
-
-  const handleFile = async (file) => {
-    setError("");
-    setResult(null);
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { setError("Le fichier doit être une image."); return; }
-    if (file.size > 10 * 1024 * 1024) { setError("Image trop lourde (max 10 Mo)."); return; }
-
-    // Aperçu local immédiat (base64 temporaire)
-    const reader = new FileReader();
-    reader.onload = (e) => onChange(e.target.result);
-    reader.readAsDataURL(file);
-
-    setStatus("analyzing");
-    try {
-      // Upload vers Supabase Storage en parallèle avec l'analyse IA
-      const [extracted, storageUrl] = await Promise.all([
-        extractTradeFromScreenshot(file).catch(() => null),
-        uploadToStorage(file).catch(() => null),
-      ]);
-
-      // Remplace le base64 par l'URL permanente si upload réussi
-      if (storageUrl) onChange(storageUrl);
-
-      if (extracted) {
-        setResult(extracted);
-        setStatus("done");
-        onExtracted(extracted);
-      } else {
-        setStatus("failed");
-        setError("Analyse auto échouée — champs à remplir manuellement.");
-      }
-    } catch (e) {
-      setStatus("failed");
-      setError(e.message || "Erreur lors de l'upload.");
-    }
-  };
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary }}>Screenshot avant le trade (TradingView)</div>
-        {status === "analyzing" && (
-          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.purpleBright, fontWeight: 600 }}>
-            <Sparkles size={12} className="spin-slow" /> Analyse en cours…
-          </span>
-        )}
-        {status === "done" && (
-          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.teal, fontWeight: 600 }}>
-            <CheckCircle2 size={12} /> Champs détectés
-          </span>
-        )}
-      </div>
-
-      <div
-        onClick={() => { if (!value) fileRef.current?.click(); }}
-        onFocus={() => setSmartFocused(true)}
-        onBlur={() => setSmartFocused(false)}
-        onPaste={(e) => {
-          const items = e.clipboardData?.items;
-          if (!items) return;
-          for (const item of items) {
-            if (item.type.startsWith("image/")) { e.preventDefault(); e.stopPropagation(); handleFile(item.getAsFile()); return; }
-          }
-        }}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); }}
-        tabIndex={0}
-        style={{
-          border: `1.5px dashed ${status === "analyzing" ? C.purple : smartFocused ? C.focusBorder || C.purple : C.border}`,
-          borderRadius: 10, cursor: value ? "default" : "pointer", overflow: "hidden",
-          position: "relative", background: C.inputBg || C.card,
-          minHeight: value ? "auto" : 140,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          outline: "none",
-          boxShadow: smartFocused ? (C.focusShadow || "0 0 0 3px rgba(124,92,252,0.14)") : "none",
-        }}>
-        {value ? (
-          <>
-            <img src={value} alt="Screenshot avant le trade" style={{ width: "100%", display: "block", maxHeight: 320, objectFit: "contain" }} />
-            {status === "analyzing" && (
-              <div style={{ position: "absolute", inset: 0, background: "rgba(15,17,23,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, padding: "8px 14px", borderRadius: 20, border: `1px solid ${C.borderLight}` }}>
-                  <Sparkles size={14} color={C.purpleBright} className="spin-slow" />
-                  <span style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>Lecture du graphique…</span>
-                </span>
-              </div>
-            )}
-            <button onClick={(e) => { e.stopPropagation(); onChange(null); setStatus("idle"); setResult(null); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(15,17,23,0.9)", border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, padding: 5, cursor: "pointer", display: "flex" }}>
-              <X size={12} />
-            </button>
-          </>
-        ) : (
-          <div style={{ textAlign: "center", color: C.textMuted, padding: 20 }}>
-            <Sparkles size={20} strokeWidth={1.5} style={{ marginBottom: 7, color: C.purpleBright, display: "block", margin: "0 auto 8px" }} />
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.textSecondary, marginBottom: 4 }}>Screenshot TradingView</div>
-            <div style={{ fontSize: 11, marginBottom: 6 }}>{smartFocused ? "Case active — colle maintenant" : "Clique · Glisse · ou colle avec"}</div>
-            <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
-              <kbd style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 6px", fontSize: 10, color: C.textSecondary }}>⌘V</kbd>
-              <kbd style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 6px", fontSize: 10, color: C.textSecondary }}>Ctrl+V</kbd>
-            </div>
-            <div style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}>Extraction auto entry / SL / TP / direction</div>
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <div style={{ color: C.red, fontSize: 11.5, marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
-          <AlertCircle size={12} /> {error}
-        </div>
-      )}
-
-      {status === "done" && result && (
-        <div style={{ marginTop: 10, padding: "12px 14px", background: C.inputBg || C.card, border: `1px solid ${C.border}`, borderRadius: 8 }}>
-          {/* Score global */}
-          {(() => {
-            const fields = ["pairConfidence","directionConfidence","entryConfidence","stopLossConfidence","takeProfitConfidence"];
-            const scores = { high: 3, medium: 2, low: 1, none: 0 };
-            const total = fields.reduce((s, f) => s + (scores[result[f]] || 0), 0);
-            const max = fields.length * 3;
-            const pct = Math.round((total / max) * 100);
-            const color = pct >= 70 ? C.teal : pct >= 40 ? "#D89A2E" : C.red;
-            const label = pct >= 70 ? "Extraction fiable" : pct >= 40 ? "Vérification recommandée" : "Extraction incomplète";
-            return (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <Sparkles size={13} color={color} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color }}>{label}</span>
-                  </div>
-                  <span className="tnum" style={{ fontSize: 13, fontWeight: 600, color }}>{pct}%</span>
-                </div>
-                <div style={{ height: 5, borderRadius: 3, background: C.border, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, borderRadius: 3, background: color, transition: "width 0.5s ease" }} />
-                </div>
-              </div>
-            );
-          })()}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <ConfidenceRow label="Paire" value={result.pair} confidence={result.pairConfidence} />
-            <ConfidenceRow label="Direction" value={result.direction === "long" ? "Long" : result.direction === "short" ? "Short" : null} confidence={result.directionConfidence} />
-            <ConfidenceRow label="Entrée" value={result.entryPrice} confidence={result.entryConfidence} />
-            <ConfidenceRow label="Stop loss" value={result.stopLoss} confidence={result.stopLossConfidence} />
-            <ConfidenceRow label="Take profit" value={result.takeProfit} confidence={result.takeProfitConfidence} />
-          </div>
-          {(result.riskReward || result.timeframe) && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-              {result.riskReward && <ExtractedChip label="R:R affiché" value={result.riskReward} />}
-              {result.timeframe && <ExtractedChip label="Timeframe" value={result.timeframe} />}
-            </div>
-          )}
-          <div style={{ fontSize: 10.5, color: C.textSecondary, marginTop: 10 }}>Corrige les champs ci-dessous si une confiance est faible.</div>
-        </div>
-      )}
-
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files?.[0])} />
-    </div>
-  );
-}
 
 const CONFIDENCE_META = {
   high: { color: "#2DD4BF", label: "Fiable" },
@@ -4716,31 +5171,7 @@ const CONFIDENCE_META = {
   none: { color: "#9AA1B8", label: "Non détecté" },
 };
 
-function ConfidenceRow({ label, value, confidence }) {
-  const meta = CONFIDENCE_META[confidence] || CONFIDENCE_META.none;
-  const hasValue = value !== null && value !== undefined && value !== "";
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0" }}>
-      <span style={{ fontSize: 11.5, color: C.textSecondary }}>{label}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-        <span className="tnum" style={{ fontSize: 12, fontWeight: 700, color: hasValue ? C.text : C.textMuted }}>{hasValue ? value : "—"}</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9.5, fontWeight: 700, color: meta.color, padding: "2px 6px", borderRadius: 10, background: `${meta.color}1A` }}>
-          <span style={{ width: 5, height: 5, borderRadius: "50%", background: meta.color }} />
-          {meta.label}
-        </span>
-      </div>
-    </div>
-  );
-}
 
-function ExtractedChip({ label, value }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, background: C.card, padding: "3px 8px", borderRadius: 5, border: `1px solid ${C.border}` }}>
-      <span style={{ color: C.textMuted }}>{label}</span>
-      <span style={{ color: C.text, fontWeight: 700 }}>{value}</span>
-    </span>
-  );
-}
 
 function ImageUploadBox({ label, value, onChange }) {
   const fileRef = useRef(null);
@@ -4864,14 +5295,6 @@ function ImageUploadBox({ label, value, onChange }) {
 
 
 
-function LiveCalcStat({ label, value, color }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div className="tnum" style={{ fontSize: 13.5, fontWeight: 600, color: color || C.text }}>{value}</div>
-      <div style={{ fontSize: 9, color: C.textMuted, marginTop: 3 }}>{label}</div>
-    </div>
-  );
-}
 
 
 
@@ -4886,18 +5309,6 @@ function Chip({ on, onClick, children, color, title }) {
   );
 }
 function Chips({ children }) { return <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{children}</div>; }
-function Group({ label, hint, children, right }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, letterSpacing: 0.2 }}>{label}</span>
-        {right}
-      </div>
-      {children}
-      {hint && <span style={{ fontSize: 11.5, color: C.red, fontWeight: 600 }}>{hint}</span>}
-    </div>
-  );
-}
 function Section({ title, icon, sub, open, onToggle, children }) {
   const collapsible = typeof onToggle === "function";
   const shown = !collapsible || open;
@@ -5010,6 +5421,18 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const [status, setStatus] = useState(initial ? (initial.status === "closed" ? (Number(initial.resultR) >= 0 ? "win" : "loss") : initial.status) : "open");
   const [rIn, setRIn] = useState(initial?.resultR != null ? String(Math.abs(initial.resultR)) : "");
   const [notes, setNotes] = useState(initial?.notes || "");
+  /* revue directement dans le formulaire : check-list, erreurs, points positifs */
+  const [mist, setMist] = useState(initial?.mistakes || []);
+  const [pos, setPos] = useState(initial?.positives || []);
+  const [clean, setClean] = useState(!!initial?.rules?.clean);
+  const [verd, setVerd] = useState(initial?.verdict || null);
+  const [checks, setChecks] = useState(initial?.rules?.checks || []);
+  const rulesNow = loadRules(); const checkItems = rulesNow.checklistOn === false ? [] : rulesNow.checklist && rulesNow.checklist.length ? rulesNow.checklist : CHECK_DEFAULT;
+  const errChoices = useMemo(() => byFreq(errNames(appSettings), trades, "mistakes"), []);
+  const posChoices = useMemo(() => byFreq(posNames(appSettings), trades, "positives"), []);
+  const setupFreq = useMemo(() => { const c = {}; (trades || []).forEach((t) => { const ts = t.rules?.tfSetups; (Array.isArray(ts) ? ts.flatMap((r) => r.setups || []) : (t.tags || [])).forEach((x) => { c[x] = (c[x] || 0) + 1; }); }); return c; }, []);
+  const lastT = !initial ? (trades || [])[0] : null;
+  const copyLast = () => { if (!lastT) return; setPair(lastT.pair || ""); setQ(""); setDirection(lastT.direction || "long"); const ts = lastT.rules?.tfSetups; if (Array.isArray(ts) && ts.length) setTfRows(ts.map((r) => ({ tf: r.tf, setups: [...(r.setups || [])] }))); if (Number(lastT.riskUsd) > 0) { setRiskMode("usd"); setRiskVal(String(lastT.riskUsd)); } };
 
   const hidden = appSettings?.hiddenTags || [];
   const setupNames = [...TAG_CATALOG.filter((t) => t.category === "setup" && !hidden.includes(t.name)).map((t) => t.name), ...(appSettings?.customTags || [])];
@@ -5027,7 +5450,8 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const rr = en != null && sl != null && tp != null && en !== sl ? Math.abs(tp - en) / Math.abs(en - sl) : null;
   const rFinal = status === "breakeven" ? 0 : status === "win" ? (rIn !== "" ? Math.abs(Number(rIn)) : rr) : status === "loss" ? -(rIn !== "" ? Math.abs(Number(rIn)) : 1) : null;
   const timeOk = !!entryTime && !isNaN(new Date(entryTime).getTime());
-  const canSave = timeOk && !!pair;
+  const needR = status === "win" && rFinal == null; /* un gain sans R fausserait tes stats */
+  const canSave = timeOk && !!pair && !needR;
   const sideErr = en == null ? null
     : sl != null && (direction === "long" ? sl >= en : sl <= en) ? "Stop loss du mauvais côté : en " + (direction === "long" ? "Long il doit être sous" : "Short il doit être au-dessus de") + " l'entrée."
     : tp != null && (direction === "long" ? tp <= en : tp >= en) ? "Take profit du mauvais côté : en " + (direction === "long" ? "Long il doit être au-dessus de" : "Short il doit être sous") + " l'entrée."
@@ -5058,10 +5482,16 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
       status: finalStatus, notes, tags,
       screenshotBefore: shotBefore, screenshotAfter: shotAfter,
       confidenceLevel: gradeToLevel(grade) || initial?.confidenceLevel || 0,
-      rules: { ...(initial?.rules || {}), tfSetups: tfRows.filter((r) => r.tf || r.setups.length), grade },
+      mistakes: mist, positives: pos, verdict: verd,
+      rules: { ...(initial?.rules || {}), tfSetups: tfRows.filter((r) => r.tf || r.setups.length), grade,
+        ...(checkItems.length ? { checks, checkAll: checkItems.every((x) => checks.includes(x)) } : {}),
+        clean: clean && !mist.length, reviewed: !!(mist.length || pos.length || (clean && !mist.length) || verd) || !!initial?.rules?.reviewed },
     });
   };
 
+  /* Ctrl + Entrée (ou ⌘ + Entrée) : enregistrer depuis n'importe où dans le formulaire */
+  const saveRef = useRef(save); saveRef.current = save;
+  useEffect(() => { const h = (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); saveRef.current(); } }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, []);
   const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14 };
   const lab = { fontSize: 12, fontWeight: 700, color: C.textSecondary, marginBottom: 6 };
   const inp = { ...inputStyle, padding: "11px 12px", fontSize: 15 };
@@ -5074,7 +5504,10 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
       <div style={{ maxWidth: 620, margin: "0 auto", display: "flex", flexDirection: "column", gap: 12 }}>
         <div>
           <BackLink onClick={onCancel}>Annuler</BackLink>
-          <h1 style={{ fontSize: 22, fontWeight: 600, margin: "4px 0 0", letterSpacing: -0.4 }}>{isEdit ? "Modifier le trade" : "Nouveau trade"}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h1 style={{ fontSize: 22, fontWeight: 600, margin: "4px 0 0", letterSpacing: -0.4, flex: 1 }}>{isEdit ? "Modifier le trade" : "Nouveau trade"}</h1>
+            {lastT && <button type="button" onClick={copyLast} title="Reprend la paire, le sens, les setups et le risque de ton dernier trade" style={{ ...btn.ghost, padding: "7px 11px", fontSize: 12.5 }}><Copy size={14} /> Comme le dernier ({lastT.pair})</button>}
+          </div>
         </div>
 
         {/* 0. Remplir depuis un screenshot TradingView */}
@@ -5108,6 +5541,9 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
               <input autoFocus={!isEdit} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tape EUR, GBP, XAU…" style={{ ...inp, paddingLeft: 36 }} aria-label="Rechercher une paire"
                 onKeyDown={(e) => { if (e.key === "Enter" && pairHits[0]) { setPair(pairHits[0]); setQ(""); } }} />
             </div>
+            {!qn && Object.keys(used).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {Object.entries(used).filter(([p]) => p && p !== "undefined").sort((a, b) => b[1] - a[1]).slice(0, 6).map(([p]) => <Chip key={p} onClick={() => { setPair(p); setQ(""); }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={p} size={16} />{p}</span></Chip>)}
+            </div>}
             {pairHits.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
               {pairHits.map((p) => <Chip key={p} on={pair === p} onClick={() => { setPair(p); setQ(""); }}>{PAIR_LABEL[p] ? PAIR_LABEL[p] + " · " + p : p}</Chip>)}
             </div>}
@@ -5166,6 +5602,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
                 {hits.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                   {hits.map((h) => <Chip key={h} onClick={() => { upd((r) => ({ ...r, setups: [...r.setups, h] })); setRowQ((m) => ({ ...m, [i]: "" })); }}>+ {h}</Chip>)}
                 </div>}
+                {!rq && (() => { const fav = setupNames.filter((n) => !row.setups.includes(n)).sort((a, b) => (setupFreq[b] || 0) - (setupFreq[a] || 0)).slice(0, 6); return fav.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>{fav.map((h) => <Chip key={h} onClick={() => upd((r) => ({ ...r, setups: [...r.setups, h] }))}>+ {h}</Chip>)}</div>; })()}
                 {row.setups.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                   {row.setups.map((st) => <span key={st} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 999, background: C.purpleDim, color: C.purpleBright, fontSize: 12.5, fontWeight: 700 }}>
                     <b style={{ color: C.text }}>{row.tf}</b> {st}
@@ -5175,6 +5612,16 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
           })}
           <button onClick={() => setTfRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 13, cursor: "pointer", padding: "10px 0 0" }}>+ Ajouter des PD arrays</button>
         </div>
+
+        {/* 4 bis. Check-list avant d'entrer (tes règles, modifiables dans Plan) */}
+        {checkItems.length > 0 && <div style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Check-list</span><span className="tnum" style={{ color: checkItems.every((x) => checks.includes(x)) ? C.teal : C.textMuted }}>{checkItems.filter((x) => checks.includes(x)).length}/{checkItems.length}</span></div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {checkItems.map((x) => { const on = checks.includes(x); return <button key={x} type="button" onClick={() => setChecks((c) => (on ? c.filter((y) => y !== x) : [...c, x]))} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 11, border: `1px solid ${on ? C.teal + "66" : C.border}`, background: on ? C.tealDim : "transparent", color: C.text, fontSize: 13.5, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
+              <span style={{ width: 19, height: 19, borderRadius: 6, border: `2px solid ${on ? C.teal : C.borderLight || C.border}`, background: on ? C.teal : "transparent", color: "#fff", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{on ? "✓" : ""}</span>{x}</button>; })}
+          </div>
+          <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>Les stats comparent tes trades avec et sans check-list complète.</div>
+        </div>}
 
         {/* 5. Photos */}
         <div style={card}>
@@ -5203,6 +5650,19 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
           </div>}
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optionnel)" rows={2} style={{ ...inp, marginTop: 12, resize: "vertical", fontFamily: "inherit" }} />
         </div>
+
+        {/* 7. Revue : tout de suite, pendant que c'est frais */}
+        <div style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Revue {status === "open" ? "(tu peux la faire plus tard)" : ""}</span>{(mist.length > 0 || clean) && <span style={{ color: mist.length ? C.red : C.teal }}>{mist.length ? mist.length + " erreur" + (mist.length > 1 ? "s" : "") : "✓ propre"}</span>}</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            {[["good", "👍 Bon trade", C.teal], ["bad", "👎 Mauvais trade", C.red]].map(([k, l, c]) => <button key={k} type="button" onClick={() => setVerd(verd === k ? null : k)} style={{ ...big(verd === k, c), fontSize: 13.5, padding: "10px 6px" }}>{l}</button>)}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary }}>Erreurs</span>
+            <button type="button" onClick={() => { setClean(!clean); if (!clean) setMist([]); }} style={{ padding: "6px 11px", borderRadius: 999, border: `1.5px solid ${clean && !mist.length ? C.teal : C.border}`, background: clean && !mist.length ? C.tealDim : "transparent", color: clean && !mist.length ? C.teal : C.textSecondary, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✓ Aucune erreur</button></div>
+          <TagPick items={errChoices} value={mist} onToggle={(x) => { setClean(false); setMist((l) => (l.includes(x) ? l.filter((y) => y !== x) : [...l, x])); }} col={C.red} max={6} />
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "12px 0 6px" }}>Bien fait</div>
+          <TagPick items={posChoices} value={pos} onToggle={(x) => setPos((l) => (l.includes(x) ? l.filter((y) => y !== x) : [...l, x]))} col={C.teal} max={5} />
+        </div>
       </div>
 
       <div className="tf2-bar" style={{ position: "fixed", left: 0, right: 0, bottom: 0, padding: "10px 16px calc(12px + env(safe-area-inset-bottom, 0px))", background: C.bg, borderTop: `1px solid ${C.border}`, zIndex: 40, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
@@ -5216,552 +5676,12 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
             <div className="tnum" style={{ fontSize: 12, color: C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>E {fmtP(en)} · <span style={{ color: C.red }}>SL {fmtP(sl)}</span> · <span style={{ color: C.teal }}>TP {fmtP(tp)}</span></div>
           </div>
         </div>}
-        <button onClick={save} disabled={!canSave} style={{ ...btn.primary, width: "100%", maxWidth: 620, justifyContent: "center", padding: "14px", fontSize: 15, opacity: canSave ? 1 : 0.5 }}>{!pair ? "Choisis une paire" : isEdit ? "Enregistrer les modifications" : "Enregistrer le trade"}</button>
+        <button onClick={save} disabled={!canSave} style={{ ...btn.primary, width: "100%", maxWidth: 620, justifyContent: "center", padding: "14px", fontSize: 15, opacity: canSave ? 1 : 0.5 }}>{!pair ? "Choisis une paire" : needR ? "Indique le R du gain (ou le TP)" : isEdit ? "Enregistrer les modifications" : "Enregistrer le trade"}</button>
       </div>
     </div>
   );
 }
 
-function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trades }) {
-  const isEdit = !!initial;
-  const [pair, setPair] = useState(initial?.pair || "EURUSD");
-  const [direction, setDirection] = useState(initial?.direction || "long");
-  const [entryTime, setEntryTime] = useState(toLocalInput(initial?.entryTime));
-  const [entryPrice, setEntryPrice] = useState(initial?.entryPrice ?? "");
-  const [stopLoss, setStopLoss] = useState(initial?.stopLoss ?? "");
-  const [takeProfit, setTakeProfit] = useState(initial?.takeProfit ?? "");
-  const [exitPrice, setExitPrice] = useState(initial?.exitPrice ?? "");
-  const [positionSize, setPositionSize] = useState(initial?.positionSize ?? "");
-  const [riskUsd, setRiskUsd] = useState(initial?.riskUsd ?? "");
-  const [riskPct, setRiskPct] = useState(initial ? "" : "1"); // % de risque live
-  const [resultUsd, setResultUsd] = useState(initial?.resultUsd ?? "");
-  const [resultPips, setResultPips] = useState(initial?.resultPips ?? "");
-  const [resultRManual, setResultRManual] = useState(initial?.resultRManual ?? false);
-  const [resultRValue, setResultRValue] = useState(initial?.resultR ?? "");
-  const [status, setStatus] = useState(initial?.status || "open"); // ouvert par défaut
-  const [notes, setNotes] = useState(initial?.notes || "");
-  const [tags, setTags] = useState(initial?.tags || []);
-  const [screenshotBefore, setScreenshotBefore] = useState(initial?.screenshotBefore || null);
-  const [screenshotAfter, setScreenshotAfter] = useState(initial?.screenshotAfter || null);
-  const [extractedMeta, setExtractedMeta] = useState(null);
-  const [dxyBias, setDxyBias] = useState(initial?.dxyBias || "");
-  const [dxyScreenshotBefore, setDxyScreenshotBefore] = useState(initial?.dxyScreenshotBefore || null);
-  const [dxyScreenshotAfter, setDxyScreenshotAfter] = useState(initial?.dxyScreenshotAfter || null);
-  const [dxyTags, setDxyTags] = useState(initial?.dxyTags || []);
-  const [liquiditySweep, setLiquiditySweep] = useState(initial?.liquiditySweep || false);
-  const [mssConfirmed, setMssConfirmed] = useState(initial?.mssConfirmed || false);
-  const [confidenceLevel, setConfidenceLevel] = useState(initial?.confidenceLevel || 0);
-  const [tfAlignment, setTfAlignment] = useState(initial?.tfAlignment || "");
-  const [tfAlignmentSetup, setTfAlignmentSetup] = useState(initial?.tfAlignmentSetup || "");
-  const [oteFib, setOteFib] = useState(initial?.oteFib || "");
-  const [maxR, setMaxR] = useState(initial?.maxR ?? "");
-  const [ictModel, setIctModel] = useState(initial?.ictModel || "");
-  const [htfBias, setHtfBias] = useState(initial?.htfBias || "");
-  const [pdZone, setPdZone] = useState(initial?.pdZone || "");
-  const [sweptLiquidity, setSweptLiquidity] = useState(initial?.sweptLiquidity || "");
-  const [drawOnLiquidity, setDrawOnLiquidity] = useState(initial?.drawOnLiquidity || "");
-  const [displacement, setDisplacement] = useState(initial?.displacement || false);
-  const [smt, setSmt] = useState(initial?.smt || false);
-  
-  
-
-  const accountBalance = appSettings?.accountBalance || 10000;
-  const sessionTags = TAG_CATALOG.filter((t) => t.category === "session");
-  const customSetupTags = appSettings?.customTags || [];
-  const hiddenTags = appSettings?.hiddenTags || [];
-  const allSetupTags = [
-    ...TAG_CATALOG.filter((t) => t.category === "setup" && !hiddenTags.includes(t.name)),
-    ...customSetupTags.map((n) => ({ name: n, category: "setup" })),
-  ];
-
-  // Calcul pip live
-  const pipDecimal = pair.includes("JPY") ? 0.01 : pair === "XAUUSD" ? 0.1 : pair === "XAGUSD" ? 0.01 : ["US30","NAS100","SPX500","BTCUSD","ETHUSD"].includes(pair) ? 1 : 0.0001;
-  const pipValuePerLot = (() => {
-      const ep = parseFloat(entryPrice) || 1;
-      if (pair === "XAUUSD") return 10;
-      if (pair === "XAGUSD") return 50;
-      if (["US30","NAS100","SPX500"].includes(pair)) return 1;
-      // USD quote fixe : EURUSD, GBPUSD, AUDUSD, NZDUSD, USDOLLAR...
-      if (pair.endsWith("USD") && !pair.startsWith("USD")) return 10;
-      // USDJPY spécial: pip = 0.01, valeur = 1000/entry
-      if (pair === "USDJPY") return 1000 / ep;
-      // USD base : USDCAD, USDCHF
-      if (pair.startsWith("USD")) return 10 / ep;
-      // JPY quote : GBPJPY, EURJPY, AUDJPY, CADJPY, CHFJPY, USDJPY
-      if (pair.endsWith("JPY")) return 1000 / ep;
-      // CAD quote : GBPCAD, EURCAD, AUDCAD, NZDCAD
-      if (pair.endsWith("CAD")) return 10 / ep;
-      // CHF quote : GBPCHF, EURCHF, AUDCHF, NZDCHF
-      if (pair.endsWith("CHF")) return 10 / ep;
-      // AUD base : AUDCAD, AUDCHF, AUDJPY, AUDNZD
-      if (pair.startsWith("AUD") && !pair.endsWith("USD")) return 10 * ep / (ep || 1);
-      return 10; // défaut USD quote
-    })();
-
-  // Exit price = TP par défaut (modifiable)
-  const prevTP = React.useRef(takeProfit);
-  React.useEffect(() => {
-    if (takeProfit !== prevTP.current) {
-      if (exitPrice === "" || exitPrice === prevTP.current) {
-        setExitPrice(takeProfit);
-      }
-      prevTP.current = takeProfit;
-    }
-  }, [takeProfit]);
-
-  // Risque $ live depuis % + taille de lot
-  const liveCalc = useMemo(() => {
-    const numEntry = entryPrice === "" ? null : Number(entryPrice);
-    const numSL = stopLoss === "" ? null : Number(stopLoss);
-    const numTP = takeProfit === "" ? null : Number(takeProfit);
-    const numLots = positionSize === "" ? null : Number(positionSize);
-    const numExit = exitPrice === "" ? null : Number(exitPrice);
-
-    const riskPips = numEntry !== null && numSL !== null ? Math.abs((numEntry - numSL) / pipDecimal) : null;
-    const rewardPips = numEntry !== null && numTP !== null ? Math.abs((numTP - numEntry) / pipDecimal) : null;
-    const theoreticalRR = riskPips && rewardPips ? rewardPips / riskPips : null;
-    const potentialLossUsd = riskPips !== null && numLots ? riskPips * pipValuePerLot * numLots : null;
-    const potentialGainUsd = rewardPips !== null && numLots ? rewardPips * pipValuePerLot * numLots : null;
-
-    // Risque % → $ (basé sur les pips SL et la taille de lot)
-    const riskFromPct = riskPct !== "" && potentialLossUsd !== null ? null : null; // info only
-
-    // Résultat auto depuis exit price
-    let autoResultPips = null;
-    let autoResultUsd = null;
-    if (numEntry !== null && numExit !== null && numLots) {
-      const sign = direction === "long" ? 1 : -1;
-      autoResultPips = Math.round(sign * (numExit - numEntry) / pipDecimal * 10) / 10;
-      autoResultUsd = Math.round(autoResultPips * pipValuePerLot * numLots * 100) / 100;
-    }
-
-    // Risque $ live depuis % compte
-    let riskUsdFromPct = null;
-    if (riskPct !== "" && !Number.isNaN(Number(riskPct))) {
-      riskUsdFromPct = Math.round((accountBalance * Number(riskPct)) / 100 * 100) / 100;
-    }
-
-    // Taille de lot suggérée depuis % risque et SL pips
-    let suggestedLot = null;
-    if (riskUsdFromPct !== null && riskPips !== null && riskPips > 0) {
-      suggestedLot = Math.round((riskUsdFromPct / (riskPips * pipValuePerLot)) * 100) / 100;
-    }
-
-    return { riskPips, rewardPips, theoreticalRR, potentialLossUsd, potentialGainUsd, autoResultPips, autoResultUsd, riskUsdFromPct, suggestedLot };
-  }, [entryPrice, stopLoss, takeProfit, exitPrice, positionSize, pair, direction, riskPct, accountBalance, pipDecimal, pipValuePerLot]);
-
-  // Auto-fill résultat depuis calcul live (si non rempli manuellement)
-  // En modification : on garde le résultat enregistré (commission, sortie partielle…) au lieu de le recalculer
-  const [resultManualOverride, setResultManualOverride] = useState(!!initial && initial.resultUsd != null);
-  React.useEffect(() => {
-    if (!resultManualOverride && liveCalc?.autoResultUsd !== null && liveCalc?.autoResultUsd !== undefined) {
-      setResultUsd(String(liveCalc.autoResultUsd));
-    }
-  }, [liveCalc?.autoResultUsd]);
-  React.useEffect(() => {
-    if (!resultManualOverride && liveCalc?.autoResultPips !== null && liveCalc?.autoResultPips !== undefined) {
-      setResultPips(String(liveCalc.autoResultPips));
-    }
-  }, [liveCalc?.autoResultPips]);
-
-  const numRisk = riskUsd === "" ? null : Number(riskUsd);
-  const numResult = resultUsd === "" ? null : Number(resultUsd);
-  // R depuis les prix si le risque $ n'est pas saisi
-  const priceR = (() => {
-    const en = Number(entryPrice), sl = Number(stopLoss);
-    if (entryPrice === "" || stopLoss === "" || !isFinite(en) || !isFinite(sl) || en === sl) return null;
-    const ex = exitPrice !== "" ? Number(exitPrice) : status === "loss" ? sl : status === "breakeven" ? en : takeProfit !== "" ? Number(takeProfit) : null;
-    if (ex == null || !isFinite(ex) || !["win", "loss", "breakeven", "closed"].includes(status)) return null;
-    const d = direction === "long" ? 1 : -1;
-    return Math.round(((ex - en) * d) / ((en - sl) * d) * 100) / 100;
-  })();
-  const autoR = numRisk && numRisk !== 0 && numResult !== null ? numResult / numRisk : priceR;
-  const effectiveR = resultRManual ? (resultRValue === "" ? null : Number(resultRValue)) : autoR;
-
-  const toggleTag = (name) => setTags((prev) => prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]);
-  // ── Mode express (nouveau trade) ──
-  const [quick, setQuick] = useState(!isEdit || (initial?.entryPrice == null && initial?.positionSize == null));
-  const lastRisk = (trades || []).find((t) => Number(t.riskUsd) > 0)?.riskUsd;
-  const [qRisk, setQRisk] = useState(String(initial?.riskUsd ?? lastRisk ?? 100));
-  const [qR, setQR] = useState("");
-  const qRval = status === "breakeven" ? 0 : qR === "" ? null : (status === "loss" ? -1 : 1) * Math.abs(Number(qR));
-  const timeOk = !!entryTime && !isNaN(new Date(entryTime).getTime());
-  const canSave = timeOk && (quick ? !!pair && (status === "open" || qRval != null) : (pair && entryPrice !== "" && positionSize !== ""));
-
-  const handleExtracted = (result) => {
-    setExtractedMeta(result);
-    if (result.pair) { const m = PAIRS.find((p) => p.toUpperCase() === String(result.pair).toUpperCase().replace(/[^A-Z]/g, "")); if (m) setPair(m); }
-    if (result.direction === "long" || result.direction === "short") setDirection(result.direction);
-    if (result.entryPrice != null && entryPrice === "") setEntryPrice(String(result.entryPrice));
-    if (result.stopLoss != null && stopLoss === "") setStopLoss(String(result.stopLoss));
-    if (result.takeProfit != null && takeProfit === "") setTakeProfit(String(result.takeProfit));
-  };
-
-  const handleSubmit = () => {
-    if (!canSave) return;
-    // Normalise win/loss → closed avec le bon signe sur resultR
-    let finalStatus = status;
-    let finalResultR = quick ? (status === "open" ? null : qRval) : effectiveR;
-    let finalResultUsd = quick ? (finalResultR == null ? null : Math.round(finalResultR * Number(qRisk || 0) * 100) / 100) : numResult;
-    if (status === "win") {
-      finalStatus = "closed";
-      if (finalResultR !== null && finalResultR < 0) finalResultR = Math.abs(finalResultR);
-      if (finalResultUsd !== null && finalResultUsd < 0) finalResultUsd = Math.abs(finalResultUsd);
-    } else if (status === "loss") {
-      finalStatus = "closed";
-      if (finalResultR !== null && finalResultR > 0) finalResultR = -Math.abs(finalResultR);
-      if (finalResultUsd !== null && finalResultUsd > 0) finalResultUsd = -Math.abs(finalResultUsd);
-    }
-    const sessTags = ["London Session", "New York Session", "Asia Session", "Hors session"];
-    const autoSess = getSession(new Date(entryTime).toISOString());
-    const finalTags = tags.some((t) => sessTags.includes(t)) || autoSess === "Hors session" ? tags : [...tags, autoSess];
-    onSave({
-      id: initial?.id || uid(),
-      pair, direction,
-      entryTime: new Date(entryTime).toISOString(),
-      entryPrice: entryPrice === "" ? null : Number(entryPrice),
-      stopLoss: stopLoss === "" ? null : Number(stopLoss),
-      takeProfit: takeProfit === "" ? null : Number(takeProfit),
-      exitPrice: exitPrice === "" ? null : Number(exitPrice),
-      positionSize: positionSize === "" ? null : Number(positionSize),
-      riskUsd: quick ? (qRisk === "" ? null : Number(qRisk)) : numRisk, resultUsd: finalResultUsd,
-      resultPips: resultPips === "" ? null : Number(resultPips),
-      resultR: finalResultR, resultRManual: quick ? true : resultRManual,
-      status: finalStatus, notes, tags: finalTags, screenshotBefore, screenshotAfter,
-      dxyBias, dxyScreenshotBefore, dxyScreenshotAfter, dxyTags,
-      mssConfirmed, tfAlignment, tfAlignmentSetup, confidenceLevel, oteFib,
-      maxR: maxR === "" ? null : Number(maxR),
-      ictModel, htfBias, pdZone, sweptLiquidity, drawOnLiquidity, displacement, smt,
-      liquiditySweep: liquiditySweep || (!!sweptLiquidity && sweptLiquidity !== "Aucune"),
-    });
-  };
-
-  // ── Nouveau formulaire : 3 étapes, puces, une seule calculatrice ──
-  const ictFilled = [htfBias, pdZone, ictModel, sweptLiquidity, drawOnLiquidity, oteFib, confidenceLevel, mssConfirmed, displacement, smt, liquiditySweep].filter(Boolean).length + (tags || []).filter((t) => (allSetupTags || []).some((x) => x.name === t)).length;
-  const ictSummary = ictFilled ? [ictModel, ictFilled + " élément" + (ictFilled > 1 ? "s" : "")].filter(Boolean).join(" · ") : "";
-  const [openIct, setOpenIct] = useState(!!isEdit && ictFilled > 0);
-  const [openMedia, setOpenMedia] = useState(!!(initial?.notes || initial?.screenshotBefore || initial?.screenshotAfter));
-  const [showDxy, setShowDxy] = useState(!!(initial?.dxyBias || (initial?.dxyTags || []).length));
-  const [showMore, setShowMore] = useState(false);
-  const SESSIONS = ["London Session", "New York Session", "Asia Session", "Hors session"];
-  const currentSession = tags.find((t) => SESSIONS.includes(t));
-  const tfs = ["M1", "M5", "M15", "M30", "H1", "H4", "D", "W"];
-  const types = ["Scalping", "Day Trading", "Swing"];
-  const setOneTag = (group, v) => setTags((prev) => [...prev.filter((t) => !group.includes(t)), ...(v ? [v] : [])]);
-  const curTf = tags.find((t) => tfs.includes(t)) || "";
-  const curType = tags.find((t) => types.includes(t)) || "";
-  const kzName = entryTime ? killzoneLabel(entryTime) : "";
-  const sbName = entryTime ? silverBulletAt(entryTime)?.name : null;
-  const wantZone = direction === "long" ? "Discount" : "Premium";
-  const htfOk = htfBias ? (htfBias === "Bullish") === (direction === "long") : null;
-  const isClosed = status === "win" || status === "loss" || status === "breakeven" || status === "closed";
-  const pctRisk = riskPct === "" ? null : Number(riskPct);
-
-  const inp = { ...inputStyle, padding: "11px 13px", fontSize: 14 };
-
-  return (
-    <div className="fade-in" style={{ paddingBottom: 110 }}>
-      <style>{`
-        .tf-grid { display: grid; grid-template-columns: 1fr; gap: 12px; max-width: 760px; margin: 0 auto; }
-        .tf-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 10px; }
-        .chip { transition: background .12s, border-color .12s, color .12s; }
-        @media (max-width: 600px) { .tf-bar { bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; padding-bottom: 10px !important; } }
-        @media (min-width: 601px) { .tf-bar { left: 220px !important; } }
-        @media (min-width: 601px) and (max-width: 1024px) { .tf-bar { left: 72px !important; } }
-      `}</style>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
-        <div>
-          <BackLink onClick={onCancel}>Annuler</BackLink>
-          <h1 style={{ fontSize: 22, fontWeight: 600, margin: "4px 0 0", letterSpacing: -0.4 }}>{isEdit ? "Modifier le trade" : "Nouveau trade"}</h1>
-        </div>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 999, border: `1px solid ${C.border}`, fontSize: 12.5, fontWeight: 600 }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: appSettings?.activeAccountColor || C.teal }} />{appSettings?.activeAccountName || "Compte"}
-        </span>
-      </div>
-
-      {quick ? (() => {
-        const used = {}; (trades || []).forEach((t) => { used[t.pair] = (used[t.pair] || 0) + 1; });
-        const allPairs = appSettings?.pairs || PAIRS;
-        const topPairs = [...allPairs].sort((a, b) => (used[b] || 0) - (used[a] || 0)).slice(0, 6);
-        if (!topPairs.includes(pair)) topPairs[topPairs.length - 1] = pair;
-        const big = (on, col) => ({ flex: 1, padding: "14px 6px", borderRadius: 14, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}1A` : "transparent", color: on ? col : C.textMuted, fontSize: 15, fontWeight: 600, cursor: "pointer" });
-        const rOpts = status === "loss" ? ["0.5", "1"] : ["1", "1.5", "2", "3", "4"];
-        const qUsd = qRval == null ? null : qRval * Number(qRisk || 0);
-        const row = { display: "flex", gap: 8 };
-        return (
-          <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", gap: 7, overflowX: "auto", paddingBottom: 2 }}>
-              {topPairs.map((p) => <Chip key={p} on={pair === p} onClick={() => setPair(p)}>{p}</Chip>)}
-              <select value={pair} onChange={(e) => setPair(e.target.value)} aria-label="Autre paire" style={{ ...inputStyle, width: 48, padding: "6px", fontSize: 12, borderRadius: 999, flexShrink: 0 }}>
-                {allPairs.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-            <div style={row}>
-              <button onClick={() => setDirection("long")} style={big(direction === "long", C.teal)}>↗ Long</button>
-              <button onClick={() => setDirection("short")} style={big(direction === "short", C.red)}>↘ Short</button>
-            </div>
-            <div style={row}>
-              {[["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary], ["open", "En cours", C.purpleBright]].map(([v, l, col]) =>
-                <button key={v} onClick={() => { setStatus(v); if (v === "loss" && !qR) setQR("1"); if (v === "win" && qR === "1" && status === "loss") setQR(""); }} style={{ ...big(status === v || (v === "win" && status === "closed"), col), fontSize: 13.5, padding: "12px 4px" }}>{l}</button>)}
-            </div>
-            {(status === "win" || status === "loss") && (
-              <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
-                {rOpts.map((v) => <Chip key={v} on={qR === v} color={status === "loss" ? C.red : C.teal} onClick={() => setQR(v)}>{status === "loss" ? "-" : "+"}{v}R</Chip>)}
-                <input type="number" step="0.1" inputMode="decimal" placeholder="R" value={rOpts.includes(qR) ? "" : qR} onChange={(e) => setQR(e.target.value)} aria-label="R" style={{ ...inputStyle, width: 64, padding: "8px 10px", fontSize: 13.5, borderRadius: 999 }} />
-                {qUsd != null && <span className="tnum" style={{ marginLeft: "auto", fontSize: 18, fontWeight: 700, color: qUsd >= 0 ? C.teal : C.red }}>{fmtUsdSigned(qUsd)}</span>}
-              </div>
-            )}
-            <Chips>{ICT_MODELS.map((m) => <Chip key={m} on={ictModel === m} onClick={() => setIctModel(ictModel === m ? "" : m)}>{m}</Chip>)}</Chips>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12.5, color: C.textMuted }}>
-              <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} aria-label="Date" style={{ ...inputStyle, width: "auto", padding: "7px 10px", fontSize: 12.5 }} />
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>1R =
-                <input type="number" inputMode="decimal" value={qRisk} onChange={(e) => setQRisk(e.target.value)} aria-label="Risque en dollars" style={{ ...inputStyle, width: 72, padding: "7px 9px", fontSize: 12.5 }} />$</span>
-              {kzName && <span style={{ fontWeight: 700, color: kzName === "Hors killzone" ? C.amber : C.teal }}>{kzName}</span>}
-            </div>
-            <button onClick={() => setQuick(false)} style={{ background: "none", border: "none", color: C.purpleBright, fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "4px 0", alignSelf: "flex-start" }}>+ Détails (prix, PD Arrays, captures, notes)</button>
-          </div>
-        );
-      })() : (
-      <div className="tf-grid">
-        {!isEdit && <button onClick={() => setQuick(true)} style={{ background: "none", border: "none", color: C.purpleBright, fontSize: 13, fontWeight: 700, cursor: "pointer", padding: 0, justifySelf: "start" }}>← Mode express</button>}
-        <Section title="Trade" icon="1">
-          <div className="form-grid-2">
-            <Group label="Date et heure">
-              <input type="datetime-local" value={entryTime} onChange={(e) => {
-                setEntryTime(e.target.value);
-                if (e.target.value) { const d = getSession(e.target.value); setOneTag(SESSIONS, d !== "Hors session" ? d : ""); }
-              }} style={inp} />
-            </Group>
-            <Group label="Paire">
-              <select value={pair} onChange={(e) => setPair(e.target.value)} style={{ ...inp, fontWeight: 700 }}>
-                {(appSettings?.pairs || PAIRS).map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </Group>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 999, background: kzName === "Hors killzone" ? C.amberDim : C.tealDim, color: kzName === "Hors killzone" ? C.amber : C.teal }}>
-              {kzName || "—"}{sbName ? ` · ${sbName}` : ""}
-            </span>
-            <select value={currentSession || ""} onChange={(e) => setOneTag(SESSIONS, e.target.value)} aria-label="Changer la session" style={{ ...inputStyle, width: "auto", padding: "6px 10px", fontSize: 12, borderRadius: 999 }}>
-              <option value="">Session auto</option>
-              {SESSIONS.map((s) => <option key={s} value={s}>{s.replace(" Session", "")}</option>)}
-            </select>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {[["long", "Achat", C.teal, "3,17 9,11 13,15 21,7", "16,7 21,7 21,12"], ["short", "Vente", C.red, "3,7 9,13 13,9 21,17", "16,17 21,17 21,12"]].map(([v, l, col, p1, p2]) => {
-              const on = direction === v;
-              return (
-                <button key={v} onClick={() => setDirection(v)} style={{ padding: "13px", borderRadius: 14, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}14` : "transparent", color: on ? col : C.textMuted, fontSize: 15, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><polyline points={p1} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /><polyline points={p2} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>{l}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="tf-2">
-            <Group label="Entrée"><input type="number" step="any" inputMode="decimal" placeholder="1.08450" value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} style={{ ...inp, fontWeight: 700 }} /></Group>
-            <Group label="Stop loss"><input type="number" step="any" inputMode="decimal" placeholder="1.08200" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} style={{ ...inp, color: C.red, fontWeight: 700 }} /></Group>
-            <Group label="Take profit"><input type="number" step="any" inputMode="decimal" placeholder="1.09100" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} style={{ ...inp, color: C.teal, fontWeight: 700 }} /></Group>
-            <Group label="Taille (lots)"><input type="number" step="0.01" inputMode="decimal" placeholder="0.50" value={positionSize} onChange={(e) => setPositionSize(e.target.value)} style={inp} /></Group>
-          </div>
-
-          {/* Une seule calculatrice : % de risque → $ → lot */}
-          <div style={{ padding: 14, borderRadius: 14, background: C.inputBg, border: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600 }}>Risque</span>
-              {["0.5", "1", "2"].map((v) => <Chip key={v} on={riskPct === v} onClick={() => setRiskPct(v)}>{v}%</Chip>)}
-              <input type="number" step="0.1" value={riskPct} onChange={(e) => setRiskPct(e.target.value)} aria-label="Risque en %" style={{ ...inputStyle, width: 72, padding: "7px 9px", fontSize: 13 }} />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-              <div className="tnum" style={{ fontSize: 14, color: C.text }}>
-                {pctRisk != null && liveCalc.riskUsdFromPct != null ? <><b style={{ color: C.red }}>${liveCalc.riskUsdFromPct}</b>{liveCalc.suggestedLot != null ? <> → <b style={{ color: C.purpleBright }}>{liveCalc.suggestedLot} lot</b></> : <span style={{ color: C.textMuted }}> · ajoute entrée et SL</span>}</> : <span style={{ color: C.textMuted }}>Choisis un % de risque</span>}
-              </div>
-              {liveCalc.riskUsdFromPct != null && (
-                <button onClick={() => { setRiskUsd(String(liveCalc.riskUsdFromPct)); if (liveCalc.suggestedLot != null) setPositionSize(String(liveCalc.suggestedLot)); }} style={{ ...btn.primary, padding: "8px 14px" }}>Appliquer</button>
-              )}
-            </div>
-            {(liveCalc.riskPips != null || liveCalc.theoreticalRR) && (
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-                {liveCalc.riskPips != null && <LiveCalcStat label="SL pips" value={liveCalc.riskPips.toFixed(1)} color={C.red} />}
-                {liveCalc.rewardPips != null && <LiveCalcStat label="TP pips" value={liveCalc.rewardPips.toFixed(1)} color={C.teal} />}
-                {liveCalc.theoreticalRR && <LiveCalcStat label="R:R" value={`1:${liveCalc.theoreticalRR.toFixed(2)}`} color={C.purpleBright} />}
-                {liveCalc.potentialLossUsd != null && <LiveCalcStat label="Perte max" value={`$${liveCalc.potentialLossUsd.toFixed(0)}`} color={C.red} />}
-                {liveCalc.potentialGainUsd != null && <LiveCalcStat label="Gain max" value={`$${liveCalc.potentialGainUsd.toFixed(0)}`} color={C.teal} />}
-              </div>
-            )}
-          </div>
-
-          <Group label="Risque ($)"><input type="number" step="any" placeholder="100" value={riskUsd} onChange={(e) => setRiskUsd(e.target.value)} style={inp} /></Group>
-
-                  </Section>
-
-        <Section title="Résultat" icon="2">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
-            {[["open", "Ouvert", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary]].map(([v, l, col]) => {
-              const on = status === v || (v === "win" && status === "closed" && (effectiveR || 0) > 0) || (v === "loss" && status === "closed" && (effectiveR || 0) < 0);
-              return <button key={v} onClick={() => setStatus(v)} style={{ padding: "12px 4px", borderRadius: 12, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}1A` : "transparent", color: on ? col : C.textMuted, fontSize: 13, fontWeight: on ? 800 : 500, cursor: "pointer" }}>{l}</button>;
-            })}
-          </div>
-
-          {isClosed && (
-            <>
-              <Group label="Prix de sortie" right={<span style={{ fontSize: 11, color: C.textMuted }}>= TP par défaut</span>}>
-                <input type="number" step="any" inputMode="decimal" placeholder="auto = TP" value={exitPrice} onChange={(e) => setExitPrice(e.target.value)} style={inp} />
-              </Group>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                <div style={{ padding: "14px", borderRadius: 14, background: C.inputBg, border: `1px solid ${C.border}`, textAlign: "center" }}>
-                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>Résultat</div>
-                  <div className="tnum" style={{ fontSize: 22, fontWeight: 600, color: numResult == null ? C.textMuted : numResult >= 0 ? C.teal : C.red, marginTop: 2 }}>{numResult == null ? "—" : fmtUsdSigned(numResult)}</div>
-                </div>
-                <div style={{ padding: "14px", borderRadius: 14, background: C.inputBg, border: `1px solid ${C.border}`, textAlign: "center" }}>
-                  <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>En R</div>
-                  <div className="tnum" style={{ fontSize: 22, fontWeight: 600, color: effectiveR == null ? C.textMuted : effectiveR >= 0 ? C.teal : C.red, marginTop: 2 }}>{effectiveR == null ? "—" : fmtR(effectiveR)}</div>
-                </div>
-              </div>
-              <button onClick={() => setShowMore((v) => !v)} style={{ background: "none", border: "none", color: C.purpleBright, fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: 0, alignSelf: "flex-start" }}>{showMore ? "− Masquer les détails" : "+ Détails (saisie manuelle, R max)"}</button>
-              {showMore && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: C.textSecondary, cursor: "pointer" }}>
-                    <input type="checkbox" checked={resultManualOverride} onChange={(e) => setResultManualOverride(e.target.checked)} /> Saisir le résultat à la main
-                  </label>
-                  {resultManualOverride && (
-                    <div className="form-grid-2">
-                      <Group label="Résultat ($)"><input type="number" step="any" value={resultUsd} onChange={(e) => setResultUsd(e.target.value)} style={inp} /></Group>
-                      <Group label="Résultat (pips)"><input type="number" step="any" value={resultPips} onChange={(e) => setResultPips(e.target.value)} style={inp} /></Group>
-                    </div>
-                  )}
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: C.textSecondary, cursor: "pointer" }}>
-                    <input type="checkbox" checked={resultRManual} onChange={(e) => setResultRManual(e.target.checked)} /> Corriger le R
-                  </label>
-                  {resultRManual && <input type="number" step="0.01" placeholder="Ex : 2.5" value={resultRValue} onChange={(e) => setResultRValue(e.target.value)} style={{ ...inp, maxWidth: 160 }} />}
-                  <Group label="R max atteint" right={<span style={{ fontSize: 11, color: C.textMuted }}>pour le simulateur de TP</span>}>
-                    <input type="number" step="0.1" placeholder="Ex : 2.8" value={maxR} onChange={(e) => setMaxR(e.target.value)} style={{ ...inp, maxWidth: 160 }} />
-                  </Group>
-                </div>
-              )}
-            </>
-          )}
-
-                  </Section>
-
-        <Section title="Contexte ICT" icon="3" sub={ictSummary || "Facultatif — modèle, PD Arrays, liquidité…"} open={openIct} onToggle={() => setOpenIct((v) => !v)}>
-          <Group label="Modèle ICT">
-            <Chips>{ICT_MODELS.map((m) => <Chip key={m} on={ictModel === m} onClick={() => setIctModel(ictModel === m ? "" : m)}>{m}</Chip>)}</Chips>
-          </Group>
-
-          <Group label="Biais HTF" hint={htfOk === false ? "Contre ton biais HTF" : null}>
-            <Chips>
-              <Chip on={htfBias === "Bullish"} color={C.teal} onClick={() => setHtfBias(htfBias === "Bullish" ? "" : "Bullish")}><TrendingUp size={13} style={{ verticalAlign: -2 }} /> Bullish</Chip>
-              <Chip on={htfBias === "Bearish"} color={C.red} onClick={() => setHtfBias(htfBias === "Bearish" ? "" : "Bearish")}><TrendingDown size={13} style={{ verticalAlign: -2 }} /> Bearish</Chip>
-            </Chips>
-          </Group>
-
-          <Group label="Zone d'entrée" hint={pdZone && pdZone !== "Equilibrium" && pdZone !== wantZone ? `${direction === "long" ? "Long en premium" : "Short en discount"}` : null}>
-            <Chips>
-              {[["Discount", C.teal], ["Equilibrium", C.textSecondary], ["Premium", C.red]].map(([z, col]) => (
-                <Chip key={z} on={pdZone === z} color={col} onClick={() => setPdZone(pdZone === z ? "" : z)}>{z === "Equilibrium" ? "Équilibre" : z}</Chip>
-              ))}
-            </Chips>
-          </Group>
-
-          <Group label="PD Arrays">
-            <Chips>{allSetupTags.map((t) => <Chip key={t.name} on={tags.includes(t.name)} onClick={() => toggleTag(t.name)}>{t.name}</Chip>)}</Chips>
-          </Group>
-
-          <Group label="Liquidité prise">
-            <Chips>{[...LIQ_POINTS, "Aucune"].map((m) => <Chip key={m} on={sweptLiquidity === m} color={C.amber} onClick={() => setSweptLiquidity(sweptLiquidity === m ? "" : m)}>{m}</Chip>)}</Chips>
-          </Group>
-
-          <Group label="Draw on liquidity">
-            <Chips>{[...LIQ_POINTS, "FVG HTF", "OB HTF"].map((m) => <Chip key={m} on={drawOnLiquidity === m} color={C.teal} onClick={() => setDrawOnLiquidity(drawOnLiquidity === m ? "" : m)}>{m}</Chip>)}</Chips>
-          </Group>
-
-          <Group label="Confirmations">
-            <Chips>
-              <Chip on={mssConfirmed} color={C.teal} onClick={() => setMssConfirmed(!mssConfirmed)}>MSS</Chip>
-              <Chip on={displacement} color={C.teal} onClick={() => setDisplacement(!displacement)}>Displacement</Chip>
-              <Chip on={smt} color={C.teal} onClick={() => setSmt(!smt)}>SMT</Chip>
-              <Chip on={liquiditySweep} color={C.teal} onClick={() => setLiquiditySweep(!liquiditySweep)}>Sweep</Chip>
-            </Chips>
-          </Group>
-
-          <Group label="OTE">
-            <Chips>{["0.5", "0.618", "0.7", "0.79"].map((f) => <Chip key={f} on={oteFib === f} color={C.teal} onClick={() => setOteFib(oteFib === f ? "" : f)}>{f}</Chip>)}</Chips>
-          </Group>
-
-          <div className="form-grid-2">
-            <Group label="Timeframe d'entrée">
-              <Chips>{tfs.slice(0, 6).map((tf) => <Chip key={tf} on={curTf === tf} onClick={() => setOneTag(tfs, curTf === tf ? "" : tf)}>{tf}</Chip>)}</Chips>
-            </Group>
-            <Group label="Type">
-              <Chips>{types.map((ty) => <Chip key={ty} on={curType === ty} onClick={() => setOneTag(types, curType === ty ? "" : ty)}>{ty}</Chip>)}</Chips>
-            </Group>
-          </div>
-
-          <Group label="Confiance avant le trade" right={<span className="tnum" style={{ fontSize: 13, fontWeight: 600, color: confidenceLevel ? C.purpleBright : C.textMuted }}>{confidenceLevel ? `${confidenceLevel}/10` : "—"}</span>}>
-            <div style={{ display: "flex", gap: 4 }}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
-                const col = n <= 3 ? C.red : n <= 5 ? C.amber : n <= 7 ? C.teal : C.purpleBright;
-                const filled = n <= confidenceLevel;
-                return <button key={n} onClick={() => setConfidenceLevel(n === confidenceLevel ? 0 : n)} aria-label={`Confiance ${n}`} style={{ flex: 1, height: 26, borderRadius: 6, border: `1px solid ${filled ? col : C.border}`, background: filled ? col : "transparent", cursor: "pointer", fontSize: 10, fontWeight: 700, color: filled ? "#fff" : C.textMuted }}>{n}</button>;
-              })}
-            </div>
-          </Group>
-
-          <PreTradeContext trades={(trades || []).filter((t) => t.id !== initial?.id)} pair={pair} direction={direction} tags={tags} ictModel={ictModel} entryTime={entryTime} />
-        </Section>
-
-        <Section title="Captures & notes" icon="4" sub={[screenshotBefore && "avant", screenshotAfter && "après", notes && "notes"].filter(Boolean).join(" · ") || "Facultatif"} open={openMedia} onToggle={() => setOpenMedia((v) => !v)}>
-          <Group label="">
-            {screenshotBefore ? (
-              <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}` }}>
-                <img src={screenshotBefore} alt="Avant" style={{ width: "100%", display: "block", maxHeight: 240, objectFit: "contain", background: C.bg }} />
-                <button onClick={() => { setScreenshotBefore(null); setExtractedMeta(null); }} aria-label="Retirer" style={{ position: "absolute", top: 8, right: 8, background: "rgba(15,17,23,0.85)", border: "none", borderRadius: 8, color: "#fff", padding: 6, cursor: "pointer", display: "flex" }}><X size={13} /></button>
-              </div>
-            ) : <SmartCaptureBox value={screenshotBefore} onChange={setScreenshotBefore} onExtracted={handleExtracted} />}
-          </Group>
-
-          <ImageUploadBox label="Screenshot après" value={screenshotAfter} onChange={setScreenshotAfter} />
-
-          <Group label="Notes">
-            <textarea rows={4} placeholder="Contexte, ce que tu as vu, ce que tu as ressenti…" value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inp, resize: "vertical", lineHeight: 1.55 }} />
-          </Group>
-        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
-            <button onClick={() => setShowDxy((v) => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13.5, fontWeight: 700, width: "100%" }}>
-              <span style={{ color: C.amber }}>DXY</span>
-              {dxyBias && <span style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 500 }}>{dxyBias}{dxyTags.length ? ` · ${dxyTags.length} PD Array` : ""}</span>}
-              <ChevronDown size={15} style={{ marginLeft: "auto", transform: showDxy ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
-            </button>
-            {showDxy && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12 }}>
-                <Chips>{[["Bullish", C.teal], ["Bearish", C.red], ["Neutre", C.textSecondary]].map(([b, col]) => <Chip key={b} on={dxyBias === b} color={col} onClick={() => setDxyBias(dxyBias === b ? "" : b)}>{b}</Chip>)}</Chips>
-                <Chips>{TAG_CATALOG.filter((t) => t.category === "setup").map((t) => <Chip key={t.name} on={dxyTags.includes(t.name)} color={C.amber} onClick={() => setDxyTags((prev) => prev.includes(t.name) ? prev.filter((x) => x !== t.name) : [...prev, t.name])}>{t.name}</Chip>)}</Chips>
-                <div className="form-grid-2">
-                  <ImageUploadBox label="DXY avant" value={dxyScreenshotBefore} onChange={setDxyScreenshotBefore} />
-                  <ImageUploadBox label="DXY après" value={dxyScreenshotAfter} onChange={setDxyScreenshotAfter} />
-                </div>
-              </div>
-            )}
-          </div>
-                </Section>
-      </div>
-      )}
-
-      {/* Barre fixe en bas : navigation + enregistrer */}
-      <div className="tf-bar" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 900, padding: "10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px)", background: `${C.bg}F2`, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderTop: `1px solid ${C.border}` }}>
-        <div style={{ maxWidth: 1600, margin: "0 auto", display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ flex: 1, fontSize: 12, color: C.textMuted, minWidth: 0 }}>{!canSave ? (quick ? "Choisis le R" : "Entrée et taille requises") : ""}</span>
-          <button onClick={handleSubmit} disabled={!canSave} style={{ ...btn.primary, padding: "12px 20px", fontSize: 14, fontWeight: 600, borderRadius: 12, opacity: canSave ? 1 : 0.45, cursor: canSave ? "pointer" : "not-allowed" }}>
-            <Save size={15} /> {isEdit ? "Enregistrer" : "Enregistrer le trade"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
 
@@ -5769,464 +5689,10 @@ function TradeForm({ initial, setupOptions, appSettings, onCancel, onSave, trade
    STATISTIQUES — section extrêmement détaillée
    ============================================================================ */
 
-function RankBar({ label, pnl, winRate, count, maxAbsPnl }) {
-  const pct = maxAbsPnl ? (Math.abs(pnl) / maxAbsPnl) * 100 : 0;
-  const positive = pnl >= 0;
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
-        <span style={{ fontWeight: 600 }}>{label}</span>
-        <span className="tnum" style={{ fontWeight: 700, color: positive ? C.teal : C.red }}>{fmtUsdSigned(pnl)}</span>
-      </div>
-      <div style={{ height: 6, borderRadius: 3, background: C.bg, overflow: "hidden" }}>
-        <div style={{ width: `${Math.max(pct, 2)}%`, height: "100%", background: positive ? C.teal : C.red, borderRadius: 3 }} />
-      </div>
-      <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 3 }}>{count} trade{count > 1 ? "s" : ""} · {winRate.toFixed(0)}% WR</div>
-    </div>
-  );
-}
 
-function RankList({ groups, limit, emptyText }) {
-  const sorted = [...groups].sort((a, b) => b.pnl - a.pnl).slice(0, limit);
-  const maxAbsPnl = Math.max(...groups.map((g) => Math.abs(g.pnl)), 1);
-  if (sorted.length === 0) return <div style={{ fontSize: 12, color: C.textMuted }}>{emptyText}</div>;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-      {sorted.map((g) => <RankBar key={g.key} label={g.key} pnl={g.pnl} winRate={g.winRate} count={g.count} maxAbsPnl={maxAbsPnl} />)}
-    </div>
-  );
-}
 
-function DataTable({ columns, rows }) {
-  const minW = columns.length * 58;
-  return (
-    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-      <table style={{ width: "100%", minWidth: minW, borderCollapse: "collapse", fontSize: 12.5 }}>
-        <thead>
-          <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-            {columns.map((c) => (
-              <th key={c.key} style={{ textAlign: c.align || "left", padding: "8px 6px", fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap" }}>{c.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="row-hover" style={{ borderBottom: `1px solid ${C.border}` }}>
-              {columns.map((c) => (
-                <td key={c.key} style={{ padding: "9px 6px", textAlign: c.align || "left", color: c.color ? c.color(row) : C.text, whiteSpace: "nowrap" }}>
-                  {c.render ? c.render(row) : row[c.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
-function StatsHeatmap({ trades }) {
-  const byDay = useMemo(() => {
-    const map = {};
-    trades.forEach((t) => {
-      const d = new Date(t.entryTime);
-      const key = localYMD(d);
-      if (!map[key]) map[key] = 0;
-      map[key] += t.resultUsd || 0;
-    });
-    return map;
-  }, [trades]);
 
-  // Construit une grille de 16 semaines x 7 jours se terminant à "aujourd'hui" (cohérent avec les données mock)
-  const today = new Date();
-  const weeks = 16;
-  const endOffset = (today.getUTCDay() + 6) % 7; // lundi = 0
-  const gridStart = new Date(today);
-  gridStart.setUTCDate(today.getUTCDate() - endOffset - (weeks - 1) * 7);
-
-  const allPnls = Object.values(byDay).map((v) => Math.abs(v));
-  const maxAbs = Math.max(...allPnls, 1);
-
-  const cols = [];
-  for (let w = 0; w < weeks; w++) {
-    const col = [];
-    for (let d = 0; d < 7; d++) {
-      const date = new Date(gridStart);
-      date.setDate(gridStart.getDate() + w * 7 + d);
-      const key = localYMD(date);
-      const pnl = byDay[key];
-      col.push({ date, key, pnl });
-    }
-    cols.push(col);
-  }
-
-  const cellColor = (pnl) => {
-    if (pnl === undefined) return C.bg;
-    if (pnl === 0) return C.border;
-    const intensity = Math.min(Math.abs(pnl) / maxAbs, 1);
-    if (pnl > 0) {
-      const alpha = 0.18 + intensity * 0.7;
-      return `rgba(22, 184, 160, ${alpha.toFixed(2)})`;
-    }
-    const alpha = 0.18 + intensity * 0.7;
-    return `rgba(232, 85, 78, ${alpha.toFixed(2)})`;
-  };
-
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <div style={{ display: "flex", gap: 3, minWidth: 560 }}>
-        {cols.map((col, i) => (
-          <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {col.map((cell) => (
-              <div
-                key={cell.key}
-                title={`${cell.date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} : ${cell.pnl !== undefined ? fmtUsdSigned(cell.pnl) : "pas de trade"}`}
-                style={{ width: 13, height: 13, borderRadius: 3, background: cellColor(cell.pnl), border: `1px solid ${C.border}` }}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 10.5, color: C.textMuted }}>
-        <span>Perte</span>
-        <div style={{ display: "flex", gap: 2 }}>
-          {[0.2, 0.4, 0.6, 0.88].reverse().map((a, i) => <div key={i} style={{ width: 11, height: 11, borderRadius: 2, background: `rgba(232, 85, 78, ${a})` }} />)}
-        </div>
-        <div style={{ width: 11, height: 11, borderRadius: 2, background: C.border, marginLeft: 2 }} />
-        <div style={{ display: "flex", gap: 2 }}>
-          {[0.2, 0.4, 0.6, 0.88].map((a, i) => <div key={i} style={{ width: 11, height: 11, borderRadius: 2, background: `rgba(22, 184, 160, ${a})` }} />)}
-        </div>
-        <span>Profit</span>
-      </div>
-    </div>
-  );
-}
-
-function OverviewStats({ trades }) {
-  const [sub, setSub] = useState("apercu");
-  const closed = useMemo(() => trades.filter((t) => t.status !== "open"), [trades]);
-  const sumR = (arr) => arr.reduce((s, t) => s + (Number(t.resultR) || 0), 0);
-  const retenir = useMemo(() => {
-    const grp = (fn) => { const m = {}; closed.forEach((t) => { const k = fn(t); if (!k) return; (m[k] = m[k] || []).push(t); }); return Object.entries(m).map(([k, l]) => ({ k, n: l.length, r: sumR(l) })).filter((x) => x.n >= 2); };
-    const best = (a) => { const x = [...a].sort((p, q) => q.r - p.r)[0]; return x && x.r > 0 ? x : null; };
-    const worst = (a) => { const x = [...a].sort((p, q) => p.r - q.r)[0]; return x && x.r < 0 ? x : null; };
-    const mist = {}; closed.forEach((t) => [...new Set([...(t.mistakes || []), ...(t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "mistake"))])].forEach((m) => { (mist[m] = mist[m] || []).push(t); }));
-    const wm = Object.entries(mist).map(([k, l]) => ({ k, n: l.length, r: sumR(l) })).sort((a, b) => a.r - b.r)[0];
-    return [["Meilleure session", best(grp((t) => getSession(t.entryTime)))], ["Meilleure paire", best(grp((t) => t.pair))], ["Meilleur modèle ICT", best(grp((t) => t.ictModel))], ["Pire paire", worst(grp((t) => t.pair))], ["Pire erreur", wm && wm.r < 0 ? wm : null]].filter((x) => x[1]);
-  }, [closed]);
-
-  const byPair = useMemo(() => groupBy(closed, (t) => t.pair), [closed]);
-  const bySetup = useMemo(() => {
-    const map = {};
-    closed.forEach(t => {
-      const pdTags = (t.tags || []).filter(tag => TAG_CATALOG.find(tc => tc.name === tag && tc.category === "setup"));
-      const keys = pdTags.length > 0 ? pdTags : (t.setup ? [t.setup] : []);
-      keys.forEach(key => {
-        if (!map[key]) map[key] = { key, trades: [], pnl: 0, wins: 0, count: 0, winRate: 0 };
-        map[key].trades.push(t);
-        map[key].pnl += t.resultUsd || 0;
-        map[key].count += 1;
-        if (t.resultR > 0) map[key].wins += 1;
-      });
-    });
-    return Object.values(map).map(g => ({ ...g, winRate: g.count ? g.wins / g.count * 100 : 0 }));
-  }, [closed]);
-  const bySession = useMemo(() => groupBy(closed, (t) => getSession(t.entryTime)), [closed]);
-
-  const byHour = useMemo(() => {
-    const groups = groupBy(closed, (t) => `${String((new Date(t.entryTime).getUTCHours() + 7) % 24).padStart(2, "0")}h`);
-    return groups.sort((a, b) => a.key.localeCompare(b.key));
-  }, [closed]);
-
-  const byDay = useMemo(() => {
-    const dayNames = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-    const order = [1, 2, 3, 4, 5, 6, 0];
-    const groups = groupBy(closed, (t) => dayNames[new Date(t.entryTime).getDay()]);
-    return order.map((idx) => groups.find((g) => g.key === dayNames[idx])).filter(Boolean);
-  }, [closed]);
-
-  const byTagAll = useMemo(() => {
-    const expanded = [];
-    closed.forEach((t) => (t.tags || []).forEach((tag) => expanded.push({ ...t, _key: tag })));
-    return groupBy(expanded, (t) => t._key);
-  }, [closed]);
-
-  // Analyse PD Arrays : winrate + avgR + confiance moyenne + OTE impact
-  
-
-  // OTE impact : trades avec OTE vs sans OTE
-  
-
-  // Confiance vs résultat
-  
-
-  const setupFull = useMemo(() => {
-    return [...bySetup].map((g) => ({
-      key: g.key,
-      count: g.count,
-      winRate: g.winRate,
-      pnl: g.pnl,
-      avgR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0) / g.trades.length,
-      totR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0),
-    })).sort((a, b) => b.totR - a.totR);
-  }, [bySetup]);
-  const ictFull = useMemo(() => groupBy(closed.filter((t) => t.ictModel), (t) => t.ictModel).map((g) => ({ key: g.key, count: g.count, winRate: g.winRate, avgR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0) / g.trades.length, totR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0) })).sort((a, b) => b.totR - a.totR), [closed]);
-
-  const pairFull = useMemo(() => {
-    return [...byPair].map((g) => ({
-      key: g.key,
-      count: g.count,
-      winRate: g.winRate,
-      pnl: g.pnl,
-      avgR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0) / g.trades.length,
-      totR: g.trades.reduce((s, t) => s + (t.resultR || 0), 0),
-    })).sort((a, b) => b.totR - a.totR);
-  }, [byPair]);
-
-  const mistakeFreq = useMemo(() => {
-    const mistakeTags = TAG_CATALOG.filter((t) => t.category === "mistake").map((t) => t.name);
-    const counts = {};
-    closed.forEach((t) => (t.tags || []).filter((tag) => mistakeTags.includes(tag)).forEach((tag) => {
-      counts[tag] = counts[tag] || { count: 0, pnlImpact: 0, trades: [] };
-      counts[tag].count += 1;
-      counts[tag].pnlImpact += t.resultUsd || 0;
-      counts[tag].trades.push(t);
-    }));
-    return Object.entries(counts).map(([name, v]) => ({ name, ...v, avgImpact: v.pnlImpact / v.count })).sort((a, b) => b.count - a.count);
-  }, [closed]);
-
-  const distribution = useMemo(() => {
-    const buckets = [
-      { label: "< -2R", min: -Infinity, max: -2, count: 0 },
-      { label: "-2R à -1R", min: -2, max: -1, count: 0 },
-      { label: "-1R à 0R", min: -1, max: 0, count: 0 },
-      { label: "0R à 1R", min: 0, max: 1, count: 0 },
-      { label: "1R à 2R", min: 1, max: 2, count: 0 },
-      { label: "2R à 3R", min: 2, max: 3, count: 0 },
-      { label: "> 3R", min: 3, max: Infinity, count: 0 },
-    ];
-    closed.forEach((t) => {
-      const r = t.resultR || 0;
-      const b = buckets.find((b) => r >= b.min && r < b.max) || buckets[buckets.length - 1];
-      b.count += 1;
-    });
-    return buckets;
-  }, [closed]);
-
-  if (closed.length === 0) {
-    return (
-      <div className="fade-in">
-        <EmptyState icon={BarChart3} title="Pas encore assez de données" text="Ajoute des trades pour débloquer l'analyse détaillée." />
-      </div>
-    );
-  }
-
-  const TABS = [["apercu", "Aperçu"], ["setups", "Setups"], ["horaires", "Horaires"]];
-  return (
-    <div className="fade-in">
-      <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14 }}>
-        {TABS.map(([k, l]) => <button key={k} onClick={() => setSub(k)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: sub === k ? C.purpleDim : "transparent", color: sub === k ? C.purpleBright : C.textSecondary, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{l}</button>)}
-      </div>
-
-      {sub === "apercu" && <>
-      <Card style={{ padding: 0, marginBottom: 14, overflow: "hidden" }}>
-        <div style={{ padding: "14px 18px 6px" }}><CardLabel>À retenir</CardLabel></div>
-        {retenir.length === 0 && <div style={{ padding: "6px 18px 16px", fontSize: 12.5, color: C.textMuted }}>Pas encore assez de trades.</div>}
-        {retenir.map(([l, x], i) => (
-          <div key={l} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderTop: `1px solid ${C.border}` }}>
-            <span style={{ width: 7, height: 7, borderRadius: 4, background: x.r >= 0 ? C.teal : C.red, flexShrink: 0 }} />
-            <span style={{ fontSize: 12.5, color: C.textMuted, width: 128, flexShrink: 0 }}>{l}</span>
-            <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.k}</span>
-            <span className="tnum" style={{ fontSize: 14, fontWeight: 600, color: x.r >= 0 ? C.teal : C.red }}>{fmtR(x.r)}</span>
-          </div>))}
-      </Card>
-      </>}
-
-      {sub === "setups" && <>
-      {ictFull.length > 0 && <Card style={{ padding: 18, marginBottom: 14 }}>
-        <CardLabel>Performance par modèle ICT</CardLabel>
-        <div style={{ marginTop: 12 }} className="table-scroll">
-          <DataTable columns={[
-              { key: "key", label: "Modèle" },
-              { key: "count", label: "Trades", align: "right" },
-              { key: "winRate", label: "Winrate", align: "right", render: (r) => fmtPct(r.winRate) },
-              { key: "avgR", label: "R moy.", align: "right", render: (r) => fmtR(r.avgR), color: (r) => r.avgR >= 0 ? C.teal : C.red },
-              { key: "totR", label: "Total", align: "right", render: (r) => fmtR(r.totR), color: (r) => r.totR >= 0 ? C.teal : C.red },
-            ]} rows={ictFull} />
-        </div>
-      </Card>}
-
-      {/* Tableau setup complet — winrate, trades, profit, average R réunis (priorité tableau pro) */}
-      <Card style={{ padding: 18, marginBottom: 14 }}>
-        <CardLabel>Performance par setup</CardLabel>
-        <div style={{ marginTop: 12 }} className="table-scroll">
-          <DataTable
-            columns={[
-              { key: "key", label: "Setup" },
-              { key: "count", label: "Trades", align: "right" },
-              { key: "winRate", label: "Winrate", align: "right", render: (r) => fmtPct(r.winRate) },
-              { key: "avgR", label: "R moy.", align: "right", render: (r) => fmtR(r.avgR), color: (r) => r.avgR >= 0 ? C.teal : C.red },
-              { key: "totR", label: "Total", align: "right", render: (r) => fmtR(r.totR), color: (r) => r.totR >= 0 ? C.teal : C.red },
-            ]}
-            rows={setupFull}
-          />
-        </div>
-      </Card>
-
-      {/* Winrate & Profit par paire */}
-      <Card style={{ padding: 18, marginBottom: 14 }}>
-        <CardLabel>Performance par paire</CardLabel>
-        <div style={{ marginTop: 12 }} className="table-scroll">
-          <DataTable
-            columns={[
-              { key: "key", label: "Paire" },
-              { key: "count", label: "Trades", align: "right" },
-              { key: "winRate", label: "Winrate", align: "right", render: (r) => fmtPct(r.winRate) },
-              { key: "avgR", label: "R moy.", align: "right", render: (r) => fmtR(r.avgR), color: (r) => r.avgR >= 0 ? C.teal : C.red },
-              { key: "totR", label: "Total", align: "right", render: (r) => fmtR(r.totR), color: (r) => r.totR >= 0 ? C.teal : C.red },
-            ]}
-            rows={pairFull}
-          />
-        </div>
-      </Card>
-
-      </>}
-
-      {sub === "horaires" && <>
-      {/* Profit par session — directement sous Profit par paire */}
-      <Card style={{ padding: 18, marginBottom: 14 }}>
-        <CardLabel>Profit par session</CardLabel>
-        <div style={{ marginTop: 12 }}>
-          <RankList groups={bySession} limit={5} emptyText="Pas de données." />
-        </div>
-      </Card>
-
-      {/* Profit par heure / jour */}
-      <div className="grid-2" style={{ marginBottom: 14 }}>
-        <Card style={{ padding: 18 }}>
-          <CardLabel>Profit par heure (Thaïlande)</CardLabel>
-          <ResponsiveContainer width="100%" height={170}>
-            <BarChart data={byHour} margin={{ top: 10, right: 4, left: -6, bottom: 0 }}>
-              <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="key" tick={{ fill: C.textMuted, fontSize: 8.5 }} axisLine={{ stroke: C.border }} tickLine={false} interval={2} />
-              <YAxis tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} width={42} />
-              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.borderLight}`, borderRadius: 8, fontSize: 11 }} formatter={(v) => [fmtUsdSigned(v), "P&L"]} cursor={{ fill: "rgba(30,36,51,0.04)" }} />
-              <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>{byHour.map((g, i) => <Cell key={i} fill={g.pnl >= 0 ? C.teal : C.red} />)}</Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-        <Card style={{ padding: 18 }}>
-          <CardLabel>Profit par jour de la semaine</CardLabel>
-          <ResponsiveContainer width="100%" height={170}>
-            <BarChart data={byDay} margin={{ top: 10, right: 4, left: -6, bottom: 0 }}>
-              <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="key" tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={{ stroke: C.border }} tickLine={false} tickFormatter={(v) => v.slice(0, 3)} />
-              <YAxis tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} width={42} />
-              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.borderLight}`, borderRadius: 8, fontSize: 11 }} formatter={(v) => [fmtUsdSigned(v), "P&L"]} cursor={{ fill: "rgba(30,36,51,0.04)" }} />
-              <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>{byDay.map((g, i) => <Cell key={i} fill={g.pnl >= 0 ? C.teal : C.red} />)}</Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      </div>
-
-      </>}
-
-      {sub === "apercu" && <>
-      {/* Distribution des gains/pertes en pleine largeur */}
-      <Card style={{ padding: 18, marginBottom: 14 }}>
-        <CardLabel>Distribution des gains et pertes</CardLabel>
-        <ResponsiveContainer width="100%" height={190}>
-          <BarChart data={distribution} margin={{ top: 10, right: 4, left: -6, bottom: 0 }}>
-            <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: C.textMuted, fontSize: 8.5 }} axisLine={{ stroke: C.border }} tickLine={false} angle={-25} textAnchor="end" height={50} />
-              <YAxis tick={{ fill: C.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} width={28} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.borderLight}`, borderRadius: 8, fontSize: 11 }} formatter={(v) => [v, "Trades"]} cursor={{ fill: "rgba(30,36,51,0.04)" }} />
-              <Bar dataKey="count" radius={[2, 2, 0, 0]}>{distribution.map((d, i) => <Cell key={i} fill={d.min >= 0 ? C.teal : C.red} />)}</Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-
-      {/* Heatmap calendrier — vue compacte de la performance quotidienne */}
-      <Card style={{ padding: 18, marginBottom: 14 }}>
-        <CardLabel>Heatmap calendrier</CardLabel>
-        <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2, marginBottom: 14 }}>Intensité du P&L par jour, 16 dernières semaines</div>
-        <StatsHeatmap trades={closed} />
-      </Card>
-
-      </>}
-
-      {sub === "setups" && <>
-      {/* Analyse des tags — PD Arrays séparés des TF */}
-      <Card style={{ padding: 18, marginBottom: 14 }}>
-        <CardLabel>PD Arrays — Performance</CardLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, maxHeight: 300, overflowY: "auto" }}>
-          {[...byTagAll].filter(g => TAG_CATALOG.find(tc => tc.name === g.key && tc.category === "setup")).sort((a, b) => b.pnl - a.pnl).map(g => (
-            <div key={g.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", borderRadius: 7, background: C.inputBg || C.card, border: `1px solid ${C.border}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <TagBadge name={g.key} size="sm" />
-                <span style={{ fontSize: 11, color: C.textMuted }}>{g.count}T</span>
-              </div>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <span className="tnum" style={{ fontSize: 11, color: g.winRate >= 50 ? C.teal : C.red }}>{g.winRate.toFixed(0)}% WR</span>
-                <span className="tnum" style={{ fontWeight: 700, fontSize: 12, color: g.pnl >= 0 ? C.teal : C.red, minWidth: 65, textAlign: "right" }}>{fmtUsdSigned(g.pnl)}</span>
-              </div>
-            </div>
-          ))}
-          {byTagAll.filter(g => TAG_CATALOG.find(tc => tc.name === g.key && tc.category === "setup")).length === 0 && (
-            <div style={{ fontSize: 12, color: C.textMuted, padding: "12px 0" }}>Aucun PD Array taggé sur tes trades.</div>
-          )}
-        </div>
-      </Card>
-
-      <Card style={{ padding: 18, marginBottom: 14 }}>
-        <CardLabel>Timeframes — Performance</CardLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-          {[...byTagAll].filter(g => ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(g.key)).sort((a, b) => b.count - a.count).map(g => (
-            <div key={g.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", borderRadius: 7, background: C.inputBg || C.card, border: `1px solid ${C.border}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.purpleBright, background: C.purpleDim, padding: "2px 8px", borderRadius: 5 }}>{g.key}</span>
-                <span style={{ fontSize: 11, color: C.textMuted }}>{g.count}T</span>
-              </div>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <span className="tnum" style={{ fontSize: 11, color: g.winRate >= 50 ? C.teal : C.red }}>{g.winRate.toFixed(0)}% WR</span>
-                <span className="tnum" style={{ fontWeight: 700, fontSize: 12, color: g.pnl >= 0 ? C.teal : C.red, minWidth: 65, textAlign: "right" }}>{fmtUsdSigned(g.pnl)}</span>
-              </div>
-            </div>
-          ))}
-          {byTagAll.filter(g => ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(g.key)).length === 0 && (
-            <div style={{ fontSize: 12, color: C.textMuted, padding: "12px 0" }}>Aucun timeframe taggé.</div>
-          )}
-        </div>
-      </Card>
-
-      </>}
-
-      {sub === "apercu" && <>
-      {/* Tableau des erreurs fréquentes */}
-      <Card style={{ padding: 18 }}>
-        <CardLabel>Erreurs les plus fréquentes</CardLabel>
-        {mistakeFreq.length === 0 ? (
-          <div style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>
-            <Trophy size={14} color={C.teal} /> Aucune erreur taguée — excellent travail de discipline.
-          </div>
-        ) : (
-          <div style={{ marginTop: 12 }}>
-            <DataTable
-              columns={[
-                { key: "name", label: "Erreur", render: (r) => <TagBadge name={r.name} size="sm" /> },
-                { key: "count", label: "Occurrences", align: "right" },
-                { key: "avgImpact", label: "Impact moyen", align: "right", render: (r) => fmtUsdSigned(r.avgImpact), color: () => C.red },
-                { key: "pnlImpact", label: "Impact total", align: "right", render: (r) => fmtUsdSigned(r.pnlImpact), color: () => C.red },
-              ]}
-              rows={mistakeFreq}
-            />
-          </div>
-        )}
-      </Card>
-      </>}
-    </div>
-  );
-}
 
 /* ============================================================================
    ANALYSE — erreurs, ce qui marche, psychologie, exécution, revue de la semaine
@@ -6257,36 +5723,8 @@ const ICT_RULES = [
   { label: "SMT divergence", test: (t) => !!t.smt },
 ];
 
-function IctRulesTable({ closed }) {
-  const rows = ICT_RULES.map((rule) => {
-    const yes = closed.filter((t) => rule.test(t) === true), no = closed.filter((t) => rule.test(t) === false);
-    return { label: rule.label, yes: aggR(yes), no: aggR(no) };
-  }).filter((r) => r.yes.n + r.no.n > 0);
-  if (!rows.length) return <div style={{ fontSize: 12, color: C.textMuted }}>Remplis la carte « Contexte ICT » de tes trades pour voir cette analyse.</div>;
-  const G = "minmax(0,1.3fr) 1fr 1fr 58px";
-  const cell = (a) => a.n ? <span className="tnum" style={{ color: rCol(a.avgR), fontWeight: 700 }}>{fmtRs(a.avgR)} <span style={{ color: C.textMuted, fontWeight: 500, fontSize: 10.5 }}>· {a.n}T · {a.wr.toFixed(0)}%</span></span> : <span style={{ color: C.textMuted }}>—</span>;
-  return (
-    <div style={{ borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-      <div style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "7px 12px", background: C.inputBg, fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4 }}>
-        <div>Règle</div><div>Respectée</div><div>Pas respectée</div><div style={{ textAlign: "right" }}>Écart</div>
-      </div>
-      {rows.map((r) => { const gap = r.yes.n && r.no.n ? r.yes.avgR - r.no.avgR : null; return (
-        <div key={r.label} style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "9px 12px", borderTop: `1px solid ${C.border}`, alignItems: "center", fontSize: 12 }}>
-          <div style={{ fontWeight: 600, color: C.text, lineHeight: 1.3 }}>{r.label}</div>
-          <div>{cell(r.yes)}</div><div>{cell(r.no)}</div>
-          <div className="tnum" style={{ textAlign: "right", fontWeight: 600, color: gap == null ? C.textMuted : rCol(gap) }}>{gap == null ? "—" : fmtRs(gap)}</div>
-        </div>); })}
-      <div style={{ padding: "6px 12px", fontSize: 10, color: C.textMuted, borderTop: `1px solid ${C.border}` }}>Moyenne par trade. Écart = ce que la règle te rapporte quand tu la respectes.</div>
-    </div>
-  );
-}
 const rOf = (t) => (t.status === "breakeven" ? 0 : Number(t.resultR) || 0);
 
-function pipSize(pair) {
-  if (pair.includes("JPY") || pair === "XAUUSD" || pair === "XAGUSD") return 0.01;
-  if (["US30", "NAS100", "SPX500", "BTCUSD", "ETHUSD"].includes(pair)) return 1;
-  return 0.0001;
-}
 
 // Biais DXY attendu selon la paire et le sens : EURUSD long → DXY baissier, USDJPY long → DXY haussier
 function dxyAligned(t) {
@@ -6334,29 +5772,6 @@ function ASection({ title, sub, children, right }) {
   );
 }
 
-function AggTable({ rows, labelHead = "", empty = "Pas encore de données.", minN = 5, limit, usd }) {
-  const list = limit ? rows.slice(0, limit) : rows;
-  if (!list.length) return <div style={{ fontSize: 12, color: C.textMuted }}>{empty}</div>;
-  const G = "minmax(0,1fr) 38px 48px 62px 66px" + (usd ? " 70px" : "");
-  return (
-    <div style={{ borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-      <div style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "7px 12px", background: C.inputBg, fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4 }}>
-        <div>{labelHead}</div><div style={{ textAlign: "right" }}>N</div><div style={{ textAlign: "right" }}>WR</div><div style={{ textAlign: "right" }}>Moy.</div><div style={{ textAlign: "right" }}>Total</div>{usd && <div style={{ textAlign: "right" }}>$</div>}
-      </div>
-      {list.map((r, i) => (
-        <div key={r.label + i} style={{ display: "grid", gridTemplateColumns: G, gap: 6, padding: "9px 12px", borderTop: `1px solid ${C.border}`, alignItems: "center", opacity: r.n < minN ? 0.5 : 1 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.text, minWidth: 0, lineHeight: 1.35, overflowWrap: "anywhere" }}>{r.label}</div>
-          <div className="tnum" style={{ textAlign: "right", fontSize: 12, color: C.textSecondary }}>{r.n}</div>
-          <div className="tnum" style={{ textAlign: "right", fontSize: 12, fontWeight: 600, color: r.wr >= 50 ? C.teal : C.red }}>{r.wr.toFixed(0)}%</div>
-          <div className="tnum" style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: rCol(r.avgR) }}>{fmtRs(r.avgR)}</div>
-          <div className="tnum" style={{ textAlign: "right", fontSize: 12.5, fontWeight: 600, color: rCol(r.sumR) }}>{fmtRs(r.sumR)}</div>
-          {usd && <div className="tnum" style={{ textAlign: "right", fontSize: 12.5, fontWeight: 700, color: rCol(r.pnl) }}>{fmtUsdSigned(r.pnl)}</div>}
-        </div>
-      ))}
-      <div style={{ padding: "6px 12px", fontSize: 10, color: C.textMuted, borderTop: `1px solid ${C.border}` }}>Grisé = moins de {minN} trades, pas encore fiable</div>
-    </div>
-  );
-}
 
 function BigStat({ label, value, color, sub }) {
   return (
@@ -6369,382 +5784,19 @@ function BigStat({ label, value, color, sub }) {
 }
 
 /* ---------- Mes erreurs ---------- */
-function ErrorsTab({ trades }) {
-  const closed = useMemo(() => closedOf(trades), [trades]);
-  const d = useMemo(() => {
-    const withErr = closed.filter((t) => mistakesOf(t).length > 0);
-    const clean = closed.filter((t) => mistakesOf(t).length === 0);
-    const byErr = groupAgg(closed, mistakesOf).sort((a, b) => a.sumR - b.sumR);
-    const total = aggR(closed);
-    const ruled = closed.filter((t) => Object.keys(t.rules || {}).length > 0);
-    const allOk = ruled.filter((t) => Object.values(t.rules).every((v) => v === "ok"));
-    const broken = ruled.filter((t) => Object.values(t.rules).some((v) => v === "no"));
-    const byRuleBroken = groupAgg(broken, (t) => Object.entries(t.rules).filter(([, v]) => v === "no").map(([k]) => k)).sort((a, b) => b.n - a.n);
-    // Évolution par mois (6 derniers)
-    const months = {};
-    closed.forEach((t) => { const dd = new Date(t.entryTime); const k = `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, "0")}`; (months[k] = months[k] || []).push(t); });
-    const monthRows = Object.keys(months).sort().slice(-6).map((k) => {
-      const arr = months[k]; const e = arr.filter((t) => mistakesOf(t).length > 0);
-      return { k, n: arr.length, withErr: e.length, pct: arr.length ? (e.length / arr.length) * 100 : 0, errR: aggR(e).sumR };
-    });
-    return { withErr: aggR(withErr), clean: aggR(clean), total, byErr, ruled: ruled.length, allOk: aggR(allOk), broken: aggR(broken), byRuleBroken, monthRows, tagged: withErr.length };
-  }, [closed]);
-
-  if (!closed.length) return <EmptyState icon={AlertCircle} title="Pas encore de trades clôturés" text="Coche tes erreurs dans l'onglet Retour de chaque trade pour voir ce qu'elles te coûtent." />;
-
-  return (
-    <div>
-      <ASection title="Ce que tes erreurs te coûtent" sub="Basé sur les erreurs cochées dans l'onglet Retour de chaque trade (et les tags d'erreur).">
-        <div className="grid-kpi-4">
-          <BigStat label="Ton total actuel" value={fmtRs(d.total.sumR)} color={rCol(d.total.sumR)} sub={`${d.total.n} trades`} />
-          <BigStat label="Trades avec erreur" value={fmtRs(d.withErr.sumR)} color={rCol(d.withErr.sumR)} sub={`${d.withErr.n} trades · ${d.withErr.wr.toFixed(0)}% WR`} />
-          <BigStat label="Trades propres" value={fmtRs(d.clean.sumR)} color={rCol(d.clean.sumR)} sub={`${d.clean.n} trades · ${d.clean.wr.toFixed(0)}% WR`} />
-          <BigStat label="Moyenne par trade" value={`${fmtRs(d.clean.avgR)} / ${fmtRs(d.withErr.avgR)}`} sub="propre / avec erreur" />
-        </div>
-        {d.withErr.n > 0 && (
-          <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 9, background: d.withErr.sumR < 0 ? C.redDim : C.inputBg, border: `1px solid ${d.withErr.sumR < 0 ? C.red + "40" : C.border}`, fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>
-            {d.withErr.sumR < 0
-              ? <>Sans les trades où tu as fait une erreur, tu serais à <b style={{ color: rCol(d.clean.sumR) }}>{fmtRs(d.clean.sumR)}</b> au lieu de <b>{fmtRs(d.total.sumR)}</b>. Tes erreurs t'ont coûté <b style={{ color: C.red }}>{fmtUsdSigned(d.withErr.pnl)}</b>.</>
-              : <>Tes trades avec erreur restent positifs ({fmtRs(d.withErr.sumR)}), mais rapportent {fmtRs(d.withErr.avgR)} par trade contre {fmtRs(d.clean.avgR)} pour les trades propres.</>}
-          </div>
-        )}
-        {d.tagged === 0 && <div style={{ marginTop: 10, fontSize: 12, color: C.amber }}>Aucune erreur cochée pour l'instant. Ouvre un trade › Retour › « À améliorer ».</div>}
-      </ASection>
-
-      <ASection title="Tes règles ICT, vérifiées automatiquement" sub="Calculé à partir de la carte « Contexte ICT », de la checklist et de l'heure d'entrée. Rien à cocher en plus.">
-        <IctRulesTable closed={closed} />
-      </ASection>
-
-      <ASection title="Erreur par erreur" sub="Triées de la plus coûteuse à la moins coûteuse.">
-        <AggTable rows={d.byErr} labelHead="Erreur" empty="Aucune erreur cochée." minN={3} usd />
-      </ASection>
-
-      <ASection title="Règles respectées ou non" sub={`D'après l'onglet Retour › Règles respectées (${d.ruled} trades remplis).`}>
-        <div className="grid-2" style={{ marginBottom: 12 }}>
-          <BigStat label="Toutes les règles respectées" value={fmtRs(d.allOk.avgR) + " / trade"} color={rCol(d.allOk.avgR)} sub={`${d.allOk.n} trades · ${d.allOk.wr.toFixed(0)}% WR`} />
-          <BigStat label="Au moins une règle cassée" value={fmtRs(d.broken.avgR) + " / trade"} color={rCol(d.broken.avgR)} sub={`${d.broken.n} trades · ${d.broken.wr.toFixed(0)}% WR`} />
-        </div>
-        <AggTable rows={d.byRuleBroken} labelHead="Règle cassée" empty="Aucune règle marquée « Non »." minN={3} usd />
-      </ASection>
-
-      <ASection title="Est-ce que tu progresses ?" sub="Part de tes trades avec au moins une erreur, mois par mois.">
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {d.monthRows.map((m) => (
-            <div key={m.k} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ width: 70, fontSize: 12, color: C.textSecondary, textTransform: "capitalize" }}>{new Date(m.k + "-15").toLocaleDateString("fr-FR", { month: "short", year: "2-digit" })}</span>
-              <div style={{ flex: 1, height: 8, borderRadius: 4, background: C.border, overflow: "hidden" }}>
-                <div style={{ width: `${m.pct}%`, height: "100%", background: m.pct > 40 ? C.red : m.pct > 20 ? C.amber : C.teal }} />
-              </div>
-              <span className="tnum" style={{ width: 92, textAlign: "right", fontSize: 11.5, color: C.textSecondary }}>{m.withErr}/{m.n} · {m.pct.toFixed(0)}%</span>
-            </div>
-          ))}
-        </div>
-      </ASection>
-    </div>
-  );
-}
 
 /* ---------- Ce qui marche ---------- */
-function EdgeTab({ trades }) {
-  const closed = useMemo(() => closedOf(trades), [trades]);
-  const d = useMemo(() => {
-    const dxyLabel = (t) => { const a = dxyAligned(t); return a === true ? "DXY aligné" : a === false ? "DXY contre" : "DXY non noté"; };
-    const htfLabel = (t) => { const a = htfAligned(t); return a === true ? "avec HTF" : a === false ? "contre HTF" : "HTF ?"; };
-    const combos = groupAgg(closed, (t) => {
-      const ss = setupsOf(t);
-      const model = t.ictModel || (t.oteFib ? `OTE ${t.oteFib}` : "sans modèle");
-      return (ss.length ? ss : ["Sans PD Array"]).map((s) => `${s} · ${kzOf(t)} · ${model} · ${htfLabel(t)}`);
-    }).filter((g) => g.n >= 2);
-    const best = [...combos].sort((a, b) => b.avgR - a.avgR || b.n - a.n).filter((g) => g.avgR > 0).slice(0, 8);
-    const worst = [...combos].sort((a, b) => a.avgR - b.avgR).filter((g) => g.avgR < 0).slice(0, 5);
-    const sortR = (arr) => arr.sort((a, b) => b.avgR - a.avgR);
-    return {
-      best, worst,
-      setup: sortR(groupAgg(closed, (t) => setupsOf(t).length ? setupsOf(t) : ["Sans PD Array"])),
-      session: sortR(groupAgg(closed, kzOf)),
-      sb: sortR(groupAgg(closed, (t) => { const sb = silverBulletAt(t.entryTime); return sb ? sb.name : "Hors Silver Bullet"; })),
-      model: sortR(groupAgg(closed, (t) => t.ictModel || "Modèle non noté")),
-      htf: sortR(groupAgg(closed, (t) => { const a = htfAligned(t); return a === true ? "Avec le biais HTF" : a === false ? "Contre le biais HTF" : "Biais non noté"; })),
-      pd: sortR(groupAgg(closed, (t) => { const a = pdAligned(t); return a === true ? "Bon côté" : a === false ? "Mauvais côté" : t.pdZone === "Equilibrium" ? "Équilibre" : "Zone non notée"; })),
-      swept: sortR(groupAgg(closed, (t) => t.sweptLiquidity || "Non noté")),
-      dol: sortR(groupAgg(closed, (t) => t.drawOnLiquidity || "Non noté")),
-      disp: sortR([{ label: "Avec displacement", ...aggR(closed.filter((t) => t.displacement)) }, { label: "Sans displacement", ...aggR(closed.filter((t) => !t.displacement)) }].filter((x) => x.n)),
-      ote: sortR(groupAgg(closed, (t) => t.oteFib ? `OTE ${t.oteFib}` : "Sans OTE")),
-      dxy: sortR(groupAgg(closed, dxyLabel)),
-      tf: sortR(groupAgg(closed, (t) => (t.tags || []).find((g) => TF_TAGS.includes(g)) || "TF non noté")),
-      dir: sortR(groupAgg(closed, (t) => t.direction === "long" ? "Achat" : "Vente")),
-      pair: sortR(groupAgg(closed, (t) => t.pair)),
-      check: sortR([
-        { label: "Sweep + MSS", ...aggR(closed.filter((t) => t.liquiditySweep && t.mssConfirmed)) },
-        { label: "Sweep seul", ...aggR(closed.filter((t) => t.liquiditySweep && !t.mssConfirmed)) },
-        { label: "MSS seul", ...aggR(closed.filter((t) => !t.liquiditySweep && t.mssConfirmed)) },
-        { label: "Ni sweep ni MSS", ...aggR(closed.filter((t) => !t.liquiditySweep && !t.mssConfirmed)) },
-      ].filter((r) => r.n > 0)),
-      pos: sortR(groupAgg(closed, (t) => t.positives || [])),
-    };
-  }, [closed]);
-
-  if (!closed.length) return <EmptyState icon={Trophy} title="Pas encore de trades clôturés" text="Ton edge apparaîtra ici dès tes premiers trades clôturés." />;
-
-  return (
-    <div>
-      <ASection title="Tes meilleures combinaisons" sub="PD Array × killzone × modèle ICT × biais HTF, au moins 2 trades. C'est là que se trouve ton vrai edge.">
-        <AggTable rows={d.best} labelHead="Combinaison" empty="Pas encore de combinaison positive avec 2 trades ou plus." />
-      </ASection>
-      {d.worst.length > 0 && (
-        <ASection title="Combinaisons à éviter" sub="Les mêmes critères, mais qui te font perdre.">
-          <AggTable rows={d.worst} labelHead="Combinaison" />
-        </ASection>
-      )}
-      <div className="grid-2">
-        <ASection title="Modèle ICT"><AggTable rows={d.model} labelHead="Modèle" /></ASection>
-        <ASection title="Par PD Array"><AggTable rows={d.setup} labelHead="PD Array" /></ASection>
-        <ASection title="Killzone" sub="Calculée depuis l'heure d'entrée, en heure de New York."><AggTable rows={d.session} labelHead="Killzone" /></ASection>
-        <ASection title="Silver Bullet" sub="03-04h, 10-11h et 14-15h heure de New York."><AggTable rows={d.sb} labelHead="Fenêtre" /></ASection>
-        <ASection title="Biais HTF"><AggTable rows={d.htf} labelHead="Biais" /></ASection>
-        <ASection title="Premium / Discount" sub="Bon côté = long en discount, short en premium."><AggTable rows={d.pd} labelHead="Zone" /></ASection>
-        <ASection title="Liquidité prise"><AggTable rows={d.swept} labelHead="Liquidité" /></ASection>
-        <ASection title="Draw on liquidity"><AggTable rows={d.dol} labelHead="Cible" /></ASection>
-        <ASection title="Displacement"><AggTable rows={d.disp} labelHead="Displacement" /></ASection>
-        <ASection title="Zone OTE"><AggTable rows={d.ote} labelHead="OTE" /></ASection>
-        <ASection title="Biais DXY" sub="Aligné = le DXY va dans le sens qui confirme ton trade."><AggTable rows={d.dxy} labelHead="DXY" /></ASection>
-        <ASection title="Checklist sweep / MSS"><AggTable rows={d.check} labelHead="Checklist" /></ASection>
-        <ASection title="Timeframe"><AggTable rows={d.tf} labelHead="TF" /></ASection>
-        <ASection title="Sens"><AggTable rows={d.dir} labelHead="Sens" /></ASection>
-        <ASection title="Paire"><AggTable rows={d.pair} labelHead="Paire" /></ASection>
-      </div>
-      <ASection title="Tes points positifs" sub="Quand tu coches ce point positif, combien ça rapporte.">
-        <AggTable rows={d.pos} labelHead="Point positif" empty="Coche tes points positifs dans l'onglet Retour de chaque trade." minN={3} />
-      </ASection>
-    </div>
-  );
-}
 
 /* ---------- Psychologie ---------- */
-function PsychoTab({ trades }) {
-  const closed = useMemo(() => closedOf(trades), [trades]);
-  const d = useMemo(() => {
-    const both = closed.filter((t) => t.confidenceLevel > 0 && t.retroRating > 0);
-    const gap = both.length ? both.reduce((s, t) => s + (t.retroRating - t.confidenceLevel), 0) / both.length : null;
-    const overconf = closed.filter((t) => t.confidenceLevel >= 8);
-    const chron = [...closed].sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
-    const afterLoss = [], afterWin = [];
-    for (let i = 1; i < chron.length; i++) { const prev = rOf(chron[i - 1]); if (prev < 0) afterLoss.push(chron[i]); else if (prev > 0) afterWin.push(chron[i]); }
-    const dayIdx = {}; const byNum = { "1er trade du jour": [], "2e trade du jour": [], "3e trade et +": [] };
-    chron.forEach((t) => { const k = new Date(t.entryTime).toDateString(); dayIdx[k] = (dayIdx[k] || 0) + 1; const n = dayIdx[k]; byNum[n === 1 ? "1er trade du jour" : n === 2 ? "2e trade du jour" : "3e trade et +"].push(t); });
-    const sameDayAfterLoss = [];
-    for (let i = 1; i < chron.length; i++) if (rOf(chron[i - 1]) < 0 && new Date(chron[i - 1].entryTime).toDateString() === new Date(chron[i].entryTime).toDateString()) sameDayAfterLoss.push(chron[i]);
-    return { gap, nBoth: both.length, overconf: aggR(overconf),
-      seq: [{ label: "Après une perte", ...aggR(afterLoss) }, { label: "Après une perte, le même jour", ...aggR(sameDayAfterLoss) }, { label: "Après un gain", ...aggR(afterWin) }],
-      num: Object.entries(byNum).map(([label, arr]) => ({ label, ...aggR(arr) })).filter((r) => r.n) };
-  }, [closed]);
-
-  return (
-    <div>
-      <ASection title="Ta confiance est-elle fiable ?" sub="Confiance notée avant le trade comparée à la qualité notée après.">
-        <div className="grid-kpi-4">
-          <BigStat label="Écart moyen après − avant" value={d.gap == null ? "—" : `${d.gap > 0 ? "+" : ""}${d.gap.toFixed(1)}`} color={d.gap == null ? C.text : Math.abs(d.gap) <= 1 ? C.teal : C.amber} sub={d.gap == null ? "note les deux sur tes trades" : d.gap < -1 ? "tu te sur-estimes" : d.gap > 1 ? "tu te sous-estimes" : "bien calibré"} />
-          <BigStat label="Trades à confiance 8+" value={fmtRs(d.overconf.avgR) + " / trade"} color={rCol(d.overconf.avgR)} sub={`${d.overconf.n} trades · ${d.overconf.wr.toFixed(0)}% WR`} />
-          <BigStat label="Trades notés avant + après" value={d.nBoth} />
-        </div>
-      </ASection>
-      <ASection title="Le trade d'après" sub="Ce que tu fais juste après une perte. C'est là que se voit le revenge trading.">
-        <AggTable rows={d.seq} labelHead="Situation" minN={3} />
-      </ASection>
-      <ASection title="Combien de trades par jour ?" sub="Si ton 3e trade perd en moyenne, une règle « max 2 trades par jour » te ferait gagner de l'argent.">
-        <AggTable rows={d.num} labelHead="Numéro du trade" minN={3} />
-      </ASection>
-      <CoachPatterns trades={trades} />
-      <PerformanceReview trades={trades} />
-    </div>
-  );
-}
 
 /* ---------- Exécution ---------- */
-function ExecTab({ trades }) {
-  const closed = useMemo(() => closedOf(trades), [trades]);
-  const d = useMemo(() => {
-    const withMax = closed.filter((t) => t.maxR != null && !Number.isNaN(Number(t.maxR)));
-    const real = withMax.reduce((s, t) => s + rOf(t), 0);
-    const sims = [1, 1.5, 2, 2.5, 3, 4].map((X) => {
-      const hit = withMax.filter((t) => Number(t.maxR) >= X).length;
-      const total = withMax.reduce((s, t) => s + (Number(t.maxR) >= X ? X : (rOf(t) < 0 ? rOf(t) : -1)), 0);
-      return { X, hit, total, wr: withMax.length ? (hit / withMax.length) * 100 : 0 };
-    });
-    const bestSim = sims.reduce((a, b) => (b.total > a.total ? b : a), sims[0]);
-    const early = withMax.filter((t) => rOf(t) > 0 && Number(t.maxR) - rOf(t) >= 1);
-    const leftR = early.reduce((s, t) => s + (Number(t.maxR) - rOf(t)), 0);
-    const slBucket = (t) => {
-      if (t.entryPrice == null || t.stopLoss == null) return null;
-      const p = Math.abs(t.entryPrice - t.stopLoss) / pipSize(t.pair);
-      return p < 10 ? "SL < 10 pips" : p < 20 ? "SL 10-20 pips" : p < 35 ? "SL 20-35 pips" : "SL 35+ pips";
-    };
-    const order = ["SL < 10 pips", "SL 10-20 pips", "SL 20-35 pips", "SL 35+ pips"];
-    const sl = groupAgg(closed, slBucket).sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
-    const planned = closed.filter((t) => t.entryPrice != null && t.stopLoss != null && t.takeProfit != null && t.entryPrice !== t.stopLoss)
-      .map((t) => ({ t, rr: Math.abs(t.takeProfit - t.entryPrice) / Math.abs(t.entryPrice - t.stopLoss) }));
-    const wins = planned.filter((x) => rOf(x.t) > 0);
-    return { n: withMax.length, real, sims, bestSim, early: early.length, leftR, sl,
-      plannedRR: planned.length ? planned.reduce((s, x) => s + x.rr, 0) / planned.length : null,
-      winR: wins.length ? wins.reduce((s, x) => s + rOf(x.t), 0) / wins.length : null,
-      winPlanned: wins.length ? wins.reduce((s, x) => s + x.rr, 0) / wins.length : null };
-  }, [closed]);
-
-  return (
-    <div>
-      <ASection title="R visé ou R obtenu" sub="Est-ce que tu laisses courir tes gains jusqu'à ton TP ?">
-        <div className="grid-kpi-4">
-          <BigStat label="R:R prévu (moyen)" value={d.plannedRR == null ? "—" : `1:${d.plannedRR.toFixed(2)}`} />
-          <BigStat label="Gains : R prévu" value={d.winPlanned == null ? "—" : fmtRs(d.winPlanned)} />
-          <BigStat label="Gains : R obtenu" value={d.winR == null ? "—" : fmtRs(d.winR)} color={d.winR != null && d.winPlanned != null && d.winR < d.winPlanned - 0.3 ? C.amber : C.teal} sub={d.winR != null && d.winPlanned != null && d.winR < d.winPlanned - 0.3 ? "tu sors avant ton TP" : ""} />
-        </div>
-      </ASection>
-
-      <ASection title="Simulateur de TP sur tous tes trades" sub={`Utilise le « R max atteint » noté dans le trade (${d.n} trades). Hypothèse prudente : si la cible n'est pas atteinte, le trade finit au stop (−1R).`}>
-        {d.n === 0 ? (
-          <div style={{ fontSize: 12.5, color: C.textSecondary, lineHeight: 1.6 }}>Renseigne « R max atteint » quand tu enregistres ou modifies un trade (carte Résultat). Après une dizaine de trades, tu sauras quel TP fixe te rapporte le plus.</div>
-        ) : (
-          <>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {d.sims.map((x) => (
-                <div key={x.X} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: `1px solid ${x === d.bestSim ? C.teal : C.border}`, background: x === d.bestSim ? C.tealDim : C.inputBg }}>
-                  <span style={{ width: 70, fontSize: 13, fontWeight: 700 }}>TP {x.X}R</span>
-                  <span className="tnum" style={{ flex: 1, fontSize: 11.5, color: C.textMuted }}>atteint {x.hit}/{d.n} ({x.wr.toFixed(0)}%)</span>
-                  <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600, color: rCol(x.total) }}>{fmtRs(x.total)}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 10, fontSize: 12.5, color: C.text }}>
-              Ton résultat réel sur ces trades : <b style={{ color: rCol(d.real) }}>{fmtRs(d.real)}</b>. Meilleur TP fixe : <b style={{ color: C.teal }}>{d.bestSim.X}R ({fmtRs(d.bestSim.total)})</b>.
-            </div>
-            {d.early > 0 && <div style={{ marginTop: 6, fontSize: 12, color: C.amber }}>{d.early} trade(s) gagnant(s) clôturé(s) au moins 1R avant le plus haut : {fmtRs(d.leftR)} laissés sur la table.</div>}
-          </>
-        )}
-      </ASection>
-
-      <ASection title="Taille du stop" sub="Est-ce qu'un SL trop serré te fait sortir pour rien ?">
-        <AggTable rows={d.sl} labelHead="Distance du SL" empty="Renseigne entrée et SL pour voir cette analyse." />
-      </ASection>
-    </div>
-  );
-}
 
 /* ---------- Revue de la semaine ---------- */
 function weekStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 function weekKeyOf(d) { const s = weekStart(d); return `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`; }
 
-function WeekTab({ trades, onOpenTrade, onVerdict }) {
-  const [offset, setOffset] = useState(0);
-  const start = useMemo(() => { const s = weekStart(new Date()); s.setDate(s.getDate() - 7 * offset); return s; }, [offset]);
-  const end = new Date(start); end.setDate(end.getDate() + 7);
-  const key = weekKeyOf(start);
-  const [goals, setGoals] = useState(() => { try { return JSON.parse(localStorage.getItem("weekly_goals") || "{}"); } catch { return {}; } });
-  const goalTimer = useRef(null);
-  const setGoal = (txt) => {
-    const next = { ...goals, [key]: txt };
-    setGoals(next);
-    try { localStorage.setItem("weekly_goals", JSON.stringify(next)); } catch {}
-    clearTimeout(goalTimer.current);
-    goalTimer.current = setTimeout(() => saveSettingsPatch({ weekly_goals: next }), 800);
-  };
-  const wk = useMemo(() => trades.filter((t) => { const d = new Date(t.entryTime); return d >= start && d < end; }), [trades, start]);
-  const closed = closedOf(wk);
-  const a = aggR(closed);
-  const sorted = [...closed].sort((x, y) => rOf(y) - rOf(x));
-  const best = sorted.filter((t) => rOf(t) > 0).slice(0, 3);
-  const worst = [...sorted].reverse().filter((t) => rOf(t) < 0).slice(0, 3);
-  const topErr = groupAgg(closed, mistakesOf).sort((x, y) => y.n - x.n)[0];
-  const bestSetup = groupAgg(closed, (t) => setupsOf(t)).filter((g) => g.sumR > 0).sort((x, y) => y.sumR - x.sumR)[0];
-  const unjudged = closed.filter((t) => !t.verdict);
-  const label = `${start.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${new Date(end - 864e5).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`;
-
-  const Mini = ({ t }) => (
-    <button onClick={() => onOpenTrade(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: 8, borderRadius: 9, border: `1px solid ${C.border}`, background: C.inputBg, cursor: "pointer", textAlign: "left" }}>
-      {t.screenshotBefore ? <img src={t.screenshotBefore} alt="" style={{ width: 56, height: 38, objectFit: "cover", borderRadius: 5, flexShrink: 0 }} /> : <div style={{ width: 56, height: 38, borderRadius: 5, background: C.border, flexShrink: 0 }} />}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.text }}>{t.pair} <span style={{ fontWeight: 500, color: C.textMuted }}>{t.direction === "long" ? "Achat" : "Vente"} · {fmtDate(t.entryTime)}</span></div>
-        <div style={{ fontSize: 11, color: C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{setupsOf(t).join(" · ") || "—"}</div>
-      </div>
-      <span className="tnum" style={{ fontSize: 13, fontWeight: 600, color: rCol(rOf(t)) }}>{fmtRs(rOf(t))}</span>
-    </button>
-  );
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <button onClick={() => setOffset((o) => o + 1)} style={btn.icon} aria-label="Semaine précédente"><ChevronLeft size={16} /></button>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{offset === 0 ? "Cette semaine" : offset === 1 ? "Semaine dernière" : "Semaine"}</div>
-          <div style={{ fontSize: 12, color: C.textMuted }}>{label}</div>
-        </div>
-        <button onClick={() => setOffset((o) => Math.max(0, o - 1))} disabled={offset === 0} style={{ ...btn.icon, opacity: offset === 0 ? 0.4 : 1 }} aria-label="Semaine suivante"><ChevronRight size={16} /></button>
-      </div>
-
-      <div className="grid-kpi-4" style={{ marginBottom: 14 }}>
-        <BigStat label="Résultat" value={fmtUsdSigned(a.pnl)} color={rCol(a.pnl)} sub={fmtRs(a.sumR)} />
-        <BigStat label="Trades" value={a.n} sub={`${wk.length - closed.length} encore ouvert(s)`} />
-        <BigStat label="Winrate" value={`${a.wr.toFixed(0)}%`} />
-        <BigStat label="Moyenne" value={fmtRs(a.avgR)} color={rCol(a.avgR)} />
-      </div>
-
-      <div className="grid-2">
-        <ASection title="Meilleurs trades">{best.length ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{best.map((t) => <Mini key={t.id} t={t} />)}</div> : <div style={{ fontSize: 12, color: C.textMuted }}>Aucun trade gagnant.</div>}</ASection>
-        <ASection title="Pires trades">{worst.length ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{worst.map((t) => <Mini key={t.id} t={t} />)}</div> : <div style={{ fontSize: 12, color: C.textMuted }}>Aucun trade perdant.</div>}</ASection>
-      </div>
-
-      <div className="grid-2">
-        <BigStat label="Erreur la plus fréquente" value={topErr ? topErr.label : "Aucune cochée"} color={topErr ? C.red : C.teal} sub={topErr ? `${topErr.n} fois · ${fmtRs(topErr.sumR)}` : ""} />
-        <BigStat label="Meilleur setup" value={bestSetup ? bestSetup.label : "—"} color={C.teal} sub={bestSetup ? `${bestSetup.n} trades · ${fmtRs(bestSetup.sumR)}` : ""} />
-      </div>
-
-      {unjudged.length > 0 && (
-        <ASection title={`À juger (${unjudged.length})`} sub="Bon trade ou mauvais trade, peu importe le résultat. Ça garde tes stats complètes.">
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {unjudged.map((t) => (
-              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}><Mini t={t} /></div>
-                <button onClick={() => onVerdict(t.id, "good")} style={{ ...btn.icon, fontSize: 18, padding: "6px 9px" }} aria-label="Bon trade"><ThumbsUp size={16} /></button>
-                <button onClick={() => onVerdict(t.id, "bad")} style={{ ...btn.icon, fontSize: 18, padding: "6px 9px" }} aria-label="Mauvais trade"><ThumbsDown size={16} /></button>
-              </div>
-            ))}
-          </div>
-        </ASection>
-      )}
-
-      <ASection title="Objectif de la semaine" sub="Une seule chose à corriger ou à répéter. Enregistré dans Supabase.">
-        <textarea id={"goal-" + key} rows={3} value={goals[key] || ""} onChange={(e) => setGoal(e.target.value)} placeholder={topErr ? `Ex : zéro « ${topErr.label} » cette semaine` : "Ex : max 2 trades par jour, uniquement en London"} style={{ ...inputStyle, resize: "vertical" }} />
-      </ASection>
-    </div>
-  );
-}
 
 /* ---------- Avant d'entrer : ton historique sur le même contexte ---------- */
-function PreTradeContext({ trades, pair, direction, tags, ictModel, entryTime }) {
-  const closed = useMemo(() => closedOf(trades || []), [trades]);
-  const sess = (tags || []).find((g) => SESSION_TAGS.includes(g));
-  const setups = (tags || []).filter(isSetupTag);
-  const base = closed.filter((t) => t.pair === pair && t.direction === direction);
-  const rows = [{ label: `${pair} ${direction === "long" ? "Achat" : "Vente"}`, ...aggR(base) }];
-  if (sess) rows.push({ label: `+ ${sess.replace(" Session", "")}`, ...aggR(base.filter((t) => sessionOf(t) === sess)) });
-  if (setups.length) rows.push({ label: `+ ${setups.join(" / ")}`, ...aggR(base.filter((t) => (!sess || sessionOf(t) === sess) && setupsOf(t).some((s) => setups.includes(s)))) });
-  if (ictModel) rows.push({ label: `Modèle ${ictModel} (toutes paires)`, ...aggR(closed.filter((t) => t.ictModel === ictModel)) });
-  if (entryTime) { const kz = killzoneLabel(entryTime); rows.push({ label: `${kz} (toutes paires)`, ...aggR(closed.filter((t) => kzOf(t) === kz)) }); }
-  const last = rows[Math.min(rows.length - 1, setups.length ? (sess ? 2 : 1) : (sess ? 1 : 0))];
-  const warn = last.n >= 3 && last.avgR < 0;
-  const good = last.n >= 3 && last.avgR > 0.3;
-  if (!base.length) return null;
-  return (
-    <Card style={{ padding: 16, marginBottom: 14, border: `1px solid ${warn ? C.red + "60" : good ? C.teal + "60" : C.border}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
-        <BarChart3 size={14} color={warn ? C.red : good ? C.teal : C.purpleBright} />
-        <span style={{ fontSize: 13, fontWeight: 700 }}>Ton historique sur ce contexte</span>
-      </div>
-      <AggTable rows={rows} labelHead="Contexte" minN={3} />
-      {warn && <div style={{ marginTop: 8, fontSize: 12.5, color: C.red, fontWeight: 600 }}>Attention : ce contexte te fait perdre en moyenne ({fmtRs(last.avgR)} sur {last.n} trades).</div>}
-      {good && <div style={{ marginTop: 8, fontSize: 12.5, color: C.teal, fontWeight: 600 }}>Bon contexte pour toi : {fmtRs(last.avgR)} en moyenne sur {last.n} trades.</div>}
-    </Card>
-  );
-}
 
 const STATS_TABS = [
   { id: "overview", label: "Vue d'ensemble" },
@@ -6851,6 +5903,13 @@ function SimpleStats({ trades }) {
   return (
     <div className="fade-in" style={{ maxWidth: 860, margin: "0 auto" }}>
       <PageHeader title="Statistiques" action={<Seg v={unit} set={setUnit} opts={[["usd", "$"], ["r", "R"]]} />} />
+      {/* raccourcis vers l'analyse qui fait progresser */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+        {[["erreurs", "Mes erreurs", "Ce qui te coûte, et la règle pour l'éviter", AlertCircle], ["progression", "Progression", "Ton edge prouvé, ton risque conseillé", Trophy]].map(([v, t, d, I]) => <button key={v} onClick={() => window.dispatchEvent(new CustomEvent("tjp-goto", { detail: v }))} style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: "11px 13px", borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, color: C.text, cursor: "pointer", fontFamily: "inherit", minWidth: 0 }}>
+          <span style={{ width: 32, height: 32, borderRadius: 10, background: C.purpleDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I size={16} color={C.purpleBright} /></span>
+          <span style={{ minWidth: 0 }}><span style={{ display: "block", fontSize: 13.5, fontWeight: 700 }}>{t} →</span><span style={{ display: "block", fontSize: 11.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d}</span></span>
+        </button>)}
+      </div>
       <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14 }}>
         {["tout", "7j", "30j", "90j"].map((p) => <button key={p} onClick={() => setPeriod(p)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: period === p ? C.purpleDim : "transparent", color: period === p ? C.purpleBright : C.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{p === "tout" ? "Tout" : p}</button>)}
       </div>
@@ -7006,26 +6065,6 @@ function SimpleStats({ trades }) {
   );
 }
 
-function AdvancedStats({ trades, onOpenTrade, onVerdict }) {
-  const [tab, setTab] = useState(() => { try { return localStorage.getItem("stats_tab") || "overview"; } catch { return "overview"; } });
-  const pick = (id) => { setTab(id); try { localStorage.setItem("stats_tab", id); } catch {} };
-  return (
-    <div className="fade-in">
-      <PageHeader title="Statistiques" />
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 16, paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
-        {STATS_TABS.map((t) => (
-          <button key={t.id} onClick={() => pick(t.id)} style={{ flexShrink: 0, padding: "8px 13px", borderRadius: 20, fontSize: 12.5, fontWeight: tab === t.id ? 700 : 500, cursor: "pointer", border: `1px solid ${tab === t.id ? C.purple : C.border}`, background: tab === t.id ? C.purpleDim : "transparent", color: tab === t.id ? C.purpleBright : C.textSecondary }}>{t.label}</button>
-        ))}
-      </div>
-      {tab === "overview" && <OverviewStats trades={trades} />}
-      {tab === "errors" && <ErrorsTab trades={trades} />}
-      {tab === "edge" && <EdgeTab trades={trades} />}
-      {tab === "psycho" && <PsychoTab trades={trades} />}
-      {tab === "exec" && <ExecTab trades={trades} />}
-      {tab === "week" && <WeekTab trades={trades} onOpenTrade={onOpenTrade} onVerdict={onVerdict} />}
-    </div>
-  );
-}
 
 /* ============================================================================
    CALENDAR
@@ -7919,41 +6958,7 @@ function SettingsRow({ label, sub, children }) {
   );
 }
 
-function TagList({ items, onRemove, color }) {
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-      {items.map((item) => (
-        <span key={item} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, background: color || C.purpleDim, border: `1px solid ${C.border}`, fontSize: 12.5, fontWeight: 500, color: C.text }}>
-          {item}
-          <button onClick={() => onRemove(item)} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", padding: 0, display: "flex", lineHeight: 1 }}>
-            <X size={11} />
-          </button>
-        </span>
-      ))}
-    </div>
-  );
-}
 
-function AddItemInput({ placeholder, onAdd }) {
-  const [val, setVal] = useState("");
-  return (
-    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-      <input
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        placeholder={placeholder}
-        style={{ ...inputStyle, flex: 1 }}
-        onKeyDown={(e) => { if (e.key === "Enter" && val.trim()) { onAdd(val.trim().toUpperCase()); setVal(""); } }}
-      />
-      <button
-        onClick={() => { if (val.trim()) { onAdd(val.trim().toUpperCase()); setVal(""); } }}
-        style={{ ...btn.primary, padding: "8px 14px" }}
-      >
-        Ajouter
-      </button>
-    </div>
-  );
-}
 
 // ── Réglages : listes avec recherche (paires, PD arrays, timeframes) ──
 async function readClipboardImage() {
@@ -8100,8 +7105,49 @@ function PlanRules({ trades = [], balance }) {
   }, [trades, rules, balance]);
   const B = Number(balance) || 10000; const maxLoss = rules.maxLossDayPct ? (B * rules.maxLossDayPct) / 100 : null;
   const stopNow = (rules.maxTradesDay && rep.today.n >= rules.maxTradesDay) || (maxLoss && rep.today.pnl <= -maxLoss);
+  const items = rules.checklist && rules.checklist.length ? rules.checklist : CHECK_DEFAULT;
+  const [newItem, setNewItem] = useState("");
+  const addItem = () => { const v = newItem.trim(); if (!v || items.includes(v)) return; set({ checklist: [...items, v], checklistOn: true }); setNewItem(""); };
+  const cardS = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
+      {/* tes règles : utilisées par « Tu peux trader ? », le respect du plan et « Mes erreurs » */}
+      <div style={cardS}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+          <div><div style={{ fontSize: 15, fontWeight: 700 }}>Mes règles</div><div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>Le Dashboard te dit si tu peux encore trader aujourd'hui avec ces limites.</div></div>
+          {stopNow ? <span style={{ fontSize: 12.5, fontWeight: 700, color: C.red, background: C.redDim, padding: "5px 10px", borderRadius: 999 }}>Stop pour aujourd'hui</span> : <span style={{ fontSize: 12.5, fontWeight: 700, color: C.teal, background: C.tealDim, padding: "5px 10px", borderRadius: 999 }}>{rep.today.n} trade{rep.today.n > 1 ? "s" : ""} aujourd'hui</span>}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+          <NumRule label="Risque max / trade" suffix="%" step={0.25} value={rules.maxRiskPct} onChange={(x) => set({ maxRiskPct: x })} />
+          <NumRule label="Trades max / jour" value={rules.maxTradesDay} onChange={(x) => set({ maxTradesDay: x })} />
+          <NumRule label="Pertes d'affilée = stop" value={rules.maxConsecLoss} onChange={(x) => set({ maxConsecLoss: x })} />
+          <NumRule label="Perte max / jour" suffix="%" step={0.5} value={rules.maxLossDayPct} onChange={(x) => set({ maxLossDayPct: x })} />
+          <NumRule label="Perte max / semaine" suffix="%" step={0.5} value={rules.maxLossWeekPct} onChange={(x) => set({ maxLossWeekPct: x })} />
+          <NumRule label="Perte max / mois" suffix="%" step={0.5} value={rules.maxLossMonthPct} onChange={(x) => set({ maxLossMonthPct: x })} />
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, margin: "14px 0 6px" }}>Sessions autorisées</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {SESSIONS_ALL.filter((x) => x !== "Hors session").map((x) => { const on = (rules.sessions || []).includes(x); return <button key={x} onClick={() => set({ sessions: on ? rules.sessions.filter((y) => y !== x) : [...(rules.sessions || []), x] })} style={chipBtn(on, C.teal)}>{on ? "✓ " : ""}{x.replace(" Session", "")}</button>; })}
+          <button onClick={() => set({ slRequired: !rules.slRequired })} style={chipBtn(!!rules.slRequired, C.purple)}>{rules.slRequired ? "✓ " : ""}Stop loss obligatoire</button>
+        </div>
+      </div>
+      {/* check-list : cochée dans chaque nouveau trade */}
+      <div style={cardS}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <div><div style={{ fontSize: 15, fontWeight: 700 }}>Ma check-list avant d'entrer</div><div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>Elle apparaît dans chaque nouveau trade. « Mes erreurs » peut y ajouter une règle en un clic.</div></div>
+          <button onClick={() => set({ checklistOn: rules.checklistOn === false })} style={chipBtn(rules.checklistOn !== false, C.teal)}>{rules.checklistOn === false ? "Désactivée" : "Activée"}</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, opacity: rules.checklistOn === false ? 0.5 : 1 }}>
+          {items.map((x, i) => <div key={x} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, background: C.inputBg, border: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 12, color: C.textMuted, width: 16 }}>{i + 1}</span><span style={{ flex: 1, fontSize: 13.5 }}>{x}</span>
+            <button onClick={() => set({ checklist: items.filter((y) => y !== x) })} aria-label={"Retirer " + x} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", padding: 2 }}><X size={14} /></button>
+          </div>)}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <input value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} placeholder="Ex. J'ai attendu le MSS" style={{ ...inputStyle, flex: 1 }} />
+          <button onClick={addItem} style={{ ...btn.primary, padding: "8px 14px" }}><Plus size={14} /> Ajouter</button>
+        </div>
+      </div>
 
 
       {rep.n > 0 && (
@@ -8132,109 +7178,10 @@ function PlanRules({ trades = [], balance }) {
 }
 
 /* ── Note de santé du compte /10 ── */
-function healthScore(trades, balance) {
-  const L = byTime(closedOf(trades)); const B = Number(balance) || 10000;
-  if (L.length < 5) return null;
-  const gw = L.filter((t) => usdOf(t) > 0).reduce((s, t) => s + usdOf(t), 0), gl = -L.filter((t) => usdOf(t) < 0).reduce((s, t) => s + usdOf(t), 0);
-  const pf = gl ? gw / gl : gw ? 3 : 1;
-  let eq = B, peak = B, dd = 0; L.forEach((t) => { eq += usdOf(t); peak = Math.max(peak, eq); dd = Math.max(dd, (peak - eq) / peak); });
-  const chk = planCheck(L, loadRules(), B); const comp = chk.filter((x) => !x.v.length).length / chk.length;
-  const wk = {}; L.forEach((t) => { const d = new Date(t.entryTime); const j = new Date(d); j.setDate(d.getDate() - ((d.getDay() + 6) % 7)); const k = dayKey(j.toISOString()); wk[k] = (wk[k] || 0) + usdOf(t); });
-  const W = Object.values(wk); const pos = W.filter((v) => v > 0).length / W.length;
-  const parts = [
-    { l: "Profit factor", v: clamp01((pf - 0.8) / 1.2) * 2.5, txt: pf.toFixed(2) },
-    { l: "Drawdown max", v: clamp01(1 - dd / 0.15) * 2.5, txt: `${(dd * 100).toFixed(1)} %` },
-    { l: "Plan respecté", v: comp * 2.5, txt: `${(comp * 100).toFixed(0)} %` },
-    { l: "Semaines positives", v: pos * 2.5, txt: `${Math.round(pos * W.length)} / ${W.length}` },
-  ];
-  return { score: parts.reduce((s, p) => s + p.v, 0), parts, n: L.length };
-}
 
-function HealthCard({ trades, balance }) {
-  const h = useMemo(() => healthScore(trades, balance), [trades, balance]);
-  const [open, setOpen] = useState(false);
-  if (!h) return null;
-  const col = h.score >= 7 ? C.teal : h.score >= 5 ? C.amber : C.red;
-  const lab = h.score >= 8 ? "Excellent" : h.score >= 7 ? "Solide" : h.score >= 5 ? "Fragile" : "À risque";
-  const weak = [...h.parts].sort((a, b) => a.v - b.v)[0];
-  const R = 22, P = 2 * Math.PI * R;
-  return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, marginBottom: 14, overflow: "hidden" }}>
-      <button onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", color: C.text, fontFamily: "inherit", textAlign: "left" }}>
-        <div style={{ position: "relative", width: 54, height: 54, flexShrink: 0 }}>
-          <svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r={R} fill="none" stroke={C.border} strokeWidth="5" /><circle cx="27" cy="27" r={R} fill="none" stroke={col} strokeWidth="5" strokeLinecap="round" strokeDasharray={P} strokeDashoffset={P * (1 - h.score / 10)} transform="rotate(-90 27 27)" style={{ transition: "stroke-dashoffset .8s" }} /></svg>
-          <span className="tnum" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>{h.score.toFixed(1)}</span>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}>Santé du compte</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: col }}>{lab}</div>
-          <div style={{ fontSize: 11.5, color: C.textSecondary, marginTop: 1 }}>Point faible : {weak.l.toLowerCase()} ({weak.txt})</div>
-        </div>
-        <ChevronDown size={16} color={C.textMuted} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
-      </button>
-      {open && <div style={{ padding: "2px 16px 14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
-        {h.parts.map((p) => (
-          <div key={p.l}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: C.textSecondary, marginBottom: 4 }}><span>{p.l}</span><span className="tnum" style={{ color: C.text, fontWeight: 600 }}>{p.txt}</span></div>
-            <div style={{ height: 5, borderRadius: 3, background: C.border, overflow: "hidden" }}><div className="grow-x" style={{ width: `${(p.v / 2.5) * 100}%`, height: "100%", background: p.v >= 1.75 ? C.teal : p.v >= 1.1 ? C.amber : C.red }} /></div>
-          </div>
-        ))}
-      </div>}
-    </div>
-  );
-}
 
 /* ── Coach : motifs qui te coûtent (sans IA, calculés sur tes trades) ── */
-function coachPatterns(trades) {
-  const L = byTime(closedOf(trades)); if (L.length < 8) return [];
-  const all = aggR(L); const out = [];
-  const add = (key, title, arr, hint) => { if (arr.length < 3) return; const a = aggR(arr); out.push({ key, title, hint, ...a, diff: a.avgR - all.avgR }); };
-  let s = 0; const after2 = [], revenge = [], third = [], big = []; const dayN = {};
-  const risks = L.map((t) => Number(t.riskUsd)).filter((x) => x > 0).sort((a, b) => a - b); const med = risks.length ? risks[Math.floor(risks.length / 2)] : 0;
-  L.forEach((t, i) => {
-    if (s >= 2) after2.push(t);
-    const p = L[i - 1]; if (p && rOf(p) < 0 && new Date(t.entryTime) - new Date(p.entryTime) < 60 * 60e3) revenge.push(t);
-    const k = dayKey(t.entryTime); dayN[k] = (dayN[k] || 0) + 1; if (dayN[k] >= 3) third.push(t);
-    if (med && Number(t.riskUsd) > med * 1.5) big.push(t);
-    s = rOf(t) < 0 ? s + 1 : rOf(t) > 0 ? 0 : s;
-  });
-  add("after2", "Après 2 pertes d'affilée", after2, "Fais une pause après 2 pertes.");
-  add("revenge", "Moins d'1 h après une perte", revenge, "Ressemble à du revenge trading.");
-  add("third", "3e trade du jour ou plus", third, "Tes premiers trades du jour sont les meilleurs ?");
-  add("big", "Risque plus gros que d'habitude", big, `Plus de 1,5× ton risque habituel (${fmtUsd(med)}).`);
-  const grp = (key, label, fn) => groupAgg(L, fn).filter((g) => g.n >= 4).forEach((g) => out.push({ key: key + g.label, title: `${label} : ${g.label}`, ...g, diff: g.avgR - all.avgR, hint: "" }));
-  grp("s", "Session", (t) => SESSION_SHORT[getSession(t.entryTime)] || null);
-  grp("p", "Paire", (t) => t.pair);
-  grp("st", "Setup", (t) => t.setup);
-  grp("d", "Jour", (t) => ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"][new Date(t.entryTime).getDay()]);
-  return { all, bad: out.filter((x) => x.diff < -0.15 && x.pnl < 0).sort((a, b) => a.pnl - b.pnl).slice(0, 6), good: out.filter((x) => x.diff > 0.15 && x.pnl > 0).sort((a, b) => b.pnl - a.pnl).slice(0, 4) };
-}
 
-function CoachPatterns({ trades }) {
-  const P = useMemo(() => coachPatterns(trades), [trades]);
-  if (!P || !P.all) return null;
-  const Row = ({ x, bad }) => (
-    <div style={{ padding: "11px 13px", borderRadius: 10, background: bad ? C.redDim : C.tealDim, border: `1px solid ${(bad ? C.red : C.teal) + "35"}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: C.text }}>{x.title}</span>
-        <span className="tnum" style={{ fontSize: 14, fontWeight: 700, color: moneyCol(x.pnl) }}>{fmtUsdSigned(x.pnl)}</span>
-      </div>
-      <div className="tnum" style={{ fontSize: 12, color: C.textSecondary, marginTop: 3 }}>{x.n} trades · {fmtRs(x.avgR)} / trade (moyenne {fmtRs(P.all.avgR)}) · {x.wr.toFixed(0)} % WR{x.hint ? ` · ${x.hint}` : ""}</div>
-    </div>
-  );
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 18 }}>
-      <ASection title="Ce qui te coûte">
-        {P.bad.length ? <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{P.bad.map((x) => <Row key={x.key} x={x} bad />)}</div> : <div style={{ fontSize: 12.5, color: C.textMuted }}>—</div>}
-      </ASection>
-      {P.good.length > 0 && (
-        <ASection title="Tes points forts">
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{P.good.map((x) => <Row key={x.key} x={x} />)}</div>
-        </ASection>
-      )}
-    </div>
-  );
-}
 
 /* ── Challenge prop firm : conditions + suivi ── */
 const CH_DEFAULT = { target: 10, maxDaily: 5, maxDD: 10, ddType: "static", minDays: 4, deadline: "", phase: "Phase 1" };
@@ -8408,70 +7355,12 @@ function ScoreCard({ trades, balance }) {
 }
 
 /* ── « Tu peux trader » : marge restante jour / semaine / mois ── */
-function CanTradeCard({ trades, balance, acc }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id); }, []);
-  const rules = loadRules(); const B = Number(balance) || 10000;
-  const ch = acc && acc.type === "challenge" && acc.challenge ? { ...CH_DEFAULT, ...acc.challenge } : null;
-  const L = closedSorted(trades);
-  const d0 = new Date(now); d0.setHours(0, 0, 0, 0); const w0 = startOfWeek(now); const m0 = new Date(d0.getFullYear(), d0.getMonth(), 1);
-  const sum = (from) => L.filter((t) => new Date(t.entryTime) >= from).reduce((s, t) => s + usdOf(t), 0);
-  const nToday = L.filter((t) => new Date(t.entryTime) >= d0).length;
-  const lim = [
-    { k: "Jour", pct: ch ? ch.maxDaily : rules.maxLossDayPct, pnl: sum(d0), reset: new Date(d0.getTime() + 864e5) },
-    { k: "Semaine", pct: rules.maxLossWeekPct, pnl: sum(w0), reset: new Date(w0.getTime() + 7 * 864e5) },
-    { k: "Mois", pct: rules.maxLossMonthPct, pnl: sum(m0), reset: new Date(m0.getFullYear(), m0.getMonth() + 1, 1) },
-  ].filter((x) => x.pct);
-  if (!lim.length && !rules.maxTradesDay) return null;
-  const riskPer = (B * (rules.maxRiskPct || 1)) / 100;
-  const rows = lim.map((x) => { const max = (B * x.pct) / 100; const left = Math.max(0, max + Math.min(0, x.pnl)); return { ...x, max, left, used: clamp01(-Math.min(0, x.pnl) / max) }; });
-  const left = rows.length ? Math.min(...rows.map((r) => r.left)) : Infinity;
-  const tradesLeft = Math.min(Number.isFinite(left) ? Math.floor(left / riskPer + 1e-9) : 99, rules.maxTradesDay ? Math.max(0, rules.maxTradesDay - nToday) : 99);
-  const ok = tradesLeft > 0;
-  const cd = (d) => { const ms = d - now; const h = Math.floor(ms / 36e5), m = Math.floor((ms % 36e5) / 6e4); return h >= 48 ? Math.floor(h / 24) + " j" : h + " h " + String(m).padStart(2, "0"); };
-  return (
-    <div style={{ background: ok ? `linear-gradient(135deg, ${C.tealDim}, transparent 60%), ${C.card}` : `linear-gradient(135deg, ${C.redDim}, transparent 60%), ${C.card}`, border: `1px solid ${(ok ? C.teal : C.red) + "55"}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: rows.length ? 12 : 0 }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, background: (ok ? C.teal : C.red) + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{ok ? "✓" : "✕"}</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: ok ? C.teal : C.red }}>{ok ? "Tu peux trader" : "Stop pour aujourd'hui"}</div>
-          <div className="tnum" style={{ fontSize: 12.5, color: C.textSecondary }}>{ok ? <>Encore <b style={{ color: C.text }}>{tradesLeft >= 99 ? "∞" : tradesLeft} trade{tradesLeft > 1 ? "s" : ""}</b> à {fmtUsd0(riskPer)} de risque{Number.isFinite(left) ? <> · marge {fmtUsd0(left)}</> : null}</> : "Une limite de ton plan est atteinte."}</div>
-        </div>
-      </div>
-      {rows.length > 0 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${rows.length}, minmax(0,1fr))`, gap: 8 }}>
-        {rows.map((r) => <div key={r.k} style={{ padding: "9px 10px", borderRadius: 12, background: C.card, border: `1px solid ${C.border}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.textMuted, fontWeight: 600 }}><span>{r.k}</span><span>reset {cd(r.reset)}</span></div>
-          <div className="tnum" style={{ fontSize: 15, fontWeight: 700, color: r.used >= 0.8 ? C.red : C.text, marginTop: 3 }}>{fmtUsd0(r.left)}<span style={{ fontSize: 11, color: C.textMuted, fontWeight: 500 }}> / {fmtUsd0(r.max)}</span></div>
-          <div style={{ height: 5, borderRadius: 3, background: C.border, marginTop: 6, overflow: "hidden" }}><div className="grow-x" style={{ width: r.used * 100 + "%", height: "100%", background: r.used >= 0.8 ? C.red : r.used >= 0.5 ? C.amber : C.teal }} /></div>
-        </div>)}
-      </div>}
-    </div>
-  );
-}
 
 /* ── Check-list pré-session (bloque « Nouveau trade » tant qu'elle n'est pas cochée) ── */
 const CHECK_DEFAULT = ["J'ai regardé le calendrier économique", "Je connais mon biais (HTF)", "Je suis reposé et concentré", "Je respecte mon risque max"];
 const checkKey = () => "check_" + dayKey(new Date().toISOString());
 function loadChecks() { try { return JSON.parse(localStorage.getItem(checkKey()) || "[]"); } catch { return []; } }
 function checklistDone() { const r = loadRules(); const items = r.checklist && r.checklist.length ? r.checklist : CHECK_DEFAULT; if (r.checklistOn === false) return true; const c = loadChecks(); return items.every((_, i) => c.includes(i)); }
-function ChecklistCard({ onDone, compact }) {
-  const r = loadRules(); const items = r.checklist && r.checklist.length ? r.checklist : CHECK_DEFAULT;
-  const [c, setC] = useState(loadChecks);
-  if (r.checklistOn === false) return null;
-  const tog = (i) => { const n = c.includes(i) ? c.filter((x) => x !== i) : [...c, i]; setC(n); try { localStorage.setItem(checkKey(), JSON.stringify(n)); } catch {} if (items.every((_, j) => n.includes(j))) onDone && onDone(); };
-  const all = items.every((_, i) => c.includes(i));
-  if (all && compact) return <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 14, background: C.tealDim, border: `1px solid ${C.teal}40`, marginBottom: 14, fontSize: 13, fontWeight: 600, color: C.teal }}>✓ Check-list du jour faite · bonne session</div>;
-  return (
-    <div style={{ background: C.card, border: `1px solid ${all ? C.teal + "55" : C.amber + "66"}`, borderRadius: 18, padding: "14px 16px", marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><span style={{ fontSize: 14.5, fontWeight: 700 }}>Check-list avant de trader</span><span className="tnum" style={{ fontSize: 12, fontWeight: 700, color: all ? C.teal : C.amber }}>{c.filter((i) => i < items.length).length}/{items.length}</span></div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {items.map((t, i) => { const on = c.includes(i); return <button key={i} onClick={() => tog(i)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", borderRadius: 11, border: `1px solid ${on ? C.teal + "55" : C.border}`, background: on ? C.tealDim : "transparent", color: C.text, fontSize: 13.5, fontWeight: 500, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-          <span style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${on ? C.teal : C.borderLight}`, background: on ? C.teal : "transparent", color: "#fff", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{on ? "✓" : ""}</span>{t}</button>; })}
-      </div>
-      {!all && <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>« Nouveau trade » se débloque quand tout est coché.</div>}
-    </div>
-  );
-}
 
 /* ── Récap de la semaine ── */
 function WeekRecap({ trades }) {
@@ -8886,13 +7775,6 @@ const APPROX_RATES = {
   USDCAD: 1.37, USDCHF: 0.90, USDJPY: 149.5, EURJPY: 161, GBPJPY: 189,
 };
 
-function calcPipValueUSD(pair) {
-  const info = FOREX_PAIRS[pair];
-  if (!info) return 10;
-  if (info.pipVal !== null) return info.pipVal;
-  const rate = APPROX_RATES[pair] || 1;
-  return info.pipUSD ? info.pipUSD(rate) : 10;
-}
 
 // ── Calculatrice de position : tous les actifs, taux en direct, saisie par prix ou en pips ──
 const CCYS = ["EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF", "JPY"];
@@ -9082,14 +7964,6 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   );
 }
 
-function CalcResult({ label, value, color, highlight }) {
-  return (
-    <div style={{ padding: "12px 14px", background: highlight ? C.purpleDim : C.bg, borderRadius: 8, border: `1px solid ${highlight ? C.purple : C.border}` }}>
-      <div style={{ fontSize: 10.5, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600, marginBottom: 5 }}>{label}</div>
-      <div className="tnum" style={{ fontSize: 18, fontWeight: 700, color: color || (highlight ? C.purpleBright : C.text) }}>{value}</div>
-    </div>
-  );
-}
 
 const CORRECT_PIN = "1234"; // PIN par défaut — changeable dans les settings
 
@@ -9423,7 +8297,7 @@ async function flushSettings() {
     const m = setPendGet();
     if (!Object.keys(m).length) return true;
     try {
-      await sbWrite("settings", "/settings?on_conflict=id", "POST", { id: "main", ...m }, "resolution=merge-duplicates,return=minimal");
+      await sbWrite("settings", "/settings?on_conflict=id", "POST", { id: "main", ...m, updated_at: new Date().toISOString() }, "resolution=merge-duplicates,return=minimal");
       const cur = setPendGet(); Object.keys(m).forEach((k) => { if (JSON.stringify(cur[k]) === JSON.stringify(m[k])) delete cur[k]; });
       try { localStorage.setItem(SET_PENDING_KEY, JSON.stringify(cur)); } catch {}
       return true;
@@ -10027,8 +8901,12 @@ function BacktestBot() {
   );
 }
 
+/* le graphique ne se redessine plus à chaque trade enregistré dans le site : replay fluide même avec des milliers de trades */
+const BacktestLabMemo = React.memo(BacktestLab);
 function BacktestPage(props) {
   const [tab, setTab] = useState("chart");
+  const PR = useRef(props); PR.current = props;
+  const stable = useMemo(() => ({ onSave: (t) => PR.current.onSave(t), onDelete: (id) => PR.current.onDelete(id), getApp: () => PR.current.trades }), []);
   useEffect(() => { const h = () => setTab("chart"); window.addEventListener("tjp-bt-goto", h); window.addEventListener("tjp-bot-live", h); return () => { window.removeEventListener("tjp-bt-goto", h); window.removeEventListener("tjp-bot-live", h); }; }, []);
   /* anciens trades de replay entre -0,1 R et +0,1 R : enregistrés comme BE (0 R), pas comme perdants */
   useEffect(() => {
@@ -10050,8 +8928,10 @@ function BacktestPage(props) {
         <button onClick={() => setTab("chart")} style={tb(tab === "chart")}><TvLogoIcon size={16} />Graphique</button>
         <button onClick={() => setTab("stats")} style={tb(tab === "stats")}><BarChart3 size={16} />Saisie & stats <span style={{ fontSize: 12, opacity: 0.8 }}>{n}</span></button>
         <button onClick={() => setTab("bot")} style={tb(tab === "bot")}><Cpu size={16} />Bot</button>
+        <div style={{ flex: 1 }} />
+        <button title="Ce que tes backtests prouvent : edge par setup, risque conseillé, meilleur TP" onClick={() => window.dispatchEvent(new CustomEvent("tjp-goto", { detail: "progression" }))} style={tb(false)}><Trophy size={16} />Progression</button>
       </div>
-      <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLab onSave={props.onSave} onDelete={props.onDelete} appTrades={props.trades} /></div>
+      <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLabMemo {...stable} /></div>
       {tab === "stats" && <BacktestView {...props} />}
       {tab === "bot" && <BacktestBot />}
     </div>
@@ -10339,11 +9219,37 @@ export default function TradingJournalApp() {
     loadingRef.current = loadDataInner(silent).finally(() => { loadingRef.current = null; });
     return loadingRef.current;
   }, []); // eslint-disable-line
+  const lastFullRef = React.useRef(0), lastSetRef = React.useRef({ at: 0, u: null });
   const loadDataInner = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
+      /* Rafraîchissement léger : on ne télécharge que la liste (id, updated_at) puis seulement les trades modifiés.
+         Avant : toute la table toutes les 10 s. Supabase reste léger et le site fluide. */
+      if (silent && tradesRef.current.length && Date.now() - lastFullRef.current < 15 * 60000) {
+        const lite = await sbFetch("/trades?select=id,updated_at");
+        const tomb = tombGet(), pend = pendGet();
+        const loc = new Map(tradesRef.current.map((t) => [String(t.id), String(t.updatedAt || 0)]));
+        const ids = new Set((lite || []).map((r) => String(r.id)));
+        const changed = (lite || []).filter((r) => !tomb[String(r.id)] && !pend[r.id] && loc.get(String(r.id)) !== String(r.updated_at || 0)).map((r) => String(r.id));
+        const gone = tradesRef.current.filter((t) => !ids.has(String(t.id)) && !pend[t.id]).map((t) => String(t.id));
+        if (changed.length <= 150) {
+          if (changed.length || gone.length) {
+            let fresh = [];
+            for (let i = 0; i < changed.length; i += 50) { const part = changed.slice(i, i + 50).map((x) => '"' + x.replace(/"/g, '\\"') + '"').join(","); fresh = fresh.concat(((await sbFetch("/trades?id=in.(" + encodeURIComponent(part) + ")")) || []).map(dbToTrade)); }
+            const fm = new Map(fresh.map((t) => [String(t.id), t])), goneS = new Set(gone);
+            let next = tradesRef.current.filter((t) => !goneS.has(String(t.id))).map((t) => fm.get(String(t.id)) || t);
+            const have = new Set(next.map((t) => String(t.id))); fresh.forEach((t) => { if (!have.has(String(t.id))) next.push(t); });
+            next.sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
+            tradesRef.current = next; setTrades(next); writeLocalSoon(next);
+          }
+          try { await syncSettings(false); } catch (e) {}
+          setDbError(null);
+          return;
+        }
+      }
       // Charge directement depuis Supabase — source de vérité
       const rows = await sbFetch("/trades?order=entry_time.desc");
+      lastFullRef.current = Date.now();
       let remote = (rows || []).map(dbToTrade);
       // Un trade supprimé ici qui revient du serveur : on le cache et on relance sa suppression
       const tomb = tombGet();
@@ -10404,8 +9310,31 @@ export default function TradingJournalApp() {
       if (Object.keys(pendGet()).length) flushPending();
       // Sauvegarde locale pour fallback offline
       if (!same) try { localStorage.setItem(LS_KEY, JSON.stringify(remote)); } catch {}
-      // Settings
+      await syncSettings(true);
+      setDbError(null);
+    } catch (e) {
+      console.error("Erreur Supabase:", e);
+      // Fallback localStorage si Supabase down
+      try {
+        const local = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+        if (local.length > 0 && !tradesRef.current.length) { setTrades(local); }
+        if (local.length > 0) setDbError("Mode hors ligne — données locales");
+      } catch {}
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+  /* réglages (sessions de backtest, plan, comptes…) : téléchargés seulement s'ils ont changé */
+  const syncSettings = async (force) => {
+    const L0 = lastSetRef.current;
+    if (!force) {
+      if (Date.now() - L0.at < 60000) return; L0.at = Date.now();
+      const lite = await sbFetch("/settings?id=eq.main&select=updated_at"); const u = lite && lite[0] ? String(lite[0].updated_at || "") : "";
+      if (u && u === L0.u) return;
+    }
+    {
       const settingsRows = await sbFetch("/settings?id=eq.main");
+      L0.at = Date.now(); L0.u = settingsRows && settingsRows[0] ? String(settingsRows[0].updated_at || "") : null;
       const setPend = setPendGet();
       if ((settingsRows && settingsRows.length > 0) || Object.keys(setPend).length) {
         // Les changements pas encore envoyés gagnent sur la version serveur
@@ -10446,16 +9375,6 @@ export default function TradingJournalApp() {
           try { localStorage.setItem("previsions_news", JSON.stringify(r.previsions_news)); } catch {}
         }
       }
-      setDbError(null);
-    } catch (e) {
-      console.error("Erreur Supabase:", e);
-      // Fallback localStorage si Supabase down
-      try {
-        const local = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
-        if (local.length > 0) { setTrades(local); setDbError("Mode hors ligne — données locales"); }
-      } catch {}
-    } finally {
-      if (!silent) setLoading(false);
     }
   };
 
@@ -10466,7 +9385,7 @@ export default function TradingJournalApp() {
     // WebSocket Realtime Supabase — sync instantané
     let ws = null;
     let wsReconnectTimer = null;
-    let heartbeatTimer = null;
+    let heartbeatTimer = null, wsDeb = null, lastPoll = 0;
 
     const connectRealtime = () => {
       try {
@@ -10479,7 +9398,7 @@ export default function TradingJournalApp() {
         ws.onmessage = (e) => {
           try {
             const msg = JSON.parse(e.data);
-            if (msg.event === "postgres_changes" || msg.payload?.data?.type) loadData(true);
+            if (msg.event === "postgres_changes" || msg.payload?.data?.type) { clearTimeout(wsDeb); wsDeb = setTimeout(() => loadData(true), 1500); }
           } catch {}
         };
         ws.onclose = () => { clearInterval(heartbeatTimer); wsReconnectTimer = setTimeout(connectRealtime, 3000); };
@@ -10490,12 +9409,12 @@ export default function TradingJournalApp() {
     connectRealtime();
 
     // Polling fallback 10s
-    const interval = setInterval(() => loadData(true), 10000);
+    const interval = setInterval(() => { if (document.visibilityState === "visible") loadData(true); }, 30000);
 
     // Refresh au retour sur l'app
-    const onVisible = () => { if (document.visibilityState === "visible") loadData(true); };
+    const onVisible = () => { if (document.visibilityState === "visible" && Date.now() - lastPoll > 8000) { lastPoll = Date.now(); loadData(true); } };
     document.addEventListener("visibilitychange", onVisible);
-    const onFocus = () => loadData(true);
+    const onFocus = () => { if (Date.now() - lastPoll > 8000) { lastPoll = Date.now(); loadData(true); } };
     window.addEventListener("focus", onFocus);
 
     return () => {
@@ -10534,6 +9453,9 @@ export default function TradingJournalApp() {
   };
 
   const openEditTrade = (trade) => { setEditingTrade(trade); setView("tradeForm"); };
+  React.useEffect(() => { const h = (e) => e.detail && setView(e.detail); window.addEventListener("tjp-goto", h); return () => window.removeEventListener("tjp-goto", h); }, []);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  React.useEffect(() => { const h = () => setReviewOpen(true); window.addEventListener("tjp-review", h); return () => window.removeEventListener("tjp-review", h); }, []);
   const openTradeDetail = (id) => { setActiveTradeId(id); setView("tradeDetail"); };
   const setupOptions = useMemo(() => [...new Set(trades.map((t) => t.setup).filter(Boolean))], [trades]);
 
@@ -10550,7 +9472,11 @@ export default function TradingJournalApp() {
   };
   const tradesRef = React.useRef(trades);
   tradesRef.current = trades;
-  const writeLocal = (list) => { try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch {} };
+  /* sauvegarde locale différée : un gros JSON n'est plus réécrit à chaque trade (fluidité du replay) */
+  const wlRef = React.useRef(null);
+  const writeLocalSoon = (list) => { clearTimeout(wlRef.current); wlRef.current = setTimeout(() => { const go = () => { try { localStorage.setItem(LS_KEY, JSON.stringify(tradesRef.current)); } catch {} }; if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 3000 }); else go(); }, 1200); };
+  const writeLocal = writeLocalSoon;
+  React.useEffect(() => { const f = () => { try { localStorage.setItem(LS_KEY, JSON.stringify(tradesRef.current)); } catch {} }; window.addEventListener("pagehide", f); return () => window.removeEventListener("pagehide", f); }, []);
 
   // ── Sauvegarder un trade (ajout ou modification) ──
   const saveTrade = async (trade) => {
@@ -10649,7 +9575,7 @@ export default function TradingJournalApp() {
     return initial + closed.reduce((s, t) => s + (t.resultUsd || 0), 0);
   }, [accountTrades, initialBalance]);
 
-  const titles = { backtest: "Backtesting", dashboard: "Dashboard", trades: "Mes trades", tradeDetail: "Détail du trade", tradeForm: editingTrade && !editingTrade._draft ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier", playbooks: "Playbooks" };
+  const titles = { erreurs: "Mes erreurs", progression: "Progression", backtest: "Backtesting", dashboard: "Dashboard", trades: "Mes trades", tradeDetail: "Détail du trade", tradeForm: editingTrade && !editingTrade._draft ? "Modifier le trade" : "Nouveau trade", stats: "Statistiques", calculator: "Calculatrice", coach: "IA Coach", settings: "Réglages", calendar: "Calendrier", playbooks: "Playbooks" };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT.base }}>
@@ -10695,7 +9621,7 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <Dashboard extra={<>{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} />}<ScoreCard trades={accountTrades} balance={initialBalance} /><WeekRecap trades={accountTrades} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
+              {view === "dashboard" && <Dashboard extra={<><CanTradeCard trades={accountTrades} balance={initialBalance} acc={cumulMode ? null : activeAccount} /><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} /><ProgressCard all={trades} live={accountTrades} onOpen={() => setView("progression")} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} />}<ScoreCard trades={accountTrades} balance={initialBalance} /><WeekRecap trades={accountTrades} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
               {view === "backtest" && <BacktestPage trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
@@ -10705,6 +9631,8 @@ export default function TradingJournalApp() {
                 <TradeFormV2 initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} trades={accountTrades} />
               )}
               {view === "stats" && <SimpleStats trades={accountTrades} />}
+              {view === "progression" && <Progression all={trades} live={accountTrades} balance={initialBalance} />}
+              {view === "erreurs" && <ErrorsPage trades={accountTrades} appSettings={appSettings} balance={initialBalance} onOpenTrade={openTradeDetail} />}
               {view === "playbooks" && <Playbooks trades={accountTrades} />}
               {view === "calculator" && <ForexCalculator balance={currentBalance} pairs={appSettings?.pairs || []} onCreateTrade={openDraftTrade} />}
               {view === "plan" && <PlanDeTrading trades={accountTrades} balance={initialBalance} />}
@@ -10718,6 +9646,7 @@ export default function TradingJournalApp() {
         </main>
       </div>
       <PhotoZoom />
+      {reviewOpen && <ReviewQueue trades={accountTrades} appSettings={appSettings} onPatch={(id, p) => patchTrade(id, p, 600)} onClose={() => setReviewOpen(false)} />}
       {toast && (
         <div style={{
           position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
