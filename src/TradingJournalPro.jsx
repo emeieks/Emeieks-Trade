@@ -1948,6 +1948,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     const cv = ovRef.current, box = boxRef.current; if (!cv || !box || !R.chart || !R.agg || !R.rows) return;
     const W = box.clientWidth, H = box.clientHeight, d = window.devicePixelRatio || 1;
     if (cv.width !== W * d || cv.height !== H * d) { cv.width = W * d; cv.height = H * d; }
+    /* taille affichée = taille du graphique (sinon décalage en 2 graphiques sur écran Retina) */
+    if (cv.style.width !== W + "px" || cv.style.height !== H + "px") { cv.style.width = W + "px"; cv.style.height = H + "px"; }
     const c = cv.getContext("2d"); c.setTransform(d, 0, 0, d, 0, 0); c.clearRect(0, 0, W, H);
     const psw = R.chart.priceScale("right").width(), tsh = R.chart.timeScale().height(); const cw = W - psw, ch = H - tsh;
     c.save(); c.beginPath(); c.rect(0, 0, cw, ch); c.clip();
@@ -2533,7 +2535,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
               {fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={id} title={TV_TOOLS[id].n} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><TvIcon id={id} /></TvBtn>)}
             </div>
           )}
-          <canvas ref={ovRef} style={{ position: "absolute", ...lay[0], width: lay[0].inset === 0 ? "100%" : undefined, height: lay[0].inset === 0 ? "100%" : undefined, pointerEvents: "none", zIndex: 3 }} />
+          <canvas ref={ovRef} style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 3 }} />
           {/* pas de bougies inventées : sans tes données Dukascopy, le graphique reste vide */}
           {demo && <div style={{ position: "absolute", inset: 0, zIndex: 30, background: TV.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, textAlign: "center", padding: 24 }}>
             <div style={{ fontSize: 18, fontWeight: 600 }}>Aucune donnée réelle chargée sur cet appareil</div>
