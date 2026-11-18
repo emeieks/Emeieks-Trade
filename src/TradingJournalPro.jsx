@@ -1441,7 +1441,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const [tz, setTzS] = useState(() => { try { return localStorage.getItem("tjp_tv_tz") || "ny"; } catch (e) { return "ny"; } });
   const setTz = (v) => { setTzS(v); R.tz = v; try { localStorage.setItem("tjp_tv_tz", v); } catch (e) {} };
   if (R.tz === undefined) R.tz = tz;
-  const [legend, setLegend] = useState(null);
+  const setLegend = (b) => { R.legBar = b; if (R.setLeg) R.setLeg(b); }; /* légende OHLC : petit composant à part, le graphique ne se re-rend plus quand la souris bouge */
   const [fs, setFsS] = useState(false); const [zen, setZen] = useState(false);
   const setFs = (v) => { setZen(false); setFsS(v); };
   const [live, setLive] = useState(false);
@@ -1563,7 +1563,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   function uiTick() {
     R.dirty = true; const now = performance.now();
     const go = () => { R.uiT = performance.now(); if (R.unseenAdd) { const n = R.unseenAdd; R.unseenAdd = 0; setUnseen((u) => u + n); } setLegend(liveBar()); force((x) => x + 1); };
-    if (now - (R.uiT || 0) > 120) go(); else if (!R.uiPend) R.uiPend = setTimeout(() => { R.uiPend = null; go(); }, 130);
+    if (now - (R.uiT || 0) > 200) go(); else if (!R.uiPend) R.uiPend = setTimeout(() => { R.uiPend = null; go(); }, 210); /* interface 5 fois/s max, le graphique suit chaque bougie */
   }
   /* nouvelle année : remet Replay Trading à zéro, garde le résultat (les trades sont déjà enregistrés) */
   function yearCheck(t) {
@@ -2358,8 +2358,6 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   };
 
   /* ---------- rendu ---------- */
-  const lb = legend; const prevC = R.agg && R.k > 0 ? R.agg.bars[R.k - 1].close : null;
-  const chg = lb && prevC ? lb.close - prevC : 0; const lcol = chg >= 0 ? TV.green : TV.red;
   const closed = R.trades.filter((t) => t.status === "closed"), opened = R.trades.filter((t) => t.status !== "closed");
   const upnl = opened.filter((t) => t.status === "open").reduce((a, t) => a + (((t.side > 0 ? bid() : ask()) - t.entry) * t.side / TV_PIP) * TV_PIPVAL * t.lots, 0);
   const wins = closed.filter((t) => t.pnl > 0), gw = wins.reduce((a, t) => a + t.pnl, 0), gl = -closed.filter((t) => t.pnl <= 0).reduce((a, t) => a + t.pnl, 0);
@@ -2547,7 +2545,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             <div style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 14 }}>
               <b style={{ fontWeight: 600 }}>Euro / U.S. Dollar · {tfName} · Dukascopy</b>
               {demo && <span style={{ fontSize: 11, fontWeight: 700, color: TV.red }}>DONNÉES DÉMO</span>}
-              {lb && <span style={{ fontSize: 13, color: lcol }}>O<span>{lb.open.toFixed(TV_DIG)}</span> H{lb.high.toFixed(TV_DIG)} B{lb.low.toFixed(TV_DIG)} C{lb.close.toFixed(TV_DIG)} {chg >= 0 ? "+" : ""}{(chg / TV_PIP).toFixed(1)} ({prevC ? ((chg / prevC) * 100).toFixed(2) : "0.00"}%)</span>}
+              <TvLegend R={R} />
             </div>
             {indList.filter(([n]) => indFav.includes(n)).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, pointerEvents: "auto" }}>
               {indList.filter(([n]) => indFav.includes(n)).map(([n, on, fn]) => <span key={n} onClick={() => fn(!on)} title={on ? "Masquer" : "Afficher"} style={{ cursor: "pointer", fontSize: 12, padding: "1px 7px", borderRadius: 4, border: `1px solid ${TV.border}`, background: "#fff", color: on ? TV.text : TV.muted, textDecoration: on ? "none" : "line-through", userSelect: "none" }}>{on ? "👁" : "◌"} {n}</span>)}
@@ -2824,6 +2822,13 @@ function TvNewSession({ list, onClose, onCreate, onDelete }) {
   );
 }
 
+function TvLegend({ R }) {
+  const [lb, set] = useState(R.legBar || null);
+  useEffect(() => { R.setLeg = set; return () => { if (R.setLeg === set) R.setLeg = null; }; }, []);
+  if (!lb) return null; const prevC = R.agg && R.k > 0 ? R.agg.bars[R.k - 1].close : null; const chg = prevC ? lb.close - prevC : 0; const lcol = chg >= 0 ? TV.green : TV.red;
+  return <span style={{ fontSize: 13, color: lcol }}>O<span>{lb.open.toFixed(TV_DIG)}</span> H{lb.high.toFixed(TV_DIG)} B{lb.low.toFixed(TV_DIG)} C{lb.close.toFixed(TV_DIG)} {chg >= 0 ? "+" : ""}{(chg / TV_PIP).toFixed(1)} ({prevC ? ((chg / prevC) * 100).toFixed(2) : "0.00"}%)</span>;
+}
+
 /* graphique secondaire synchronisé sur le replay (autre timeframe), comme les dispositions de TradingView */
 function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R }) {
   const box = useRef(null), cv = useRef(null), S = useRef({}).current; S.tz = tz; S.rows = rows; S.R = R; S.min = min;
@@ -2851,17 +2856,21 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R 
     }
     g.restore();
   };
-  S.redraw = redraw;
+  /* un seul dessin par image, et seulement si quelque chose a changé */
+  S.redraw = () => { if (S.raf) return; S.raf = requestAnimationFrame(() => { S.raf = 0; redraw(); }); };
   useEffect(() => {
     const ch = createChart(box.current, { autoSize: true, layout: { background: { color: TV.bg }, textColor: TV.text, fontSize: 11, fontFamily: TV_FONT }, grid: { vertLines: { visible: false }, horzLines: { visible: false } }, crosshair: { mode: 0 }, rightPriceScale: { borderColor: TV.border, scaleMargins: { top: 0.12, bottom: 0.08 } }, timeScale: { borderColor: TV.border, timeVisible: true, rightOffset: 10, barSpacing: 6, tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }, localization: { locale: "fr-FR", timeFormatter: (t) => tvFmtTime(t, S.tz, "full") } });
     S.ch = ch; S.se = ch.addCandlestickSeries({ priceLineVisible: false, upColor: cfg.up, downColor: cfg.down, borderUpColor: cfg.down, borderDownColor: cfg.down, wickUpColor: cfg.down, wickDownColor: cfg.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
     ch.timeScale().subscribeVisibleLogicalRangeChange(() => S.redraw && S.redraw());
-    const iv = setInterval(() => S.redraw && S.redraw(), 250);
+    const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci; for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp; return s; };
+    const iv = setInterval(() => { const sg = sigOf(); if (sg !== S.lastSig) { S.lastSig = sg; S.redraw(); } }, 400);
     /* curseur synchronisé dans les deux sens */
     const toMini = (p) => { const RR = S.R; if (!S.A || !RR || !RR.series || RR.xLock === "mini") return; if (!p || p.time === undefined || !p.point) { try { ch.clearCrosshairPosition(); } catch (e) {} return; } const pr = RR.series.coordinateToPrice(p.point.y); const k = tvBs(S.A.start, tvBsRows(S.rows, p.time)); if (k < 0 || pr == null) return; RR.xLock = "main"; try { ch.setCrosshairPosition(pr, S.A.bars[k].time, S.se); } catch (e) {} RR.xLock = null; };
     const fromMini = (p) => { const RR = S.R; if (!RR || !RR.chart || !RR.agg || RR.xLock === "main") return; if (!p || p.time === undefined || !p.point) { try { RR.chart.clearCrosshairPosition(); } catch (e) {} return; } const pr = S.se.coordinateToPrice(p.point.y); const k = tvBs(RR.agg.start, tvBsRows(S.rows, p.time)); if (k < 0 || pr == null) return; RR.xLock = "mini"; try { RR.chart.setCrosshairPosition(pr, RR.agg.bars[k].time, RR.series); } catch (e) {} RR.xLock = null; };
-    ch.subscribeCrosshairMove(fromMini); const mainCh = S.R && S.R.chart; if (mainCh) mainCh.subscribeCrosshairMove(toMini);
-    return () => { clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMini); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
+    const thr = (fn) => { let q = null, f = 0; return (p) => { q = p; if (f) return; f = requestAnimationFrame(() => { f = 0; fn(q); }); }; };
+    const fromMiniT = thr(fromMini), toMiniT = thr(toMini);
+    ch.subscribeCrosshairMove(fromMiniT); const mainCh = S.R && S.R.chart; if (mainCh) mainCh.subscribeCrosshairMove(toMiniT);
+    return () => { clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMiniT); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
   }, []);
   useEffect(() => { if (S.ch) S.ch.timeScale().applyOptions({ tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }); }, [blind, tz]);
   useEffect(() => {
@@ -2874,7 +2883,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R 
     const sig = trades.filter((t) => t.status !== "closed").map((t) => [t.entry, t.sl, t.tp].join()).join("|");
     if (sig !== S.sig) { S.sig = sig; (S.lines || []).forEach((l) => S.se.removePriceLine(l)); S.lines = [];
       for (const t of trades) if (t.status !== "closed") [[t.entry, "#787b86"], [t.sl, TV.red], [t.tp, TV.green]].forEach(([p, c]) => S.lines.push(S.se.createPriceLine({ price: p, color: c, lineWidth: 1, lineStyle: 2, axisLabelVisible: true }))); }
-  });
+  }, [ci, min, rows, trades.length, trades.map((x) => x.status + x.sl + x.tp).join()]);
   return (
     <div style={{ position: "absolute", ...pos, background: TV.bg, borderLeft: pos.left === "50%" ? `4px solid ${TV.hover}` : "none", borderTop: pos.top === "50%" ? `4px solid ${TV.hover}` : "none", zIndex: 2 }}>
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
