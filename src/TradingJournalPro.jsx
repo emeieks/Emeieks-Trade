@@ -154,7 +154,7 @@ function killzoneLabel(isoDate) {
   return kz ? (kz.name === "New York Matin" ? "NY AM" : kz.name === "New York Après-midi" ? "NY PM" : kz.name) : "Hors killzone";
 }
 
-function KillzoneBanner() {
+function KillzoneBanner({ part = "all" }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30000);
@@ -193,7 +193,7 @@ function KillzoneBanner() {
   return (
     <>
       {/* Banderole news économique */}
-      {newsAlert && (
+      {part !== "ticker" && newsAlert && (
         <div style={{
           background: newsAlert.isToday ? C.red : "rgba(220,38,38,0.85)",
           padding: "5px 18px",
@@ -210,14 +210,13 @@ function KillzoneBanner() {
         </div>
       )}
 
-      {/* Ticker killzone */}
-      <div style={{
-        background: C.sidebar,
-        borderBottom: `1px solid ${C.sidebarBorder}`,
-        padding: "0 18px",
-        height: 32,
+      {/* Ticker killzone : dans la barre du haut, sur la même ligne que le logo */}
+      {part !== "news" && <div style={{
+        flex: 1, minWidth: 0,
+        padding: "0 12px",
+        height: 28,
         display: "flex", alignItems: "center", gap: 0,
-        overflow: "hidden",
+        overflow: "hidden", whiteSpace: "nowrap",
       }}>
         <div style={{ position: "relative", width: 18, height: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 8 }}>
           {active && <div style={{ position: "absolute", width: 12, height: 12, borderRadius: "50%", background: active.color, opacity: 0.2 }} />}
@@ -244,7 +243,7 @@ function KillzoneBanner() {
           <span style={{ fontSize: 11, color: C.sidebarTextDim }}>Marché fermé — Weekend</span>
         ) : null}
 
-      </div>
+      </div>}
     </>
   );
 }
@@ -598,6 +597,7 @@ function GlobalStyle() {
       @media (max-width: 600px) { .desktop-only { display: none !important; } }
       @media (min-width: 601px) { .mobile-only { display: none !important; } }
       @media (max-width: 600px) { .hide-sm { display: none !important; } }
+      .never { display: none !important; }
       @media (min-width: 601px) and (max-width: 1024px) { .tablet-hide { display: none !important; } }
 
       /* ---- Responsive grid utilities : remplacent les grids inline fixes ---- */
@@ -1152,6 +1152,9 @@ const TV_TFS = [["15m", 15], ["30m", 30], ["1h", 60], ["2h", 120], ["3h", 180], 
 const TV_PAIR = "EURUSD", TV_PIP = 0.0001, TV_PIPVAL = 10, TV_DIG = 5, TV_SPREAD = 0.2;
 const TV_FONT = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 const TV_TFLAB = { 15: "M15", 30: "M30", 60: "H1", 120: "H2", 180: "H3", 240: "H4", 360: "H6", 480: "H8", 720: "H12", 1440: "D", 10080: "W", 43200: "M" };
+/* couleurs des annonces : différentes des killzones (vert, bleu, rouge, violet, orange) et des rectangles */
+const TV_NEWS_COL = { NFP: "#e91e63", CPI: "#00acc1", FOMC: "#8d6e63" };
+const tvRgba = (h, a) => `rgba(${parseInt(h.slice(1, 3), 16)},${parseInt(h.slice(3, 5), 16)},${parseInt(h.slice(5, 7), 16)},${a})`;
 const TV_ZONE = { OB: "#2962ff", SIBI: "#f23645", BISI: "#089981", BB: "#9c27b0", IFVG: "#f5b700" };
 const TV_LIQ = { BSL: "#8b0000", SSL: "#089981" };
 /* annonces US : CPI (BLS, 8h30 NY) et FOMC (Fed, communiqué 14h15 jusqu'en 2012 puis 14h00 NY) */
@@ -1175,9 +1178,9 @@ const TV_CFG0 = {
   lv: { pd: true, pw: true, pdh: true, pdl: true, pwh: true, pwl: true, pdColor: "#131722", pwColor: "#2962ff" },
   st: { swings: false, bos: false, mss: false, eq: false, fvg: false, len: 3 },
   grid: false, hideFlat: true, up: "#7fd1bd", down: "#131722",
-  cap: 50000, slP: 15, rr: 1, risk: 1, qty: 1, yearReset: true, showClosed: false, autoBE: true, autoBEpct: 50, layout: "1", ltf: [60, 15, 1440], miss: false,
+  cap: 50000, slP: 15, rr: 1, risk: 1, qty: 1, yearReset: true, showClosed: false, autoBE: true, autoBEpct: 50, layout: "2v", ltf: [240, 15, 1440], miss: false,
 };
-function tvLoadCfg() { try { const v = JSON.parse(localStorage.getItem("tjp_tv_cfg")); if (v && !v.rr11) { v.rr = 1; v.rr11 = true; } if (v && !v.risk1) { v.risk = 1; v.risk1 = true; } if (v) return { ...TV_CFG0, ...v, kz: { ...TV_CFG0.kz, ...v.kz, color: { ...TV_CFG0.kz.color, ...(v.kz || {}).color } }, lv: { ...TV_CFG0.lv, ...v.lv }, st: { ...TV_CFG0.st, ...(v.st || {}) } }; } catch (e) {} return TV_CFG0; }
+function tvLoadCfg() { try { const v = JSON.parse(localStorage.getItem("tjp_tv_cfg")); if (v && !v.rr11) { v.rr = 1; v.rr11 = true; } if (v && !v.risk1) { v.risk = 1; v.risk1 = true; } if (v && !v.lay2) { v.lay2 = true; v.layout = "2v"; v.ltf = [240, 15, 1440]; v.tf = 15; } if (v) return { ...TV_CFG0, ...v, kz: { ...TV_CFG0.kz, ...v.kz, color: { ...TV_CFG0.kz.color, ...(v.kz || {}).color } }, lv: { ...TV_CFG0.lv, ...v.lv }, st: { ...TV_CFG0.st, ...(v.st || {}) } }; } catch (e) {} return TV_CFG0; }
 const tvHm = (s) => { const [h, m] = String(s).split(":").map(Number); return (h || 0) * 60 + (m || 0); };
 /* sessions de backtest (titre, position du replay, dessins, positions) */
 function tvLoadSess() { try { const v = JSON.parse(localStorage.getItem("tjp_bt_sess")); if (v && v.list && v.list.length) return v; } catch (e) {} return { cur: "s1", list: [{ id: "s1", title: "Backtest libre", ci: null, tf: 240, draws: [], trades: [] }] }; }
@@ -1902,7 +1905,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     const on = { NFP: !!R.cfg.news, CPI: !!R.cfg.cpi, FOMC: !!R.cfg.fomc }; if (!(on.NFP || on.CPI || on.FOMC) || !R.agg || R.agg.min > 1440) return;
     const ts = R.chart.timeScale(), lr = ts.getVisibleLogicalRange(); if (!lr) return;
     const A = R.agg, t0 = A.bars[Math.max(0, Math.floor(lr.from))].time, t1 = A.bars[Math.min(R.k, Math.ceil(lr.to))].time + A.min * 60 * 40;
-    const col = { NFP: "#f23645", CPI: "#ff9800", FOMC: "#2962ff" }; c.font = "600 10px " + TV_FONT;
+    const col = TV_NEWS_COL; c.font = "600 10px " + TV_FONT;
     const now = R.rows[R.ci][0], lastX = {};
     for (const ev of newsList()) {
       if (!on[ev.n] || ev.t < t0 || ev.t - 86400 > t1 || ev.t - 86400 > now) continue;
@@ -1911,7 +1914,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       { const xa = tToX(ev.t - 86400); if (xa !== null && R.agg.min <= 240) {
         const i0 = tvBsBars(A.bars, ev.t - 86400), i1 = Math.min(R.k, tvBsBars(A.bars, Math.min(ev.t, now))); let hi = -1e9, lo = 1e9;
         for (let q = Math.max(0, i0); q <= i1; q++) { const b = q === R.k ? liveBar() : A.bars[q]; if (b.high > hi) hi = b.high; if (b.low < lo) lo = b.low; }
-        if (hi > lo) { const ya = pToY(hi), yb = pToY(lo), xb = Math.min(x, tToX(now)); c.fillStyle = "rgba(156,39,176,0.08)"; c.fillRect(xa, ya, xb - xa, yb - ya); c.strokeStyle = "rgba(156,39,176,0.45)"; c.lineWidth = 1; c.strokeRect(xa, ya, xb - xa, yb - ya); c.fillStyle = "#9c27b0"; c.font = "11px " + TV_FONT; c.fillText(ev.n + " J-1", xa + 2, ya - 4); c.font = "600 10px " + TV_FONT; }
+        if (hi > lo) { const ya = pToY(hi), yb = pToY(lo), xb = Math.min(x, tToX(now)); c.fillStyle = tvRgba(col[ev.n], 0.08); c.fillRect(xa, ya, xb - xa, yb - ya); c.strokeStyle = tvRgba(col[ev.n], 0.5); c.lineWidth = 1; c.strokeRect(xa, ya, xb - xa, yb - ya); c.fillStyle = "#9c27b0"; c.font = "11px " + TV_FONT; c.fillText(ev.n + " J-1", xa + 2, ya - 4); c.font = "600 10px " + TV_FONT; }
       } }
       c.globalAlpha = ev.t > now ? 0.55 : 1; /* à venir = plus pâle (comme un calendrier économique) */
       c.strokeStyle = col[ev.n]; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(x, 18); c.lineTo(x, ch); c.stroke(); c.setLineDash([]);
@@ -2432,7 +2435,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         </div>
         <span className="zh" style={{ display: "contents" }}><TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
         <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />Données</TvBtn></span>
-        <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}>{zen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</TvBtn>
+        <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><span style={{ fontSize: 17, lineHeight: 1 }}>{zen ? "✕" : "🖥️"}</span></TvBtn>
+        {zen && <TvBtn title="Supprimer tous les dessins" onClick={() => { if (!R.draws.length || !window.confirm("Supprimer tous les dessins ? (les trades restent)")) return; R.redo = [...R.draws]; R.draws = []; R.sel = -1; rerender(); }}><TvIcon id="trash" /></TvBtn>}
         <input ref={fileRef} type="file" accept=".csv,.txt" multiple hidden onChange={(e) => onFiles([...e.target.files])} />
       </div>
 
@@ -2474,7 +2478,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         <div style={{ position: "relative", flex: 1, minWidth: 0 }} onMouseDown={() => { if (fly) setFly(null); if (ctx) setCtx(null); }}>
           {live && <div style={{ position: "absolute", inset: 0, zIndex: 20, background: TV.bg }}><TvLive /></div>}
           <div ref={boxRef} style={{ position: "absolute", ...lay[0] }} />
-          {!demo && lay[1].map((pos, i) => <TvMini key={cfg.layout + i} pos={pos} rows={R.rows} ci={R.ci} getAgg={getAgg} min={(cfg.ltf || [])[i] || [60, 15, 1440][i]} setMin={(m) => { const l = [...(cfg.ltf || [60, 15, 1440])]; l[i] = m; setCfg({ ...R.cfg, ltf: l }); }} trades={R.trades} tz={tz} cfg={cfg} blind={TV_BLIND} />)}
+          {!demo && lay[1].map((pos, i) => <TvMini key={cfg.layout + i} pos={pos} rows={R.rows} ci={R.ci} getAgg={getAgg} min={(cfg.ltf || [])[i] || [240, 15, 1440][i]} setMin={(m) => { const l = [...(cfg.ltf || [240, 15, 1440])]; l[i] = m; setCfg({ ...R.cfg, ltf: l }); }} trades={R.trades} tz={tz} cfg={cfg} blind={TV_BLIND} R={R} />)}
           {propS && <div className="zh" style={{ position: "absolute", left: 10, bottom: 44, zIndex: 6, background: "#fff", border: `1px solid ${R.prop.status === "fail" ? TV.red : R.prop.phase >= R.prop.steps ? TV.green : TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12 }}>
             {(() => { const P = R.prop, ph = P.steps === 2 ? ["Phase 1", "Phase 2", "Compte financé"] : ["Challenge", "Compte financé"]; const bar = (v, max, col, lab) => <div style={{ marginTop: 5 }}><div style={{ display: "flex", justifyContent: "space-between", color: TV.muted }}><span>{lab}</span><b style={{ color: TV.text }}>{v.toFixed(2).replace(".", ",")} % / {max} %</b></div><div style={{ height: 5, background: TV.hover, borderRadius: 3, marginTop: 2 }}><div style={{ width: Math.max(0, Math.min(100, (v / max) * 100)) + "%", height: 5, background: col, borderRadius: 3 }} /></div></div>;
               return <>
@@ -2598,8 +2602,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             const now = R.rows ? R.rows[R.ci][0] : 0; const nx = R.rows ? newsList().find((x) => x.n === n && x.t >= now) : null; const soon = nx && nx.t - now <= 86400;
             const h = nx ? Math.max(0, Math.round((nx.t - now) / 3600)) : 0;
             return <button key={n} title={title + (nx ? " · prochaine : " + tvFmtTime(nx.t, R.tz, "full") : "") + " · clique pour afficher / masquer"} onClick={() => setCfg({ ...R.cfg, [k]: !R.cfg[k] })}
-              style={{ display: "flex", alignItems: "center", gap: 5, border: `1px solid ${soon ? "#9c27b0" : TV.border}`, background: soon ? "rgba(156,39,176,0.10)" : R.cfg[k] ? TV.hover : "#fff", color: R.cfg[k] ? TV.text : TV.muted, borderRadius: 14, padding: "3px 9px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: TV_FONT, whiteSpace: "nowrap" }}>
-              {TvIco[ic]}{n}{soon && <span style={{ color: "#9c27b0" }}>· {h ? "dans " + h + " h" : "maintenant"}</span>}</button>;
+              style={{ display: "flex", alignItems: "center", gap: 5, border: `1px solid ${soon || R.cfg[k] ? TV_NEWS_COL[n] : TV.border}`, background: soon ? tvRgba(TV_NEWS_COL[n], 0.12) : R.cfg[k] ? tvRgba(TV_NEWS_COL[n], 0.06) : "#fff", color: R.cfg[k] ? TV_NEWS_COL[n] : TV.muted, borderRadius: 14, padding: "3px 9px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: TV_FONT, whiteSpace: "nowrap" }}>
+              {TvIco[ic]}{n}{soon && <span style={{ color: TV_NEWS_COL[n] }}>· {h ? "dans " + h + " h" : "maintenant"}</span>}</button>;
           })}
           <span style={{ fontSize: 12, color: TV.muted, marginLeft: 6 }}>Session : <b style={{ color: TV.text }}>{curSess().title}</b></span>
           <div style={{ flex: 1 }} />
@@ -2819,12 +2823,43 @@ function TvNewSession({ list, onClose, onCreate, onDelete }) {
 }
 
 /* graphique secondaire synchronisé sur le replay (autre timeframe), comme les dispositions de TradingView */
-function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind }) {
-  const box = useRef(null), S = useRef({}).current; S.tz = tz;
+function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R }) {
+  const box = useRef(null), cv = useRef(null), S = useRef({}).current; S.tz = tz; S.rows = rows; S.R = R; S.min = min;
+  /* graphique commun : mêmes rectangles, lignes et positions que le graphique principal */
+  const xOf = (tt) => { const A = S.A; if (!A || !S.rows) return null; const k = tvBs(A.start, tvBsRows(S.rows, tt)); return k < 0 ? null : S.ch.timeScale().logicalToCoordinate(k); };
+  const redraw = () => {
+    const c = cv.current, el = box.current; if (!c || !el || !S.se || !S.A) return; const w = el.clientWidth, h = el.clientHeight, dpr = window.devicePixelRatio || 1;
+    if (c.width !== w * dpr || c.height !== h * dpr) { c.width = w * dpr; c.height = h * dpr; c.style.width = w + "px"; c.style.height = h + "px"; }
+    const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h); const cw = w - 60; const y = (p) => S.se.priceToCoordinate(p);
+    const RR = S.R || {}; const now = S.rows ? S.rows[ci][0] : 0;
+    g.save(); g.beginPath(); g.rect(0, 0, cw, h - 26); g.clip();
+    for (const d of RR.draws || []) {
+      if (!d.pts || !d.pts.length || d.type === "measure") continue; const col = d.color || (d.kind && ((typeof TV_ZONE !== "undefined" && TV_ZONE[d.kind]) || (typeof TV_LIQ !== "undefined" && TV_LIQ[d.kind]) || (typeof TV_STRUCT !== "undefined" && TV_STRUCT[d.kind]))) || TV.blue;
+      g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1; const a = d.pts[0], b = d.pts[1];
+      if (d.type === "rect" && b) { const x1 = xOf(Math.min(a.t, b.t)), x2 = xOf(Math.max(a.t, b.t)), y1 = y(a.p), y2 = y(b.p); if (y1 == null || y2 == null) continue; const X1 = x1 ?? 0, X2 = x2 ?? cw; g.globalAlpha = 0.15; g.fillRect(X1, Math.min(y1, y2), Math.max(2, X2 - X1), Math.abs(y2 - y1)); g.globalAlpha = 1; g.strokeRect(X1, Math.min(y1, y2), Math.max(2, X2 - X1), Math.abs(y2 - y1)); if (d.kind) { g.font = "10px " + TV_FONT; g.fillText(d.kind + (d.tf ? " " + d.tf : ""), X1 + 3, Math.min(y1, y2) + 11); } }
+      else if (d.type === "hline" || d.type === "hray" || d.type === "bsl" || d.type === "ssl") { const yy = y(a.p); if (yy == null) continue; const x0 = d.type === "hline" ? 0 : xOf(a.t) ?? 0; g.beginPath(); g.moveTo(x0, yy); g.lineTo(cw, yy); g.stroke(); if (d.kind) { g.font = "10px " + TV_FONT; g.fillText(d.kind, x0 + 2, yy - 3); } }
+      else if ((d.type === "trend" || d.type === "ray" || d.type === "ext") && b) { const x1 = xOf(a.t), x2 = xOf(b.t), y1 = y(a.p), y2 = y(b.p); if (x1 == null || x2 == null || y1 == null || y2 == null) continue; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
+    }
+    for (const tr of RR.trades || []) { /* positions : entrée -> TP (vert) et entrée -> SL (rouge) */
+      if (tr.status === "pending" || !tr.openT) continue; const end = tr.status === "closed" ? tr.closeT : now; if (end < now - 30 * 86400) continue;
+      const x1 = xOf(tr.openT), x2 = xOf(end); if (x2 == null && x1 == null) continue; const X1 = x1 ?? 0, X2 = Math.max(X1 + 4, x2 ?? cw); const ye = y(tr.entry), yt = y(tr.tp), ys = y(tr.sl); if (ye == null) continue;
+      if (yt != null) { g.fillStyle = "rgba(8,153,129,0.22)"; g.fillRect(X1, Math.min(ye, yt), X2 - X1, Math.abs(yt - ye)); }
+      if (ys != null) { g.fillStyle = "rgba(242,54,69,0.22)"; g.fillRect(X1, Math.min(ye, ys), X2 - X1, Math.abs(ys - ye)); }
+      g.strokeStyle = "#787b86"; g.beginPath(); g.moveTo(X1, ye); g.lineTo(X2, ye); g.stroke();
+    }
+    g.restore();
+  };
+  S.redraw = redraw;
   useEffect(() => {
     const ch = createChart(box.current, { autoSize: true, layout: { background: { color: TV.bg }, textColor: TV.text, fontSize: 11, fontFamily: TV_FONT }, grid: { vertLines: { visible: false }, horzLines: { visible: false } }, crosshair: { mode: 0 }, rightPriceScale: { borderColor: TV.border, scaleMargins: { top: 0.12, bottom: 0.08 } }, timeScale: { borderColor: TV.border, timeVisible: true, rightOffset: 10, barSpacing: 6, tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }, localization: { locale: "fr-FR", timeFormatter: (t) => tvFmtTime(t, S.tz, "full") } });
     S.ch = ch; S.se = ch.addCandlestickSeries({ priceLineVisible: false, upColor: cfg.up, downColor: cfg.down, borderUpColor: cfg.down, borderDownColor: cfg.down, wickUpColor: cfg.down, wickDownColor: cfg.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
-    return () => { ch.remove(); S.se = null; S.A = null; };
+    ch.timeScale().subscribeVisibleLogicalRangeChange(() => S.redraw && S.redraw());
+    const iv = setInterval(() => S.redraw && S.redraw(), 250);
+    /* curseur synchronisé dans les deux sens */
+    const toMini = (p) => { const RR = S.R; if (!S.A || !RR || !RR.series || RR.xLock === "mini") return; if (!p || p.time === undefined || !p.point) { try { ch.clearCrosshairPosition(); } catch (e) {} return; } const pr = RR.series.coordinateToPrice(p.point.y); const k = tvBs(S.A.start, tvBsRows(S.rows, p.time)); if (k < 0 || pr == null) return; RR.xLock = "main"; try { ch.setCrosshairPosition(pr, S.A.bars[k].time, S.se); } catch (e) {} RR.xLock = null; };
+    const fromMini = (p) => { const RR = S.R; if (!RR || !RR.chart || !RR.agg || RR.xLock === "main") return; if (!p || p.time === undefined || !p.point) { try { RR.chart.clearCrosshairPosition(); } catch (e) {} return; } const pr = S.se.coordinateToPrice(p.point.y); const k = tvBs(RR.agg.start, tvBsRows(S.rows, p.time)); if (k < 0 || pr == null) return; RR.xLock = "mini"; try { RR.chart.setCrosshairPosition(pr, RR.agg.bars[k].time, RR.series); } catch (e) {} RR.xLock = null; };
+    ch.subscribeCrosshairMove(fromMini); const mainCh = S.R && S.R.chart; if (mainCh) mainCh.subscribeCrosshairMove(toMini);
+    return () => { clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMini); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
   }, []);
   useEffect(() => { if (S.ch) S.ch.timeScale().applyOptions({ tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }); }, [blind, tz]);
   useEffect(() => {
@@ -2841,6 +2876,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind }) 
   return (
     <div style={{ position: "absolute", ...pos, background: TV.bg, borderLeft: pos.left === "50%" ? `4px solid ${TV.hover}` : "none", borderTop: pos.top === "50%" ? `4px solid ${TV.hover}` : "none", zIndex: 2 }}>
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
+      <canvas ref={cv} style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 2 }} />
       <div style={{ position: "absolute", left: 8, top: 5, zIndex: 3, display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
         <b style={{ fontWeight: 600 }}>EURUSD ·</b>
         <select value={min} onChange={(e) => setMin(+e.target.value)} style={{ border: `1px solid ${TV.border}`, borderRadius: 4, fontSize: 12, padding: "1px 4px", fontFamily: TV_FONT, background: "#fff" }}>{TV_TFS.map(([n, m]) => <option key={m} value={m}>{n}</option>)}</select>
@@ -2875,7 +2911,6 @@ const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid, g: "Trader" },
   { id: "trades", label: "Mes trades", short: "Trades", icon: NotebookPen, g: "Trader" },
   { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3, g: "Trader" },
-  { id: "progression", label: "Progression", short: "Progrès", icon: Trophy, g: "Progresser" },
   { id: "erreurs", label: "Mes erreurs", short: "Erreurs", icon: AlertCircle, g: "Progresser" },
   { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon, g: "Progresser" },
   { id: "playbooks", label: "Playbooks", short: "Playbooks", icon: Target, g: "Progresser" },
@@ -3149,6 +3184,8 @@ function Progression({ all, live, balance = 10000 }) {
    ERREURS — revue express, coût de chaque erreur, comportements repérés tout seuls
    ============================================================================ */
 const isReviewed = (t) => !!((t.mistakes || []).length || (t.positives || []).length || t.rules?.clean || t.rules?.reviewed || t.verdict);
+/* « à revoir » = trade fermé sans photo « après » */
+const needsAfter = (t) => t.status !== "open" && !t.screenshotAfter;
 const isCleanT = (t) => isReviewed(t) && !(t.mistakes || []).length;
 const errNames = (s) => { const h = s?.hiddenErrors || []; return [...DEFAULT_ERRORS.filter((e) => !h.includes(e)), ...(s?.customErrors || [])]; };
 const posNames = (s) => [...DEFAULT_POSITIVES, ...(s?.customPositives || [])];
@@ -3171,7 +3208,7 @@ function TagPick({ items, value = [], onToggle, col, max = 8 }) {
 
 /* revue express : un trade à la fois, 3 clics, et tes stats d'erreurs deviennent fiables */
 function ReviewQueue({ trades, appSettings, onPatch, onClose }) {
-  const [queue] = useState(() => byTime(closedOf(trades)).reverse().filter((t) => !isReviewed(t)).map((t) => t.id));
+  const [queue] = useState(() => byTime(closedOf(trades)).reverse().filter(needsAfter).map((t) => t.id));
   const [i, setI] = useState(0); const [n, setN] = useState(0); const [img, setImg] = useState(null);
   const t = trades.find((x) => x.id === queue[i]);
   const [m, setM] = useState([]); const [p, setP] = useState([]); const [v, setV] = useState(null);
@@ -3206,6 +3243,7 @@ function ReviewQueue({ trades, appSettings, onPatch, onClose }) {
             <div className="tnum" style={{ fontSize: 19, fontWeight: 700, color: r > 0 ? C.teal : r < 0 ? C.red : C.textSecondary }}>{t.status === "breakeven" ? "BE" : fmtR(r)}</div>
           </div>
           {(t.screenshotBefore || t.screenshotAfter) && <div style={{ display: "flex", gap: 8, marginTop: 10 }}>{[t.screenshotBefore, t.screenshotAfter].filter(Boolean).map((s, k) => <img key={k} src={s} alt="" onClick={() => setImg(s)} style={{ flex: 1, minWidth: 0, height: 110, objectFit: "cover", borderRadius: 10, border: `1px solid ${C.border}`, cursor: "zoom-in" }} />)}</div>}
+          {!t.screenshotAfter && <div style={{ marginTop: 10 }}><ImageUploadBox label="Photo après le trade (colle ou choisis)" value={null} onChange={(u) => u && onPatch(t.id, { screenshotAfter: u })} /></div>}
           {t.notes && <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 8, fontStyle: "italic" }}>« {t.notes} »</div>}
           <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "14px 0 6px" }}>Selon ton plan, c'était…</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -3227,14 +3265,14 @@ function ReviewQueue({ trades, appSettings, onPatch, onClose }) {
 }
 
 function ReviewCard({ trades, onOpen }) {
-  const L = closedOf(trades); const todo = L.filter((t) => !isReviewed(t)).length; if (!L.length) return null;
+  const L = closedOf(trades); const todo = L.filter(needsAfter).length; if (!L.length) return null;
   const pct = Math.round(((L.length - todo) / L.length) * 100);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${todo ? C.amber + "66" : C.border}`, borderRadius: 18, padding: "12px 16px", marginBottom: 14 }}>
       <div style={{ width: 40, height: 40, borderRadius: 12, background: todo ? C.amberDim : C.tealDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{todo ? "📝" : "✓"}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14.5, fontWeight: 700 }}>{todo ? `${todo} trade${todo > 1 ? "s" : ""} à revoir` : "Tous tes trades sont revus"}</div>
-        <div style={{ fontSize: 12.5, color: C.textMuted }}>{todo ? `${pct} % revus · environ ${Math.max(1, Math.round(todo * 0.25))} min pour comprendre tes erreurs` : "Tes statistiques d'erreurs sont fiables."}</div>
+        <div style={{ fontSize: 14.5, fontWeight: 700 }}>{todo ? `${todo} trade${todo > 1 ? "s" : ""} à revoir` : "Tous tes trades ont leur photo après"}</div>
+        <div style={{ fontSize: 12.5, color: C.textMuted }}>{todo ? "Sans photo « après » : ajoute-la et note tes erreurs" : "Rien à revoir."}</div>
       </div>
       {todo > 0 && <button onClick={onOpen} style={{ ...btn.primary, padding: "9px 14px", fontSize: 13, whiteSpace: "nowrap" }}>Revoir</button>}
     </div>
@@ -3430,7 +3468,6 @@ function MobileNav({ view, setView, onNewTrade }) {
   const [more, setMore] = useState(false);
   const MAIN = [NAV_ITEMS[0], NAV_ITEMS[1], null, NAV_ITEMS.find(i => i.id === "stats")];
   const EXTRA = [
-    { id: "progression", label: "Progression", icon: Trophy },
     { id: "erreurs", label: "Mes erreurs", icon: AlertCircle },
     { id: "backtest", label: "Backtest", icon: TvLogoIcon },
     { id: "plan", label: "Plan de trading", icon: BookOpen },
@@ -3587,6 +3624,7 @@ function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, a
           <div style={{ fontSize: 9, fontWeight: 500, color: C.sidebarTextDim, letterSpacing: 0.4, textTransform: "uppercase" }}>Trade</div>
         </div>
       </button>
+      <KillzoneBanner part="ticker" />
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
 
         {/* Switcher de compte */}
@@ -3607,7 +3645,7 @@ function TopBar({ title, isDark, onToggleTheme, onCalendar, onCoach, accounts, a
                       <div style={{ flex: 1, textAlign: "left" }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
                         <div style={{ fontSize: 11, color: C.textMuted }}>
-                          {typeLabels[acc.type] || acc.type}
+                          {acc.type === "challenge" && acc.challenge?.phase ? (acc.challenge.phase === "Financé" ? "Financé" : "Challenge · " + acc.challenge.phase) : typeLabels[acc.type] || acc.type}
                           {acc.id === activeAccountId && currentBalance != null
                             ? <span className="tnum" style={{ color: C.teal, fontWeight: 700 }}> · ${Math.round(currentBalance).toLocaleString()}</span>
                             : acc.balance ? ` · $${Number(acc.balance).toLocaleString()}` : ""}
@@ -4060,7 +4098,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
                 <PairLogo pair={p} size={20} /><span style={{ flex: 1 }}>{p}</span><span className="tnum" style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 600 }}>{n} trade{n > 1 ? "s" : ""}</span></button>)}
             </div>; })()}
         </div>
-        {(() => { const n = trades.filter((t) => t.status !== "open" && !isReviewed(t)).length; return n > 0 && <button onClick={() => window.dispatchEvent(new Event("tjp-review"))} title="Revue express des trades pas encore revus" style={{ ...btn.ghost, flexShrink: 0, color: C.amber, borderColor: C.amber + "66" }}>📝 <span className="hide-sm">À revoir</span> {n}</button>; })()}
+        {(() => { const n = trades.filter(needsAfter).length; return n > 0 && <button onClick={() => window.dispatchEvent(new Event("tjp-review"))} title="Revue express des trades pas encore revus" style={{ ...btn.ghost, flexShrink: 0, color: C.amber, borderColor: C.amber + "66" }}>📝 <span className="hide-sm">À revoir</span> {n}</button>; })()}
         <button
           onClick={() => setShowFilters((v) => !v)}
           style={{ ...btn.ghost, flexShrink: 0, color: activeFilterCount ? C.purpleBright : C.textSecondary, borderColor: activeFilterCount ? "rgba(139,124,246,0.35)" : C.border, background: activeFilterCount ? C.purpleDim : (C.inputBg || C.card) }}>
@@ -4263,13 +4301,13 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
 
                 {isOpen && (
                   <div style={{ background: "transparent", padding: "4px 0", display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div className="desktop-only table-scroll" style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                    <div className="never" style={{ background: C.card, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "100px 80px 60px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
                         <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>R</div><div>$</div><div>Statut</div>
                       </div>
                       {monthTrades.map((t) => <TradeRow key={t.id} t={t} onOpen={onOpen} />)}
                     </div>
-                    <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                       {monthTrades.map((t, i) => <MobileTradeCard key={t.id} t={t} onOpen={onOpen} isLast={i === monthTrades.length - 1} />)}
                     </div>
                   </div>
@@ -4281,7 +4319,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
           {/* Vue plate filtres actifs */}
           {hasActiveFilters && (
           <>
-          <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.card }} className="desktop-only">
+          <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.card }} className="never">
             <div className="table-scroll">
             <div style={{ display: "grid", gridTemplateColumns: "100px 80px 60px 1fr 90px 70px 80px", padding: "8px 18px", borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, minWidth: 600 }}>
               <div>Devise</div><div>Date</div><div>Dir.</div><div>Setup</div><div>R</div><div>$</div><div>Statut</div>
@@ -4289,7 +4327,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
             {filtered.map((t) => <TradeRow key={t.id} t={t} onOpen={onOpen} />)}
             </div>
           </div>
-          <div className="mobile-only" style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {filtered.map((t, i) => <MobileTradeCard key={t.id} t={t} onOpen={onOpen} isLast={i === filtered.length - 1} />)}
           </div>
           </>
@@ -4306,7 +4344,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
   const [sess, setSess] = useState((trade.tags || []).find((g) => SESS.includes(g)) || getSession(trade.entryTime));
   const tfList = appSettings?.timeframes && appSettings.timeframes.length ? [...new Set(appSettings.timeframes.map(tfFix))] : DEFAULT_TFS;
   const hiddenT = appSettings?.hiddenTags || [];
-  const setupNames = [...TAG_CATALOG.filter((t) => t.category === "setup" && !hiddenT.includes(t.name)).map((t) => t.name), ...(appSettings?.customTags || [])];
+  const setupNames = [...new Set([...TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name), ...(appSettings?.customTags || [])])];
   const ALLTF = ["M1","M3","M5","M15","M30","H1","H4","D1","W1","D","W","MN", ...tfList];
   const [rows, setRows] = useState(() => { const ts = trade.rules?.tfSetups; if (Array.isArray(ts) && ts.length) return ts.map((r) => ({ tf: r.tf, setups: [...(r.setups || [])] }));
     const tf = (trade.tags || []).find((g) => ALLTF.includes(g)); const st = (trade.tags || []).filter((g) => setupNames.includes(g) || TAG_CATALOG.find((c) => c.name === g && c.category === "setup"));
@@ -4481,13 +4519,17 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
       {zoom && <LightBox src={zoom.src} label={zoom.label} onClose={() => setZoom(null)} />}
       <div onClick={() => setOpen((v) => !v)} style={{ padding: "13px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>{setups[0] && <span style={{ fontSize: 11, fontWeight: 600, color: C.purpleBright, background: C.purpleDim, padding: "2px 7px", borderRadius: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{setups[0]}</span>}</div>
-          <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 7, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden" }}>
-            <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: t.direction === "long" ? C.tealDim : C.redDim, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "▲ ACHAT" : "▼ VENTE"}</span>
-            <span style={{ fontSize: 12, color: C.textMuted }}>{new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · {killzoneLabel(t.entryTime)}</span>
-            {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>Lots</span></span>}
-            {!open && t.entryPrice != null && t.positionSize == null && false && <span style={{ fontWeight: 600 }}>{fp(t.entryPrice)} <span style={{ color: C.textMuted }}>→</span> {exit != null ? fp(exit) : "…"}</span>}
+          {/* ligne 1 : EURUSD ▲ LONG · date   ligne 2 : lots · drapeau + session   ligne 3 : setups */}
+          <div style={{ display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", overflow: "hidden" }}>
+            <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "▲ LONG" : "▼ SHORT"}</span>
+            <span className="tnum" style={{ fontSize: 12.5, color: C.textMuted }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
           </div>
+          <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden" }}>
+            {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span></span>}
+            {(() => { const k = killzoneLabel(t.entryTime); const se = getSession(t.entryTime); const n = k !== "Hors killzone" ? k : se; return <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: C.textSecondary }}><SessionFlag name={n} size={15} />{String(n).replace(" Session", "")}</span>; })()}
+          </div>
+          {setups.length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>{setups.slice(0, 4).map((x) => <span key={x} style={{ fontSize: 11, fontWeight: 600, color: C.purpleBright, background: C.purpleDim, padding: "2px 7px", borderRadius: 6 }}>{x}</span>)}</div>}
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <span className="tnum" style={{ display: "inline-block", padding: "3px 9px", borderRadius: 7, fontSize: 15, fontWeight: 600, color: col, background: isOpenSt || isBE ? "rgba(255,255,255,0.06)" : `${col}22` }}>{isOpenSt ? "En cours" : fmtR(r)}</span>
@@ -4521,7 +4563,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
             </div>))}
         </div>}
         {t.notes && <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, whiteSpace: "pre-wrap" }}>{t.notes}</div>}
-        <button onClick={() => onOpen(t.id)} style={{ width: "100%", padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button>
+        <div style={{ display: "flex" }}>{(t.pair || "").toUpperCase() === "EURUSD" && <button onClick={() => replayRealTrade(t)} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Rewind size={14} /> Rejouer</button>}        <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
       </div>}
     </div>
   );
@@ -5360,7 +5402,7 @@ function pipInfo(pair, entry) {
   else if (pair.startsWith("USD") || pair.endsWith("CAD") || pair.endsWith("CHF")) val = 10 / ep;
   return { dec, val };
 }
-function ShotAutoFill({ onResult }) {
+function ShotAutoFill({ onResult, onImage }) {
   const [state, setState] = useState("idle"); const [res, setRes] = useState(null); const [msg, setMsg] = useState(""); const [url, setUrl] = useState(null);
   const ref = useRef(null);
   const go = async (file) => {
@@ -5369,11 +5411,15 @@ function ShotAutoFill({ onResult }) {
     const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
     const up = uploadToStorage(file).catch(() => null);
     try {
-      const r = await analyzeChartScreenshot(data, ALL_INSTRUMENTS); const u = (await up) || data; setUrl(u); setRes(r);
+      const u0 = up.then((x) => x || data); u0.then((x) => onImage && onImage(x));
+      const r = await analyzeChartScreenshot(data, ALL_INSTRUMENTS); const u = await u0; setUrl(u); setRes(r);
       if (r.trades.length) { onResult(r.trades[0], r, u); setState("done"); setMsg((r.trades[0].direction === "long" ? "Long" : "Short") + " détecté · entrée " + r.trades[0].entryPrice + " · SL " + r.trades[0].stopLoss + " · TP " + r.trades[0].takeProfit); }
       else { setState("fail"); setMsg("Pas d'outil Long/Short trouvé sur l'image."); }
-    } catch (e) { setState("fail"); setMsg("Lecture impossible : " + (e.message || e)); }
+    } catch (e) { setState("fail"); setMsg("Photo ajoutée en « avant ». Lecture auto impossible : " + (e.message || e)); }
   };
+  /* Ctrl+V n'importe où dans le formulaire : la capture remplit le trade et devient la photo « avant » */
+  const goRef = useRef(go); goRef.current = go;
+  useEffect(() => { const h = (e) => { if (e.defaultPrevented) return; const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); goRef.current(it.getAsFile()); } }; window.addEventListener("paste", h); return () => window.removeEventListener("paste", h); }, []);
   const col = state === "done" ? C.teal : state === "fail" ? C.red : C.border;
   return (
     <div onPaste={(e) => { const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); go(it.getAsFile()); } }}
@@ -5382,7 +5428,7 @@ function ShotAutoFill({ onResult }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Sparkles size={18} color={C.purpleBright} className={state === "reading" ? "spin-slow" : ""} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>{state === "reading" ? "Lecture du graphique…" : "Remplir depuis un screenshot"}</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{state === "reading" ? "Lecture du graphique…" : "Remplir avec une photo (Ctrl+V pour coller)"}</div>
           <div style={{ fontSize: 12.5, color: state === "fail" ? C.red : C.textMuted, marginTop: 2 }}>{msg || "Outil Long/Short de TradingView : sens, entrée, SL, TP et date se remplissent seuls"}</div>
         </div>
         <button onClick={() => ref.current?.click()} style={{ ...btn.ghost, padding: "8px 12px", fontSize: 13 }}><Upload size={14} /> Choisir</button>
@@ -5427,7 +5473,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const [clean, setClean] = useState(!!initial?.rules?.clean);
   const [verd, setVerd] = useState(initial?.verdict || null);
   const [checks, setChecks] = useState(initial?.rules?.checks || []);
-  const rulesNow = loadRules(); const checkItems = rulesNow.checklistOn === false ? [] : rulesNow.checklist && rulesNow.checklist.length ? rulesNow.checklist : CHECK_DEFAULT;
+  const rulesNow = loadRules(); const checkItems = []; /* check-list retirée du formulaire */
   const errChoices = useMemo(() => byFreq(errNames(appSettings), trades, "mistakes"), []);
   const posChoices = useMemo(() => byFreq(posNames(appSettings), trades, "positives"), []);
   const setupFreq = useMemo(() => { const c = {}; (trades || []).forEach((t) => { const ts = t.rules?.tfSetups; (Array.isArray(ts) ? ts.flatMap((r) => r.setups || []) : (t.tags || [])).forEach((x) => { c[x] = (c[x] || 0) + 1; }); }); return c; }, []);
@@ -5435,7 +5481,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const copyLast = () => { if (!lastT) return; setPair(lastT.pair || ""); setQ(""); setDirection(lastT.direction || "long"); const ts = lastT.rules?.tfSetups; if (Array.isArray(ts) && ts.length) setTfRows(ts.map((r) => ({ tf: r.tf, setups: [...(r.setups || [])] }))); if (Number(lastT.riskUsd) > 0) { setRiskMode("usd"); setRiskVal(String(lastT.riskUsd)); } };
 
   const hidden = appSettings?.hiddenTags || [];
-  const setupNames = [...TAG_CATALOG.filter((t) => t.category === "setup" && !hidden.includes(t.name)).map((t) => t.name), ...(appSettings?.customTags || [])];
+  const setupNames = [...new Set([...TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name), ...(appSettings?.customTags || [])])]; /* les 15 PD arrays du site, toujours tous proposés */
   const allPairs = [...new Set([...(appSettings?.pairs || []), ...PAIRS, ...ALL_INSTRUMENTS])];
   const used = {}; (trades || []).forEach((t) => { used[t.pair] = (used[t.pair] || 0) + 1; });
   const qn = q.trim().toUpperCase();
@@ -5511,7 +5557,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
         </div>
 
         {/* 0. Remplir depuis un screenshot TradingView */}
-        {!isEdit && <ShotAutoFill onResult={(t, res, url) => {
+        {!isEdit && <ShotAutoFill onImage={(u) => setShotBefore(u)} onResult={(t, res, url) => {
           if (res.pair) setPair(res.pair);
           setDirection(t.direction);
           if (t.entryPrice != null) setEntryPrice(String(t.entryPrice));
@@ -5602,7 +5648,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
                 {hits.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                   {hits.map((h) => <Chip key={h} onClick={() => { upd((r) => ({ ...r, setups: [...r.setups, h] })); setRowQ((m) => ({ ...m, [i]: "" })); }}>+ {h}</Chip>)}
                 </div>}
-                {!rq && (() => { const fav = setupNames.filter((n) => !row.setups.includes(n)).sort((a, b) => (setupFreq[b] || 0) - (setupFreq[a] || 0)).slice(0, 6); return fav.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>{fav.map((h) => <Chip key={h} onClick={() => upd((r) => ({ ...r, setups: [...r.setups, h] }))}>+ {h}</Chip>)}</div>; })()}
+                {!rq && (() => { const fav = setupNames.filter((n) => !row.setups.includes(n)).sort((a, b) => (setupFreq[b] || 0) - (setupFreq[a] || 0)); return fav.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>{fav.map((h) => <Chip key={h} onClick={() => upd((r) => ({ ...r, setups: [...r.setups, h] }))}>+ {h}</Chip>)}</div>; })()}
                 {row.setups.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                   {row.setups.map((st) => <span key={st} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 999, background: C.purpleDim, color: C.purpleBright, fontSize: 12.5, fontWeight: 700 }}>
                     <b style={{ color: C.text }}>{row.tf}</b> {st}
@@ -5905,7 +5951,7 @@ function SimpleStats({ trades }) {
       <PageHeader title="Statistiques" action={<Seg v={unit} set={setUnit} opts={[["usd", "$"], ["r", "R"]]} />} />
       {/* raccourcis vers l'analyse qui fait progresser */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-        {[["erreurs", "Mes erreurs", "Ce qui te coûte, et la règle pour l'éviter", AlertCircle], ["progression", "Progression", "Ton edge prouvé, ton risque conseillé", Trophy]].map(([v, t, d, I]) => <button key={v} onClick={() => window.dispatchEvent(new CustomEvent("tjp-goto", { detail: v }))} style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: "11px 13px", borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, color: C.text, cursor: "pointer", fontFamily: "inherit", minWidth: 0 }}>
+        {[["erreurs", "Mes erreurs", "Ce qui te coûte, et la règle pour l'éviter", AlertCircle], ["backtest", "Backtest", "Entraîne-toi sur les vraies bougies", TvLogoIcon]].map(([v, t, d, I]) => <button key={v} onClick={() => window.dispatchEvent(new CustomEvent("tjp-goto", { detail: v }))} style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: "11px 13px", borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, color: C.text, cursor: "pointer", fontFamily: "inherit", minWidth: 0 }}>
           <span style={{ width: 32, height: 32, borderRadius: 10, background: C.purpleDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I size={16} color={C.purpleBright} /></span>
           <span style={{ minWidth: 0 }}><span style={{ display: "block", fontSize: 13.5, fontWeight: 700 }}>{t} →</span><span style={{ display: "block", fontSize: 11.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d}</span></span>
         </button>)}
@@ -7184,15 +7230,20 @@ function PlanRules({ trades = [], balance }) {
 
 
 /* ── Challenge prop firm : conditions + suivi ── */
-const CH_DEFAULT = { target: 10, maxDaily: 5, maxDD: 10, ddType: "static", minDays: 4, deadline: "", phase: "Phase 1" };
+const CH_DEFAULT = { steps: 2, target: 8, target2: 5, maxDaily: 5, maxDD: 10, ddType: "static", minDays: 4, deadline: "", phase: "Phase 1", phaseStart: "" };
+/* objectif de la phase en cours : Phase 1, Phase 2, puis Financé (pas d'objectif, seulement les pertes max) */
+const chTarget = (c) => (c.phase === "Financé" ? 0 : c.phase === "Phase 2" ? c.target2 ?? 5 : c.target);
 function ChallengeFields({ v, set }) {
   const c = { ...CH_DEFAULT, ...(v || {}) }; const up = (p) => set({ ...c, ...p });
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "12px", borderRadius: 10, border: `1px solid ${C.amber}40`, background: C.amberDim }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: C.amber }}>Conditions du challenge</div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{["Phase 1", "Phase 2", "Financé"].map((p) => <button key={p} type="button" onClick={() => up({ phase: p })} style={chipBtn(c.phase === p, C.amber)}>{p}</button>)}</div>
+      <div style={{ display: "flex", gap: 6 }}>{[[2, "2 étapes"], [1, "1 étape"]].map(([k, l]) => <button key={k} type="button" onClick={() => up({ steps: k, phase: k === 1 && c.phase === "Phase 2" ? "Phase 1" : c.phase })} style={{ ...chipBtn((c.steps || 2) === k, C.amber), flex: 1 }}>{l}</button>)}</div>
+      <div style={{ fontSize: 11.5, color: C.textMuted }}>Phase actuelle (le site passe tout seul à la suivante quand l'objectif est atteint)</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{((c.steps || 2) === 2 ? ["Phase 1", "Phase 2", "Financé"] : ["Phase 1", "Financé"]).map((p) => <button key={p} type="button" onClick={() => up({ phase: p, phaseStart: new Date().toISOString() })} style={chipBtn(c.phase === p, C.amber)}>{p}</button>)}</div>
       <div className="form-grid-2" style={{ gap: 10 }}>
-        <NumRule label="Objectif de profit" suffix="%" step={0.5} value={c.target} onChange={(x) => up({ target: x })} />
+        <NumRule label="Objectif phase 1" suffix="%" step={0.5} value={c.target} onChange={(x) => up({ target: x })} />
+        {(c.steps || 2) === 2 && <NumRule label="Objectif phase 2" suffix="%" step={0.5} value={c.target2} onChange={(x) => up({ target2: x })} />}
         <NumRule label="Perte max par jour" suffix="%" step={0.5} value={c.maxDaily} onChange={(x) => up({ maxDaily: x })} />
         <NumRule label="Drawdown max" suffix="%" step={0.5} value={c.maxDD} onChange={(x) => up({ maxDD: x })} />
         <NumRule label="Jours de trading min" value={c.minDays} onChange={(x) => up({ minDays: x })} />
@@ -7207,19 +7258,20 @@ function ChallengeFields({ v, set }) {
 
 function challengeStatus(acc, trades) {
   const c = { ...CH_DEFAULT, ...(acc.challenge || {}) }; const B = Number(acc.balance) || 10000;
-  const L = byTime(closedOf(trades)); let eq = B, peak = B, ddMax = 0; const days = {};
+  /* chaque phase repart du capital de départ : seuls les trades depuis le début de la phase comptent */
+  const L = byTime(closedOf(trades)).filter((t) => !c.phaseStart || new Date(t.entryTime) >= new Date(c.phaseStart)); let eq = B, peak = B, ddMax = 0; const days = {};
   L.forEach((t) => { eq += usdOf(t); peak = Math.max(peak, eq); const k = dayKey(t.entryTime); days[k] = (days[k] || 0) + usdOf(t); ddMax = Math.max(ddMax, c.ddType === "trailing" ? peak - eq : B - eq); });
   const profit = eq - B; const worstDay = Math.min(0, ...Object.values(days)); const today = days[dayKey(new Date().toISOString())] || 0;
-  const lim = { target: (B * (c.target || 0)) / 100, daily: (B * (c.maxDaily || 0)) / 100, dd: (B * (c.maxDD || 0)) / 100 };
+  const lim = { target: (B * (chTarget(c) || 0)) / 100, daily: (B * (c.maxDaily || 0)) / 100, dd: (B * (c.maxDD || 0)) / 100 };
   const failed = (c.maxDaily && -worstDay >= lim.daily) ? "Perte max du jour dépassée" : (c.maxDD && ddMax >= lim.dd) ? "Drawdown max dépassé" : null;
   const nDays = Object.keys(days).length; const left = c.deadline ? Math.ceil((new Date(c.deadline + "T23:59:59") - Date.now()) / 864e5) : null;
-  const passed = !failed && c.target && profit >= lim.target && nDays >= (c.minDays || 0);
+  const passed = !failed && c.phase !== "Financé" && chTarget(c) && profit >= lim.target && nDays >= (c.minDays || 0);
   return { c, B, profit, today, ddMax, ddNow: c.ddType === "trailing" ? peak - eq : Math.max(0, B - eq), lim, failed, passed, nDays, left, expired: left != null && left < 0 && !passed };
 }
 
-function ChallengeCard({ acc, trades }) {
+function ChallengeCard({ acc, trades, onDelete }) {
   const s = useMemo(() => challengeStatus(acc, trades), [acc, trades]);
-  const st = s.failed ? { t: "Échoué · " + s.failed, c: C.red } : s.passed ? { t: "Réussi 🎉", c: C.teal } : s.expired ? { t: "Délai dépassé", c: C.red } : { t: "En cours", c: C.amber };
+  const st = s.failed ? { t: "Échoué · " + s.failed, c: C.red } : s.c.phase === "Financé" ? { t: "Financé ✓", c: C.teal } : s.passed ? { t: "Réussi 🎉", c: C.teal } : s.expired ? { t: "Délai dépassé", c: C.red } : { t: "En cours", c: C.amber };
   const Bar = ({ label, cur, max, good, sub }) => { const p = max ? clamp01(cur / max) : 0; const col = good ? C.teal : p >= 0.8 ? C.red : p >= 0.5 ? C.amber : C.teal; return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSecondary, marginBottom: 5 }}><span>{label}</span><span className="tnum" style={{ color: C.text }}>{sub}</span></div>
@@ -7233,10 +7285,11 @@ function ChallengeCard({ acc, trades }) {
         <span style={{ fontSize: 12, fontWeight: 700, color: st.c, background: st.c + "1A", padding: "4px 10px", borderRadius: 7 }}>{st.t}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Bar label="Objectif de profit" cur={Math.max(0, s.profit)} max={s.lim.target} good sub={`${fmtUsdSigned(s.profit)} / ${fmtUsd(s.lim.target)}`} />
+        {s.c.phase !== "Financé" ? <Bar label={`Objectif ${s.c.phase} (${chTarget(s.c)} %)`} cur={Math.max(0, s.profit)} max={s.lim.target} good sub={`${fmtUsdSigned(s.profit)} / ${fmtUsd(s.lim.target)}`} /> : <div style={{ fontSize: 13, color: C.textSecondary }}>Compte financé de <b>{fmtUsd(s.B)}</b> · résultat depuis le financement : <b style={{ color: s.profit >= 0 ? C.teal : C.red }}>{fmtUsdSigned(s.profit)}</b></div>}
         {s.c.maxDaily ? <Bar label="Perte du jour" cur={Math.max(0, -s.today)} max={s.lim.daily} sub={`${fmtUsdSigned(s.today)} · limite −${fmtUsd(s.lim.daily)}`} /> : null}
         {s.c.maxDD ? <Bar label={s.c.ddType === "trailing" ? "Drawdown suiveur" : "Drawdown"} cur={s.ddNow} max={s.lim.dd} sub={`${fmtUsd(s.ddNow)} · reste ${fmtUsd(Math.max(0, s.lim.dd - s.ddNow))}`} /> : null}
       </div>
+      {s.failed && onDelete && <button onClick={() => { if (window.confirm(`Supprimer le challenge « ${acc.name} » ? Ses trades restent dans ton historique.`)) onDelete(acc.id); }} style={{ ...btn.ghost, marginTop: 14, width: "100%", justifyContent: "center", color: C.red, borderColor: C.red + "55" }}><Trash2 size={14} /> Supprimer ce challenge échoué</button>}
     </div>
   );
 }
@@ -7577,7 +7630,7 @@ function AccountCard({ acc, accounts, activeAccountId, onSwitchAccount, onSaveAc
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{acc.name}</div>
           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
-            <span style={{ color: typeColors[acc.type] || C.teal, fontWeight: 600 }}>{typeLabels[acc.type] || acc.type}</span>
+            <span style={{ color: acc.challenge?.phase === "Financé" ? C.teal : typeColors[acc.type] || C.teal, fontWeight: 600 }}>{acc.type === "challenge" && acc.challenge?.phase ? (acc.challenge.phase === "Financé" ? "Financé" : "Challenge · " + acc.challenge.phase) : typeLabels[acc.type] || acc.type}</span>
             {acc.broker && ` · ${acc.broker}`}
             {acc.balance && ` · $${Number(acc.balance).toLocaleString()}`}
           </div>
@@ -8901,6 +8954,92 @@ function BacktestBot() {
   );
 }
 
+/* ============================================================================
+   COACH — rejoue chacun de tes trades sur les vraies bougies et compare avec d'autres façons de le prendre
+   (entrée en OTE, BE à 1R, TP fixe, killzone) : ce qui t'aurait fait gagner plus, et tes bons coups
+   ============================================================================ */
+function coachSim(rows, i0, dir, e, sl, tp, maxBars = 2000) { /* résultat R d'un trade déjà rempli à l'index i0 (SL d'abord si même bougie) */
+  const risk = (e - sl) * dir; if (!(risk > 0)) return null; let mfe = 0;
+  for (let j = i0; j < Math.min(rows.length, i0 + maxBars); j++) {
+    const h = rows[j][2], l = rows[j][3];
+    if (dir > 0 ? l <= sl : h >= sl) return { r: -1, mfe, j };
+    if (tp && (dir > 0 ? h >= tp : l <= tp)) return { r: ((tp - e) * dir) / risk, mfe: Math.max(mfe, ((tp - e) * dir) / risk), j };
+    const fav = dir > 0 ? (h - e) / risk : (e - l) / risk; if (fav > mfe) mfe = fav;
+  }
+  return { r: 0, mfe, j: -1 };
+}
+function coachAnalyze(rows, trades) {
+  const out = []; if (!rows || !rows.length) return out; const T0 = rows[0][0], T1 = rows[rows.length - 1][0];
+  for (const t of trades) {
+    const e = Number(t.entryPrice), sl = Number(t.stopLoss), tp = Number(t.takeProfit); if (!e || !sl) continue; const dir = t.direction === "long" ? 1 : -1; const risk = (e - sl) * dir; if (!(risk > 0)) continue;
+    const ts = Date.parse(t.entryTime) / 1000; if (!ts || ts < T0 || ts > T1) continue; const i = tvBsRows(rows, ts); if (i < 60) continue;
+    const r = rOf(t); const base = coachSim(rows, i, dir, e, sl, null) || { mfe: 0, r: 0 }; /* sans TP : jusqu'où le prix est allé avant le SL */
+    /* OTE : jambe d'impulsion des 48 dernières bougies M15, entrée limite à 70,5 % de retracement, même SL et même TP */
+    let lo = 1e9, hi = -1e9, iLo = i, iHi = i; for (let j = i - 48; j < i; j++) { if (rows[j][3] < lo) { lo = rows[j][3]; iLo = j; } if (rows[j][2] > hi) { hi = rows[j][2]; iHi = j; } }
+    let ote = null;
+    if (hi > lo) {
+      const lvl = dir > 0 ? hi - 0.705 * (hi - lo) : lo + 0.705 * (hi - lo); const okLeg = dir > 0 ? iLo < iHi : iHi < iLo;
+      if (okLeg && (dir > 0 ? e <= lvl : e >= lvl)) ote = { already: true, lvl };
+      else if (okLeg && (dir > 0 ? lvl > sl : lvl < sl) && (!tp || (dir > 0 ? lvl < tp : lvl > tp))) {
+        let fill = -1; for (let j = i; j < Math.min(rows.length, i + 48); j++) { if (dir > 0 ? rows[j][3] <= lvl : rows[j][2] >= lvl) { fill = j; break; } if (tp && (dir > 0 ? rows[j][2] >= tp : rows[j][3] <= tp)) break; }
+        if (fill < 0) ote = { lvl, missed: true, r: 0 };
+        else { const s = coachSim(rows, fill + 1, dir, lvl, sl, tp || null); ote = { lvl, r: s ? s.r : 0 }; }
+      }
+    }
+    const be1 = base.mfe >= 1 && r < 0 ? 0 : r; /* stop au point mort dès +1R */
+    const kz = (() => { try { return killzoneLabel(t.entryTime); } catch (e2) { return ""; } })();
+    out.push({ t, r, mfe: base.mfe, hit: base.r === -1, ote, be1, kz });
+  }
+  return out;
+}
+function TradeCoach({ trades }) {
+  const [res, setRes] = useState(null); const [msg, setMsg] = useState("");
+  const bt = useMemo(() => closedOf(trades.filter((x) => x.accountId === BT_ACC)), [trades]);
+  const run = async () => { setMsg("Chargement des bougies EURUSD…"); const rows = await tvAutoLoad(setMsg); if (!rows || !rows.length) { setMsg("Pas de bougies sur cet appareil : ouvre une fois le Graphique pour les charger."); return; } setMsg("Je rejoue tes trades…"); setTimeout(() => { setRes(coachAnalyze(rows, bt)); setMsg(""); }, 20); };
+  const S = useMemo(() => {
+    if (!res || !res.length) return null; const sum = (f) => res.reduce((a, x) => a + f(x), 0); const real = sum((x) => x.r);
+    const oteL = res.filter((x) => x.ote && !x.ote.already), oteReal = oteL.reduce((a, x) => a + x.r, 0), oteAlt = oteL.reduce((a, x) => a + x.ote.r, 0), already = res.filter((x) => x.ote && x.ote.already);
+    const be = sum((x) => x.be1); const tps = [1.5, 2, 2.5, 3, 4].map((X) => ({ X, s: sum((x) => (x.mfe >= X ? X : x.hit ? -1 : 0)) })); const bestTp = tps.reduce((m, x) => (x.s > m.s ? x : m), tps[0]);
+    const inKz = res.filter((x) => x.kz && x.kz !== "Hors killzone"), outKz = res.filter((x) => x.kz === "Hors killzone");
+    const advice = [];
+    if (oteL.length >= 3 && oteAlt > oteReal) advice.push({ c: C.purpleBright, t: "Attends l'OTE (62-79 %)", d: `Sur ${oteL.length} trades pris hors OTE : ${fmtR(oteReal)} au total. En attendant 70,5 % de retracement : ${fmtR(oteAlt)}, soit ${fmtR(oteAlt - oteReal)} de plus.` });
+    if (already.length >= 3) { const a = already.reduce((s, x) => s + x.r, 0) / already.length; advice.push({ c: C.teal, t: "Tes entrées en OTE", d: `${already.length} trades déjà en OTE : ${fmtR(a)} par trade en moyenne.` }); }
+    if (be > real + 0.5) advice.push({ c: C.amber, t: "Mets ton stop au BE à +1R", d: `${res.filter((x) => x.mfe >= 1 && x.r < 0).length} trades perdants étaient passés par +1R. Avec le BE à 1R : ${fmtR(be)} au lieu de ${fmtR(real)}.` });
+    if (bestTp.s > real + 0.5) advice.push({ c: C.teal, t: `TP fixe à ${String(bestTp.X).replace(".", ",")}R`, d: `Avec ce TP sur tous tes trades : ${fmtR(bestTp.s)} au lieu de ${fmtR(real)}.` });
+    if (outKz.length >= 3 && inKz.length >= 3) { const a = inKz.reduce((s, x) => s + x.r, 0) / inKz.length, b = outKz.reduce((s, x) => s + x.r, 0) / outKz.length; if (b < a - 0.2) advice.push({ c: C.red, t: "Reste en killzone", d: `En killzone : ${fmtR(a)} par trade. Hors killzone : ${fmtR(b)} par trade (${outKz.length} trades).` }); }
+    const worst = [...oteL].filter((x) => x.ote.r > x.r).sort((a, b) => (b.ote.r - b.r) - (a.ote.r - a.r)).slice(0, 8);
+    const good = res.filter((x) => x.r > 0 && (!x.ote || x.ote.already || x.ote.r <= x.r)).sort((a, b) => b.r - a.r).slice(0, 6);
+    return { n: res.length, real, advice, worst, good, tps, bestTp, be };
+  }, [res]);
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 14 };
+  const row = (x, txt, col) => <div key={x.t.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "9px 0", borderTop: `1px solid ${C.border}`, fontSize: 13 }}><span style={{ minWidth: 0 }}><b>#{x.t.rules?.tradeNo || "?"} {x.t.direction === "long" ? "▲" : "▼"}</b> <span style={{ color: C.textMuted }}>{fmtDateTime(x.t.entryTime)}</span><br /><span style={{ color: C.textSecondary }}>{txt}</span></span><b className="tnum" style={{ color: col, whiteSpace: "nowrap" }}>{fmtR(x.r)}</b></div>;
+  return (
+    <div style={{ maxWidth: 860 }}>
+      <div style={card}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 220 }}><div style={{ fontSize: 16, fontWeight: 700 }}>🤖 Coach de tes trades</div><div style={{ fontSize: 13, color: C.textMuted, marginTop: 3, lineHeight: 1.45 }}>Rejoue tes {bt.length} trades de backtest sur les vraies bougies et compare : entrée en OTE, BE à +1R, TP fixe, killzone. Il te dit ce qui t'aurait fait gagner plus, et tes bons coups.</div></div>
+          <button onClick={run} disabled={!bt.length} style={{ ...btn.primary, opacity: bt.length ? 1 : 0.5 }}>{res ? "Relancer" : "Analyser mes trades"}</button>
+        </div>
+        {msg && <div style={{ marginTop: 10, fontSize: 13, color: C.textSecondary }}>{msg}</div>}
+        {res && !res.length && <div style={{ marginTop: 10, fontSize: 13, color: C.textMuted }}>Aucun trade analysable (il faut entrée, SL et date dans la période des bougies).</div>}
+      </div>
+      {S && <>
+        <div style={card}>
+          <div style={{ fontSize: 13, color: C.textMuted }}>{S.n} trades rejoués · résultat réel <b style={{ color: S.real >= 0 ? C.teal : C.red }}>{fmtR(S.real)}</b></div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+            {S.advice.length ? S.advice.map((a, i) => <div key={i} style={{ borderLeft: `3px solid ${a.c}`, padding: "7px 12px", background: C.inputBg, borderRadius: "0 10px 10px 0" }}><div style={{ fontSize: 14, fontWeight: 700 }}>{a.t}</div><div style={{ fontSize: 13, color: C.textSecondary, marginTop: 2, lineHeight: 1.45 }}>{a.d}</div></div>) : <div style={{ fontSize: 13, color: C.textSecondary }}>Ta façon de prendre tes trades fait déjà mieux que les variantes testées. Continue.</div>}
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>{S.tps.map((x) => <span key={x.X} style={{ fontSize: 12, padding: "4px 9px", borderRadius: 8, background: C.inputBg, color: x === S.bestTp ? C.teal : C.textSecondary, fontWeight: 600 }}>TP {String(x.X).replace(".", ",")}R : {fmtR(x.s)}</span>)}<span style={{ fontSize: 12, padding: "4px 9px", borderRadius: 8, background: C.inputBg, color: C.textSecondary, fontWeight: 600 }}>BE à 1R : {fmtR(S.be)}</span></div>
+        </div>
+        {S.worst.length > 0 && <div style={card}><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Les trades où attendre l'OTE aurait payé</div>
+          {S.worst.map((x) => row(x, x.ote.missed ? `Le prix n'est jamais revenu en OTE (${x.ote.lvl.toFixed(5)}) : trade évité.` : `En attendant l'OTE à ${x.ote.lvl.toFixed(5)} : ${fmtR(x.ote.r)} au lieu de ${fmtR(x.r)}.`, x.r >= 0 ? C.teal : C.red))}</div>}
+        {S.good.length > 0 && <div style={card}><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Tes bons coups</div>
+          {S.good.map((x) => row(x, x.ote && x.ote.already ? "Entrée déjà en OTE, TP atteint : à refaire." : `Le prix est allé jusqu'à ${x.mfe.toFixed(1).replace(".", ",")}R : bonne entrée.`, C.teal))}</div>}
+      </>}
+    </div>
+  );
+}
+
 /* le graphique ne se redessine plus à chaque trade enregistré dans le site : replay fluide même avec des milliers de trades */
 const BacktestLabMemo = React.memo(BacktestLab);
 function BacktestPage(props) {
@@ -8924,16 +9063,17 @@ function BacktestPage(props) {
   const tb = (on) => ({ padding: "8px 16px", borderRadius: 10, border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purple + "26" : "transparent", color: on ? C.purpleBright : C.textSecondary, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8 });
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
         <button onClick={() => setTab("chart")} style={tb(tab === "chart")}><TvLogoIcon size={16} />Graphique</button>
         <button onClick={() => setTab("stats")} style={tb(tab === "stats")}><BarChart3 size={16} />Saisie & stats <span style={{ fontSize: 12, opacity: 0.8 }}>{n}</span></button>
         <button onClick={() => setTab("bot")} style={tb(tab === "bot")}><Cpu size={16} />Bot</button>
-        <div style={{ flex: 1 }} />
-        <button title="Ce que tes backtests prouvent : edge par setup, risque conseillé, meilleur TP" onClick={() => window.dispatchEvent(new CustomEvent("tjp-goto", { detail: "progression" }))} style={tb(false)}><Trophy size={16} />Progression</button>
+        <button onClick={() => setTab("coach")} style={tb(tab === "coach")}>🤖 Coach</button>
+
       </div>
       <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLabMemo {...stable} /></div>
       {tab === "stats" && <BacktestView {...props} />}
       {tab === "bot" && <BacktestBot />}
+      {tab === "coach" && <TradeCoach trades={props.trades} />}
     </div>
   );
 }
@@ -9174,6 +9314,19 @@ export default function TradingJournalApp() {
     setActiveAccountId(id);
     try { localStorage.setItem("activeAccountId", id); } catch {}
   };
+  /* challenge : objectif atteint -> phase suivante automatiquement (Phase 1 -> Phase 2 -> Financé), le solde repart du capital */
+  React.useEffect(() => {
+    if (!accounts || !accounts.length) return; let changed = false, msg = "";
+    const next = accounts.map((a) => {
+      if (a.type !== "challenge" || !a.challenge) return a;
+      const s = challengeStatus(a, trades.filter((t) => (t.accountId || accounts[0]?.id) === a.id));
+      if (!s.passed) return a;
+      const c = s.c; const ph = c.phase === "Phase 1" && (c.steps || 2) === 2 ? "Phase 2" : "Financé"; changed = true;
+      msg = ph === "Financé" ? `🎉 ${a.name} : compte financé ! Le solde repart à ${fmtUsd(Number(a.balance) || 0)}.` : `✅ ${a.name} : Phase 1 réussie, passage en Phase 2.`;
+      return { ...a, challenge: { ...c, phase: ph, phaseStart: new Date().toISOString() } };
+    });
+    if (changed) { saveAccounts(next); try { showToast && showToast(msg); } catch (e) {} }
+  }, [trades, accounts]);
   const saveAccounts = async (newAccounts) => {
     setAccounts(newAccounts);
     try { localStorage.setItem("accounts", JSON.stringify(newAccounts)); } catch {}
@@ -9452,7 +9605,9 @@ export default function TradingJournalApp() {
     } catch (e) { console.error("Erreur settings:", e); }
   };
 
-  const openEditTrade = (trade) => { setEditingTrade(trade); setView("tradeForm"); };
+  /* « Modifier » : le formulaire s'ouvre par-dessus la page, on reste où on est */
+  const [editOver, setEditOver] = useState(false);
+  const openEditTrade = (trade) => { setEditingTrade(trade); setEditOver(true); };
   React.useEffect(() => { const h = (e) => e.detail && setView(e.detail); window.addEventListener("tjp-goto", h); return () => window.removeEventListener("tjp-goto", h); }, []);
   const [reviewOpen, setReviewOpen] = useState(false);
   React.useEffect(() => { const h = () => setReviewOpen(true); window.addEventListener("tjp-review", h); return () => window.removeEventListener("tjp-review", h); }, []);
@@ -9472,6 +9627,7 @@ export default function TradingJournalApp() {
   };
   const tradesRef = React.useRef(trades);
   tradesRef.current = trades;
+  const editOverRef = React.useRef(false); editOverRef.current = editOver;
   /* sauvegarde locale différée : un gros JSON n'est plus réécrit à chaque trade (fluidité du replay) */
   const wlRef = React.useRef(null);
   const writeLocalSoon = (list) => { clearTimeout(wlRef.current); wlRef.current = setTimeout(() => { const go = () => { try { localStorage.setItem(LS_KEY, JSON.stringify(tradesRef.current)); } catch {} }; if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 3000 }); else go(); }, 1200); };
@@ -9488,7 +9644,7 @@ export default function TradingJournalApp() {
     setTrades(newTrades);
     writeLocal(newTrades);
     setActiveTradeId(trade.id);
-    setView("tradeDetail");
+    if (editOverRef.current && existing) setEditOver(false); else setView("tradeDetail");
     showToast(existing ? "Trade mis à jour ✓" : "Trade enregistré ✓");
     persist(merged);
   };
@@ -9606,7 +9762,7 @@ export default function TradingJournalApp() {
         )}
 
         {/* Banner Killzone style bourse */}
-        <KillzoneBanner />
+        <KillzoneBanner part="news" />
         {dbError && (
           <div style={{ background: "rgba(220,38,38,0.12)", borderBottom: "1px solid rgba(220,38,38,0.3)", padding: "7px 18px", fontSize: 11.5, color: "#FF6B6B", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <AlertTriangle size={14} /> <span>{dbError}</span>
@@ -9621,7 +9777,7 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <Dashboard extra={<><CanTradeCard trades={accountTrades} balance={initialBalance} acc={cumulMode ? null : activeAccount} /><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} /><ProgressCard all={trades} live={accountTrades} onOpen={() => setView("progression")} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} />}<ScoreCard trades={accountTrades} balance={initialBalance} /><WeekRecap trades={accountTrades} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
+              {view === "dashboard" && <Dashboard extra={<><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} onDelete={(id) => { const rest = accounts.filter((a) => a.id !== id); saveAccounts(rest); if (rest[0]) switchAccount ? switchAccount(rest[0].id) : null; }} />}<ScoreCard trades={accountTrades} balance={initialBalance} /><WeekRecap trades={accountTrades} /></>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
               {view === "backtest" && <BacktestPage trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
@@ -9631,7 +9787,6 @@ export default function TradingJournalApp() {
                 <TradeFormV2 initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name, activeAccountColor: activeAccount?.type === "real" ? C.teal : activeAccount?.type === "challenge" ? C.amber : C.purple }} onCancel={() => setView(editingTrade ? "tradeDetail" : "trades")} onSave={saveTrade} trades={accountTrades} />
               )}
               {view === "stats" && <SimpleStats trades={accountTrades} />}
-              {view === "progression" && <Progression all={trades} live={accountTrades} balance={initialBalance} />}
               {view === "erreurs" && <ErrorsPage trades={accountTrades} appSettings={appSettings} balance={initialBalance} onOpenTrade={openTradeDetail} />}
               {view === "playbooks" && <Playbooks trades={accountTrades} />}
               {view === "calculator" && <ForexCalculator balance={currentBalance} pairs={appSettings?.pairs || []} onCreateTrade={openDraftTrade} />}
@@ -9646,6 +9801,11 @@ export default function TradingJournalApp() {
         </main>
       </div>
       <PhotoZoom />
+      {editOver && editingTrade && <div style={{ position: "fixed", inset: 0, zIndex: 380, background: "rgba(0,0,0,.6)", overflowY: "auto", padding: "20px 12px" }} onClick={() => setEditOver(false)}>
+        <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 760, margin: "0 auto", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: "8px 14px" }}>
+          <TradeFormV2 key={editingTrade.id} initial={editingTrade} setupOptions={setupOptions} appSettings={{ ...appSettings, accountBalance: currentBalance, activeAccountName: activeAccount?.name }} onCancel={() => setEditOver(false)} onSave={saveTrade} trades={accountTrades} />
+        </div>
+      </div>}
       {reviewOpen && <ReviewQueue trades={accountTrades} appSettings={appSettings} onPatch={(id, p) => patchTrade(id, p, 600)} onClose={() => setReviewOpen(false)} />}
       {toast && (
         <div style={{
