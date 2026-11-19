@@ -1456,6 +1456,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const hideFlat = cfg.hideFlat, setHideFlat = (v) => setCfg({ ...R.cfg, hideFlat: v });
   const [fly, setFly] = useState(null);
   const [fav, setFav] = useState(tvLoadFav);
+  const [drawSet, setDrawSet] = useState(-1);
   const [favOpen, setFavOpen] = useState(true);
   const [favPos, setFavPos] = useState({ x: 10, y: 110 });
   const [stay, setStay] = useState(false);
@@ -1466,6 +1467,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const [unseen, setUnseen] = useState(0);
   const [indOpen, setIndOpen] = useState(false);
   const [layMenu, setLayMenu] = useState(false);
+  const [modeMenu, setModeMenu] = useState(false);
   const [sessM, setSessMS] = useState(null); R.sessM = sessM; /* mode session : asia | london | ny */
   const [exam, setExam] = useState(null); R.exam = exam; /* mode examen */
   const [trashM, setTrashM] = useState(null); /* menu poubelle comme TradingView */
@@ -2120,7 +2122,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     else if (T === "channel") { const [l1, l2] = chanLines(s); poly([l1[0], l1[1], l2[1], l2[0]], true); c.fillStyle = tvAlpha(col, 0.1); c.fill(); line(l1[0], l1[1]); line(l2[0], l2[1]); c.setLineDash([4, 4]); line({ x: (l1[0].x + l2[0].x) / 2, y: (l1[0].y + l2[0].y) / 2 }, { x: (l1[1].x + l2[1].x) / 2, y: (l1[1].y + l2[1].y) / 2 }); c.setLineDash([]); }
     else if (T === "rect") {
       const L = Math.min(a.x, b.x), Tp = Math.min(a.y, b.y), Wd = Math.abs(b.x - a.x), Hg = Math.abs(b.y - a.y);
-      c.fillStyle = tvAlpha(col, 0.13); c.fillRect(L, Tp, Wd, Hg); c.lineWidth = 1; c.strokeStyle = tvAlpha(col, 0.75); c.strokeRect(Math.round(L) + 0.5, Math.round(Tp) + 0.5, Math.round(Wd), Math.round(Hg));
+      c.fillStyle = tvAlpha(col, s.op ?? 0.13); c.fillRect(L, Tp, Wd, Hg); c.lineWidth = 1; c.strokeStyle = tvAlpha(col, 0.75); c.strokeRect(Math.round(L) + 0.5, Math.round(Tp) + 0.5, Math.round(Wd), Math.round(Hg));
       if (selected) { c.setLineDash([1, 3]); c.strokeStyle = tvAlpha(col, 0.6); c.beginPath(); c.moveTo(L, Tp + Hg / 2); c.lineTo(L + Wd, Tp + Hg / 2); c.stroke(); c.setLineDash([]); }
       if (s.kind) { font(11, true); const txt = s.kind + (s.tf ? " " + s.tf : ""); const w = c.measureText(txt).width; c.fillStyle = col; c.fillText(txt, L + Wd - w - 6, Tp + Hg / 2 + 4); }
     }
@@ -2130,11 +2132,11 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     else if (T === "brush") { c.lineJoin = c.lineCap = "round"; poly(P, false); c.stroke(); }
     else if (T === "highlight") { c.lineJoin = c.lineCap = "round"; c.lineWidth = Math.max(10, lw * 7); c.strokeStyle = tvAlpha(col, 0.35); poly(P, false); c.stroke(); }
     else if (T === "fib" || T === "fibext") {
-      const lv = T === "fib" ? [[1, "#131722"], [0.79, "#131722"], [0.705, "#131722"], [0.62, "#131722"], [0.5, "#131722"], [0, "#131722"]] : [[0, "#787b86"], [0.618, "#089981"], [1, "#787b86"], [1.272, "#2962ff"], [1.618, "#2962ff"], [2, "#9c27b0"], [2.618, "#f23645"]];
+      const lv = s.lv ? s.lv.filter((l) => l[2]).map((l) => [+l[0], l[1]]) : T === "fib" ? [[1, "#131722"], [0.79, "#131722"], [0.705, "#131722"], [0.62, "#131722"], [0.5, "#131722"], [0, "#131722"]] : [[0, "#787b86"], [0.618, "#089981"], [1, "#787b86"], [1.272, "#2962ff"], [1.618, "#2962ff"], [2, "#9c27b0"], [2.618, "#f23645"]];
       const lvl = (v) => (T === "fib" ? s.pts[1].p + (s.pts[0].p - s.pts[1].p) * v : (s.pts[2] || s.pts[1]).p + (s.pts[1].p - s.pts[0].p) * v);
       const xl = Math.min(...P.map((q) => q.x)), xr = Math.max(...P.map((q) => q.x)) + 40;
-      if (T === "fib") { const yA = pToY(lvl(0.62)), yB = pToY(lvl(0.79)); c.fillStyle = "rgba(8,153,129,0.10)"; c.fillRect(xl, Math.min(yA, yB), xr - xl, Math.abs(yB - yA)); }
-      c.setLineDash([4, 3]); c.strokeStyle = "#787b86"; c.lineWidth = 1; poly(P, false); c.stroke(); c.setLineDash([]); font(11);
+      if (T === "fib" && !s.noZone) { const yA = pToY(lvl(0.62)), yB = pToY(lvl(0.79)); c.fillStyle = "rgba(8,153,129,0.10)"; c.fillRect(xl, Math.min(yA, yB), xr - xl, Math.abs(yB - yA)); }
+      if (!s.noTrend) { c.setLineDash([4, 3]); c.strokeStyle = "#787b86"; c.lineWidth = 1; poly(P, false); c.stroke(); } c.setLineDash([]); c.lineWidth = s.w || 1; font(11);
       if (T === "fib" || P.length > 2) for (const [v, lc] of lv) { const p = lvl(v), y = pToY(p); c.strokeStyle = lc; line({ x: xl, y }, { x: xr, y }); c.fillStyle = lc; c.fillText(`${v} (${p.toFixed(TV_DIG)})`, xr + 4, y + 4); }
     }
     else if (T === "measure" || T === "pricerange" || T === "daterange") {
@@ -2307,6 +2309,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     const dbl = (e) => {
       if (R.pend && TV_TOOLS[R.pend.type].mode === "multi") { e.stopPropagation(); const s = R.pend; R.pend = null; s.pts.pop(); if (s.pts.length > 2 && Math.hypot(PX(s.pts[s.pts.length - 1]).x - PX(s.pts[s.pts.length - 2]).x, 0) < 3) s.pts.pop(); commit(s); return; }
       const sh = hitShape(pos(e)); if (sh && (R.draws[sh.i].type === "text" || R.draws[sh.i].type === "label")) { const s = R.draws[sh.i]; const txt = window.prompt("Texte :", s.text || ""); if (txt !== null) { s.text = txt; rerender(); } }
+      else if (sh) { e.stopPropagation(); R.sel = sh.i; setDrawSet(sh.i); }
     };
     const ctxm = (e) => {
       e.preventDefault(); e.stopPropagation(); if (!R.agg) return; const p = pos(e); const pr = yToP(p.y);
@@ -2358,7 +2361,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       if (e.shiftKey && e.key === "ArrowDown") { e.preventDefault(); setPlaying((p) => !p); return; }
       if (e.key === " ") { e.preventDefault(); setPlaying((p) => !p); return; }
       if (!e.ctrlKey && !e.metaKey && !e.altKey && /^[a-z]$/.test(e.key)) { const km = R.cfg.keys || tvDefKeys(fav); const id = km[e.key]; if (id && TV_TOOLS[id]) { e.preventDefault(); pickTool(id); return; } }
-      if (e.key === "Escape" && (trashM || layMenu || tfMenu)) { setTrashM(null); setLayMenu(false); setTfMenu(false); return; }
+      if (e.key === "Escape" && (trashM || layMenu || tfMenu || modeMenu)) { setTrashM(null); setLayMenu(false); setTfMenu(false); setModeMenu(false); return; }
       if (e.key === "Escape") { if (R.tool !== "cursor" || R.pend) { setTool("cursor"); R.pend = null; } else if (R.sel !== -1) { R.sel = -1; rerender(); } else setFs(false); return; }
       if (e.altKey && e.shiftKey && key === "r") { e.preventDefault(); setTool("rect"); return; }
       const alt = { t: "trend", h: "hline", v: "vline", c: "cross", f: "fib" };
@@ -2470,7 +2473,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         <span className="zh" style={{ display: "contents" }}><div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}>{TV_PAIR}</div>
         {sep}</span>
         {TV_TFS.filter(([n]) => ["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <TvBtn key={n} active={tf === m} onClick={() => setTf(m)}>{n}</TvBtn>)}
-        {cfg.favTop && !live && <><span style={{ width: 1, height: 22, background: TV.border, margin: "0 4px" }} />{fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={"f" + id} title={TV_TOOLS[id].n + ((() => { const km = cfg.keys || tvDefKeys(fav); const l = Object.keys(km).find((k) => km[k] === id); return l ? " (" + l.toUpperCase() + ")" : ""; })())} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><TvIcon id={id} /></TvBtn>)}<TvBtn title="Remettre la barre de favoris flottante sur le graphique" onClick={() => setCfg({ ...R.cfg, favTop: false })} style={{ padding: "2px 3px", color: TV.muted }}><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 12h10M7 2v7M4 6l3 3 3-3" /></svg></TvBtn></>}
+        {cfg.favTop && !live && <><span style={{ width: 1, height: 22, background: TV.border, margin: "0 4px" }} />{fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={"f" + id} title={TV_TOOLS[id].n + ((() => { const km = cfg.keys || tvDefKeys(fav); const l = Object.keys(km).find((k) => km[k] === id); return l ? " (" + l.toUpperCase() + ")" : ""; })())} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><span style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}><TvIcon id={id} /><span style={{ fontSize: 9, fontWeight: 700, color: TV.muted, marginTop: -2 }}>{((() => { const km = cfg.keys || tvDefKeys(fav); return (Object.keys(km).find((k) => km[k] === id) || "").toUpperCase(); })())}</span></span></TvBtn>)}<TvBtn title="Remettre la barre de favoris flottante sur le graphique" onClick={() => setCfg({ ...R.cfg, favTop: false })} style={{ padding: "2px 3px", color: TV.muted }}><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 12h10M7 2v7M4 6l3 3 3-3" /></svg></TvBtn></>}
         <div style={{ position: "relative" }}>
           {(() => { const extra = TV_TFS.find((x) => x[1] === tf && !["15m", "1h", "4h", "D", "W", "M"].includes(x[0])); return <TvBtn active={!!extra || tfMenu} title="Autres timeframes" onClick={() => setTfMenu((v) => !v)}>{extra ? extra[0] : ""}<ChevronDown size={15} /></TvBtn>; })()}
           {tfMenu && <div style={{ position: "absolute", left: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 0", minWidth: 150 }}>
@@ -2493,6 +2496,17 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         {(curSess() || {}).blind && <TvBtn active title="Mode à l'aveugle : dates cachées. Clique pour révéler la date." onClick={() => { const v = snapSess(sess); v.list = v.list.map((x) => (x.id === v.cur ? { ...x, blind: false } : x)); setSessS(v); tvSaveSess(v); }} style={{ fontSize: 13 }}><EyeOff size={15} />Aveugle</TvBtn>}
         </span>
         <div style={{ flex: 1 }} />
+        <div style={{ position: "relative" }}>
+          <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}>🎯 Modes</TvBtn>
+          {modeMenu && <><div onClick={() => setModeMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 59 }} /><div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: 8, width: 300, fontSize: 14 }}>
+            <div style={{ padding: "6px 8px", fontWeight: 700 }}>Session seulement</div>
+            <div style={{ display: "flex", gap: 4, padding: "0 8px 8px", flexWrap: "wrap" }}>{[["", "Toutes"], ...Object.entries(TV_SESS_MODE).map(([k, [n]]) => [k, n])].map(([k, n]) => <button key={k || "all"} onClick={() => { setSessM(k || null); }} style={{ border: `1px solid ${(sessM || "") === k ? TV.blue : TV.border}`, background: (sessM || "") === k ? "rgba(41,98,255,0.08)" : "#fff", color: (sessM || "") === k ? TV.blue : TV.text, borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontFamily: TV_FONT, fontSize: 13 }}>{n}</button>)}</div>
+            {sessM && <div onClick={() => { goSession(sessM, true); setModeMenu(false); }} style={{ padding: "8px", cursor: "pointer", borderRadius: 6 }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}>⏭ Jour suivant</div>}
+            <div style={{ borderTop: `1px solid ${TV.hover}`, margin: "4px 0" }} />
+            <div onClick={() => { exam ? (setExam(null), (R.exam = null)) : examStart(); setModeMenu(false); }} style={{ padding: "8px", cursor: "pointer", borderRadius: 6, display: "flex", justifyContent: "space-between" }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><span>🎓 Examen : reconnais tes trades</span><b style={{ color: exam ? TV.blue : TV.muted }}>{exam ? "ON" : "OFF"}</b></div>
+            <div onClick={() => setCfg({ ...R.cfg, miss: !R.cfg.miss })} style={{ padding: "8px", cursor: "pointer", borderRadius: 6, display: "flex", justifyContent: "space-between" }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><span>🤖 Trades manqués (IA)</span><b style={{ color: cfg.miss ? TV.blue : TV.muted }}>{cfg.miss ? "ON" : "OFF"}</b></div>
+          </div></>}
+        </div>
         <div style={{ position: "relative" }}>
           <TvBtn active={layMenu || cfg.layout !== "1"} title="Disposition des graphiques (synchronisés sur le replay)" onClick={() => setLayMenu((v) => !v)}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2" y="2" width="14" height="14" rx="2.5" /></svg></TvBtn>
           {layMenu && <div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 10px", minWidth: 250 }}>
@@ -2613,7 +2627,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             {(R.draws[R.sel] || {}).type === "rect" && <>{Object.keys(TV_ZONE).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = k; s.color = undefined; s.tf = s.tf || TV_TFLAB[R.selOn ? R.selOn.min : R.agg.min]; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_ZONE[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
             {["trend", "hline"].includes((R.draws[R.sel] || {}).type) && <>{Object.keys(TV_STRUCT).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = s.kind === k ? undefined : k; s.tf = s.tf || TV_TFLAB[R.agg.min]; s.color = undefined; rerender(); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_STRUCT[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
             {(R.draws[R.sel] || {}).type === "hray" && <>{Object.keys(TV_LIQ).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = k; s.color = undefined; rerender(); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_LIQ[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
-            <TvBtn title="Cloner (Ctrl + glisser)" onClick={() => { const s = R.draws[R.sel]; if (s) { const c = JSON.parse(JSON.stringify(s)); c.pts = c.pts.map((q) => ({ t: q.t, p: q.p + 5 * TV_PIP })); R.draws.push(c); R.sel = R.draws.length - 1; rerender(); } }} style={{ padding: "4px 6px" }}><Copy size={16} /></TvBtn>
+            <TvBtn title="Paramètres" onClick={() => { if (R.sel >= 0) setDrawSet(R.sel); }} style={{ padding: "4px 6px" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg></TvBtn><TvBtn title="Cloner (Ctrl + glisser)" onClick={() => { const s = R.draws[R.sel]; if (s) { const c = JSON.parse(JSON.stringify(s)); c.pts = c.pts.map((q) => ({ t: q.t, p: q.p + 5 * TV_PIP })); R.draws.push(c); R.sel = R.draws.length - 1; rerender(); } }} style={{ padding: "4px 6px" }}><Copy size={16} /></TvBtn>
             <TvBtn title="Supprimer (Suppr)" onClick={() => { if (R.sel >= 0) { R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; R.selOn = null; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); } }} style={{ padding: "4px 6px" }}><Trash2 size={16} /></TvBtn>
           </div>
           {["rect", "hray", "trend", "hline"].includes(tool) && !live && (
@@ -2630,7 +2644,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
               <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); const sx = e.clientX - favPos.x, sy = e.clientY - favPos.y; const mv = (ev) => setFavPos({ x: Math.max(0, ev.clientX - sx), y: Math.max(0, ev.clientY - sy) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
                 style={{ cursor: "grab", padding: "0 4px", color: TV.muted, fontSize: 14, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>
               <TvBtn title="Mettre la barre en haut, à côté des timeframes" onClick={() => setCfg({ ...R.cfg, favTop: true })} style={{ padding: "2px 3px", color: TV.muted }}><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 2h10M7 12V5M4 8l3-3 3 3" /></svg></TvBtn>
-              {fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={id} title={TV_TOOLS[id].n + ((() => { const km = cfg.keys || tvDefKeys(fav); const l = Object.keys(km).find((k) => km[k] === id); return l ? " (" + l.toUpperCase() + ")" : ""; })())} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><TvIcon id={id} /></TvBtn>)}
+              {fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={id} title={TV_TOOLS[id].n + ((() => { const km = cfg.keys || tvDefKeys(fav); const l = Object.keys(km).find((k) => km[k] === id); return l ? " (" + l.toUpperCase() + ")" : ""; })())} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><span style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}><TvIcon id={id} /><span style={{ fontSize: 9, fontWeight: 700, color: TV.muted, marginTop: -2 }}>{((() => { const km = cfg.keys || tvDefKeys(fav); return (Object.keys(km).find((k) => km[k] === id) || "").toUpperCase(); })())}</span></span></TvBtn>)}
             </div>
           )}
           <canvas ref={ovRef} style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 3 }} />
@@ -2664,9 +2678,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             <input ref={dateRef} className="tv-hidden-date" type="date" onChange={(e) => jumpTo(e.target.value)} style={{ position: "absolute", opacity: 0, width: 1, height: 1, left: 20, bottom: 0, pointerEvents: "none" }} aria-label="Date de départ" />
             <TvBtn title="Sélectionner la barre : clique sur une bougie pour reprendre le replay à partir de là" active={selBar} onClick={() => { setPlaying(false); R.selBar = !selBar; setSelBar(!selBar); }} style={{ padding: "5px 6px" }}>{TvIco.cut}</TvBtn>
             <TvBtn title="Lecture / pause (Espace) · → avancer · ← reculer" onClick={() => setPlaying((p) => !p)} style={{ padding: "5px 6px" }}>{playing ? TvIco.pause : TvIco.play}</TvBtn>
-            <select value={sessM || ""} onChange={(e) => { setSessM(e.target.value || null); e.target.blur(); }} title="Mode session : ne voir que cette session chaque jour" style={{ border: `1px solid ${sessM ? TV.blue : TV.border}`, borderRadius: 6, padding: "3px 4px", fontSize: 13, color: sessM ? TV.blue : TV.text, background: "#fff", fontFamily: TV_FONT }}><option value="">Toutes</option>{Object.entries(TV_SESS_MODE).map(([k, [n]]) => <option key={k} value={k}>{n}</option>)}</select>
             {sessM && <TvBtn title="Jour suivant : saute à la prochaine session" onClick={() => goSession(sessM, true)} style={{ padding: "5px 6px", fontWeight: 700 }}>⏭</TvBtn>}
-            <TvBtn title="Mode examen : tes anciens trades au hasard, reconnais-les" active={!!exam} onClick={() => (exam ? (setExam(null), (R.exam = null)) : examStart())} style={{ padding: "5px 6px", fontWeight: 700, fontSize: 13 }}>🎓</TvBtn>
             <TvBtn title="Bougie suivante : affiche une seule nouvelle bougie, complète" onClick={() => { if (!R.agg) return; const A = R.agg; const endK = (k) => (k + 1 < A.start.length ? A.start[k + 1] - 1 : R.rows.length - 1); let tgt = endK(R.k); if (tgt <= R.ci) tgt = endK(R.k + 1); step(Math.max(1, tgt - R.ci)); }} style={{ padding: "5px 5px" }}>{TvIco.candle}</TvBtn>
             <TvBtn title="Avancer d'une journée" onClick={() => goToIndex(tvBsRows(R.rows, R.rows[R.ci][0] + 86400))} style={{ padding: "5px 6px" }}>{TvIco.day}</TvBtn>
             {botOn && <TvBtn title="Le bot place ses trades pendant le replay · clique pour l'arrêter" onClick={stopBot} style={{ padding: "4px 8px", fontSize: 12, fontWeight: 700, color: "#9c27b0" }}><Cpu size={15} />Bot</TvBtn>}
@@ -2692,6 +2704,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         </div>
       </div>
 
+      {drawSet >= 0 && R.draws[drawSet] && <TvDrawSettings d={R.draws[drawSet]} onClose={() => setDrawSet(-1)} onApply={(v) => { R.draws[drawSet] = v; setDrawSet(-1); R.dirty = 1; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }} />}
       {showSet && <TvSettings years={years} curYear={R.rows ? tvYear(R.rows[R.ci][0]) : undefined} onClearYear={(y) => { clearYear(y); setShowSet(false); }} cfg={cfg} onClose={() => setShowSet(false)} onApply={(v) => { setCfg(v); setShowSet(false); }} onCloseAll={closeAll} onReset={() => { R.trades = []; R.draws = []; rerender(); }} fav={fav} />}
       {showNew && <TvNewSession list={sess.list} onClose={() => setShowNew(false)} onCreate={createSess} onDelete={delSess} />}
       {/* panneau Replay Trading */}
@@ -2819,6 +2832,45 @@ const tvColor = (v, onChange, title) => (
     <input type="color" value={v} onChange={(e) => onChange(e.target.value)} style={{ position: "absolute", opacity: 0, inset: 0, cursor: "pointer" }} />
   </label>
 );
+const TV_FIB0 = [[0, "#787b86", 1], [0.236, "#f23645", 0], [0.382, "#f23645", 0], [0.5, "#131722", 1], [0.618, "#787b86", 0], [0.62, "#131722", 1], [0.705, "#131722", 1], [0.79, "#131722", 1], [1, "#131722", 1], [1.272, "#2962ff", 0], [1.414, "#f23645", 0], [1.618, "#2962ff", 0], [2, "#9c27b0", 0], [2.618, "#f23645", 0], [3.618, "#9c27b0", 0], [4.236, "#e91e63", 0]];
+const TV_FIBX0 = [[0, "#787b86", 1], [0.618, "#089981", 1], [1, "#787b86", 1], [1.272, "#2962ff", 1], [1.618, "#2962ff", 1], [2, "#9c27b0", 1], [2.618, "#f23645", 1], [3.618, "#9c27b0", 0], [4.236, "#e91e63", 0]];
+const TV_DNAME = { fib: "Retracement de Fibonacci", fibext: "Extension de Fibonacci", rect: "Rectangle", trend: "Ligne de tendance", hline: "Ligne horizontale", hray: "Rayon horizontal", vline: "Ligne verticale", ray: "Rayon", ext: "Ligne étendue", channel: "Canal", circle: "Cercle", triangle: "Triangle", path: "Flèche", brush: "Pinceau", highlight: "Surligneur", text: "Texte", cross: "Croix" };
+function TvDrawSettings({ d: d0, onClose, onApply }) {
+  const [d, setD] = useState(() => { const c = JSON.parse(JSON.stringify(d0)); if ((c.type === "fib" || c.type === "fibext") && !c.lv) c.lv = JSON.parse(JSON.stringify(c.type === "fib" ? TV_FIB0 : TV_FIBX0)); return c; });
+  const [tab, setTab] = useState("style");
+  const up = (f) => setD((o) => { const n = JSON.parse(JSON.stringify(o)); f(n); return n; });
+  useEffect(() => { const k = (e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }; window.addEventListener("keydown", k, true); return () => window.removeEventListener("keydown", k, true); }, []);
+  const isFib = d.type === "fib" || d.type === "fibext";
+  const col = d.color || (d.kind && (TV_ZONE[d.kind] || TV_LIQ[d.kind] || TV_STRUCT[d.kind])) || TV.blue;
+  const row = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 0" };
+  const inp = { border: `1px solid ${TV.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 13, fontFamily: TV_FONT, width: 90 };
+  const sw = (v, f) => <input type="color" value={v} onChange={(e) => f(e.target.value)} style={{ width: 34, height: 30, border: `1px solid ${TV.border}`, borderRadius: 6, padding: 2, background: "#fff", cursor: "pointer" }} />;
+  const tabB = (k, n) => <button key={k} onClick={() => setTab(k)} style={{ border: "none", background: "none", fontSize: 15, fontWeight: 600, fontFamily: TV_FONT, padding: "8px 0", marginRight: 22, cursor: "pointer", color: TV.text, borderBottom: tab === k ? `3px solid ${TV.text}` : "3px solid transparent" }}>{n}</button>;
+  return <div onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: TV_FONT }}>
+    <div style={{ background: "#fff", borderRadius: 14, width: 520, maxWidth: "94vw", maxHeight: "86vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 22px 4px" }}><b style={{ fontSize: 20 }}>{TV_DNAME[d.type] || d.type}</b><button onClick={onClose} style={{ border: "none", background: "none", fontSize: 22, cursor: "pointer", color: TV.text }}>×</button></div>
+      <div style={{ padding: "0 22px", borderBottom: `1px solid ${TV.border}` }}>{tabB("style", "Style")}{tabB("coord", "Coordonnées")}{d.type === "rect" || d.type === "text" || d.kind !== undefined ? tabB("txt", "Texte") : null}</div>
+      <div style={{ padding: "8px 22px", overflowY: "auto", flex: 1 }}>
+        {tab === "style" && <>
+          {!isFib && <div style={row}><span>Couleur</span>{sw(col, (v) => up((n) => { n.color = v; }))}</div>}
+          {d.type !== "rect" && <div style={row}><span>{isFib ? "Ligne des niveaux" : "Ligne"}</span><span style={{ display: "flex", gap: 6 }}><select value={d.w || (isFib ? 1 : 1.5)} onChange={(e) => up((n) => { n.w = +e.target.value; })} style={inp}>{[1, 1.5, 2, 3, 4].map((w) => <option key={w} value={w}>{w}px</option>)}</select>{!isFib && <select value={d.dash ? 1 : 0} onChange={(e) => up((n) => { n.dash = !!+e.target.value; })} style={inp}><option value={0}>Pleine</option><option value={1}>Pointillée</option></select>}</span></div>}
+          {d.type === "rect" && <div style={row}><span>Opacité du fond</span><span><input type="range" min={0} max={0.6} step={0.02} value={d.op ?? 0.13} onChange={(e) => up((n) => { n.op = +e.target.value; })} /> {Math.round((d.op ?? 0.13) * 100)} %</span></div>}
+          {isFib && <>
+            <div style={row}><label style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={!d.noTrend} onChange={(e) => up((n) => { n.noTrend = !e.target.checked; })} />Ligne de tendance</label>{d.type === "fib" && <label style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={!d.noZone} onChange={(e) => up((n) => { n.noZone = !e.target.checked; })} />Zone OTE 0.62–0.79</label>}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 18px", paddingTop: 6 }}>{d.lv.map((l, i) => <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={!!l[2]} onChange={(e) => up((n) => { n.lv[i][2] = e.target.checked ? 1 : 0; })} /><input value={l[0]} onChange={(e) => up((n) => { n.lv[i][0] = e.target.value; })} style={{ ...inp, flex: 1, width: 0, background: l[2] ? "#fff" : "#f0f3fa" }} />{sw(l[1], (v) => up((n) => { n.lv[i][1] = v; }))}</div>)}</div>
+            <button onClick={() => up((n) => { n.lv.push([1.5, "#787b86", 1]); })} style={{ marginTop: 10, border: `1px solid ${TV.border}`, background: "#fff", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: TV_FONT }}>+ Niveau</button>
+          </>}
+        </>}
+        {tab === "coord" && d.pts.map((q, i) => <div key={i} style={row}><span>Point {i + 1}</span><span style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="number" step={TV_PIP} value={q.p.toFixed(TV_DIG)} onChange={(e) => up((n) => { n.pts[i].p = +e.target.value; })} style={{ ...inp, width: 110 }} /><span style={{ fontSize: 12, color: TV.muted }}>{new Date(q.t * 1000).toISOString().slice(0, 16).replace("T", " ")}</span></span></div>)}
+        {tab === "txt" && <div style={row}><span>Étiquette</span><input value={d.type === "text" ? d.text || "" : d.kind || ""} onChange={(e) => up((n) => { if (n.type === "text") n.text = e.target.value; else n.kind = e.target.value || undefined; })} style={{ ...inp, width: 200 }} /></div>}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: `1px solid ${TV.border}` }}>
+        <button onClick={onClose} style={{ border: `1px solid ${TV.text}`, background: "#fff", borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontFamily: TV_FONT, fontWeight: 600 }}>Annuler</button>
+        <button onClick={() => onApply(d)} style={{ border: "none", background: TV.text, color: "#fff", borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontFamily: TV_FONT, fontWeight: 600 }}>D'accord</button>
+      </div>
+    </div></div>;
+}
+
 function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], onClearYear, curYear, fav = [] }) {
   const [cy, setCy] = useState(curYear || years[years.length - 1] || 2010); const [sure, setSure] = useState(false);
   const [d, setD] = useState(() => JSON.parse(JSON.stringify(cfg)));
@@ -2964,7 +3016,10 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
       else if (d.type === "text" && d.text) { const xx = xOf(a.t), yy = y(a.p); if (xx == null || yy == null) return; g.font = "13px " + TV_FONT; g.fillStyle = d.color || TV.text; g.fillText(d.text, xx, yy); }
       else if ((d.type === "trend" || d.type === "ray" || d.type === "ext") && b) { const x1 = xOf(a.t), x2 = xOf(b.t), y1 = y(a.p), y2 = y(b.p); if (x1 == null || x2 == null || y1 == null || y2 == null) return; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
       if (selD) { const hp = d.type === "rect" && d.pts[1] ? [[d.pts[0].t, d.pts[0].p], [d.pts[1].t, d.pts[0].p], [d.pts[0].t, d.pts[1].p], [d.pts[1].t, d.pts[1].p]] : d.pts.map((q) => [q.t, q.p]);
-        for (const [qt, qp] of hp) { const qx = xOf(qt), qy = y(qp); if (qx == null || qy == null) continue; g.fillStyle = "#fff"; g.strokeStyle = TV.blue; g.lineWidth = 1.2; g.beginPath(); g.arc(qx, qy, 4.5, 0, 7); g.fill(); g.stroke(); } }
+        for (const [qt, qp] of hp) { const qx = xOf(qt), qy = y(qp); if (qx == null || qy == null) continue; g.fillStyle = "#fff"; g.strokeStyle = TV.blue; g.lineWidth = 1.2; g.beginPath(); g.arc(qx, qy, 4.5, 0, 7); g.fill(); g.stroke(); }
+        if (d.type === "rect" && d.pts[1]) { const xa = xOf(Math.min(d.pts[0].t, d.pts[1].t)), xb = xOf(Math.max(d.pts[0].t, d.pts[1].t)), ya2 = y(Math.max(d.pts[0].p, d.pts[1].p)), yb2 = y(Math.min(d.pts[0].p, d.pts[1].p));
+          if (xa != null && xb != null && ya2 != null && yb2 != null) { const xm = (xa + xb) / 2, ym = (ya2 + yb2) / 2; g.setLineDash([2, 3]); g.strokeStyle = TV.blue; g.beginPath(); g.moveTo(xa, ym); g.lineTo(xb, ym); g.stroke(); g.setLineDash([]);
+            for (const [sx, sy] of [[xm, ya2], [xm, yb2], [xa, ym], [xb, ym]]) { g.fillStyle = "#fff"; g.strokeStyle = TV.blue; g.fillRect(sx - 4, sy - 4, 8, 8); g.strokeRect(sx - 4, sy - 4, 8, 8); } } } }
     });
     for (const tr of RR.trades || []) { /* positions : entrée -> TP (vert) et entrée -> SL (rouge) */
       if (tr.status === "pending" || !tr.openT) continue; const end = tr.status === "closed" ? tr.closeT : now; if (end < now - 30 * 86400) continue;
@@ -3010,6 +3065,8 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const hit = (p) => { const RR = S.R; let best = null; (RR.draws || []).forEach((d, i) => { if (!d.pts || RR.hidden) return; const a = d.pts[0], b = d.pts[1]; const ya = S.se.priceToCoordinate(a.p);
         if (d.type === "rect" && b) { const x1 = xOf(Math.min(a.t, b.t)) ?? 0, x2 = xOf(Math.max(a.t, b.t)) ?? el.clientWidth, y1 = Math.min(ya, S.se.priceToCoordinate(b.p)), y2 = Math.max(ya, S.se.priceToCoordinate(b.p));
           const corner = [[0, 0], [1, 0], [0, 1], [1, 1]].find(([cx, cy]) => Math.abs(p.x - (cx ? x2 : x1)) < 8 && Math.abs(p.y - (cy ? y2 : y1)) < 8);
+          const xm = (x1 + x2) / 2, ym = (y1 + y2) / 2; const side = !corner && [["et", xm, y1], ["eb", xm, y2], ["el", x1, ym], ["er", x2, ym]].find(([, sx, sy]) => Math.abs(p.x - sx) < 7 && Math.abs(p.y - sy) < 7);
+          if (side) { best = { i, area: -2, mode: side[0] }; return; }
           if (corner || (p.x >= x1 - 3 && p.x <= x2 + 3 && p.y >= y1 - 3 && p.y <= y2 + 3)) { const area = (x2 - x1) * (y2 - y1); if (!best || corner || area < best.area) best = { i, area: corner ? -1 : area, mode: corner ? "c" + corner.join("") : "move" }; } }
         else if ((d.type === "hline" || d.type === "hray" || d.type === "bsl" || d.type === "ssl") && ya != null && Math.abs(p.y - ya) < 6) { if (!best) best = { i, area: 0, mode: "move" }; }
         else if (d.type === "text" && ya != null) { const xx = xOf(a.t); if (xx != null && p.x >= xx - 4 && p.x <= xx + 120 && p.y >= ya - 16 && p.y <= ya + 4 && !best) best = { i, area: 0, mode: "move" }; }
@@ -3035,10 +3092,11 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
       if (S.drag) { e.stopPropagation(); e.preventDefault(); const q = pt(p); if (q.t == null || q.p == null) return; const D = S.drag, d = RR.draws[D.i], o = D.orig; if (!d) return; const dt = q.t - D.q0.t, dp = q.p - D.q0.p;
         if (D.mode === "move") d.pts = o.pts.map((z) => ({ t: z.t + (d.type === "hline" ? 0 : dt), p: z.p + dp }));
         else if (D.mode === "p0" || D.mode === "p1") d.pts[D.mode === "p0" ? 0 : 1] = q;
+        else if (D.mode[0] === "e") { const a = o.pts[0], b = o.pts[1]; let t1 = Math.min(a.t, b.t), t2 = Math.max(a.t, b.t), hi = Math.max(a.p, b.p), lo = Math.min(a.p, b.p); if (D.mode === "et") hi = q.p; if (D.mode === "eb") lo = q.p; if (D.mode === "el") t1 = q.t; if (D.mode === "er") t2 = q.t; d.pts = [{ t: t1, p: hi }, { t: t2, p: lo }]; }
         else { const cx = +D.mode[1], cy = +D.mode[2]; const a = o.pts[0], b = o.pts[1]; const xs = [Math.min(a.t, b.t), Math.max(a.t, b.t)], hiP = Math.max(a.p, b.p), loP = Math.min(a.p, b.p); xs[cx] = q.t; const ps = [hiP, loP]; ps[cy] = q.p; d.pts = [{ t: xs[0], p: ps[0] }, { t: xs[1], p: ps[1] }]; }
         RR.dirty = true; S.redraw(); return; }
       if (!el.contains(e.target)) return;
-      const h = (RR.tool || "cursor") === "cursor" ? hit(p) : null; el.style.cursor = (RR.tool || "cursor") !== "cursor" ? "crosshair" : h ? (h.mode === "move" ? "move" : "nwse-resize") : "";
+      const h = (RR.tool || "cursor") === "cursor" ? hit(p) : null; el.style.cursor = (RR.tool || "cursor") !== "cursor" ? "crosshair" : h ? (h.mode === "move" ? "move" : h.mode === "et" || h.mode === "eb" ? "ns-resize" : h.mode === "el" || h.mode === "er" ? "ew-resize" : "nwse-resize") : "";
     };
     const up = (e) => {
       const RR = S.R; if (!RR) return;
