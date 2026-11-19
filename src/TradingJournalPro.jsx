@@ -8,7 +8,7 @@ import {
   Settings,
   BookOpen, Newspaper, RefreshCw, MoreHorizontal, CalendarDays,
   Target, Zap, ThumbsUp, ThumbsDown, Share2, Star, AlertTriangle, Check, Clipboard, FolderOpen, LineChart, Timer, SlidersHorizontal, ArrowLeftRight, Lightbulb, Coins, CircleDot,
-  Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward, StepBack, Scissors, SkipForward, Cpu, SeparatorVertical, Radio, Minimize2, Maximize2, Magnet, Copy, EyeOff,
+  Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward, StepBack, Scissors, SkipForward, Cpu, SeparatorVertical, Radio, Minimize2, Maximize2, Magnet, Copy, EyeOff, Eye, Bot, GraduationCap,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -1653,14 +1653,14 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   function missTick() {
     if (!R.cfg.miss || !R.missAll) return; const now = R.rows[R.ci][0];
     if (R.missPtr == null) { let lo = 0, hi = R.missAll.length; while (lo < hi) { const m = (lo + hi) >> 1; if (R.missAll[m].tOut <= now) lo = m + 1; else hi = m; } R.missPtr = lo; return; }
-    while (R.missPtr < R.missAll.length && R.missAll[R.missPtr].tOut <= now) { const c = R.missAll[R.missPtr++]; if (c.r > 0 && !missTaken(c)) R.yearMsg = `🤖 IA : tu as manqué un ${c.kind === "BB" ? "breaker" : c.kind} ${c.tf} ${c.dir > 0 ? "acheteur" : "vendeur"} (${tvFmtTime(c.t, R.tz, "full")}) → ${c.r > 0 ? "+" : ""}${c.r.toFixed(1)} R${c.why === "BE" ? " (BE)" : ""}.`; }
+    while (R.missPtr < R.missAll.length && R.missAll[R.missPtr].tOut <= now) { const c = R.missAll[R.missPtr++]; if (c.r > 0 && !missTaken(c)) R.yearMsg = `IA : tu as manqué un ${c.kind === "BB" ? "breaker" : c.kind} ${c.tf} ${c.dir > 0 ? "acheteur" : "vendeur"} (${tvFmtTime(c.t, R.tz, "full")}) → ${c.r > 0 ? "+" : ""}${c.r.toFixed(1)} R${c.why === "BE" ? " (BE)" : ""}.`; }
   }
   /* ---------- mode session : on ne voit que la session choisie, puis on saute au jour suivant ---------- */
   const inSess = (m, s) => { const [, a, b] = TV_SESS_MODE[s]; return m >= a && m < b; };
   const nextSessStart = (from, s) => { const a = TV_SESS_MODE[s][1]; for (let j = Math.max(1, from); j < R.rows.length; j++) { const t0 = R.rows[j][0], m = tvNyMin(t0), mp = tvNyMin(R.rows[j - 1][0]), dw = tvNyDow(t0); if (m >= a && (mp < a || t0 - R.rows[j - 1][0] > 6 * 3600) && dw !== 6 && !(dw === 0 && a < 17 * 60)) return j; } return -1; };
   const goSession = (s, fromNext) => { if (!R.rows) return; const i = nextSessStart(fromNext ? R.ci + 4 : Math.max(1, R.ci - 1), s); if (i < 0) { setMsg("Plus de session dans les données."); return; } R.sessWas = true; goToIndex(i); setMsg(`${TV_SESS_MODE[s][0]} : ${tvFmtTime(R.rows[i][0], R.tz, "full")}. L'historique avant reste visible.`); };
   const setSessM = (s) => { setSessMS(s); R.sessM = s; if (s) goSession(s, false); };
-  function sessTick() { const s = R.sessM; if (!s || !R.rows) return; const m = tvNyMin(R.rows[R.ci][0]); const ins = inSess(m, s); if (R.sessWas && !ins) { R.sessWas = false; setPlaying(false); R.yearMsg = `Fin de la session ${TV_SESS_MODE[s][0]}. ⏭ pour la journée suivante.`; } else if (ins) R.sessWas = true; }
+  function sessTick() { const s = R.sessM; if (!s || !R.rows) return; const m = tvNyMin(R.rows[R.ci][0]); const ins = inSess(m, s); if (R.sessWas && !ins) { R.sessWas = false; setPlaying(false); R.yearMsg = `Fin de la session ${TV_SESS_MODE[s][0]}. » pour la journée suivante.`; } else if (ins) R.sessWas = true; }
   /* ---------- mode examen : tes anciens trades au hasard, tu dois les reconnaître ---------- */
   const examStart = () => {
     const app = ((getApp ? getApp() : appTrades) || []).filter((x) => (x.pair || "").toUpperCase() === "EURUSD" && x.status !== "open" && x.resultR != null && x.entryTime);
@@ -1675,9 +1675,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const examJudge = () => {
     const E = R.exam; if (!E || E.phase !== "play") return; const it = E.q[E.i]; const mine = R.trades.slice(E.t0).filter((x) => (x.openT || x.placedT) && (x.openT || x.placedT) >= it.t - 11 * 3600 && (x.openT || x.placedT) <= it.t + 6 * 3600);
     const same = mine.find((x) => x.side === it.dir), opp = mine.find((x) => x.side !== it.dir); let txt, ok;
-    if (same) { ok = it.r > 0; txt = it.r > 0 ? `✅ Bravo, tu as repris le même trade (${it.r > 0 ? "+" : ""}${it.r.toFixed(1)} R).` : `❌ Même trade, même perte (${it.r.toFixed(1)} R). Qu'est-ce qui aurait dû t'arrêter ?`; }
+    if (same) { ok = it.r > 0; txt = it.r > 0 ? `✓ Bravo, tu as repris le même trade (${it.r > 0 ? "+" : ""}${it.r.toFixed(1)} R).` : `✕ Même trade, même perte (${it.r.toFixed(1)} R). Qu'est-ce qui aurait dû t'arrêter ?`; }
     else if (opp) { ok = it.r < 0; txt = `↔ Tu as pris l'inverse de ton trade d'origine (${it.dir > 0 ? "long" : "short"}, ${it.r.toFixed(1)} R).`; }
-    else { ok = it.r <= 0; txt = it.r > 0 ? `❌ Raté : ton trade ${it.dir > 0 ? "long" : "short"} avait fait +${it.r.toFixed(1)} R.` : it.r < 0 ? `✅ Bravo, tu as évité une perte (${it.r.toFixed(1)} R).` : "Ton trade d'origine était BE : passer était aussi bien."; }
+    else { ok = it.r <= 0; txt = it.r > 0 ? `✕ Raté : ton trade ${it.dir > 0 ? "long" : "short"} avait fait +${it.r.toFixed(1)} R.` : it.r < 0 ? `✓ Bravo, tu as évité une perte (${it.r.toFixed(1)} R).` : "Ton trade d'origine était BE : passer était aussi bien."; }
     const N = { ...E, phase: "done", score: E.score + (ok ? 1 : 0), res: [...E.res, { ok, txt }], txt }; setExam(N); R.exam = N; setPlaying(false);
   };
   const examNext = () => { const E = R.exam; if (!E) return; const N = { ...E, i: E.i + 1, phase: E.i + 1 >= E.q.length ? "end" : "play", txt: "" }; setExam(N); R.exam = N; if (N.phase === "play") examGo(N); };
@@ -1708,7 +1708,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       let ses = sess.list.find((x) => x.bot);
       const go = (id, base) => { openSess(id, base); setTimeout(() => { goToIndex(tvBsRows(R.rows, Date.UTC(bc.y0, 0, 2) / 1000)); botResync(); R.botOn = true; setBotOn(true); setStepTf(60); setSpd(5); setPlaying(true); setMsg(`Bot lancé depuis ${bc.y0} : ${R.botQ.length} trades vont se placer pendant le replay. Ils restent à part (pas dans Saisie & stats).`); }, 60); };
       if (ses) go(ses.id);
-      else { const id = "s" + Date.now(); const base = snapSess(sess); base.list = [...base.list, { id, title: "🤖 Bot", bot: true, ci: null, tf, draws: [], trades: [] }]; go(id, base); }
+      else { const id = "s" + Date.now(); const base = snapSess(sess); base.list = [...base.list, { id, title: "Bot", bot: true, ci: null, tf, draws: [], trades: [] }]; go(id, base); }
     }, 30);
   };
   const stopBot = () => { R.botOn = false; setBotOn(false); setPlaying(false); setMsg("Bot arrêté."); };
@@ -1759,11 +1759,11 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   }
   function propCheck(t) {
     const P = R.prop; if (!P || P.status !== "on") return; const S = propState();
-    if (S.worst <= -P.daily / 100 * P.size) { P.status = "fail"; P.why = `perte journalière de ${P.daily} % dépassée`; R.yearMsg = `❌ Challenge échoué : ${P.why}.`; return; }
-    if (S.low <= P.size * (1 - P.max / 100)) { P.status = "fail"; P.why = `perte max de ${P.max} % atteinte`; R.yearMsg = `❌ Challenge échoué : ${P.why}.`; return; }
+    if (S.worst <= -P.daily / 100 * P.size) { P.status = "fail"; P.why = `perte journalière de ${P.daily} % dépassée`; R.yearMsg = `✕ Challenge échoué : ${P.why}.`; return; }
+    if (S.low <= P.size * (1 - P.max / 100)) { P.status = "fail"; P.why = `perte max de ${P.max} % atteinte`; R.yearMsg = `✕ Challenge échoué : ${P.why}.`; return; }
     if (S.target != null && S.pnl >= S.target / 100 * P.size && S.days >= (P.minDays || 0)) {
       P.hist = [...(P.hist || []), { phase: P.phase, pnl: +S.pnl.toFixed(2), n: S.n, t }]; P.phase += 1; P.phaseT = (t || R.rows[R.ci][0]) + 1;
-      R.yearMsg = P.phase >= P.steps ? `🎉 Objectif atteint : compte FINANCÉ de ${tvMoney(P.size)} ! Les pertes max restent actives, ta part des profits est de ${P.split} %.` : `✅ Phase ${P.phase} réussie (+${S.target} %) : passage en Phase ${P.phase + 1}, le solde repart à ${tvMoney(P.size)}.`;
+      R.yearMsg = P.phase >= P.steps ? `★ Objectif atteint : compte FINANCÉ de ${tvMoney(P.size)} ! Les pertes max restent actives, ta part des profits est de ${P.split} %.` : `✓ Phase ${P.phase} réussie (+${S.target} %) : passage en Phase ${P.phase + 1}, le solde repart à ${tvMoney(P.size)}.`;
     }
   }
   const propRestart = () => { const P = R.prop; if (!P) return; P.phase = 0; P.status = "on"; P.why = ""; P.phaseT = R.rows[R.ci][0] + 1; P.tries = (P.tries || 1) + 1; P.hist = []; rerender(); };
@@ -1805,7 +1805,14 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const toBE = (t) => { t.sl = t.entry; rerender(); };
   const delTrade = (t, ask = true) => { if (ask && !window.confirm(`Supprimer le trade #${dispNo(t)} ?` + (t.appId ? " Il sera aussi retiré de Saisie & stats." : ""))) return; R.trades = R.trades.filter((x) => x !== t); R.archive = (R.archive || []).filter((x) => x !== t); if (t.appId && onDelete) onDelete(t.appId); rerender(); };
 
-  R.api = { toBE, closeOne, order, setCtx, openSet: () => setShowSet(true) };
+  const adjST = (tr, kind, pr) => {
+    if (kind === "tp" && (pr - tr.entry) * tr.side > 0) tr.tp = pr;
+    if (kind === "sl" && (tr.entry - pr) * tr.side > 0) { tr.sl = pr;
+      if (tr.status === "open" && (tr.entry - pr) * tr.side > 0.5 * TV_PIP) { tr.sl0 = pr; tr.risk = (Math.abs(tr.entry - pr) / TV_PIP) * TV_PIPVAL * tr.lots; }
+      if (tr.status === "pending") { tr.sl0 = pr; tr.lots = Math.max(0.01, Math.round(((balance() * (tr.riskPct ?? R.cfg.risk)) / 100 / (Math.max(0.1, Math.abs(tr.entry - tr.sl) / TV_PIP) * TV_PIPVAL)) * 100) / 100); tr.risk = (Math.abs(tr.entry - tr.sl) / TV_PIP) * TV_PIPVAL * tr.lots; } }
+    if (kind === "entry" && tr.status === "pending") { const d = pr - tr.entry; tr.entry = pr; tr.sl += d; tr.tp += d; tr.sl0 = tr.sl; }
+    R.dirty = true; };
+  R.api = { toBE, closeOne, order, setCtx, adjST, openSet: () => setShowSet(true) };
 
   /* ---------- coordonnées ---------- */
   const tToX = (t) => {
@@ -2210,6 +2217,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     const down = (e) => {
       const ae = document.activeElement; if (ae && /SELECT|INPUT/.test(ae.tagName)) ae.blur(); /* le clavier revient au graphique */
       if (!R.agg || (e.button !== undefined && e.button !== 0)) return; const p = pos(e);
+      if (R.active && R.minis && R.minis.size) { R.active = null; R.sel = -1; R.selOn = null; R.minis.forEach((m) => m.redraw()); R.rerenderX && R.rerenderX(); if (R.tool !== "cursor") { e.stopPropagation(); e.preventDefault(); return; } }
       if (R.lastMeasure) R.lastMeasure = null;
       if (p.x > el.clientWidth - R.chart.priceScale("right").width()) return;
       const tool = R.tool;
@@ -2494,14 +2502,14 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         </span>
         <div style={{ flex: 1 }} />
         <div style={{ position: "relative" }}>
-          <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}>🎯 Modes</TvBtn>
+          <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}><Target size={15} style={{ verticalAlign: "-2px", marginRight: 4 }} />Modes</TvBtn>
           {modeMenu && <><div onClick={() => setModeMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 59 }} /><div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: 8, width: 300, fontSize: 14 }}>
             <div style={{ padding: "6px 8px", fontWeight: 700 }}>Session seulement</div>
             <div style={{ display: "flex", gap: 4, padding: "0 8px 8px", flexWrap: "wrap" }}>{[["", "Toutes"], ...Object.entries(TV_SESS_MODE).map(([k, [n]]) => [k, n])].map(([k, n]) => <button key={k || "all"} onClick={() => { setSessM(k || null); }} style={{ border: `1px solid ${(sessM || "") === k ? TV.blue : TV.border}`, background: (sessM || "") === k ? "rgba(41,98,255,0.08)" : "#fff", color: (sessM || "") === k ? TV.blue : TV.text, borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontFamily: TV_FONT, fontSize: 13 }}>{n}</button>)}</div>
-            {sessM && <div onClick={() => { goSession(sessM, true); setModeMenu(false); }} style={{ padding: "8px", cursor: "pointer", borderRadius: 6 }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}>⏭ Jour suivant</div>}
+            {sessM && <div onClick={() => { goSession(sessM, true); setModeMenu(false); }} style={{ padding: "8px", cursor: "pointer", borderRadius: 6 }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><SkipForward size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Jour suivant</div>}
             <div style={{ borderTop: `1px solid ${TV.hover}`, margin: "4px 0" }} />
-            <div onClick={() => { exam ? (setExam(null), (R.exam = null)) : examStart(); setModeMenu(false); }} style={{ padding: "8px", cursor: "pointer", borderRadius: 6, display: "flex", justifyContent: "space-between" }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><span>🎓 Examen : reconnais tes trades</span><b style={{ color: exam ? TV.blue : TV.muted }}>{exam ? "ON" : "OFF"}</b></div>
-            <div onClick={() => setCfg({ ...R.cfg, miss: !R.cfg.miss })} style={{ padding: "8px", cursor: "pointer", borderRadius: 6, display: "flex", justifyContent: "space-between" }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><span>🤖 Trades manqués (IA)</span><b style={{ color: cfg.miss ? TV.blue : TV.muted }}>{cfg.miss ? "ON" : "OFF"}</b></div>
+            <div onClick={() => { exam ? (setExam(null), (R.exam = null)) : examStart(); setModeMenu(false); }} style={{ padding: "8px", cursor: "pointer", borderRadius: 6, display: "flex", justifyContent: "space-between" }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><span><GraduationCap size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Examen : reconnais tes trades</span><b style={{ color: exam ? TV.blue : TV.muted }}>{exam ? "ON" : "OFF"}</b></div>
+            <div onClick={() => setCfg({ ...R.cfg, miss: !R.cfg.miss })} style={{ padding: "8px", cursor: "pointer", borderRadius: 6, display: "flex", justifyContent: "space-between" }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><span><Bot size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Trades manqués (IA)</span><b style={{ color: cfg.miss ? TV.blue : TV.muted }}>{cfg.miss ? "ON" : "OFF"}</b></div>
           </div></>}
         </div>
         <div style={{ position: "relative" }}>
@@ -2582,6 +2590,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         <div style={{ position: "relative", flex: 1, minWidth: 0 }} onMouseDown={() => { if (fly) setFly(null); if (ctx) setCtx(null); }}>
           {live && <div style={{ position: "absolute", inset: 0, zIndex: 20, background: TV.bg }}><TvLive /></div>}
           <div ref={boxRef} style={{ position: "absolute", ...lay[0] }} />
+          {!demo && lay[1].length > 0 && !R.active && <div style={{ position: "absolute", ...lay[0], border: `2px solid ${TV.blue}`, pointerEvents: "none", zIndex: 4 }} />}
           {!demo && lay[1].map((pos, i) => <TvMini key={cfg.layout + i} pos={pos} rows={R.rows} ci={R.ci} getAgg={getAgg} min={(cfg.ltf || [])[i] || [240, 15, 1440][i]} setMin={(m) => { const l = [...(cfg.ltf || [240, 15, 1440])]; l[i] = m; setCfg({ ...R.cfg, ltf: l }); }} onActivate={(m) => { const l = [...(cfg.ltf || [240, 15, 1440])]; l[i] = tf; setCfg({ ...R.cfg, ltf: l }); setTf(m); setMsg("Graphique " + (TV_TFS.find((x) => x[1] === m) || [m])[0] + " actif : tu peux dessiner et trader dessus."); }} trades={R.trades} tz={tz} cfg={cfg} blind={TV_BLIND} R={R} />)}
           {propS && <div className="zh" style={{ position: "absolute", left: 10, bottom: 44, zIndex: 6, background: "#fff", border: `1px solid ${R.prop.status === "fail" ? TV.red : R.prop.phase >= R.prop.steps ? TV.green : TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12 }}>
             {(() => { const P = R.prop, ph = P.steps === 2 ? ["Phase 1", "Phase 2", "Compte financé"] : ["Challenge", "Compte financé"]; const bar = (v, max, col, lab) => <div style={{ marginTop: 5 }}><div style={{ display: "flex", justifyContent: "space-between", color: TV.muted }}><span>{lab}</span><b style={{ color: TV.text }}>{v.toFixed(2).replace(".", ",")} % / {max} %</b></div><div style={{ height: 5, background: TV.hover, borderRadius: 3, marginTop: 2 }}><div style={{ width: Math.max(0, Math.min(100, (v / max) * 100)) + "%", height: 5, background: col, borderRadius: 3 }} /></div></div>;
@@ -2598,13 +2607,13 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
               </>; })()}
           </div>}
           {exam && <div style={{ position: "absolute", left: "50%", top: 60, transform: "translateX(-50%)", zIndex: 12, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 10, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "10px 14px", fontSize: 13.5, minWidth: 300, maxWidth: 440 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}><b>🎓 Examen {Math.min(exam.i + 1, exam.q.length)}/{exam.q.length}</b><span style={{ color: TV.muted }}>Score {exam.score}/{exam.res.length}</span><span onClick={() => { setExam(null); R.exam = null; }} style={{ cursor: "pointer", color: TV.muted }}>✕</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}><b><GraduationCap size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Examen {Math.min(exam.i + 1, exam.q.length)}/{exam.q.length}</b><span style={{ color: TV.muted }}>Score {exam.score}/{exam.res.length}</span><span onClick={() => { setExam(null); R.exam = null; }} style={{ cursor: "pointer", color: TV.muted }}>✕</span></div>
             {exam.phase === "play" && <div style={{ marginTop: 6, color: TV.muted }}>{tvFmtTime(exam.q[exam.i].t, tz, "full").split(" ").slice(0, 3).join(" ")} · prends ton trade ou laisse passer. <span onClick={examJudge} style={{ color: TV.blue, cursor: "pointer", fontWeight: 600 }}>Révéler</span></div>}
             {exam.phase === "done" && <><div style={{ marginTop: 6 }}>{exam.txt}</div><button onClick={examNext} style={{ marginTop: 8, border: "none", background: "#131722", color: "#fff", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontFamily: TV_FONT }}>Trade suivant →</button></>}
             {exam.phase === "end" && <div style={{ marginTop: 6 }}><b>{exam.score}/{exam.q.length}</b> bonnes décisions. {exam.score >= exam.q.length * 0.8 ? "Excellent, tu reconnais tes setups." : exam.score >= exam.q.length * 0.5 ? "Correct, revois les ratés." : "Tes décisions changent d'une fois à l'autre : clarifie tes règles."}</div>}
           </div>}
           {cfg.miss && missL.length > 0 && <div style={{ position: "absolute", left: propS && !zen ? 270 : 10, bottom: 44, zIndex: 6, background: "#fff", border: "1px solid #ffcc80", borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12, maxHeight: 260, overflow: "auto" }}>
-            <b style={{ fontSize: 13, color: "#e65100" }}>🤖 IA · Trades gagnants manqués (14 j)</b>
+            <b style={{ fontSize: 13, color: "#e65100" }}><Bot size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />IA · Trades gagnants manqués (14 j)</b>
             <div style={{ color: TV.muted, margin: "3px 0 5px" }}>{missL.length} setups laissés passer · {(() => { const d = missL.filter((m) => m.tOut <= R.rows[R.ci][0]).reduce((a, m) => a + m.r, 0); return (d >= 0 ? "+" : "") + d.toFixed(1).replace(".", ",") + " R"; })()} sur la table</div>
             {missL.slice(0, 12).map((m, j) => <div key={j} onClick={() => { const k = tvBs(R.agg.start, tvBsRows(R.rows, m.t)); R.chart.timeScale().setVisibleLogicalRange({ from: k - 60, to: k + 25 }); }} title="Afficher sur le graphique" style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "3px 0", borderTop: `1px solid ${TV.hover}`, cursor: "pointer" }}>
               <span><b style={{ color: m.dir > 0 ? TV.green : TV.red }}>{m.kind === "BB" ? "Breaker" : m.kind} {m.tf}</b> <span style={{ color: TV.muted }}>{tvFmtTime(m.t, tz, "full")}</span></span>
@@ -2659,7 +2668,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
               <TvLegend R={R} />
             </div>
             {indList.filter(([n]) => indFav.includes(n)).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, pointerEvents: "auto" }}>
-              {indList.filter(([n]) => indFav.includes(n)).map(([n, on, fn]) => <span key={n} onClick={() => fn(!on)} title={on ? "Masquer" : "Afficher"} style={{ cursor: "pointer", fontSize: 12, padding: "1px 7px", borderRadius: 4, border: `1px solid ${TV.border}`, background: "#fff", color: on ? TV.text : TV.muted, textDecoration: on ? "none" : "line-through", userSelect: "none" }}>{on ? "👁" : "◌"} {n}</span>)}
+              {indList.filter(([n]) => indFav.includes(n)).map(([n, on, fn]) => <span key={n} onClick={() => fn(!on)} title={on ? "Masquer" : "Afficher"} style={{ cursor: "pointer", fontSize: 12, padding: "1px 7px", borderRadius: 4, border: `1px solid ${TV.border}`, background: "#fff", color: on ? TV.text : TV.muted, textDecoration: on ? "none" : "line-through", userSelect: "none" }}>{on ? <Eye size={12} style={{ verticalAlign: "-1px" }} /> : <EyeOff size={12} style={{ verticalAlign: "-1px" }} />} {n}</span>)}
             </div>}
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, pointerEvents: "auto" }}>
               {priceBox(-1)}
@@ -2675,7 +2684,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             <input ref={dateRef} className="tv-hidden-date" type="date" onChange={(e) => jumpTo(e.target.value)} style={{ position: "absolute", opacity: 0, width: 1, height: 1, left: 20, bottom: 0, pointerEvents: "none" }} aria-label="Date de départ" />
             <TvBtn title="Sélectionner la barre : clique sur une bougie pour reprendre le replay à partir de là" active={selBar} onClick={() => { setPlaying(false); R.selBar = !selBar; setSelBar(!selBar); }} style={{ padding: "5px 6px" }}>{TvIco.cut}</TvBtn>
             <TvBtn title="Lecture / pause (Espace) · → avancer · ← reculer" onClick={() => setPlaying((p) => !p)} style={{ padding: "5px 6px" }}>{playing ? TvIco.pause : TvIco.play}</TvBtn>
-            {sessM && <TvBtn title="Jour suivant : saute à la prochaine session" onClick={() => goSession(sessM, true)} style={{ padding: "5px 6px", fontWeight: 700 }}>⏭</TvBtn>}
+            {sessM && <TvBtn title="Jour suivant : saute à la prochaine session" onClick={() => goSession(sessM, true)} style={{ padding: "5px 6px", fontWeight: 700 }}><SkipForward size={16} /></TvBtn>}
             <TvBtn title="Bougie suivante : affiche une seule nouvelle bougie, complète" onClick={() => { if (!R.agg) return; const A = R.agg; const endK = (k) => (k + 1 < A.start.length ? A.start[k + 1] - 1 : R.rows.length - 1); let tgt = endK(R.k); if (tgt <= R.ci) tgt = endK(R.k + 1); step(Math.max(1, tgt - R.ci)); }} style={{ padding: "5px 5px" }}>{TvIco.candle}</TvBtn>
             {botOn && <TvBtn title="Le bot place ses trades pendant le replay · clique pour l'arrêter" onClick={stopBot} style={{ padding: "4px 8px", fontSize: 12, fontWeight: 700, color: "#9c27b0" }}><Cpu size={15} />Bot</TvBtn>}
             <select value={spd} onChange={(e) => { setSpd(+e.target.value); e.target.blur(); }} title="Vitesse" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_SPEEDS.map(([v]) => <option key={v} value={v}>{String(v).replace(".", ",")}x</option>)}</select>
@@ -3002,6 +3011,19 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h); const cw = w - 60; const y = (p) => S.se.priceToCoordinate(p);
     const RR = S.R || {}; const now = S.rows ? S.rows[ci][0] : 0;
     g.save(); g.beginPath(); g.rect(0, 0, cw, h - 26); g.clip();
+    { const K = (S.R && S.R.cfg && S.R.cfg.kz) || null; const A = S.A; const ts = S.ch.timeScale(), lr = ts.getVisibleLogicalRange();
+      if (K && K.show && S.min <= 60 && lr && typeof KZ_SESS !== "undefined") {
+        const from = Math.max(0, Math.floor(lr.from)), to = Math.min(S.k, Math.ceil(lr.to)); const bs = ts.options().barSpacing || 6; const alpha = Math.max(0.03, 1 - K.transp / 100);
+        const ses = KZ_SESS.filter(([id]) => K.on[id] && K.times[id]).map(([id, n]) => ({ id, n, a: tvHm(K.times[id][0]), b: tvHm(K.times[id][1]) || 1440 }));
+        const inS = (m, s2) => (s2.a < s2.b ? m >= s2.a && m < s2.b : m >= s2.a || m < s2.b);
+        for (const s2 of ses) { let run = null; const col = K.color[s2.id] || "#2962ff";
+          const flush = () => { if (!run) return; const xa = ts.logicalToCoordinate(run.i0) - bs / 2, xb = ts.logicalToCoordinate(run.i1) + bs / 2, ya = y(run.h), yb = y(run.l); run = null; if (xa == null || xb == null || ya == null || yb == null) return;
+            g.fillStyle = tvAlpha(col, alpha); g.fillRect(xa, ya, xb - xa, yb - ya); g.strokeStyle = tvAlpha(col, Math.min(1, alpha * 4)); g.lineWidth = 1; g.strokeRect(xa, ya, xb - xa, yb - ya);
+            if (K.labels) { g.fillStyle = col; g.font = "11px " + TV_FONT; g.fillText(s2.n, xa + 2, ya - 4); } };
+          for (let i = from; i <= to; i++) { const bar = A.bars[i]; if (!bar) continue; const t = bar.time; if (now - t > K.days * 86400) continue;
+            const loc = t + tvNyOff(t), m = Math.floor((((loc % 86400) + 86400) % 86400) / 60);
+            if (inS(m, s2)) { if (run && i === run.i1 + 1 && t - run.t1 < 6 * 3600) { run.i1 = i; run.t1 = t; run.h = Math.max(run.h, bar.high); run.l = Math.min(run.l, bar.low); } else { flush(); run = { i0: i, i1: i, t1: t, h: bar.high, l: bar.low }; } } else flush(); }
+          flush(); } } }
     const list = S.pend ? [...(RR.draws || []), S.pend] : RR.draws || [];
     list.forEach((d, di) => {
       if (!d.pts || !d.pts.length || d.type === "measure") return; const selD = di === RR.sel || d === S.pend; const col = d.color || (d.kind && ((typeof TV_ZONE !== "undefined" && TV_ZONE[d.kind]) || (typeof TV_LIQ !== "undefined" && TV_LIQ[d.kind]) || (typeof TV_STRUCT !== "undefined" && TV_STRUCT[d.kind]))) || TV.blue;
@@ -3045,7 +3067,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     });
     for (const tr of RR.trades || []) { /* positions : entrée -> TP (vert) et entrée -> SL (rouge) */
       if (tr.status === "pending" || !tr.openT) continue; const end = tr.status === "closed" ? tr.closeT : now; if (end < now - 30 * 86400) continue;
-      const x1 = xOf(tr.openT), x2 = xOf(end); if (x2 == null && x1 == null) continue; const X1 = x1 ?? 0, X2 = Math.max(X1 + 4, x2 ?? cw); const ye = y(tr.entry), yt = y(tr.tp), ys = y(tr.sl); if (ye == null) continue;
+      const x1 = xOf(tr.openT), x2 = xOf(end); if (x2 == null && x1 == null) continue; const X1 = x1 ?? 0, X2 = Math.max(X1 + (tr.status === "closed" ? 4 : 120), x2 ?? cw); const ye = y(tr.entry), yt = y(tr.tp), ys = y(tr.sl); if (ye == null) continue;
       if (yt != null) { g.fillStyle = "rgba(8,153,129,0.22)"; g.fillRect(X1, Math.min(ye, yt), X2 - X1, Math.abs(yt - ye)); }
       if (ys != null) { g.fillStyle = "rgba(242,54,69,0.22)"; g.fillRect(X1, Math.min(ye, ys), X2 - X1, Math.abs(ys - ye)); }
       g.strokeStyle = "#787b86"; g.beginPath(); g.moveTo(X1, ye); g.lineTo(X2, ye); g.stroke();
@@ -3102,7 +3124,11 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const down = (e) => {
       const RR = S.R; if (!RR || !S.A || e.button !== 0) return; const p = P(e); if (p.x > el.clientWidth - 60 || p.y > el.clientHeight - 26) return;
       const tool = RR.tool || "cursor", def = TV_TOOLS[tool] || {}; const q = pt(p); if (q.t == null || q.p == null) return;
+      if (RR.active !== S) { RR.active = S; RR.sel = -1; RR.selOn = null; if (RR.minis) RR.minis.forEach((m) => m.redraw()); RR.dirty = true; RR.rerenderX && RR.rerenderX(); if (tool !== "cursor") { e.stopPropagation(); e.preventDefault(); return; } }
       if (tool === "cursor") {
+        for (const tr of RR.trades || []) { if (tr.status === "closed" || !RR.api || !RR.api.adjST) continue; 
+          const kk = [["sl", tr.sl], ["tp", tr.tp], ["entry", tr.entry]].find(([, v]) => { const yy = S.se.priceToCoordinate(v); return yy != null && Math.abs(p.y - yy) < 6; });
+          if (kk) { e.stopPropagation(); e.preventDefault(); S.tdrag = { tr, kind: kk[0] }; el.style.cursor = "ns-resize"; return; } }
         const h = hit(p); if (!h) { if (RR.sel !== -1) { RR.sel = -1; RR.rerenderX && RR.rerenderX(); } return; }
         e.stopPropagation(); e.preventDefault(); RR.sel = h.i; RR.selOn = S; S.drag = { ...h, q0: q, orig: JSON.parse(JSON.stringify(RR.draws[h.i])) }; RR.rerenderX && RR.rerenderX(); S.redraw(); return;
       }
@@ -3115,6 +3141,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const move = (e) => {
       const RR = S.R; if (!RR) return; const p = P(e);
       if (S.pend) { const q = pt(p); if (q.t != null && q.p != null) S.pend.pts[1] = q; S.redraw(); e.stopPropagation(); return; }
+      if (S.tdrag) { e.stopPropagation(); e.preventDefault(); const pr = S.se.coordinateToPrice(p.y); if (pr != null) { RR.api.adjST(S.tdrag.tr, S.tdrag.kind, pr); S.redraw(); RR.rerenderX && RR.rerenderX(); } return; }
       if (S.drag) { e.stopPropagation(); e.preventDefault(); const q = pt(p); if (q.t == null || q.p == null) return; const D = S.drag, d = RR.draws[D.i], o = D.orig; if (!d) return; const dt = q.t - D.q0.t, dp = q.p - D.q0.p;
         if (D.mode === "move") d.pts = o.pts.map((z) => ({ t: z.t + (d.type === "hline" ? 0 : dt), p: z.p + dp }));
         else if (D.mode[0] === "p") d.pts[+D.mode.slice(1)] = q;
@@ -3127,13 +3154,14 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const up = (e) => {
       const RR = S.R; if (!RR) return;
       if (S.pend) { const s = S.pend; S.pend = null; const a = s.pts[0], b = s.pts[1]; if (a.t !== b.t || Math.abs(a.p - b.p) > 1e-6) { RR.draws.push(s); RR.sel = RR.draws.length - 1; RR.selOn = S; RR.redo = []; } if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
+      if (S.tdrag) { S.tdrag = null; el.style.cursor = ""; RR.dirty = true; RR.rerenderX(); S.redraw(); }
       if (S.drag) { S.drag = null; RR.dirty = true; RR.rerenderX(); S.redraw(); }
       RR.dirty = true;
     };
     const dblM = (e) => { const RR = S.R; if (!RR || !S.A) return; const h = hit(P(e)); if (h && RR.openSet) { e.stopPropagation(); RR.sel = h.i; RR.selOn = S; RR.openSet(h.i); } }; el.addEventListener("dblclick", dblM, true);
     el.addEventListener("mousedown", down, true); window.addEventListener("mousemove", move, true); window.addEventListener("mouseup", up, true);
     S.unbind = () => { el.removeEventListener("dblclick", dblM, true); el.removeEventListener("mousedown", down, true); window.removeEventListener("mousemove", move, true); window.removeEventListener("mouseup", up, true); };
-    return () => { cancelAnimationFrame(vraf); if (mainCh) try { mainCh.timeScale().unsubscribeVisibleLogicalRangeChange(fromMain); } catch (e) {} if (S.R && S.R.minis) S.R.minis.delete(S); S.unbind && S.unbind(); clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMiniT); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
+    return () => { cancelAnimationFrame(vraf); if (mainCh) try { mainCh.timeScale().unsubscribeVisibleLogicalRangeChange(fromMain); } catch (e) {} if (S.R && S.R.minis) S.R.minis.delete(S); if (S.R && S.R.active === S) S.R.active = null; S.unbind && S.unbind(); clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMiniT); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
   }, []);
   useEffect(() => { if (S.ch) S.ch.timeScale().applyOptions({ tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }); }, [blind, tz]);
   useEffect(() => {
@@ -3151,9 +3179,11 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     <div style={{ position: "absolute", ...pos, background: TV.bg, borderLeft: pos.left && pos.left !== 0 ? `4px solid ${TV.hover}` : "none", borderTop: pos.top && pos.top !== 0 ? `4px solid ${TV.hover}` : "none", zIndex: 2 }}>
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
       <canvas ref={cv} style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 2 }} />
+      {R.active === S && <div style={{ position: "absolute", inset: 0, border: `2px solid ${TV.blue}`, pointerEvents: "none", zIndex: 4 }} />}
       <div style={{ position: "absolute", left: 8, top: 5, zIndex: 3, display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
         <b style={{ fontWeight: 600 }}>EURUSD ·</b>
         <select value={min} onChange={(e) => setMin(+e.target.value)} style={{ border: `1px solid ${TV.border}`, borderRadius: 4, fontSize: 12, padding: "1px 4px", fontFamily: TV_FONT, background: "#fff" }}>{TV_TFS.map(([n, m]) => <option key={m} value={m}>{n}</option>)}</select>
+        {R.api && R.rows && !blind && [[-1, "SELL", TV.red], [1, "BUY", TV.blue]].map(([sd, n, c]) => <button key={n} onMouseDown={(e) => e.stopPropagation()} onClick={() => { const top = S.se && S.se.coordinateToPrice(0), bot = S.se && box.current ? S.se.coordinateToPrice(box.current.clientHeight - 30) : null; const mkt = R.rows[R.ci][4]; const dist = top != null && bot != null ? Math.max(3 * TV_PIP, Math.round(((top - bot) * 0.1) / TV_PIP) * TV_PIP) : undefined; R.api.order(sd, dist ? { sl: mkt - sd * dist } : {}); R.dirty = true; S.redraw(); }} style={{ border: "none", background: c, color: "#fff", borderRadius: 4, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: TV_FONT }}>{n}</button>)}
       </div>
     </div>
   );
@@ -3494,7 +3524,7 @@ function ReviewQueue({ trades, appSettings, onPatch, onClose }) {
         {queue.length > 0 && <div style={{ height: 4, borderRadius: 2, background: C.border, marginBottom: 14, overflow: "hidden" }}><div style={{ width: (Math.min(i, queue.length) / queue.length) * 100 + "%", height: 4, background: C.purple }} /></div>}
         {!t ? (
           <div style={{ textAlign: "center", padding: "24px 8px" }}>
-            <div style={{ fontSize: 40 }}>🎯</div>
+            <div style={{ fontSize: 40 }}><Target size={40} strokeWidth={1.4} /></div>
             <div style={{ fontSize: 17, fontWeight: 700, marginTop: 6 }}>{queue.length ? "Tous tes trades sont revus" : "Rien à revoir"}</div>
             <div style={{ fontSize: 13, color: C.textMuted, marginTop: 6, lineHeight: 1.5 }}>{n ? `${n} trade${n > 1 ? "s" : ""} revu${n > 1 ? "s" : ""}. ` : ""}Tes statistiques d'erreurs sont à jour dans « Mes erreurs ».</div>
             <button onClick={() => { onClose(); window.dispatchEvent(new CustomEvent("tjp-goto", { detail: "erreurs" })); }} style={{ ...btn.primary, marginTop: 16, justifyContent: "center" }}>Voir mes erreurs</button>
@@ -3513,7 +3543,7 @@ function ReviewQueue({ trades, appSettings, onPatch, onClose }) {
           {t.notes && <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 8, fontStyle: "italic" }}>« {t.notes} »</div>}
           <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "14px 0 6px" }}>Selon ton plan, c'était…</div>
           <div style={{ display: "flex", gap: 8 }}>
-            {[["good", "👍 Bon trade", C.teal], ["bad", "👎 Mauvais trade", C.red]].map(([k, l, c]) => <button key={k} onClick={() => setV(v === k ? null : k)} style={{ flex: 1, padding: "11px 6px", borderRadius: 12, border: `1.5px solid ${v === k ? c : C.border}`, background: v === k ? c + "1A" : "transparent", color: v === k ? c : C.textSecondary, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>)}
+            {[["good", <><ThumbsUp size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Bon trade</>, C.teal], ["bad", <><ThumbsDown size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Mauvais trade</>, C.red]].map(([k, l, c]) => <button key={k} onClick={() => setV(v === k ? null : k)} style={{ flex: 1, padding: "11px 6px", borderRadius: 12, border: `1.5px solid ${v === k ? c : C.border}`, background: v === k ? c + "1A" : "transparent", color: v === k ? c : C.textSecondary, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>)}
           </div>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "14px 0 6px" }}>Erreurs</div>
           <TagPick items={errs} value={m} onToggle={tog(m, setM)} col={C.red} max={8} />
@@ -3535,7 +3565,7 @@ function ReviewCard({ trades, onOpen }) {
   const pct = Math.round(((L.length - todo) / L.length) * 100);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1px solid ${todo ? C.amber + "66" : C.border}`, borderRadius: 18, padding: "12px 16px", marginBottom: 14 }}>
-      <div style={{ width: 40, height: 40, borderRadius: 12, background: todo ? C.amberDim : C.tealDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{todo ? "📝" : "✓"}</div>
+      <div style={{ width: 40, height: 40, borderRadius: 12, background: todo ? C.amberDim : C.tealDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{todo ? <NotebookPen size={18} /> : <Check size={18} />}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14.5, fontWeight: 700 }}>{todo ? `${todo} trade${todo > 1 ? "s" : ""} à revoir` : "Rien à revoir"}</div>
         
@@ -3668,7 +3698,7 @@ function ErrorsPage({ trades, appSettings, balance = 10000, onOpenTrade }) {
         {pats.map((x) => { const bad = x.d <= -0.25 && x.A.n >= 5; return (
           <div key={x.k} style={{ padding: "11px 16px", borderTop: `1px solid ${C.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-              <div style={{ minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{bad ? "⚠ " : ""}{x.lab}</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 1 }}>{x.A.n} trades · {x.A.wr.toFixed(0)} % gagnants · le reste du temps {fmtR(x.B.avg)} /trade</div></div>
+              <div style={{ minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{bad ? <AlertTriangle size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} /> : ""}{x.lab}</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 1 }}>{x.A.n} trades · {x.A.wr.toFixed(0)} % gagnants · le reste du temps {fmtR(x.B.avg)} /trade</div></div>
               <div className="tnum" style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 16, fontWeight: 700, color: x.A.avg < 0 ? C.red : C.teal }}>{fmtR(x.A.avg)}<span style={{ fontSize: 11, color: C.textMuted }}> /trade</span></div><div style={{ fontSize: 11.5, color: x.d < 0 ? C.red : C.teal, fontWeight: 600 }}>{x.d >= 0 ? "+" : ""}{x.d.toFixed(2)} R vs normal</div></div>
             </div>
             {bad && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.textSecondary }}>Règle : « {x.fix} »</span><FixBtn fix={x.fix} rule={x.rule} /></div>}
@@ -4313,7 +4343,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
                 <PairLogo pair={p} size={20} /><span style={{ flex: 1 }}>{p}</span><span className="tnum" style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 600 }}>{n} trade{n > 1 ? "s" : ""}</span></button>)}
             </div>; })()}
         </div>
-        {(() => { const n = trades.filter(needsAfter).length; return n > 0 && <button onClick={() => window.dispatchEvent(new Event("tjp-review"))} title="Revue express des trades pas encore revus" style={{ ...btn.ghost, flexShrink: 0, color: C.amber, borderColor: C.amber + "66" }}>📝 <span className="hide-sm">À revoir</span> {n}</button>; })()}
+        {(() => { const n = trades.filter(needsAfter).length; return n > 0 && <button onClick={() => window.dispatchEvent(new Event("tjp-review"))} title="Revue express des trades pas encore revus" style={{ ...btn.ghost, flexShrink: 0, color: C.amber, borderColor: C.amber + "66" }}><NotebookPen size={15} /> <span className="hide-sm">À revoir</span> {n}</button>; })()}
         <button
           onClick={() => setShowFilters((v) => !v)}
           style={{ ...btn.ghost, flexShrink: 0, color: activeFilterCount ? C.purpleBright : C.textSecondary, borderColor: activeFilterCount ? "rgba(139,124,246,0.35)" : C.border, background: activeFilterCount ? C.purpleDim : (C.inputBg || C.card) }}>
@@ -5917,7 +5947,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
         <div style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Revue {status === "open" ? "(tu peux la faire plus tard)" : ""}</span>{(mist.length > 0 || clean) && <span style={{ color: mist.length ? C.red : C.teal }}>{mist.length ? mist.length + " erreur" + (mist.length > 1 ? "s" : "") : "✓ propre"}</span>}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            {[["good", "👍 Bon trade", C.teal], ["bad", "👎 Mauvais trade", C.red]].map(([k, l, c]) => <button key={k} type="button" onClick={() => setVerd(verd === k ? null : k)} style={{ ...big(verd === k, c), fontSize: 13.5, padding: "10px 6px" }}>{l}</button>)}
+            {[["good", <><ThumbsUp size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Bon trade</>, C.teal], ["bad", <><ThumbsDown size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Mauvais trade</>, C.red]].map(([k, l, c]) => <button key={k} type="button" onClick={() => setVerd(verd === k ? null : k)} style={{ ...big(verd === k, c), fontSize: 13.5, padding: "10px 6px" }}>{l}</button>)}
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary }}>Erreurs</span>
             <button type="button" onClick={() => { setClean(!clean); if (!clean) setMist([]); }} style={{ padding: "6px 11px", borderRadius: 999, border: `1.5px solid ${clean && !mist.length ? C.teal : C.border}`, background: clean && !mist.length ? C.tealDim : "transparent", color: clean && !mist.length ? C.teal : C.textSecondary, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✓ Aucune erreur</button></div>
@@ -7481,7 +7511,7 @@ function challengeStatus(acc, trades) {
 
 function ChallengeCard({ acc, trades, onDelete }) {
   const s = useMemo(() => challengeStatus(acc, trades), [acc, trades]);
-  const st = s.failed ? { t: "Échoué · " + s.failed, c: C.red } : s.c.phase === "Financé" ? { t: "Financé ✓", c: C.teal } : s.passed ? { t: "Réussi 🎉", c: C.teal } : s.expired ? { t: "Délai dépassé", c: C.red } : { t: "En cours", c: C.amber };
+  const st = s.failed ? { t: "Échoué · " + s.failed, c: C.red } : s.c.phase === "Financé" ? { t: "Financé ✓", c: C.teal } : s.passed ? { t: "Réussi ★", c: C.teal } : s.expired ? { t: "Délai dépassé", c: C.red } : { t: "En cours", c: C.amber };
   const Bar = ({ label, cur, max, good, sub }) => { const p = max ? clamp01(cur / max) : 0; const col = good ? C.teal : p >= 0.8 ? C.red : p >= 0.5 ? C.amber : C.teal; return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSecondary, marginBottom: 5 }}><span>{label}</span><span className="tnum" style={{ color: C.text }}>{sub}</span></div>
@@ -9143,7 +9173,7 @@ function TargetLab({ res }) {
   const btnS = (on) => ({ border: "none", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary });
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 14 }}>
-      <div style={{ fontSize: 15, fontWeight: 700 }}>🎯 Et si je visais plus loin ?</div>
+      <div style={{ fontSize: 15, fontWeight: 700 }}><Target size={15} style={{ verticalAlign: "-2px", marginRight: 4 }} />Et si je visais plus loin ?</div>
       <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 3 }}>Même entrée, même SL. Seul l'objectif change. Rejoué sur les vraies bougies ({res.length} trades).</div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
         <span style={{ fontSize: 13, fontWeight: 600 }}>Objectif</span>
@@ -9189,7 +9219,7 @@ function TradeCoach({ trades }) {
     <div style={{ maxWidth: 860 }}>
       <div style={card}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 220 }}><div style={{ fontSize: 16, fontWeight: 700 }}>🤖 Coach de tes trades</div><div style={{ fontSize: 13, color: C.textMuted, marginTop: 3, lineHeight: 1.45 }}>Rejoue tes {bt.length} trades de backtest sur les vraies bougies et compare : entrée en OTE, BE à +1R, TP fixe, killzone. Il te dit ce qui t'aurait fait gagner plus, et tes bons coups.</div></div>
+          <div style={{ flex: 1, minWidth: 220 }}><div style={{ fontSize: 16, fontWeight: 700 }}><Bot size={16} style={{ verticalAlign: "-2px", marginRight: 4 }} />Coach de tes trades</div><div style={{ fontSize: 13, color: C.textMuted, marginTop: 3, lineHeight: 1.45 }}>Rejoue tes {bt.length} trades de backtest sur les vraies bougies et compare : entrée en OTE, BE à +1R, TP fixe, killzone. Il te dit ce qui t'aurait fait gagner plus, et tes bons coups.</div></div>
           <button onClick={run} disabled={!bt.length} style={{ ...btn.primary, opacity: bt.length ? 1 : 0.5 }}>{res ? "Relancer" : "Analyser mes trades"}</button>
         </div>
         {msg && <div style={{ marginTop: 10, fontSize: 13, color: C.textSecondary }}>{msg}</div>}
@@ -9240,7 +9270,7 @@ function BacktestPage(props) {
         <button onClick={() => setTab("chart")} style={tb(tab === "chart")}><TvLogoIcon size={16} />Graphique</button>
         <button onClick={() => setTab("stats")} style={tb(tab === "stats")}><BarChart3 size={16} />Saisie & stats <span style={{ fontSize: 12, opacity: 0.8 }}>{n}</span></button>
         <button onClick={() => setTab("bot")} style={tb(tab === "bot")}><Cpu size={16} />Bot</button>
-        <button onClick={() => setTab("coach")} style={tb(tab === "coach")}>🤖 Coach</button>
+        <button onClick={() => setTab("coach")} style={tb(tab === "coach")}><Bot size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Coach</button>
 
       </div>
       <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLabMemo {...stable} /></div>
@@ -9495,7 +9525,7 @@ export default function TradingJournalApp() {
       const s = challengeStatus(a, trades.filter((t) => (t.accountId || accounts[0]?.id) === a.id));
       if (!s.passed) return a;
       const c = s.c; const ph = c.phase === "Phase 1" && (c.steps || 2) === 2 ? "Phase 2" : "Financé"; changed = true;
-      msg = ph === "Financé" ? `🎉 ${a.name} : compte financé ! Le solde repart à ${fmtUsd(Number(a.balance) || 0)}.` : `✅ ${a.name} : Phase 1 réussie, passage en Phase 2.`;
+      msg = ph === "Financé" ? `★ ${a.name} : compte financé ! Le solde repart à ${fmtUsd(Number(a.balance) || 0)}.` : `✓ ${a.name} : Phase 1 réussie, passage en Phase 2.`;
       return { ...a, challenge: { ...c, phase: ph, phaseStart: new Date().toISOString() } };
     });
     if (changed) { saveAccounts(next); try { showToast && showToast(msg); } catch (e) {} }
