@@ -1510,7 +1510,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     ch.timeScale().subscribeVisibleLogicalRangeChange(() => { R.dirty = true; });
     const ro = new ResizeObserver(() => { R.dirty = true; }); ro.observe(boxRef.current);
     const mark = () => { R.dirty = true; }; boxRef.current.addEventListener("wheel", mark, { passive: true });
-    R.dirty = true; let raf; const loop = () => { if (R.dirty) { R.dirty = false; R.after = 1; drawOverlay(); } else if (R.after > 0) { R.after--; drawOverlay(); } raf = requestAnimationFrame(loop); }; loop();
+    /* échelle de prix glissée / zoomée : aucun événement côté graphique, on surveille donc l'échelle à chaque image (très léger) */
+    const viewSig = () => { try { const vr = ch.timeScale().getVisibleLogicalRange(); return se.coordinateToPrice(0) + "|" + se.coordinateToPrice(400) + "|" + (vr ? vr.from + "," + vr.to : ""); } catch (e) { return ""; } };
+    R.dirty = true; let raf; const loop = () => { const vs = viewSig(); if (vs !== R.vSig) { R.vSig = vs; R.dirty = true; } if (R.dirty) { R.dirty = false; R.after = 1; drawOverlay(); } else if (R.after > 0) { R.after--; drawOverlay(); } raf = requestAnimationFrame(loop); }; loop();
   return () => { cancelAnimationFrame(raf); ro.disconnect(); ch.remove(); R.chart = null; };
   }, []);
 
@@ -2986,6 +2988,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     ch.timeScale().subscribeVisibleLogicalRangeChange(() => { S.redraw && S.redraw(); if (S.R && S.R.selOn === S) S.R.dirty = true; });
     const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci; for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp; return s; };
     const iv = setInterval(() => { const sg = sigOf(); if (sg !== S.lastSig) { S.lastSig = sg; S.redraw(); } }, 400);
+    let vraf = 0; const vloop = () => { try { const v = S.se ? S.se.coordinateToPrice(0) + "|" + S.se.coordinateToPrice(400) : ""; if (v !== S.vSig) { S.vSig = v; redraw(); if (S.R && S.R.selOn === S) S.R.dirty = true; } } catch (e) {} vraf = requestAnimationFrame(vloop); }; vloop();
     /* le graphique principal prévient ce graphique à chaque modification : affichage instantané des deux côtés */
     if (S.R) { S.R.minis = S.R.minis || new Set(); S.R.minis.add(S); }
     /* curseur synchronisé dans les deux sens */
@@ -2994,6 +2997,11 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const thr = (fn) => { let q = null, f = 0; return (p) => { q = p; if (f) return; f = requestAnimationFrame(() => { f = 0; fn(q); }); }; };
     const fromMiniT = thr(fromMini), toMiniT = thr(toMini);
     ch.subscribeCrosshairMove(fromMiniT); const mainCh = S.R && S.R.chart; if (mainCh) mainCh.subscribeCrosshairMove(toMiniT);
+    /* même timeframe des deux côtés : défilement et zoom synchronisés */
+    const sameTf = () => S.R && S.R.agg && S.A && S.R.agg.min === S.min;
+    const fromMain = (r) => { if (!r || !sameTf() || S.lockR) return; S.lockR = true; try { ch.timeScale().setVisibleLogicalRange(r); } catch (e) {} S.lockR = false; };
+    const toMain = (r) => { if (!r || !sameTf() || S.lockR || !mainCh) return; S.lockR = true; try { mainCh.timeScale().setVisibleLogicalRange(r); } catch (e) {} S.lockR = false; };
+    if (mainCh) mainCh.timeScale().subscribeVisibleLogicalRangeChange(fromMain); ch.timeScale().subscribeVisibleLogicalRangeChange(toMain);
     /* ---- dessiner et modifier directement sur ce graphique (dessins communs aux deux) ---- */
     const el = box.current;
     const xToT = (x) => { const A = S.A; if (!A) return null; const lg = Math.round(ch.timeScale().coordinateToLogical(x)); if (lg <= S.k) return A.bars[Math.max(0, lg)].time; return A.bars[S.k].time + (lg - S.k) * S.min * 60; };
@@ -3040,7 +3048,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     };
     el.addEventListener("mousedown", down, true); window.addEventListener("mousemove", move, true); window.addEventListener("mouseup", up, true);
     S.unbind = () => { el.removeEventListener("mousedown", down, true); window.removeEventListener("mousemove", move, true); window.removeEventListener("mouseup", up, true); };
-    return () => { if (S.R && S.R.minis) S.R.minis.delete(S); S.unbind && S.unbind(); clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMiniT); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
+    return () => { cancelAnimationFrame(vraf); if (mainCh) try { mainCh.timeScale().unsubscribeVisibleLogicalRangeChange(fromMain); } catch (e) {} if (S.R && S.R.minis) S.R.minis.delete(S); S.unbind && S.unbind(); clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMiniT); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
   }, []);
   useEffect(() => { if (S.ch) S.ch.timeScale().applyOptions({ tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }); }, [blind, tz]);
   useEffect(() => {
