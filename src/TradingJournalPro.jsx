@@ -1460,6 +1460,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const [unseen, setUnseen] = useState(0);
   const [indOpen, setIndOpen] = useState(false);
   const [layMenu, setLayMenu] = useState(false);
+  const [trashM, setTrashM] = useState(null); /* menu poubelle comme TradingView */
+  const [trLock, setTrLock] = useState(() => { try { return localStorage.getItem("tjp_tv_trlock") !== "0"; } catch (e) { return true; } });
   const [indFav, setIndFav] = useState(() => { try { return JSON.parse(localStorage.getItem("tjp_tv_indfav")) || []; } catch (e) { return []; } });
   const togFav = (n) => setIndFav((f) => { const v = f.includes(n) ? f.filter((x) => x !== n) : [...f, n]; try { localStorage.setItem("tjp_tv_indfav", JSON.stringify(v)); } catch (e) {} return v; });
   const [selBar, setSelBar] = useState(false);
@@ -2452,7 +2454,17 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         <span className="zh" style={{ display: "contents" }}><TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
         <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />Données</TvBtn></span>
         <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">{zen ? <path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /> : <path d="M2 6V2h4M12 2h4v4M2 12v4h4M16 12v4h-4" />}</svg></TvBtn>
-        {zen && <TvBtn title="Supprimer tous les dessins" onClick={() => { if (!R.draws.length || !window.confirm("Supprimer tous les dessins ? (les trades restent)")) return; R.redo = [...R.draws]; R.draws = []; R.sel = -1; rerender(); }}><TvIcon id="trash" /></TvBtn>}
+        {zen && <div style={{ position: "relative" }}><TvBtn title="Supprimer" active={trashM === "zen"} onClick={() => setTrashM(trashM === "zen" ? null : "zen")}><TvIcon id="trash" /></TvBtn>{trashM === "zen" && (() => { const dr = R.draws.filter((d) => trLock || !d.locked); const ind = indList.filter(([, on]) => on);
+            const delD = () => { if (!dr.length) return; R.redo = [...R.draws]; R.draws = R.draws.filter((d) => !trLock && d.locked); R.sel = -1; setMsg(dr.length + " dessin" + (dr.length > 1 ? "s" : "") + " supprimé" + (dr.length > 1 ? "s" : "")); rerender(); };
+            const delI = () => { ind.forEach(([, , fn]) => fn(false)); if (ind.length) setMsg(ind.length + " indicateur" + (ind.length > 1 ? "s" : "") + " masqué" + (ind.length > 1 ? "s" : "")); };
+            const it = (lab, fn, dis) => <div onClick={() => { if (dis) return; fn(); setTrashM(null); }} style={{ padding: "9px 16px", fontSize: 14, cursor: dis ? "default" : "pointer", color: dis ? TV.muted : TV.text, whiteSpace: "nowrap" }} onMouseEnter={(e) => (e.currentTarget.style.background = dis ? "" : TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}>{lab}</div>;
+            return <><div onClick={() => setTrashM(null)} style={{ position: "fixed", inset: 0, zIndex: 69 }} /><div style={{ position: "absolute", zIndex: 70, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 0", minWidth: 290, right: 0, top: 36 }}>
+              {it(`Supprimer ${dr.length} dessin${dr.length > 1 ? "s" : ""}`, delD, !dr.length)}
+              {it(`Supprimer ${ind.length} indicateur${ind.length > 1 ? "s" : ""}`, delI, !ind.length)}
+              {it(`Supprimer ${dr.length} dessin${dr.length > 1 ? "s" : ""} & ${ind.length} indicateur${ind.length > 1 ? "s" : ""}`, () => { delD(); delI(); if (dr.length || ind.length) setMsg("Dessins et indicateurs supprimés"); }, !dr.length && !ind.length)}
+              <div style={{ borderTop: `1px solid ${TV.hover}`, margin: "6px 0" }} />
+              <div onClick={() => { const v = !trLock; setTrLock(v); try { localStorage.setItem("tjp_tv_trlock", v ? "1" : "0"); } catch (e) {} }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "8px 16px", fontSize: 14, cursor: "pointer" }}>Toujours supprimer les dessins verrouillés<span style={{ width: 36, height: 20, borderRadius: 10, background: trLock ? "#131722" : "#c3c6ce", position: "relative", flexShrink: 0 }}><span style={{ position: "absolute", top: 2, left: trLock ? 18 : 2, width: 16, height: 16, borderRadius: 8, background: "#fff" }} /></span></div>
+            </div></>; })()}</div>}
         <input ref={fileRef} type="file" accept=".csv,.txt" multiple hidden onChange={(e) => onFiles([...e.target.files])} />
       </div>
 
@@ -2487,14 +2499,24 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           <TvBtn title={favOpen ? "Masquer la barre des favoris" : "Afficher la barre des favoris"} active={favOpen} onClick={() => setFavOpen(!favOpen)} style={{ padding: 2 }}><TvIcon id="star" /></TvBtn>
           <div style={{ flex: 1 }} />
           <TvBtn title={fs ? "Quitter le plein écran (Maj+F ou Échap)" : "Plein écran (Maj+F)"} onClick={() => setFs((v) => !v)} style={{ padding: 6 }}>{fs ? <Minimize2 size={19} /> : <Maximize2 size={19} />}</TvBtn>
-          <TvBtn title="Supprimer tous les dessins (les trades restent dans Replay Trading)" onClick={() => { if (!R.draws.length || !window.confirm("Supprimer tous les dessins ? (les trades restent)")) return; R.redo = [...R.draws]; R.draws = []; R.sel = -1; rerender(); }} style={{ padding: 2, marginBottom: 8 }}><TvIcon id="trash" /></TvBtn>
+          <div style={{ position: "relative" }}><TvBtn title="Supprimer" active={trashM === "left"} onClick={() => setTrashM(trashM === "left" ? null : "left")} style={{ padding: 2, marginBottom: 8 }}><TvIcon id="trash" /></TvBtn>{trashM === "left" && (() => { const dr = R.draws.filter((d) => trLock || !d.locked); const ind = indList.filter(([, on]) => on);
+            const delD = () => { if (!dr.length) return; R.redo = [...R.draws]; R.draws = R.draws.filter((d) => !trLock && d.locked); R.sel = -1; setMsg(dr.length + " dessin" + (dr.length > 1 ? "s" : "") + " supprimé" + (dr.length > 1 ? "s" : "")); rerender(); };
+            const delI = () => { ind.forEach(([, , fn]) => fn(false)); if (ind.length) setMsg(ind.length + " indicateur" + (ind.length > 1 ? "s" : "") + " masqué" + (ind.length > 1 ? "s" : "")); };
+            const it = (lab, fn, dis) => <div onClick={() => { if (dis) return; fn(); setTrashM(null); }} style={{ padding: "9px 16px", fontSize: 14, cursor: dis ? "default" : "pointer", color: dis ? TV.muted : TV.text, whiteSpace: "nowrap" }} onMouseEnter={(e) => (e.currentTarget.style.background = dis ? "" : TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}>{lab}</div>;
+            return <><div onClick={() => setTrashM(null)} style={{ position: "fixed", inset: 0, zIndex: 69 }} /><div style={{ position: "absolute", zIndex: 70, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 0", minWidth: 290, left: 44, bottom: 0 }}>
+              {it(`Supprimer ${dr.length} dessin${dr.length > 1 ? "s" : ""}`, delD, !dr.length)}
+              {it(`Supprimer ${ind.length} indicateur${ind.length > 1 ? "s" : ""}`, delI, !ind.length)}
+              {it(`Supprimer ${dr.length} dessin${dr.length > 1 ? "s" : ""} & ${ind.length} indicateur${ind.length > 1 ? "s" : ""}`, () => { delD(); delI(); if (dr.length || ind.length) setMsg("Dessins et indicateurs supprimés"); }, !dr.length && !ind.length)}
+              <div style={{ borderTop: `1px solid ${TV.hover}`, margin: "6px 0" }} />
+              <div onClick={() => { const v = !trLock; setTrLock(v); try { localStorage.setItem("tjp_tv_trlock", v ? "1" : "0"); } catch (e) {} }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "8px 16px", fontSize: 14, cursor: "pointer" }}>Toujours supprimer les dessins verrouillés<span style={{ width: 36, height: 20, borderRadius: 10, background: trLock ? "#131722" : "#c3c6ce", position: "relative", flexShrink: 0 }}><span style={{ position: "absolute", top: 2, left: trLock ? 18 : 2, width: 16, height: 16, borderRadius: 8, background: "#fff" }} /></span></div>
+            </div></>; })()}</div>
         </div>
 
         {/* graphique */}
         <div style={{ position: "relative", flex: 1, minWidth: 0 }} onMouseDown={() => { if (fly) setFly(null); if (ctx) setCtx(null); }}>
           {live && <div style={{ position: "absolute", inset: 0, zIndex: 20, background: TV.bg }}><TvLive /></div>}
           <div ref={boxRef} style={{ position: "absolute", ...lay[0] }} />
-          {!demo && lay[1].map((pos, i) => <TvMini key={cfg.layout + i} pos={pos} rows={R.rows} ci={R.ci} getAgg={getAgg} min={(cfg.ltf || [])[i] || [240, 15, 1440][i]} setMin={(m) => { const l = [...(cfg.ltf || [240, 15, 1440])]; l[i] = m; setCfg({ ...R.cfg, ltf: l }); }} trades={R.trades} tz={tz} cfg={cfg} blind={TV_BLIND} R={R} />)}
+          {!demo && lay[1].map((pos, i) => <TvMini key={cfg.layout + i} pos={pos} rows={R.rows} ci={R.ci} getAgg={getAgg} min={(cfg.ltf || [])[i] || [240, 15, 1440][i]} setMin={(m) => { const l = [...(cfg.ltf || [240, 15, 1440])]; l[i] = m; setCfg({ ...R.cfg, ltf: l }); }} onActivate={(m) => { const l = [...(cfg.ltf || [240, 15, 1440])]; l[i] = tf; setCfg({ ...R.cfg, ltf: l }); setTf(m); setMsg("Graphique " + (TV_TFS.find((x) => x[1] === m) || [m])[0] + " actif : tu peux dessiner et trader dessus."); }} trades={R.trades} tz={tz} cfg={cfg} blind={TV_BLIND} R={R} />)}
           {propS && <div className="zh" style={{ position: "absolute", left: 10, bottom: 44, zIndex: 6, background: "#fff", border: `1px solid ${R.prop.status === "fail" ? TV.red : R.prop.phase >= R.prop.steps ? TV.green : TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12 }}>
             {(() => { const P = R.prop, ph = P.steps === 2 ? ["Phase 1", "Phase 2", "Compte financé"] : ["Challenge", "Compte financé"]; const bar = (v, max, col, lab) => <div style={{ marginTop: 5 }}><div style={{ display: "flex", justifyContent: "space-between", color: TV.muted }}><span>{lab}</span><b style={{ color: TV.text }}>{v.toFixed(2).replace(".", ",")} % / {max} %</b></div><div style={{ height: 5, background: TV.hover, borderRadius: 3, marginTop: 2 }}><div style={{ width: Math.max(0, Math.min(100, (v / max) * 100)) + "%", height: 5, background: col, borderRadius: 3 }} /></div></div>;
               return <>
@@ -2846,7 +2868,7 @@ function TvLegend({ R }) {
 }
 
 /* graphique secondaire synchronisé sur le replay (autre timeframe), comme les dispositions de TradingView */
-function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R }) {
+function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R, onActivate }) {
   const box = useRef(null), cv = useRef(null), S = useRef({}).current; S.tz = tz; S.rows = rows; S.R = R; S.min = min;
   /* graphique commun : mêmes rectangles, lignes et positions que le graphique principal */
   const xOf = (tt) => { const A = S.A; if (!A || !S.rows) return null; const k = tvBs(A.start, tvBsRows(S.rows, tt)); return k < 0 ? null : S.ch.timeScale().logicalToCoordinate(k); };
@@ -2903,6 +2925,8 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R 
   return (
     <div style={{ position: "absolute", ...pos, background: TV.bg, borderLeft: pos.left && pos.left !== 0 ? `4px solid ${TV.hover}` : "none", borderTop: pos.top && pos.top !== 0 ? `4px solid ${TV.hover}` : "none", zIndex: 2 }}>
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
+      {/* clic sur ce graphique = il devient le graphique actif (outils, rectangles, trades), comme TradingView */}
+      <div onMouseDown={(e) => { if (e.button === 0 && onActivate) { e.preventDefault(); onActivate(min); } }} onDoubleClick={(e) => e.preventDefault()} title="Cliquer pour dessiner / trader sur ce graphique" style={{ position: "absolute", inset: "30px 60px 26px 0", zIndex: 4, cursor: "pointer" }} />
       <canvas ref={cv} style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 2 }} />
       <div style={{ position: "absolute", left: 8, top: 5, zIndex: 3, display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
         <b style={{ fontWeight: 600 }}>EURUSD ·</b>
