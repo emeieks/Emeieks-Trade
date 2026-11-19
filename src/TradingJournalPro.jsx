@@ -1477,7 +1477,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   if (R.rectKind === undefined) { R.rectKind = rectKind; R.rayKind = rayKind; }
   const pickTool = (id) => { const g = TV_GROUPS.find((x) => x.items.includes(id)); if (g) setGroupLast((o) => ({ ...o, [g.id]: id })); R.pend = null; setTool(id); };
   const setMagnet = (v) => { R.magnet = v; setMagnetS(v); };
-  const setTool = (t) => { R.tool = t; setToolS(t); };
+  const setTool = (t) => { R.tool = t; setToolS(t); }; R.setToolX = setTool; R.rerenderX = rerender;
   const tfSec = () => (R.agg ? R.agg.min * 60 : 900);
 
   /* ---------- graphique ---------- */
@@ -2137,7 +2137,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     if (s.type === "triangle" && s.pts.length < 3) return;
     if ((s.type === "path") && s.pts.length < 2) return;
     R.draws.push(s); R.sel = R.draws.length - 1; R.redo = [];
-    if (!R.stay) setTool("cursor"); rerender();
+    if (!R.stay) setTool("cursor"); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw());
   }
 
   /* ---------- souris : dessins et glisser SL/TP ---------- */
@@ -2200,6 +2200,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     };
     const move = (e) => {
       if (!R.agg) return; const p = pos(e); R.mouse = p; R.dirty = true;
+      if ((R.dragS || R.drag) && R.minis) R.minis.forEach((m) => m.redraw());
       if (R.drag) {
         e.stopPropagation(); e.preventDefault(); const pr = yToP(p.y); const { tr, kind } = R.drag; if (pr === null) return;
         if (kind === "tp" && (pr - tr.entry) * tr.side > 0) tr.tp = pr;
@@ -2878,13 +2879,15 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h); const cw = w - 60; const y = (p) => S.se.priceToCoordinate(p);
     const RR = S.R || {}; const now = S.rows ? S.rows[ci][0] : 0;
     g.save(); g.beginPath(); g.rect(0, 0, cw, h - 26); g.clip();
-    for (const d of RR.draws || []) {
-      if (!d.pts || !d.pts.length || d.type === "measure") continue; const col = d.color || (d.kind && ((typeof TV_ZONE !== "undefined" && TV_ZONE[d.kind]) || (typeof TV_LIQ !== "undefined" && TV_LIQ[d.kind]) || (typeof TV_STRUCT !== "undefined" && TV_STRUCT[d.kind]))) || TV.blue;
+    const list = S.pend ? [...(RR.draws || []), S.pend] : RR.draws || [];
+    list.forEach((d, di) => {
+      if (!d.pts || !d.pts.length || d.type === "measure") return; const selD = di === RR.sel || d === S.pend; const col = d.color || (d.kind && ((typeof TV_ZONE !== "undefined" && TV_ZONE[d.kind]) || (typeof TV_LIQ !== "undefined" && TV_LIQ[d.kind]) || (typeof TV_STRUCT !== "undefined" && TV_STRUCT[d.kind]))) || TV.blue;
       g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1; const a = d.pts[0], b = d.pts[1];
-      if (d.type === "rect" && b) { const x1 = xOf(Math.min(a.t, b.t)), x2 = xOf(Math.max(a.t, b.t)), y1 = y(a.p), y2 = y(b.p); if (y1 == null || y2 == null) continue; const X1 = x1 ?? 0, X2 = x2 ?? cw; g.globalAlpha = 0.15; g.fillRect(X1, Math.min(y1, y2), Math.max(2, X2 - X1), Math.abs(y2 - y1)); g.globalAlpha = 1; g.strokeRect(X1, Math.min(y1, y2), Math.max(2, X2 - X1), Math.abs(y2 - y1)); if (d.kind) { g.font = "10px " + TV_FONT; g.fillText(d.kind + (d.tf ? " " + d.tf : ""), X1 + 3, Math.min(y1, y2) + 11); } }
-      else if (d.type === "hline" || d.type === "hray" || d.type === "bsl" || d.type === "ssl") { const yy = y(a.p); if (yy == null) continue; const x0 = d.type === "hline" ? 0 : xOf(a.t) ?? 0; g.beginPath(); g.moveTo(x0, yy); g.lineTo(cw, yy); g.stroke(); if (d.kind) { g.font = "10px " + TV_FONT; g.fillText(d.kind, x0 + 2, yy - 3); } }
-      else if ((d.type === "trend" || d.type === "ray" || d.type === "ext") && b) { const x1 = xOf(a.t), x2 = xOf(b.t), y1 = y(a.p), y2 = y(b.p); if (x1 == null || x2 == null || y1 == null || y2 == null) continue; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
-    }
+      if (d.type === "rect" && b) { const x1 = xOf(Math.min(a.t, b.t)), x2 = xOf(Math.max(a.t, b.t)), y1 = y(a.p), y2 = y(b.p); if (y1 == null || y2 == null) return; const X1 = x1 ?? 0, X2 = x2 ?? cw; g.globalAlpha = 0.15; g.fillRect(X1, Math.min(y1, y2), Math.max(2, X2 - X1), Math.abs(y2 - y1)); g.globalAlpha = 1; g.strokeRect(X1, Math.min(y1, y2), Math.max(2, X2 - X1), Math.abs(y2 - y1)); if (d.kind) { g.font = "10px " + TV_FONT; g.fillText(d.kind + (d.tf ? " " + d.tf : ""), X1 + 3, Math.min(y1, y2) + 11); } }
+      else if (d.type === "hline" || d.type === "hray" || d.type === "bsl" || d.type === "ssl") { const yy = y(a.p); if (yy == null) return; const x0 = d.type === "hline" ? 0 : xOf(a.t) ?? 0; g.beginPath(); g.moveTo(x0, yy); g.lineTo(cw, yy); g.stroke(); if (d.kind) { g.font = "10px " + TV_FONT; g.fillText(d.kind, x0 + 2, yy - 3); } }
+      else if ((d.type === "trend" || d.type === "ray" || d.type === "ext") && b) { const x1 = xOf(a.t), x2 = xOf(b.t), y1 = y(a.p), y2 = y(b.p); if (x1 == null || x2 == null || y1 == null || y2 == null) return; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
+      if (selD) for (const q of d.pts) { const qx = xOf(q.t), qy = y(q.p); if (qx == null || qy == null) continue; g.fillStyle = "#fff"; g.strokeStyle = TV.blue; g.beginPath(); g.arc(qx, qy, 4.5, 0, 7); g.fill(); g.stroke(); }
+    });
     for (const tr of RR.trades || []) { /* positions : entrée -> TP (vert) et entrée -> SL (rouge) */
       if (tr.status === "pending" || !tr.openT) continue; const end = tr.status === "closed" ? tr.closeT : now; if (end < now - 30 * 86400) continue;
       const x1 = xOf(tr.openT), x2 = xOf(end); if (x2 == null && x1 == null) continue; const X1 = x1 ?? 0, X2 = Math.max(X1 + 4, x2 ?? cw); const ye = y(tr.entry), yt = y(tr.tp), ys = y(tr.sl); if (ye == null) continue;
@@ -2902,13 +2905,56 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     ch.timeScale().subscribeVisibleLogicalRangeChange(() => S.redraw && S.redraw());
     const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci; for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp; return s; };
     const iv = setInterval(() => { const sg = sigOf(); if (sg !== S.lastSig) { S.lastSig = sg; S.redraw(); } }, 400);
+    /* le graphique principal prévient ce graphique à chaque modification : affichage instantané des deux côtés */
+    if (S.R) { S.R.minis = S.R.minis || new Set(); S.R.minis.add(S); }
     /* curseur synchronisé dans les deux sens */
     const toMini = (p) => { const RR = S.R; if (!S.A || !RR || !RR.series || RR.xLock === "mini") return; if (!p || p.time === undefined || !p.point) { try { ch.clearCrosshairPosition(); } catch (e) {} return; } const pr = RR.series.coordinateToPrice(p.point.y); const k = tvBs(S.A.start, tvBsRows(S.rows, p.time)); if (k < 0 || pr == null) return; RR.xLock = "main"; try { ch.setCrosshairPosition(pr, S.A.bars[k].time, S.se); } catch (e) {} RR.xLock = null; };
     const fromMini = (p) => { const RR = S.R; if (!RR || !RR.chart || !RR.agg || RR.xLock === "main") return; if (!p || p.time === undefined || !p.point) { try { RR.chart.clearCrosshairPosition(); } catch (e) {} return; } const pr = S.se.coordinateToPrice(p.point.y); const k = tvBs(RR.agg.start, tvBsRows(S.rows, p.time)); if (k < 0 || pr == null) return; RR.xLock = "mini"; try { RR.chart.setCrosshairPosition(pr, RR.agg.bars[k].time, RR.series); } catch (e) {} RR.xLock = null; };
     const thr = (fn) => { let q = null, f = 0; return (p) => { q = p; if (f) return; f = requestAnimationFrame(() => { f = 0; fn(q); }); }; };
     const fromMiniT = thr(fromMini), toMiniT = thr(toMini);
     ch.subscribeCrosshairMove(fromMiniT); const mainCh = S.R && S.R.chart; if (mainCh) mainCh.subscribeCrosshairMove(toMiniT);
-    return () => { clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMiniT); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
+    /* ---- dessiner et modifier directement sur ce graphique (dessins communs aux deux) ---- */
+    const el = box.current;
+    const xToT = (x) => { const A = S.A; if (!A) return null; const lg = Math.round(ch.timeScale().coordinateToLogical(x)); if (lg <= S.k) return A.bars[Math.max(0, lg)].time; return A.bars[S.k].time + (lg - S.k) * S.min * 60; };
+    const P = (e) => { const r = el.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    const pt = (p) => ({ t: xToT(p.x), p: S.se.coordinateToPrice(p.y) });
+    const hit = (p) => { const RR = S.R; let best = null; (RR.draws || []).forEach((d, i) => { if (!d.pts || RR.hidden) return; const a = d.pts[0], b = d.pts[1]; const ya = S.se.priceToCoordinate(a.p);
+        if (d.type === "rect" && b) { const x1 = xOf(Math.min(a.t, b.t)) ?? 0, x2 = xOf(Math.max(a.t, b.t)) ?? el.clientWidth, y1 = Math.min(ya, S.se.priceToCoordinate(b.p)), y2 = Math.max(ya, S.se.priceToCoordinate(b.p));
+          const corner = [[0, 0], [1, 0], [0, 1], [1, 1]].find(([cx, cy]) => Math.abs(p.x - (cx ? x2 : x1)) < 8 && Math.abs(p.y - (cy ? y2 : y1)) < 8);
+          if (corner || (p.x >= x1 - 3 && p.x <= x2 + 3 && p.y >= y1 - 3 && p.y <= y2 + 3)) { const area = (x2 - x1) * (y2 - y1); if (!best || corner || area < best.area) best = { i, area: corner ? -1 : area, mode: corner ? "c" + corner.join("") : "move" }; } }
+        else if ((d.type === "hline" || d.type === "hray" || d.type === "bsl" || d.type === "ssl") && ya != null && Math.abs(p.y - ya) < 6) { if (!best) best = { i, area: 0, mode: "move" }; }
+        else if ((d.type === "trend" || d.type === "ray" || d.type === "ext") && b) { const x1 = xOf(a.t), x2 = xOf(b.t), y2 = S.se.priceToCoordinate(b.p); if (x1 == null || x2 == null) return; const L = Math.hypot(x2 - x1, y2 - ya) || 1, dd = Math.abs((y2 - ya) * p.x - (x2 - x1) * p.y + x2 * ya - y2 * x1) / L; if (dd < 6 && p.x >= Math.min(x1, x2) - 6 && p.x <= Math.max(x1, x2) + 6 && !best) best = { i, area: 0, mode: Math.hypot(p.x - x1, p.y - ya) < 8 ? "p0" : Math.hypot(p.x - x2, p.y - y2) < 8 ? "p1" : "move" }; } });
+      return best; };
+    const down = (e) => {
+      const RR = S.R; if (!RR || !S.A || e.button !== 0) return; const p = P(e); if (p.x > el.clientWidth - 60 || p.y > el.clientHeight - 26) return;
+      const tool = RR.tool || "cursor", def = TV_TOOLS[tool] || {}; const q = pt(p); if (q.t == null || q.p == null) return;
+      if (tool === "cursor") {
+        const h = hit(p); if (!h) { if (RR.sel !== -1) { RR.sel = -1; RR.rerenderX && RR.rerenderX(); } return; }
+        e.stopPropagation(); e.preventDefault(); RR.sel = h.i; S.drag = { ...h, q0: q, orig: JSON.parse(JSON.stringify(RR.draws[h.i])) }; RR.rerenderX && RR.rerenderX(); S.redraw(); return;
+      }
+      e.stopPropagation(); e.preventDefault(); const as = def.as || tool;
+      if (def.mode === 1 && ["hline", "hray"].includes(as)) { const kd = def.kind || (tool === "hray" && RR.rayKind !== "none" ? RR.rayKind : undefined) || (tool === "hline" && RR.lineKind !== "none" ? RR.lineKind : undefined); RR.draws.push({ type: as, kind: kd, pts: [q] }); RR.sel = RR.draws.length - 1; RR.redo = []; if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
+      if (def.mode === 2 && ["rect", "trend", "ray", "ext"].includes(as)) { const kd = def.kind || (as === "rect" && RR.rectKind !== "none" ? RR.rectKind : undefined); S.pend = { type: as, kind: kd, tf: kd ? TV_TFLAB[S.min] : undefined, pts: [q, { ...q }] }; S.redraw(); return; }
+    };
+    const move = (e) => {
+      const RR = S.R; if (!RR) return; const p = P(e);
+      if (S.pend) { const q = pt(p); if (q.t != null && q.p != null) S.pend.pts[1] = q; S.redraw(); e.stopPropagation(); return; }
+      if (S.drag) { e.stopPropagation(); e.preventDefault(); const q = pt(p); if (q.t == null || q.p == null) return; const D = S.drag, d = RR.draws[D.i], o = D.orig; if (!d) return; const dt = q.t - D.q0.t, dp = q.p - D.q0.p;
+        if (D.mode === "move") d.pts = o.pts.map((z) => ({ t: z.t + (d.type === "hline" ? 0 : dt), p: z.p + dp }));
+        else if (D.mode === "p0" || D.mode === "p1") d.pts[D.mode === "p0" ? 0 : 1] = q;
+        else { const cx = +D.mode[1], cy = +D.mode[2]; const a = o.pts[0], b = o.pts[1]; const xs = [Math.min(a.t, b.t), Math.max(a.t, b.t)], hiP = Math.max(a.p, b.p), loP = Math.min(a.p, b.p); xs[cx] = q.t; const ps = [hiP, loP]; ps[cy] = q.p; d.pts = [{ t: xs[0], p: ps[0] }, { t: xs[1], p: ps[1] }]; }
+        RR.dirty = true; S.redraw(); return; }
+      if (!el.contains(e.target)) return;
+      const h = (RR.tool || "cursor") === "cursor" ? hit(p) : null; el.style.cursor = (RR.tool || "cursor") !== "cursor" ? "crosshair" : h ? (h.mode === "move" ? "move" : "nwse-resize") : "";
+    };
+    const up = (e) => {
+      const RR = S.R; if (!RR) return;
+      if (S.pend) { const s = S.pend; S.pend = null; const a = s.pts[0], b = s.pts[1]; if (a.t !== b.t || Math.abs(a.p - b.p) > 1e-6) { RR.draws.push(s); RR.sel = RR.draws.length - 1; RR.redo = []; } if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
+      if (S.drag) { S.drag = null; RR.dirty = true; RR.rerenderX(); S.redraw(); }
+    };
+    el.addEventListener("mousedown", down, true); window.addEventListener("mousemove", move, true); window.addEventListener("mouseup", up, true);
+    S.unbind = () => { el.removeEventListener("mousedown", down, true); window.removeEventListener("mousemove", move, true); window.removeEventListener("mouseup", up, true); };
+    return () => { if (S.R && S.R.minis) S.R.minis.delete(S); S.unbind && S.unbind(); clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMiniT); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
   }, []);
   useEffect(() => { if (S.ch) S.ch.timeScale().applyOptions({ tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }); }, [blind, tz]);
   useEffect(() => {
@@ -2925,8 +2971,6 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
   return (
     <div style={{ position: "absolute", ...pos, background: TV.bg, borderLeft: pos.left && pos.left !== 0 ? `4px solid ${TV.hover}` : "none", borderTop: pos.top && pos.top !== 0 ? `4px solid ${TV.hover}` : "none", zIndex: 2 }}>
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
-      {/* clic sur ce graphique = il devient le graphique actif (outils, rectangles, trades), comme TradingView */}
-      <div onMouseDown={(e) => { if (e.button === 0 && onActivate) { e.preventDefault(); onActivate(min); } }} onDoubleClick={(e) => e.preventDefault()} title="Cliquer pour dessiner / trader sur ce graphique" style={{ position: "absolute", inset: "30px 60px 26px 0", zIndex: 4, cursor: "pointer" }} />
       <canvas ref={cv} style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 2 }} />
       <div style={{ position: "absolute", left: 8, top: 5, zIndex: 3, display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
         <b style={{ fontWeight: 600 }}>EURUSD ·</b>
