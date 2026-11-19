@@ -2469,7 +2469,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           </div>}
       <style>{".tvw.zen .zh{display:none!important}"}</style>
       {/* barre du haut */}
-      <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, flexWrap: "wrap", rowGap: 2, flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, flexWrap: "nowrap", whiteSpace: "nowrap", flexShrink: 0 }}>
         <span className="zh" style={{ display: "contents" }}><div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}>{TV_PAIR}</div>
         {sep}</span>
         {TV_TFS.filter(([n]) => ["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <TvBtn key={n} active={tf === m} onClick={() => setTf(m)}>{n}</TvBtn>)}
@@ -2482,13 +2482,10 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           </div>}
         </div>
         <span className="zh" style={{ display: "contents" }}>{sep}
-        <TvBtn title="Bougies"><CandlestickChart size={18} /></TvBtn>
-        {sep}
-        <TvBtn style={{ background: TV.text, color: "#fff" }} title="Mode replay"><Rewind size={16} />Replay</TvBtn>
         <TvBtn title="Annuler (Ctrl+Z)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); }}><Undo2 size={17} /></TvBtn>
         <TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); }}><Redo2 size={17} /></TvBtn>
         {sep}
-        {!(curSess() || {}).blind && <TvBtn title="Revenir au début de l'année (2 janvier)" onClick={() => { if (!R.rows) return; const y = tvYear(R.rows[R.ci][0]); goToIndex(tvBsRows(R.rows, Date.UTC(y, 0, 2) / 1000)); setMsg(`Retour au début de ${y}.`); }} style={{ fontSize: 13, fontWeight: 600 }}><Rewind size={15} />Début d'année</TvBtn>}
+        {!(curSess() || {}).blind && <TvBtn title="Revenir au début de l'année (2 janvier)" onClick={() => { if (!R.rows) return; const y = tvYear(R.rows[R.ci][0]); goToIndex(tvBsRows(R.rows, Date.UTC(y, 0, 2) / 1000)); setMsg(`Retour au début de ${y}.`); }} style={{ fontSize: 13, fontWeight: 600 }}><Rewind size={15} /></TvBtn>}
         <select value={sess.cur} onChange={(e) => { if (e.target.value === "__new") setShowNew(true); else openSess(e.target.value); }} title="Session de backtest" style={{ border: `1px solid ${TV.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 14, fontWeight: 600, color: TV.text, background: "#fff", maxWidth: 220, fontFamily: TV_FONT }}>
           {sess.list.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
           <option value="__new">+ Nouvelle session…</option>
