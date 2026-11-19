@@ -2022,7 +2022,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     const tb = barRef.current;
     if (tb) {
       const s = R.draws[R.sel];
-      if (s && !R.dragS && !R.hidden) { const { x1, y1, x2, y2 } = shapePts(s); const top = Math.min(y1 ?? 40, y2 ?? y1 ?? 40); const left = Math.max(10, Math.min(cw - 260, ((x1 ?? cw / 2) + (x2 ?? x1 ?? cw / 2)) / 2 - 120)); tb.style.display = "flex"; tb.style.left = left + "px"; tb.style.top = Math.max(60, top - 50) + "px"; }
+      const M = R.selOn && R.minis && R.minis.has(R.selOn) ? R.selOn : null; /* sélection faite sur le graphique de droite : la barre s'affiche là-bas */
+      if (s && M && !M.drag && !R.hidden) { const bp = M.barPos(s); if (bp) { tb.style.display = "flex"; tb.style.left = bp.x + "px"; tb.style.top = bp.y + "px"; } else tb.style.display = "none"; }
+      else if (s && !M && !R.dragS && !R.hidden) { const { x1, y1, x2, y2 } = shapePts(s); const top = Math.min(y1 ?? 40, y2 ?? y1 ?? 40); const left = Math.max(10, Math.min(cw - 260, ((x1 ?? cw / 2) + (x2 ?? x1 ?? cw / 2)) / 2 - 120)); tb.style.display = "flex"; tb.style.left = left + "px"; tb.style.top = Math.max(60, top - 50) + "px"; }
       else tb.style.display = "none";
     }
     /* mesure */
@@ -2136,7 +2138,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   function commit(s) {
     if (s.type === "triangle" && s.pts.length < 3) return;
     if ((s.type === "path") && s.pts.length < 2) return;
-    R.draws.push(s); R.sel = R.draws.length - 1; R.redo = [];
+    R.draws.push(s); R.sel = R.draws.length - 1; R.redo = []; R.selOn = null;
     if (!R.stay) setTool("cursor"); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw());
   }
 
@@ -2174,7 +2176,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         if (sh) {
           e.stopPropagation(); e.preventDefault();
           let i = sh.i; if (e.ctrlKey || e.metaKey) { const cp = JSON.parse(JSON.stringify(R.draws[i])); R.draws.push(cp); i = R.draws.length - 1; } /* Ctrl + glisser = cloner */
-          R.sel = i; R.dragS = { i, mode: sh.mode, x0: p.x, y0: p.y, a0: { t: xToT(p.x), p: yToP(p.y) }, orig: JSON.parse(JSON.stringify(R.draws[i])) }; rerender(); return;
+          R.selOn = null; R.sel = i; R.dragS = { i, mode: sh.mode, x0: p.x, y0: p.y, a0: { t: xToT(p.x), p: yToP(p.y) }, orig: JSON.parse(JSON.stringify(R.draws[i])) }; rerender(); return;
         }
         if (R.sel !== -1) { R.sel = -1; rerender(); }
         return;
@@ -2417,6 +2419,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         <span className="zh" style={{ display: "contents" }}><div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}>{TV_PAIR}</div>
         {sep}</span>
         {TV_TFS.filter(([n]) => ["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <TvBtn key={n} active={tf === m} onClick={() => setTf(m)}>{n}</TvBtn>)}
+        {cfg.favTop && !live && <><span style={{ width: 1, height: 22, background: TV.border, margin: "0 4px" }} />{fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={"f" + id} title={TV_TOOLS[id].n} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><TvIcon id={id} /></TvBtn>)}<TvBtn title="Remettre la barre de favoris flottante sur le graphique" onClick={() => setCfg({ ...R.cfg, favTop: false })} style={{ padding: "2px 3px", color: TV.muted }}><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 12h10M7 2v7M4 6l3 3 3-3" /></svg></TvBtn></>}
         <div style={{ position: "relative" }}>
           {(() => { const extra = TV_TFS.find((x) => x[1] === tf && !["15m", "1h", "4h", "D", "W", "M"].includes(x[0])); return <TvBtn active={!!extra || tfMenu} title="Autres timeframes" onClick={() => setTfMenu((v) => !v)}>{extra ? extra[0] : ""}<ChevronDown size={15} /></TvBtn>; })()}
           {tfMenu && <div style={{ position: "absolute", left: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 0", minWidth: 150 }}>
@@ -2550,11 +2553,11 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             {(R.draws[R.sel] || {}).type !== "rect" && [1, 2, 3].map((w) => <TvBtn key={w} title={`Épaisseur ${w}`} active={((R.draws[R.sel] || {}).w || 1.5) === w || (w === 1 && !(R.draws[R.sel] || {}).w)} onClick={() => { const s = R.draws[R.sel]; if (s) { s.w = w; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, height: w + 0.5, background: TV.text }} /></TvBtn>)}
             <span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} />
             {(R.draws[R.sel] || {}).type !== "rect" && <TvBtn title="Ligne pointillée" active={!!(R.draws[R.sel] || {}).dash} onClick={() => { const s = R.draws[R.sel]; if (s) { s.dash = !s.dash; rerender(); } }} style={{ padding: "4px 6px" }}><span style={{ display: "block", width: 16, borderTop: `2px dashed ${TV.text}` }} /></TvBtn>}
-            {(R.draws[R.sel] || {}).type === "rect" && <>{Object.keys(TV_ZONE).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = k; s.color = undefined; s.tf = s.tf || TV_TFLAB[R.agg.min]; rerender(); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_ZONE[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
+            {(R.draws[R.sel] || {}).type === "rect" && <>{Object.keys(TV_ZONE).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = k; s.color = undefined; s.tf = s.tf || TV_TFLAB[R.selOn ? R.selOn.min : R.agg.min]; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_ZONE[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
             {["trend", "hline"].includes((R.draws[R.sel] || {}).type) && <>{Object.keys(TV_STRUCT).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = s.kind === k ? undefined : k; s.tf = s.tf || TV_TFLAB[R.agg.min]; s.color = undefined; rerender(); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_STRUCT[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
             {(R.draws[R.sel] || {}).type === "hray" && <>{Object.keys(TV_LIQ).map((k) => <button key={k} title={k} onClick={() => { const s = R.draws[R.sel]; s.kind = k; s.color = undefined; rerender(); }} style={{ border: R.draws[R.sel].kind === k ? `2px solid ${TV.text}` : "2px solid transparent", background: TV_LIQ[k], color: "#fff", borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 700, cursor: "pointer", marginRight: 2, fontFamily: TV_FONT }}>{k}</button>)}<span style={{ width: 1, height: 20, background: TV.border, margin: "0 3px" }} /></>}
             <TvBtn title="Cloner (Ctrl + glisser)" onClick={() => { const s = R.draws[R.sel]; if (s) { const c = JSON.parse(JSON.stringify(s)); c.pts = c.pts.map((q) => ({ t: q.t, p: q.p + 5 * TV_PIP })); R.draws.push(c); R.sel = R.draws.length - 1; rerender(); } }} style={{ padding: "4px 6px" }}><Copy size={16} /></TvBtn>
-            <TvBtn title="Supprimer (Suppr)" onClick={() => { if (R.sel >= 0) { R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; rerender(); } }} style={{ padding: "4px 6px" }}><Trash2 size={16} /></TvBtn>
+            <TvBtn title="Supprimer (Suppr)" onClick={() => { if (R.sel >= 0) { R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; R.selOn = null; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); } }} style={{ padding: "4px 6px" }}><Trash2 size={16} /></TvBtn>
           </div>
           {["rect", "hray", "trend", "hline"].includes(tool) && !live && (
             <div style={{ position: "absolute", left: favOpen ? favPos.x : 10, top: favOpen ? favPos.y + 44 : 110, zIndex: 9, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", gap: 4, padding: 5 }}>
@@ -2565,10 +2568,11 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             </div>
           )}
           {/* barre des favoris flottante (déplaçable) */}
-          {(favOpen || zen) && !live && (
+          {(favOpen || zen) && !live && !cfg.favTop && (
             <div style={{ position: "absolute", left: favPos.x, top: favPos.y, zIndex: 9, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", padding: "3px 4px", gap: 1 }}>
               <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); const sx = e.clientX - favPos.x, sy = e.clientY - favPos.y; const mv = (ev) => setFavPos({ x: Math.max(0, ev.clientX - sx), y: Math.max(0, ev.clientY - sy) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
                 style={{ cursor: "grab", padding: "0 4px", color: TV.muted, fontSize: 14, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>
+              <TvBtn title="Mettre la barre en haut, à côté des timeframes" onClick={() => setCfg({ ...R.cfg, favTop: true })} style={{ padding: "2px 3px", color: TV.muted }}><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 2h10M7 12V5M4 8l3-3 3 3" /></svg></TvBtn>
               {fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={id} title={TV_TOOLS[id].n} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><TvIcon id={id} /></TvBtn>)}
             </div>
           )}
@@ -2898,11 +2902,16 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     g.restore();
   };
   /* un seul dessin par image, et seulement si quelque chose a changé */
+  /* position (dans le cadre des graphiques) de la barre OB / SIBI / BISI… pour un dessin de ce graphique */
+  S.barPos = (d) => { const el = box.current; if (!el || !S.se || !d.pts) return null; const host = el.parentElement && el.parentElement.parentElement; if (!host) return null; const ro = el.getBoundingClientRect(), rh = host.getBoundingClientRect();
+    const xs = d.pts.map((q) => xOf(q.t)).filter((v) => v != null), ys = d.pts.map((q) => S.se.priceToCoordinate(q.p)).filter((v) => v != null); if (!ys.length) return null;
+    const cx = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : el.clientWidth / 2; const top = Math.min(...ys);
+    return { x: Math.max(4, Math.min(ro.width - 300, cx - 140)) + ro.left - rh.left, y: Math.max(40, top - 48) + ro.top - rh.top }; };
   S.redraw = () => { if (S.raf) return; S.raf = requestAnimationFrame(() => { S.raf = 0; redraw(); }); };
   useEffect(() => {
     const ch = createChart(box.current, { autoSize: true, layout: { background: { color: TV.bg }, textColor: TV.text, fontSize: 11, fontFamily: TV_FONT }, grid: { vertLines: { visible: false }, horzLines: { visible: false } }, crosshair: { mode: 0 }, rightPriceScale: { borderColor: TV.border, scaleMargins: { top: 0.12, bottom: 0.08 } }, timeScale: { borderColor: TV.border, timeVisible: true, rightOffset: 10, barSpacing: 6, tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }, localization: { locale: "fr-FR", timeFormatter: (t) => tvFmtTime(t, S.tz, "full") } });
     S.ch = ch; S.se = ch.addCandlestickSeries({ priceLineVisible: false, upColor: cfg.up, downColor: cfg.down, borderUpColor: cfg.down, borderDownColor: cfg.down, wickUpColor: cfg.down, wickDownColor: cfg.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
-    ch.timeScale().subscribeVisibleLogicalRangeChange(() => S.redraw && S.redraw());
+    ch.timeScale().subscribeVisibleLogicalRangeChange(() => { S.redraw && S.redraw(); if (S.R && S.R.selOn === S) S.R.dirty = true; });
     const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci; for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp; return s; };
     const iv = setInterval(() => { const sg = sigOf(); if (sg !== S.lastSig) { S.lastSig = sg; S.redraw(); } }, 400);
     /* le graphique principal prévient ce graphique à chaque modification : affichage instantané des deux côtés */
@@ -2930,10 +2939,10 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
       const tool = RR.tool || "cursor", def = TV_TOOLS[tool] || {}; const q = pt(p); if (q.t == null || q.p == null) return;
       if (tool === "cursor") {
         const h = hit(p); if (!h) { if (RR.sel !== -1) { RR.sel = -1; RR.rerenderX && RR.rerenderX(); } return; }
-        e.stopPropagation(); e.preventDefault(); RR.sel = h.i; S.drag = { ...h, q0: q, orig: JSON.parse(JSON.stringify(RR.draws[h.i])) }; RR.rerenderX && RR.rerenderX(); S.redraw(); return;
+        e.stopPropagation(); e.preventDefault(); RR.sel = h.i; RR.selOn = S; S.drag = { ...h, q0: q, orig: JSON.parse(JSON.stringify(RR.draws[h.i])) }; RR.rerenderX && RR.rerenderX(); S.redraw(); return;
       }
       e.stopPropagation(); e.preventDefault(); const as = def.as || tool;
-      if (def.mode === 1 && ["hline", "hray"].includes(as)) { const kd = def.kind || (tool === "hray" && RR.rayKind !== "none" ? RR.rayKind : undefined) || (tool === "hline" && RR.lineKind !== "none" ? RR.lineKind : undefined); RR.draws.push({ type: as, kind: kd, pts: [q] }); RR.sel = RR.draws.length - 1; RR.redo = []; if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
+      if (def.mode === 1 && ["hline", "hray"].includes(as)) { const kd = def.kind || (tool === "hray" && RR.rayKind !== "none" ? RR.rayKind : undefined) || (tool === "hline" && RR.lineKind !== "none" ? RR.lineKind : undefined); RR.draws.push({ type: as, kind: kd, pts: [q] }); RR.sel = RR.draws.length - 1; RR.selOn = S; RR.redo = []; if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
       if (def.mode === 2 && ["rect", "trend", "ray", "ext"].includes(as)) { const kd = def.kind || (as === "rect" && RR.rectKind !== "none" ? RR.rectKind : undefined); S.pend = { type: as, kind: kd, tf: kd ? TV_TFLAB[S.min] : undefined, pts: [q, { ...q }] }; S.redraw(); return; }
     };
     const move = (e) => {
@@ -2949,8 +2958,9 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     };
     const up = (e) => {
       const RR = S.R; if (!RR) return;
-      if (S.pend) { const s = S.pend; S.pend = null; const a = s.pts[0], b = s.pts[1]; if (a.t !== b.t || Math.abs(a.p - b.p) > 1e-6) { RR.draws.push(s); RR.sel = RR.draws.length - 1; RR.redo = []; } if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
+      if (S.pend) { const s = S.pend; S.pend = null; const a = s.pts[0], b = s.pts[1]; if (a.t !== b.t || Math.abs(a.p - b.p) > 1e-6) { RR.draws.push(s); RR.sel = RR.draws.length - 1; RR.selOn = S; RR.redo = []; } if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
       if (S.drag) { S.drag = null; RR.dirty = true; RR.rerenderX(); S.redraw(); }
+      RR.dirty = true;
     };
     el.addEventListener("mousedown", down, true); window.addEventListener("mousemove", move, true); window.addEventListener("mouseup", up, true);
     S.unbind = () => { el.removeEventListener("mousedown", down, true); window.removeEventListener("mousemove", move, true); window.removeEventListener("mouseup", up, true); };
