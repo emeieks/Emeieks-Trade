@@ -1456,7 +1456,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const hideFlat = cfg.hideFlat, setHideFlat = (v) => setCfg({ ...R.cfg, hideFlat: v });
   const [fly, setFly] = useState(null);
   const [fav, setFav] = useState(tvLoadFav);
-  const [drawSet, setDrawSet] = useState(-1);
+  const [drawSet, setDrawSet] = useState(-1); R.openSet = setDrawSet;
   const [favOpen, setFavOpen] = useState(true);
   const [favPos, setFavPos] = useState({ x: 10, y: 110 });
   const [stay, setStay] = useState(false);
@@ -2677,7 +2677,6 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             <TvBtn title="Lecture / pause (Espace) · → avancer · ← reculer" onClick={() => setPlaying((p) => !p)} style={{ padding: "5px 6px" }}>{playing ? TvIco.pause : TvIco.play}</TvBtn>
             {sessM && <TvBtn title="Jour suivant : saute à la prochaine session" onClick={() => goSession(sessM, true)} style={{ padding: "5px 6px", fontWeight: 700 }}>⏭</TvBtn>}
             <TvBtn title="Bougie suivante : affiche une seule nouvelle bougie, complète" onClick={() => { if (!R.agg) return; const A = R.agg; const endK = (k) => (k + 1 < A.start.length ? A.start[k + 1] - 1 : R.rows.length - 1); let tgt = endK(R.k); if (tgt <= R.ci) tgt = endK(R.k + 1); step(Math.max(1, tgt - R.ci)); }} style={{ padding: "5px 5px" }}>{TvIco.candle}</TvBtn>
-            <TvBtn title="Avancer d'une journée" onClick={() => goToIndex(tvBsRows(R.rows, R.rows[R.ci][0] + 86400))} style={{ padding: "5px 6px" }}>{TvIco.day}</TvBtn>
             {botOn && <TvBtn title="Le bot place ses trades pendant le replay · clique pour l'arrêter" onClick={stopBot} style={{ padding: "4px 8px", fontSize: 12, fontWeight: 700, color: "#9c27b0" }}><Cpu size={15} />Bot</TvBtn>}
             <select value={spd} onChange={(e) => { setSpd(+e.target.value); e.target.blur(); }} title="Vitesse" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_SPEEDS.map(([v]) => <option key={v} value={v}>{String(v).replace(".", ",")}x</option>)}</select>
             <select value={stepTf} onChange={(e) => { setStepTf(+e.target.value); e.target.blur(); }} title="Pas de lecture" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_TFS.slice(0, 10).map(([n, m]) => <option key={n} value={m}>{n}</option>)}</select>
@@ -3006,12 +3005,38 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const list = S.pend ? [...(RR.draws || []), S.pend] : RR.draws || [];
     list.forEach((d, di) => {
       if (!d.pts || !d.pts.length || d.type === "measure") return; const selD = di === RR.sel || d === S.pend; const col = d.color || (d.kind && ((typeof TV_ZONE !== "undefined" && TV_ZONE[d.kind]) || (typeof TV_LIQ !== "undefined" && TV_LIQ[d.kind]) || (typeof TV_STRUCT !== "undefined" && TV_STRUCT[d.kind]))) || TV.blue;
-      g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1; const a = d.pts[0], b = d.pts[1];
-      if (d.type === "rect" && b) { const x1 = xOf(Math.min(a.t, b.t)), x2 = xOf(Math.max(a.t, b.t)), y1 = y(a.p), y2 = y(b.p); if (y1 == null || y2 == null) return; const X1 = x1 ?? 0, X2 = x2 ?? cw; g.globalAlpha = 0.15; g.fillRect(X1, Math.min(y1, y2), Math.max(2, X2 - X1), Math.abs(y2 - y1)); g.globalAlpha = 1; g.strokeRect(X1, Math.min(y1, y2), Math.max(2, X2 - X1), Math.abs(y2 - y1)); if (d.kind) { g.font = "10px " + TV_FONT; g.fillText(d.kind + (d.tf ? " " + d.tf : ""), X1 + 3, Math.min(y1, y2) + 11); } }
-      else if (d.type === "hline" || d.type === "hray" || d.type === "bsl" || d.type === "ssl") { const yy = y(a.p); if (yy == null) return; const x0 = d.type === "hline" ? 0 : xOf(a.t) ?? 0; g.beginPath(); g.moveTo(x0, yy); g.lineTo(cw, yy); g.stroke(); if (d.kind) { g.font = "10px " + TV_FONT; g.fillText(d.kind, x0 + 2, yy - 3); } }
-      else if (d.type === "fib" && b) { const x1 = xOf(Math.min(a.t, b.t)) ?? 0, x2 = xOf(Math.max(a.t, b.t)) ?? cw; g.font = "10px " + TV_FONT; for (const lv of [0, 0.5, 0.618, 0.705, 0.79, 1]) { const pr = b.p + (a.p - b.p) * lv, yy = y(pr); if (yy == null) continue; g.strokeStyle = lv === 0.705 ? "#ff9800" : "#787b86"; g.beginPath(); g.moveTo(x1, yy); g.lineTo(x2, yy); g.stroke(); g.fillStyle = g.strokeStyle; g.fillText(lv, x1 + 2, yy - 2); } }
-      else if (d.type === "text" && d.text) { const xx = xOf(a.t), yy = y(a.p); if (xx == null || yy == null) return; g.font = "13px " + TV_FONT; g.fillStyle = d.color || TV.text; g.fillText(d.text, xx, yy); }
-      else if ((d.type === "trend" || d.type === "ray" || d.type === "ext") && b) { const x1 = xOf(a.t), x2 = xOf(b.t), y1 = y(a.p), y2 = y(b.p); if (x1 == null || x2 == null || y1 == null || y2 == null) return; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
+      g.strokeStyle = col; g.fillStyle = col; g.lineWidth = d.w || (d.type === "rect" ? 1 : 1.5); g.setLineDash(d.dash ? [6, 4] : []); const a = d.pts[0], b = d.pts[1]; const T = d.type;
+      const ln = (x1, y1, x2, y2) => { g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); };
+      const fnt = (px, bo) => (g.font = (bo ? "600 " : "") + px + "px " + TV_FONT);
+      const PP = d.pts.map((q) => ({ x: xOf(q.t), y: y(q.p) }));
+      if (T === "rect" && b) { const x1 = xOf(Math.min(a.t, b.t)), x2 = xOf(Math.max(a.t, b.t)), y1 = y(a.p), y2 = y(b.p); if (y1 == null || y2 == null) return; const X1 = x1 ?? 0, X2 = x2 ?? cw, Tp = Math.min(y1, y2), Hg = Math.abs(y2 - y1), Wd = Math.max(2, X2 - X1);
+        g.setLineDash([]); g.fillStyle = tvAlpha(col, d.op ?? 0.13); g.fillRect(X1, Tp, Wd, Hg); g.lineWidth = 1; g.strokeStyle = tvAlpha(col, 0.75); g.strokeRect(Math.round(X1) + 0.5, Math.round(Tp) + 0.5, Math.round(Wd), Math.round(Hg));
+        if (d.kind) { fnt(11, true); const txt = d.kind + (d.tf ? " " + d.tf : ""); const tw = g.measureText(txt).width; g.fillStyle = col; g.fillText(txt, X1 + Wd - tw - 6, Tp + Hg / 2 + 4); } }
+      else if (T === "hline" || T === "hray" || T === "bsl" || T === "ssl") { const yy = y(a.p); if (yy == null) return; const x0 = T === "hline" ? 0 : xOf(a.t) ?? 0; ln(x0, yy, cw, yy); if (d.kind) { fnt(11, true); g.fillStyle = col; const txt = d.kind + (T === "hline" && d.tf ? " " + d.tf : ""); g.fillText(txt, T === "hline" ? cw / 2 : x0 + 2, yy - 5); } }
+      else if (T === "vline") { const xx = xOf(a.t); if (xx != null) ln(xx, 0, xx, h); }
+      else if (T === "cross") { const xx = xOf(a.t), yy = y(a.p); if (yy != null) ln(0, yy, cw, yy); if (xx != null) ln(xx, 0, xx, h); }
+      else if ((T === "fib" || T === "fibext") && b) {
+        const lv = d.lv ? d.lv.filter((l) => l[2]).map((l) => [+l[0], l[1]]) : T === "fib" ? [[1, "#131722"], [0.79, "#131722"], [0.705, "#131722"], [0.62, "#131722"], [0.5, "#131722"], [0, "#131722"]] : [[0, "#787b86"], [0.618, "#089981"], [1, "#787b86"], [1.272, "#2962ff"], [1.618, "#2962ff"], [2, "#9c27b0"], [2.618, "#f23645"]];
+        const c3 = d.pts[2]; if (T === "fibext" && !c3) return;
+        const lvl = (v) => (T === "fib" ? b.p + (a.p - b.p) * v : c3.p + (b.p - a.p) * v);
+        const xs = PP.map((q) => q.x).filter((v) => v != null); const xl = xs.length ? Math.min(...xs) : 0, xr = (xs.length ? Math.max(...xs) : cw) + 40;
+        if (T === "fib" && !d.noZone) { const yA = y(lvl(0.62)), yB = y(lvl(0.79)); if (yA != null && yB != null) { g.fillStyle = "rgba(8,153,129,0.10)"; g.fillRect(xl, Math.min(yA, yB), xr - xl, Math.abs(yB - yA)); } }
+        if (!d.noTrend && PP.every((q) => q.x != null && q.y != null)) { g.setLineDash([4, 3]); g.strokeStyle = "#787b86"; g.lineWidth = 1; g.beginPath(); PP.forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y))); g.stroke(); }
+        g.setLineDash([]); g.lineWidth = d.w || 1; fnt(11);
+        for (const [v, lc] of lv) { const pr = lvl(v), yy = y(pr); if (yy == null) continue; g.strokeStyle = lc; ln(xl, yy, xr, yy); g.fillStyle = lc; g.fillText(`${v} (${pr.toFixed(TV_DIG)})`, xr + 4, yy + 4); } }
+      else if (T === "text" && d.text) { const xx = xOf(a.t), yy = y(a.p); if (xx == null || yy == null) return; g.font = "13px " + TV_FONT; g.fillStyle = d.color || TV.text; g.fillText(d.text, xx, yy); }
+      else if ((T === "trend" || T === "ray" || T === "ext") && b) { const [p1, p2] = PP; if (p1.x == null || p2.x == null || p1.y == null || p2.y == null) return; let A1 = p1, A2 = p2;
+        if (T !== "trend" && (p2.x !== p1.x || p2.y !== p1.y)) { const dx = p2.x - p1.x, dy = p2.y - p1.y, L = 4000 / Math.hypot(dx, dy); A2 = { x: p2.x + dx * L, y: p2.y + dy * L }; if (T === "ext") A1 = { x: p1.x - dx * L, y: p1.y - dy * L }; }
+        ln(A1.x, A1.y, A2.x, A2.y); if (d.kind && T === "trend") { fnt(11, true); g.fillStyle = col; const txt = d.kind + (d.tf ? " " + d.tf : ""); g.fillText(txt, (p1.x + p2.x) / 2 - g.measureText(txt).width / 2, Math.min(p1.y, p2.y) - 5); } }
+      else if (PP.every((q) => q.x != null && q.y != null) && PP.length > 1) {
+        const poly = (cl) => { g.beginPath(); PP.forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y))); if (cl) g.closePath(); };
+        if (T === "circle") { const [p1, p2] = PP; g.beginPath(); g.ellipse((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, Math.abs(p2.x - p1.x) / 2 || 1, Math.abs(p2.y - p1.y) / 2 || 1, 0, 0, 7); g.fillStyle = tvAlpha(col, 0.15); g.fill(); g.stroke(); }
+        else if (T === "triangle") { poly(PP.length > 2); g.fillStyle = tvAlpha(col, 0.15); if (PP.length > 2) g.fill(); g.stroke(); }
+        else if (T === "highlight") { g.lineJoin = g.lineCap = "round"; g.lineWidth = Math.max(10, (d.w || 1.5) * 7); g.strokeStyle = tvAlpha(col, 0.35); poly(false); g.stroke(); }
+        else if (T === "brush" || T === "path") { g.lineJoin = g.lineCap = "round"; poly(false); g.stroke(); }
+        else if (T === "pricerange" || T === "daterange") { const [p1, p2] = PP; g.fillStyle = tvAlpha(col, 0.15); g.fillRect(Math.min(p1.x, p2.x), Math.min(p1.y, p2.y), Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y)); }
+        else { poly(false); g.stroke(); } }
+      g.setLineDash([]); g.lineWidth = 1;
       if (selD) { const hp = d.type === "rect" && d.pts[1] ? [[d.pts[0].t, d.pts[0].p], [d.pts[1].t, d.pts[0].p], [d.pts[0].t, d.pts[1].p], [d.pts[1].t, d.pts[1].p]] : d.pts.map((q) => [q.t, q.p]);
         for (const [qt, qp] of hp) { const qx = xOf(qt), qy = y(qp); if (qx == null || qy == null) continue; g.fillStyle = "#fff"; g.strokeStyle = TV.blue; g.lineWidth = 1.2; g.beginPath(); g.arc(qx, qy, 4.5, 0, 7); g.fill(); g.stroke(); }
         if (d.type === "rect" && d.pts[1]) { const xa = xOf(Math.min(d.pts[0].t, d.pts[1].t)), xb = xOf(Math.max(d.pts[0].t, d.pts[1].t)), ya2 = y(Math.max(d.pts[0].p, d.pts[1].p)), yb2 = y(Math.min(d.pts[0].p, d.pts[1].p));
@@ -3038,7 +3063,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const ch = createChart(box.current, { autoSize: true, layout: { background: { color: TV.bg }, textColor: TV.text, fontSize: 11, fontFamily: TV_FONT }, grid: { vertLines: { visible: false }, horzLines: { visible: false } }, crosshair: { mode: 0 }, rightPriceScale: { borderColor: TV.border, scaleMargins: { top: 0.12, bottom: 0.08 } }, timeScale: { borderColor: TV.border, timeVisible: true, rightOffset: 10, barSpacing: 6, tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }, localization: { locale: "fr-FR", timeFormatter: (t) => tvFmtTime(t, S.tz, "full") } });
     S.ch = ch; S.se = ch.addCandlestickSeries({ priceLineVisible: false, upColor: cfg.up, downColor: cfg.down, borderUpColor: cfg.down, borderDownColor: cfg.down, wickUpColor: cfg.down, wickDownColor: cfg.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
     ch.timeScale().subscribeVisibleLogicalRangeChange(() => { S.redraw && S.redraw(); if (S.R && S.R.selOn === S) S.R.dirty = true; });
-    const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci; for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp; return s; };
+    const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci; for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || "") + (x.color || "") + (x.w || "") + (x.dash ? 1 : 0) + (x.op ?? "") + (x.noZone ? 1 : 0) + (x.noTrend ? 1 : 0) + (x.lv ? JSON.stringify(x.lv) : "") + (x.text || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp; return s; };
     const iv = setInterval(() => { const sg = sigOf(); if (sg !== S.lastSig) { S.lastSig = sg; S.redraw(); } }, 400);
     let vraf = 0; const vloop = () => { try { const v = S.se ? S.se.coordinateToPrice(0) + "|" + S.se.coordinateToPrice(400) : ""; if (v !== S.vSig) { S.vSig = v; redraw(); if (S.R && S.R.selOn === S) S.R.dirty = true; } } catch (e) {} vraf = requestAnimationFrame(vloop); }; vloop();
     /* le graphique principal prévient ce graphique à chaque modification : affichage instantané des deux côtés */
@@ -3068,7 +3093,11 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
         else if ((d.type === "hline" || d.type === "hray" || d.type === "bsl" || d.type === "ssl") && ya != null && Math.abs(p.y - ya) < 6) { if (!best) best = { i, area: 0, mode: "move" }; }
         else if (d.type === "text" && ya != null) { const xx = xOf(a.t); if (xx != null && p.x >= xx - 4 && p.x <= xx + 120 && p.y >= ya - 16 && p.y <= ya + 4 && !best) best = { i, area: 0, mode: "move" }; }
         else if (d.type === "fib" && b) { const x1 = xOf(Math.min(a.t, b.t)) ?? 0, x2 = xOf(Math.max(a.t, b.t)) ?? el.clientWidth, yb = S.se.priceToCoordinate(b.p); if (p.x >= x1 - 4 && p.x <= x2 + 4 && p.y >= Math.min(ya, yb) - 4 && p.y <= Math.max(ya, yb) + 4 && !best) best = { i, area: 0, mode: Math.hypot(p.x - xOf(a.t), p.y - ya) < 8 ? "p0" : Math.hypot(p.x - xOf(b.t), p.y - yb) < 8 ? "p1" : "move" }; }
-        else if ((d.type === "trend" || d.type === "ray" || d.type === "ext") && b) { const x1 = xOf(a.t), x2 = xOf(b.t), y2 = S.se.priceToCoordinate(b.p); if (x1 == null || x2 == null) return; const L = Math.hypot(x2 - x1, y2 - ya) || 1, dd = Math.abs((y2 - ya) * p.x - (x2 - x1) * p.y + x2 * ya - y2 * x1) / L; if (dd < 6 && p.x >= Math.min(x1, x2) - 6 && p.x <= Math.max(x1, x2) + 6 && !best) best = { i, area: 0, mode: Math.hypot(p.x - x1, p.y - ya) < 8 ? "p0" : Math.hypot(p.x - x2, p.y - y2) < 8 ? "p1" : "move" }; } });
+        else if ((d.type === "trend" || d.type === "ray" || d.type === "ext") && b) { const x1 = xOf(a.t), x2 = xOf(b.t), y2 = S.se.priceToCoordinate(b.p); if (x1 == null || x2 == null) return; const L = Math.hypot(x2 - x1, y2 - ya) || 1, dd = Math.abs((y2 - ya) * p.x - (x2 - x1) * p.y + x2 * ya - y2 * x1) / L; if (dd < 6 && p.x >= Math.min(x1, x2) - 6 && p.x <= Math.max(x1, x2) + 6 && !best) best = { i, area: 0, mode: Math.hypot(p.x - x1, p.y - ya) < 8 ? "p0" : Math.hypot(p.x - x2, p.y - y2) < 8 ? "p1" : "move" }; }
+        else if (!["rect", "hline", "hray", "bsl", "ssl", "text", "fib", "trend", "ray", "ext"].includes(d.type) && !best) { const PP = d.pts.map((q) => ({ x: xOf(q.t), y: S.se.priceToCoordinate(q.p) }));
+          if (d.type === "vline") { if (PP[0].x != null && Math.abs(p.x - PP[0].x) < 6) best = { i, area: 0, mode: "move" }; return; }
+          const k = PP.findIndex((q) => q.x != null && q.y != null && Math.hypot(p.x - q.x, p.y - q.y) < 8); if (k >= 0) { best = { i, area: 0, mode: "p" + k }; return; }
+          const xs = PP.map((q) => q.x).filter((v) => v != null), ys = PP.map((q) => q.y).filter((v) => v != null); if (xs.length && ys.length && p.x >= Math.min(...xs) - 4 && p.x <= Math.max(...xs) + (d.type === "fibext" ? 44 : 4) && p.y >= Math.min(...ys) - 4 && p.y <= Math.max(...ys) + 4) best = { i, area: 0, mode: "move" }; } });
       return best; };
     const down = (e) => {
       const RR = S.R; if (!RR || !S.A || e.button !== 0) return; const p = P(e); if (p.x > el.clientWidth - 60 || p.y > el.clientHeight - 26) return;
@@ -3088,7 +3117,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
       if (S.pend) { const q = pt(p); if (q.t != null && q.p != null) S.pend.pts[1] = q; S.redraw(); e.stopPropagation(); return; }
       if (S.drag) { e.stopPropagation(); e.preventDefault(); const q = pt(p); if (q.t == null || q.p == null) return; const D = S.drag, d = RR.draws[D.i], o = D.orig; if (!d) return; const dt = q.t - D.q0.t, dp = q.p - D.q0.p;
         if (D.mode === "move") d.pts = o.pts.map((z) => ({ t: z.t + (d.type === "hline" ? 0 : dt), p: z.p + dp }));
-        else if (D.mode === "p0" || D.mode === "p1") d.pts[D.mode === "p0" ? 0 : 1] = q;
+        else if (D.mode[0] === "p") d.pts[+D.mode.slice(1)] = q;
         else if (D.mode[0] === "e") { const a = o.pts[0], b = o.pts[1]; let t1 = Math.min(a.t, b.t), t2 = Math.max(a.t, b.t), hi = Math.max(a.p, b.p), lo = Math.min(a.p, b.p); if (D.mode === "et") hi = q.p; if (D.mode === "eb") lo = q.p; if (D.mode === "el") t1 = q.t; if (D.mode === "er") t2 = q.t; d.pts = [{ t: t1, p: hi }, { t: t2, p: lo }]; }
         else { const cx = +D.mode[1], cy = +D.mode[2]; const a = o.pts[0], b = o.pts[1]; const xs = [Math.min(a.t, b.t), Math.max(a.t, b.t)], hiP = Math.max(a.p, b.p), loP = Math.min(a.p, b.p); xs[cx] = q.t; const ps = [hiP, loP]; ps[cy] = q.p; d.pts = [{ t: xs[0], p: ps[0] }, { t: xs[1], p: ps[1] }]; }
         RR.dirty = true; S.redraw(); return; }
@@ -3101,8 +3130,9 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
       if (S.drag) { S.drag = null; RR.dirty = true; RR.rerenderX(); S.redraw(); }
       RR.dirty = true;
     };
+    const dblM = (e) => { const RR = S.R; if (!RR || !S.A) return; const h = hit(P(e)); if (h && RR.openSet) { e.stopPropagation(); RR.sel = h.i; RR.selOn = S; RR.openSet(h.i); } }; el.addEventListener("dblclick", dblM, true);
     el.addEventListener("mousedown", down, true); window.addEventListener("mousemove", move, true); window.addEventListener("mouseup", up, true);
-    S.unbind = () => { el.removeEventListener("mousedown", down, true); window.removeEventListener("mousemove", move, true); window.removeEventListener("mouseup", up, true); };
+    S.unbind = () => { el.removeEventListener("dblclick", dblM, true); el.removeEventListener("mousedown", down, true); window.removeEventListener("mousemove", move, true); window.removeEventListener("mouseup", up, true); };
     return () => { cancelAnimationFrame(vraf); if (mainCh) try { mainCh.timeScale().unsubscribeVisibleLogicalRangeChange(fromMain); } catch (e) {} if (S.R && S.R.minis) S.R.minis.delete(S); S.unbind && S.unbind(); clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMiniT); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
   }, []);
   useEffect(() => { if (S.ch) S.ch.timeScale().applyOptions({ tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }); }, [blind, tz]);
