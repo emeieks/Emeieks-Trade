@@ -2372,7 +2372,19 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   );
 
   { const bl = !!(curSess() || {}).blind; if (TV_BLIND !== bl) { TV_BLIND = bl; setTimeout(() => { if (R.chart) R.chart.timeScale().applyOptions({ tickMarkFormatter: (t, type) => tvFmtTime(t, R.tz, type) }); }, 0); } }
-  const LAY = { "1": [{ inset: 0 }, []], "2v": [{ left: 0, top: 0, bottom: 0, right: "calc(50% + 2px)" }, [{ left: "50%", top: 0, bottom: 0, right: 0 }]], "2h": [{ left: 0, top: 0, right: 0, bottom: "calc(50% + 2px)" }, [{ left: 0, right: 0, top: "50%", bottom: 0 }]], "3": [{ left: 0, top: 0, bottom: 0, right: "calc(50% + 2px)" }, [{ left: "50%", right: 0, top: 0, bottom: "calc(50% + 2px)" }, { left: "50%", right: 0, top: "50%", bottom: 0 }]], "4": [{ left: 0, top: 0, right: "calc(50% + 2px)", bottom: "calc(50% + 2px)" }, [{ left: "50%", right: 0, top: 0, bottom: "calc(50% + 2px)" }, { left: 0, right: "calc(50% + 2px)", top: "50%", bottom: 0 }, { left: "50%", right: 0, top: "50%", bottom: 0 }]] };
+  const H2 = "calc(50% + 2px)", A3 = "calc(66.66% + 2px)", B3 = "calc(33.33% + 2px)";
+  /* dispositions comme TradingView (1 à 3 graphiques). Le graphique principal est toujours la 1re case */
+  const LAY = {
+    "1": [{ inset: 0 }, []],
+    "2v": [{ left: 0, top: 0, bottom: 0, right: H2 }, [{ left: "50%", top: 0, bottom: 0, right: 0 }]],
+    "2h": [{ left: 0, top: 0, right: 0, bottom: H2 }, [{ left: 0, right: 0, top: "50%", bottom: 0 }]],
+    "3c": [{ left: 0, top: 0, bottom: 0, right: A3 }, [{ left: "33.33%", right: B3, top: 0, bottom: 0 }, { left: "66.66%", right: 0, top: 0, bottom: 0 }]],
+    "3r": [{ left: 0, right: 0, top: 0, bottom: A3 }, [{ left: 0, right: 0, top: "33.33%", bottom: B3 }, { left: 0, right: 0, top: "66.66%", bottom: 0 }]],
+    "3": [{ left: 0, top: 0, bottom: 0, right: H2 }, [{ left: "50%", right: 0, top: 0, bottom: H2 }, { left: "50%", right: 0, top: "50%", bottom: 0 }]],
+    "3l": [{ left: 0, top: 0, right: H2, bottom: H2 }, [{ left: 0, right: H2, top: "50%", bottom: 0 }, { left: "50%", right: 0, top: 0, bottom: 0 }]],
+    "3t": [{ left: 0, top: 0, right: H2, bottom: H2 }, [{ left: "50%", right: 0, top: 0, bottom: H2 }, { left: 0, right: 0, top: "50%", bottom: 0 }]],
+    "3b": [{ left: 0, top: 0, right: 0, bottom: H2 }, [{ left: 0, right: H2, top: "50%", bottom: 0 }, { left: "50%", right: 0, top: "50%", bottom: 0 }]],
+  };
   const lay = LAY[cfg.layout] || LAY["1"];
   useEffect(() => { R.dirty = true; }, [cfg.layout]);
   const getAgg = (m) => { if (!R.aggs || R.aggs.src !== R.rows) R.aggs = { src: R.rows }; const ak = m + "|" + hideFlat; if (!R.aggs[ak]) R.aggs[ak] = tvBuild(R.rows, m, hideFlat); return R.aggs[ak]; };
@@ -2425,9 +2437,13 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         </span>
         <div style={{ flex: 1 }} />
         <div style={{ position: "relative" }}>
-          <TvBtn active={layMenu || cfg.layout !== "1"} title="Disposition des graphiques (synchronisés sur le replay)" onClick={() => setLayMenu((v) => !v)}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1.5" y="1.5" width="15" height="15" rx="1.5" /><path d="M9 1.5v15M1.5 9h15" /></svg></TvBtn>
-          {layMenu && <div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: 8, display: "flex", gap: 6 }}>
-            {[["1", "1 graphique", "M2 2h14v14H2z"], ["2v", "2 côte à côte", "M2 2h14v14H2zM9 2v14"], ["2h", "2 l'un sur l'autre", "M2 2h14v14H2zM2 9h14"], ["3", "3 graphiques", "M2 2h14v14H2zM9 2v14M9 9h7"], ["4", "4 graphiques", "M2 2h14v14H2zM9 2v14M2 9h14"]].map(([k, n, d]) => <button key={k} title={n} onClick={() => { setCfg({ ...R.cfg, layout: k }); setLayMenu(false); }} style={{ border: `1px solid ${cfg.layout === k ? TV.blue : TV.border}`, background: cfg.layout === k ? TV.hover : "#fff", borderRadius: 5, padding: 5, cursor: "pointer", color: cfg.layout === k ? TV.blue : TV.text, display: "flex" }}><svg width="22" height="22" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.3"><path d={d} /></svg></button>)}
+          <TvBtn active={layMenu || cfg.layout !== "1"} title="Disposition des graphiques (synchronisés sur le replay)" onClick={() => setLayMenu((v) => !v)}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2" y="2" width="14" height="14" rx="2.5" /></svg></TvBtn>
+          {layMenu && <div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 10px", minWidth: 250 }}>
+            {[["1", [["1", "M2 2h14v14H2z"]]], ["2", [["2v", "M2 2h14v14H2zM9 2v14"], ["2h", "M2 2h14v14H2zM2 9h14"]]], ["3", [["3c", "M2 2h14v14H2zM6.7 2v14M11.3 2v14"], ["3r", "M2 2h14v14H2zM2 6.7h14M2 11.3h14"], ["3", "M2 2h14v14H2zM9 2v14M9 9h7"], ["3l", "M2 2h14v14H2zM9 2v14M2 9h7"], ["3t", "M2 2h14v14H2zM2 9h14M9 2v7"], ["3b", "M2 2h14v14H2zM2 9h14M9 9v7"]]]].map(([n, opts]) =>
+              <div key={n} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 0", borderTop: n === "1" ? "none" : `1px solid ${TV.hover}` }}>
+                <span style={{ width: 16, fontSize: 13, color: TV.muted }}>{n}</span>
+                {opts.map(([k, d]) => <button key={k} onClick={() => { setCfg({ ...R.cfg, layout: k }); setLayMenu(false); }} style={{ border: "none", background: cfg.layout === k ? "#131722" : "transparent", borderRadius: 5, padding: 3, cursor: "pointer", color: cfg.layout === k ? "#fff" : TV.text, display: "flex" }}><svg width="24" height="24" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.2"><path d={d} /></svg></button>)}
+              </div>)}
           </div>}
         </div>
         <div style={{ position: "relative" }}>
@@ -2435,7 +2451,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         </div>
         <span className="zh" style={{ display: "contents" }}><TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
         <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />Données</TvBtn></span>
-        <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><span style={{ fontSize: 17, lineHeight: 1 }}>{zen ? "✕" : "🖥️"}</span></TvBtn>
+        <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">{zen ? <path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /> : <path d="M2 6V2h4M12 2h4v4M2 12v4h4M16 12v4h-4" />}</svg></TvBtn>
         {zen && <TvBtn title="Supprimer tous les dessins" onClick={() => { if (!R.draws.length || !window.confirm("Supprimer tous les dessins ? (les trades restent)")) return; R.redo = [...R.draws]; R.draws = []; R.sel = -1; rerender(); }}><TvIcon id="trash" /></TvBtn>}
         <input ref={fileRef} type="file" accept=".csv,.txt" multiple hidden onChange={(e) => onFiles([...e.target.files])} />
       </div>
@@ -2885,7 +2901,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R 
       for (const t of trades) if (t.status !== "closed") [[t.entry, "#787b86"], [t.sl, TV.red], [t.tp, TV.green]].forEach(([p, c]) => S.lines.push(S.se.createPriceLine({ price: p, color: c, lineWidth: 1, lineStyle: 2, axisLabelVisible: true }))); }
   }, [ci, min, rows, trades.length, trades.map((x) => x.status + x.sl + x.tp).join()]);
   return (
-    <div style={{ position: "absolute", ...pos, background: TV.bg, borderLeft: pos.left === "50%" ? `4px solid ${TV.hover}` : "none", borderTop: pos.top === "50%" ? `4px solid ${TV.hover}` : "none", zIndex: 2 }}>
+    <div style={{ position: "absolute", ...pos, background: TV.bg, borderLeft: pos.left && pos.left !== 0 ? `4px solid ${TV.hover}` : "none", borderTop: pos.top && pos.top !== 0 ? `4px solid ${TV.hover}` : "none", zIndex: 2 }}>
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
       <canvas ref={cv} style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 2 }} />
       <div style={{ position: "absolute", left: 8, top: 5, zIndex: 3, display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
