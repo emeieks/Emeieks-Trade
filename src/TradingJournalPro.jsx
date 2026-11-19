@@ -8105,6 +8105,33 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
       <style>{`.calc-bar{position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:40}@media (min-width:601px){.calc-bar{left:calc(50% + 110px);right:auto;width:min(596px,calc(100% - 260px));transform:translateX(-50%);bottom:20px}}`}</style>
       <PageHeader title="Calculatrice de position" />
 
+      <div style={{ ...card, padding: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr)", gap: "14px 16px", alignItems: "center" }}>
+          <span style={{ fontSize: 14, color: C.textSecondary }}>Actif</span>
+          <select value={pair} onChange={(e) => setPair(e.target.value)} style={inp}>{[...new Set(["NAS100", "US30", "XAUUSD", "XAGUSD", "USOIL", "BTCUSD", ...CALC_ALL])].map((x) => <option key={x} value={x}>{x}{CALC_SPECIAL[x] ? " · " + CALC_SPECIAL[x].lab : ""}</option>)}</select>
+          <span style={{ fontSize: 14, color: C.textSecondary }}>Taille du compte ($)</span>
+          <input type="number" inputMode="decimal" value={acc} onChange={(e) => setAcc(e.target.value)} style={inp} />
+          <span style={{ fontSize: 14, color: C.textSecondary, display: "flex", alignItems: "center", gap: 8 }}>Risque {seg(riskMode, setRiskMode, [["pct", "%"], ["usd", "$"]])}</span>
+          <input type="number" inputMode="decimal" step="0.1" value={risk} onChange={(e) => setRisk(e.target.value)} style={inp} />
+          <span style={{ fontSize: 14, color: C.textSecondary, display: "flex", alignItems: "center", gap: 8 }}>Stop-loss {seg(mode, setMode, [["pips", unit], ["prix", "prix"]])}</span>
+          {mode === "pips" ? <input type="text" inputMode="decimal" value={sl} onChange={(e) => { const v = e.target.value.replace(",", "."); if (/^\d*\.?\d{0,2}$/.test(v)) setSl(v); }} placeholder={isPt ? "ex. 100.25" : "ex. 12.35"} style={inp} />
+            : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}><input type="number" inputMode="decimal" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="Entrée" style={inp} /><input type="number" inputMode="decimal" value={slP} onChange={(e) => setSlP(e.target.value)} placeholder="Stop" style={inp} /></div>}
+        </div>
+        <div style={{ marginTop: 18, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          {[["Montant risqué", r ? fmtUsd(r.realRisk) : "—", C.red], [isPt ? "Distance" : "Stop", r ? (+r.slPips.toFixed(2)).toString().replace(".", ",") + " " + unit : "—"], ["Lots", r ? lotsTxt + " lots" : "—", C.purpleBright, true]].map(([l, v, c, big]) => <div key={l} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: big ? "14px 16px" : "11px 16px", borderTop: l === "Montant risqué" ? "none" : `1px solid ${C.border}`, background: big ? C.purpleDim : "transparent" }}><span style={{ fontSize: 14, color: C.textSecondary }}>{l}</span><span className="tnum" style={{ fontSize: big ? 26 : 16, fontWeight: 700, color: c || C.text }}>{v}</span></div>)}
+        </div>
+        {r && r.lots === 0 && (() => { const st = n(step) || 0.01; const minRisk = st * (r.slEff * pv + (n(com) || 0)); const maxSl = (r.riskUsd / st - (n(com) || 0)) / pv - (r.spr || 0);
+          return <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: C.amberDim, fontSize: 12.5, color: C.amber, lineHeight: 1.6 }}>SL trop loin pour ce risque. Mets un stop de <b>{Math.max(0, maxSl).toFixed(1)} {unit}</b> max, ou risque au moins <b>{fmtUsd(minRisk)}</b>.</div>; })()}
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <button onClick={copy} disabled={!r} style={{ ...btn.ghost, flex: 1, height: 42, justifyContent: "center", opacity: r ? 1 : 0.5, color: copied ? C.teal : C.textSecondary }}>{copied ? <Check size={15} /> : <Clipboard size={15} />}{copied ? "Copié" : "Copier les lots"}</button>
+          {onCreateTrade && <button onClick={create} disabled={!r} style={{ ...btn.primary, flex: 1, height: 42, justifyContent: "center", opacity: r ? 1 : 0.5 }}><Plus size={15} />Créer le trade</button>}
+        </div>
+        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 10, textAlign: "center" }}>{(CALC_BROKERS[broker] || {}).lab} · 1 lot = ${pv < 1 ? pv.toFixed(3) : pv.toFixed(2)} / {isPt ? "point" : "pip"}{verified ? " ✓" : " (à vérifier)"}{n(spread) ? ` · spread ${spread} inclus` : ""}</div>
+      </div>
+
+      <details style={{ ...card, padding: "12px 16px" }}>
+        <summary style={{ fontSize: 13, fontWeight: 700, color: C.textSecondary, cursor: "pointer" }}>Options avancées (TP, niveaux, broker, calibrage, spread)</summary>
+        <div style={{ marginTop: 12 }}>
       {/* Résultat en direct */}
       <div style={{ ...card, background: `radial-gradient(120% 100% at 100% 0%, ${C.purpleDim}, transparent 60%), ${C.card}`, border: `1px solid ${overPlan ? C.amber + "88" : C.border}` }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10 }}>
@@ -8182,7 +8209,7 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><span style={{ ...lab, marginBottom: 0 }}>Stop et objectif</span>{seg(mode, setMode, [["prix", "Par prix"], ["pips", "En " + unit]])}</div>
         {mode === "pips" ? (
           <div className="form-grid-2" style={{ gap: 10 }}>
-            <label><span style={lab}>Stop loss ({unit})</span><input type="number" inputMode="decimal" value={sl} onChange={(e) => setSl(e.target.value)} placeholder="20" style={inp} /></label>
+            <label><span style={lab}>Stop loss ({unit})</span><input type="number" inputMode="decimal" step="0.01" value={sl} onChange={(e) => setSl(e.target.value)} placeholder="20" style={inp} /></label>
             <label><span style={lab}>Take profit ({unit})</span><input type="number" inputMode="decimal" value={tp} onChange={(e) => setTp(e.target.value)} placeholder="optionnel" style={inp} /></label>
           </div>
         ) : (
@@ -8248,14 +8275,8 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
         </div>
       </details>
 
-      <div className="calc-bar" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 10px 10px 14px", borderRadius: 16, background: C.card, border: `1px solid ${overPlan ? C.amber + "99" : C.purple + "55"}`, boxShadow: "0 10px 30px rgba(0,0,0,.35)", backdropFilter: "blur(12px)" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="tnum" style={{ fontSize: 18, fontWeight: 700, color: r ? C.text : C.textMuted, whiteSpace: "nowrap" }}>{lotsTxt} <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>lot{r && r.lots >= 2 ? "s" : ""} · {pair}</span></div>
-          <div className="tnum" style={{ fontSize: 12, color: C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r ? <><span style={{ color: C.red }}>−{fmtUsd(r.realRisk)}</span>{r.rr ? <> · 1:{r.rr.toFixed(2)} · <span style={{ color: C.teal }}>+{fmtUsd(r.gain)}</span></> : ""}</> : "Entre ton stop"}</div>
         </div>
-        <button onClick={copy} disabled={!r} style={{ ...btn.ghost, height: 40, padding: "0 12px", opacity: r ? 1 : 0.5, color: copied ? C.teal : C.textSecondary }}>{copied ? <Check size={15} /> : <Clipboard size={15} />}{copied ? "Copié" : "Copier"}</button>
-        {onCreateTrade && <button onClick={create} disabled={!r} style={{ ...btn.primary, height: 40, padding: "0 13px", opacity: r ? 1 : 0.5 }}><Plus size={15} />Trade</button>}
-      </div>
+      </details>
     </div>
   );
 }
