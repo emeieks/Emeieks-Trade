@@ -1430,9 +1430,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const [tool, setToolS] = useState("cursor");
   const [playing, setPlaying] = useState(false);
   const [spd, setSpd] = useState(1);
-  const [stepTf, setStepTf] = useState(15);
+  const [stepTf, setStepTf] = useState(15); R.setStepX = (m) => setStepTf(Math.min(m, 1440));
   /* changer de timeframe adapte aussi le pas du replay (à côté de 1x) */
-  const setTf = (m) => { R.tfCur = m; setTfS(m); setStepTf(Math.min(m, 1440)); };
+  const setTf = (m) => { R.tfCur = m; setTfS(m); if (!R.active) setStepTf(Math.min(m, 1440)); };
   const [demo, setDemo] = useState(true);
   const qty = cfg.qty, setQty = (v) => setCfg({ ...R.cfg, qty: v });
   const risk = cfg.risk, setRisk = (v) => setCfg({ ...R.cfg, risk: v });
@@ -2217,7 +2217,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     const down = (e) => {
       const ae = document.activeElement; if (ae && /SELECT|INPUT/.test(ae.tagName)) ae.blur(); /* le clavier revient au graphique */
       if (!R.agg || (e.button !== undefined && e.button !== 0)) return; const p = pos(e);
-      if (R.active && R.minis && R.minis.size) { R.active = null; R.sel = -1; R.selOn = null; R.minis.forEach((m) => m.redraw()); R.rerenderX && R.rerenderX(); if (R.tool !== "cursor") { e.stopPropagation(); e.preventDefault(); return; } }
+      if (R.active && R.minis && R.minis.size) { R.active = null; R.setStepX && R.setStepX(R.tfCur || 15); R.sel = -1; R.selOn = null; R.minis.forEach((m) => m.redraw()); R.rerenderX && R.rerenderX(); if (R.tool !== "cursor") { e.stopPropagation(); e.preventDefault(); return; } }
       if (R.lastMeasure) R.lastMeasure = null;
       if (p.x > el.clientWidth - R.chart.priceScale("right").width()) return;
       const tool = R.tool;
@@ -2637,7 +2637,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             <TvBtn title="Supprimer (Suppr)" onClick={() => { if (R.sel >= 0) { R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; R.selOn = null; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); } }} style={{ padding: "4px 6px" }}><Trash2 size={16} /></TvBtn>
           </div>
           {["rect", "hray", "trend", "hline"].includes(tool) && !live && (
-            <div style={{ position: "absolute", left: favOpen ? favPos.x : 10, top: favOpen ? favPos.y + 44 : 110, zIndex: 9, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", gap: 4, padding: 5 }}>
+            <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", ...((() => { try { if (R.active && R.active.ch && boxRef.current) { const a = R.active.ch.chartElement().getBoundingClientRect(), c = boxRef.current.parentElement.getBoundingClientRect(); return { left: a.left - c.left + 10, top: a.top - c.top + 34 }; } } catch (e) {} return { left: favOpen ? favPos.x : 10, top: favOpen ? favPos.y + 44 : 110 }; })()), zIndex: 9, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", gap: 4, padding: 5 }}>
               {(tool === "trend" || tool === "hline" ? [["none", TV.blue, "Ligne"], ...Object.entries(TV_STRUCT).map(([k, c]) => [k, c, k])] : tool === "rect" ? [["none", TV.blue, "Rectangle"], ...Object.entries(TV_ZONE).map(([k, c]) => [k, c, k])] : [["none", TV.blue, "Rayon"], ...Object.entries(TV_LIQ).map(([k, c]) => [k, c, k])]).map(([k, col, n]) => {
                 const on = (tool === "rect" ? rectKind : tool === "hray" ? rayKind : lineKind) === k;
                 return <button key={k} onClick={() => (tool === "rect" ? setRectKind(k) : tool === "hray" ? setRayKind(k) : setLineKind(k))} title={n} style={{ border: on ? `2px solid ${TV.text}` : "2px solid transparent", background: col, color: "#fff", borderRadius: 5, padding: "4px 9px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: TV_FONT }}>{n}</button>;
@@ -2999,6 +2999,7 @@ function TvLegend({ R }) {
 /* graphique secondaire synchronisé sur le replay (autre timeframe), comme les dispositions de TradingView */
 function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R, onActivate }) {
   const box = useRef(null), cv = useRef(null), S = useRef({}).current; S.tz = tz; S.rows = rows; S.R = R; S.min = min;
+  useEffect(() => { if (R.active === S && R.setStepX) R.setStepX(min); }, [min]);
   /* graphique commun : mêmes rectangles, lignes et positions que le graphique principal */
   const xOf = (tt) => { const A = S.A; if (!A || !S.rows || S.k == null) return null; const ts = S.ch.timeScale();
     const last = A.bars[S.k].time; let k;
@@ -3124,7 +3125,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const down = (e) => {
       const RR = S.R; if (!RR || !S.A || e.button !== 0) return; const p = P(e); if (p.x > el.clientWidth - 60 || p.y > el.clientHeight - 26) return;
       const tool = RR.tool || "cursor", def = TV_TOOLS[tool] || {}; const q = pt(p); if (q.t == null || q.p == null) return;
-      if (RR.active !== S) { RR.active = S; RR.sel = -1; RR.selOn = null; if (RR.minis) RR.minis.forEach((m) => m.redraw()); RR.dirty = true; RR.rerenderX && RR.rerenderX(); if (tool !== "cursor") { e.stopPropagation(); e.preventDefault(); return; } }
+      if (RR.active !== S) { RR.active = S; RR.setStepX && RR.setStepX(S.min); RR.sel = -1; RR.selOn = null; if (RR.minis) RR.minis.forEach((m) => m.redraw()); RR.dirty = true; RR.rerenderX && RR.rerenderX(); if (tool !== "cursor") { e.stopPropagation(); e.preventDefault(); return; } }
       if (tool === "cursor") {
         for (const tr of RR.trades || []) { if (tr.status === "closed" || !RR.api || !RR.api.adjST) continue; 
           const kk = [["sl", tr.sl], ["tp", tr.tp], ["entry", tr.entry]].find(([, v]) => { const yy = S.se.priceToCoordinate(v); return yy != null && Math.abs(p.y - yy) < 6; });
@@ -3218,7 +3219,7 @@ const NAV_ITEMS = [
   { id: "stats", label: "Stats", short: "Stats", icon: BarChart3, g: "", also: ["erreurs", "calendar"] },
   { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon, g: "" },
   { id: "plan", label: "Préparation", short: "Prépa", icon: BookOpen, g: "", also: ["previsions", "playbooks", "ressources"] },
-  { id: "settings", label: "Réglages", short: "Réglages", icon: Settings, g: " " },
+  { id: "settings", label: "Réglages", short: "Réglages", icon: Settings, g: "" },
 ];
 /* sections regroupées en onglets */
 const NAV_TABS = { stats: [["stats", "Stats"], ["erreurs", "Erreurs"], ["calendar", "Calendrier"]], plan: [["plan", "Plan"], ["previsions", "Prévisions"], ["playbooks", "Playbooks"], ["ressources", "ICT"]] };
@@ -8006,7 +8007,7 @@ const CALC_FX = (() => { const o = []; for (let i = 0; i < CCYS.length; i++) for
 const CALC_SPECIAL = {
   XAUUSD: { c: 100, pip: 0.1, q: "USD", lab: "Or" }, XAGUSD: { c: 5000, pip: 0.01, q: "USD", lab: "Argent" },
   US30: { c: 1, pip: 1, q: "USD", lab: "Dow Jones" }, NAS100: { c: 1, pip: 1, q: "USD", lab: "Nasdaq" }, SPX500: { c: 1, pip: 1, q: "USD", lab: "S&P 500" },
-  GER40: { c: 1, pip: 1, q: "EUR", lab: "DAX" }, UK100: { c: 1, pip: 1, q: "GBP", lab: "FTSE" },
+  GER40: { c: 1, pip: 1, q: "EUR", lab: "DAX" }, FRA40: { c: 1, pip: 1, q: "EUR", lab: "CAC 40" }, US500: { c: 1, pip: 1, q: "USD", lab: "S&P 500" }, UKOIL: { c: 1000, pip: 0.01, q: "USD", lab: "Brent" }, UK100: { c: 1, pip: 1, q: "GBP", lab: "FTSE" },
   BTCUSD: { c: 1, pip: 1, q: "USD", lab: "Bitcoin" }, ETHUSD: { c: 1, pip: 1, q: "USD", lab: "Ethereum" },
   USOIL: { c: 1000, pip: 0.01, q: "USD", lab: "Pétrole WTI" },
 };
@@ -8016,7 +8017,7 @@ const FX_FALLBACK = { USD: 1, EUR: 0.92, GBP: 0.79, AUD: 1.52, NZD: 1.66, CAD: 1
 const CALC_KEY = "calc_v2";
 /* brokers : valeur d'1 point (pip) pour 1 lot, en devise de cotation. cf = vérifié sur un vrai trade */
 const CALC_BROKERS = {
-  clickfunded: { lab: "ClickFunded · TradeLocker", spec: { NAS100: { c: 100, cf: 1, sp: 1.3 }, US30: { c: 100, cf: 1, sp: 0.9 }, XAGUSD: { c: 5000, cf: 1, sp: 4.1 }, USOIL: { c: 1000, cf: 1, sp: 2 }, BTCUSD: { c: 1, cf: 1, sp: 2 }, XAUUSD: { c: 100, cf: 1, sp: 1.5 }, SPX500: { c: 100 }, GER40: { c: 100 }, UK100: { c: 100 } } },
+  clickfunded: { lab: "ClickFunded · TradeLocker", spec: { NAS100: { c: 100, cf: 1, sp: 1.3 }, US30: { c: 100, cf: 1, sp: 0.9 }, XAGUSD: { c: 5000, cf: 1, sp: 4.1 }, USOIL: { c: 1000, cf: 1, sp: 2 }, BTCUSD: { c: 1, cf: 1, sp: 2 }, XAUUSD: { c: 100, cf: 1, sp: 1.5 }, SPX500: { c: 100 }, US500: { c: 100 }, FRA40: { c: 100 }, UKOIL: { c: 1000 }, GER40: { c: 100 }, UK100: { c: 100 } } },
   standard: { lab: "Standard (MT5, 1 lot indice = 1 $/pt)", spec: {} },
 };
 const CALC_PV_KEY = "calc_pv_v1";
@@ -8030,6 +8031,28 @@ function useFxRates() {
   return st;
 }
 
+const CALC_GROUPS = [
+  ["Forex majeures", ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY"]],
+  ["Indices", ["FRA40", "GER40", "NAS100", "US30", "US500"]],
+  ["Matières premières", ["UKOIL", "USOIL", "XAGUSD", "XAUUSD"]],
+  ["Cryptos", ["BTCUSD", "ETHUSD"]],
+  ["Forex mineures", CALC_FX.filter((x) => !["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY"].includes(x))],
+];
+function CalcPicker({ pair, setPair, inp }) {
+  const [open, setOpen] = useState(false); const [q, setQ] = useState(""); const ref = useRef(null);
+  useEffect(() => { if (!open) return; const f = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }; document.addEventListener("mousedown", f); return () => document.removeEventListener("mousedown", f); }, [open]);
+  const lab = (x) => (CALC_SPECIAL[x] ? CALC_SPECIAL[x].lab : "");
+  return <div ref={ref} style={{ position: "relative" }}>
+    <button onClick={() => setOpen(!open)} style={{ ...inp, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", textAlign: "left" }}><PairLogo pair={pair} size={22} /><b style={{ fontWeight: 700 }}>{pair}</b><span style={{ color: C.textMuted, fontSize: 13 }}>{lab(pair)}</span><ChevronDown size={16} style={{ marginLeft: "auto", color: C.textMuted }} /></button>
+    {open && <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 12px 32px rgba(0,0,0,.35)", maxHeight: 380, overflowY: "auto", padding: 6 }}>
+      <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher…" style={{ ...inp, marginBottom: 6, padding: "8px 10px", fontSize: 14 }} />
+      {CALC_GROUPS.map(([g, list]) => { const L = list.filter((x) => !q || x.includes(q.toUpperCase()) || lab(x).toLowerCase().includes(q.toLowerCase())); if (!L.length) return null;
+        return <div key={g}><div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, padding: "8px 8px 4px" }}>{g}</div>
+          {L.map((x) => <button key={x} onClick={() => { setPair(x); setOpen(false); setQ(""); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 8px", border: "none", borderRadius: 8, background: x === pair ? C.purpleDim : "transparent", color: C.text, cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}><PairLogo pair={x} size={20} /><b style={{ fontWeight: 600 }}>{x}</b><span style={{ color: C.textMuted, fontSize: 12.5 }}>{lab(x)}</span></button>)}</div>; })}
+    </div>}
+  </div>;
+}
+
 function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   const fx = useFxRates();
   const saved = (() => { try { return JSON.parse(localStorage.getItem(CALC_KEY) || "{}"); } catch { return {}; } })();
@@ -8037,7 +8060,7 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   const [acc, setAcc] = useState(saved.acc || String(Math.round(Number(balance) || 10000)));
   const [riskMode, setRiskMode] = useState(saved.riskMode || "pct");
   const [risk, setRisk] = useState(saved.risk || "1");
-  const [mode, setMode] = useState(saved.mode || "prix");
+  const [mode, setMode] = useState(saved.mode || "pips");
   const [sl, setSl] = useState(saved.sl || "");
   const [tp, setTp] = useState(saved.tp || "");
   const [entry, setEntry] = useState(""); const [slP, setSlP] = useState(""); const [tpP, setTpP] = useState("");
@@ -8058,7 +8081,7 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   const isVer = (pr) => { const e2 = pvMap[broker + ":" + pr]; const b2 = (CALC_BROKERS[broker] || CALC_BROKERS.standard).spec[pr]; if (e2 && e2.v) return !!e2.cf; return !!((b2 && b2.cf) || !CALC_SPECIAL[pr] || pr === "XAUUSD"); };
   const pvOf = (pr) => { const e2 = pvMap[broker + ":" + pr]; if (e2 && e2.v) return e2.v; const b2 = (CALC_BROKERS[broker] || CALC_BROKERS.standard).spec[pr]; const s2 = specOf(pr); return (b2 ? b2.c : s2.c) * s2.pip * usdPerX(s2.q); };
   const verified = isVer(pair);
-  const isPt = sp.pip >= 1; const unit = isPt ? "points" : "pips";
+  const isPt = sp.pip >= 1; const unit = "pips";
   const usdPerX = (ccy) => (ccy === "USD" ? 1 : 1 / (Number(fx.rates[ccy]) || FX_FALLBACK[ccy] || 1));
   const usdPer = (ccy) => (ccy === "USD" ? 1 : 1 / (Number(fx.rates[ccy]) || FX_FALLBACK[ccy] || 1));
   const pvAuto = sp.c * sp.pip * usdPer(sp.q);          // valeur d'1 pip pour 1 lot, en $
@@ -8108,7 +8131,7 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
       <div style={{ ...card, padding: 20 }}>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr)", gap: "14px 16px", alignItems: "center" }}>
           <span style={{ fontSize: 14, color: C.textSecondary }}>Actif</span>
-          <select value={pair} onChange={(e) => setPair(e.target.value)} style={inp}>{[...new Set(["NAS100", "US30", "XAUUSD", "XAGUSD", "USOIL", "BTCUSD", ...CALC_ALL])].map((x) => <option key={x} value={x}>{x}{CALC_SPECIAL[x] ? " · " + CALC_SPECIAL[x].lab : ""}</option>)}</select>
+          <CalcPicker pair={pair} setPair={setPair} inp={inp} />
           <span style={{ fontSize: 14, color: C.textSecondary }}>Taille du compte ($)</span>
           <input type="number" inputMode="decimal" value={acc} onChange={(e) => setAcc(e.target.value)} style={inp} />
           <span style={{ fontSize: 14, color: C.textSecondary, display: "flex", alignItems: "center", gap: 8 }}>Risque {seg(riskMode, setRiskMode, [["pct", "%"], ["usd", "$"]])}</span>
