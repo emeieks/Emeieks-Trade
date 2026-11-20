@@ -1458,6 +1458,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const hideFlat = cfg.hideFlat, setHideFlat = (v) => setCfg({ ...R.cfg, hideFlat: v });
   const [fly, setFly] = useState(null);
   const [fav, setFav] = useState(tvLoadFav);
+  const topRef = useRef(null); const [narrow, setNarrow] = useState(0);
+  useEffect(() => { const el = topRef.current; if (!el || typeof ResizeObserver === "undefined") return; const ro = new ResizeObserver(() => { const w = el.clientWidth; setNarrow(w < 1180 ? 2 : w < 1500 ? 1 : 0); }); ro.observe(el); return () => ro.disconnect(); }, []);
   const [drawSet, setDrawSet] = useState(-1); R.openSet = setDrawSet;
   const [favOpen, setFavOpen] = useState(true);
   const [favPos, setFavPos] = useState({ x: 10, y: 110 });
@@ -2415,6 +2417,16 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     goToIndex(tvBsRows(R.rows, Date.UTC(y, 0, 2) / 1000)); setMsg(`Stats ${y} effacées pour « ${title} ». Le replay recommence au début de ${y}.`);
   };
 
+  const btApp = () => ((getApp ? getApp() : appTrades) || []).filter((t) => t.accountId === BT_ACC && (t.rules || {}).session === curSess().title);
+  /* années avec au moins 1 trade (session active) */
+  const tradedYears = () => { const S2 = new Set(); for (const t of [...(R.trades || []), ...(R.archive || [])]) if (t.openT) S2.add(tvYear(t.openT)); for (const y of R.years || []) if (y && y.year && y.n > 0) S2.add(y.year); for (const t of btApp()) S2.add(new Date(t.entryTime).getUTCFullYear()); return [...S2].filter((y) => y > 1990).sort((a, b) => a - b); };
+  /* ---------- tout supprimer : trades, stats, années ---------- */
+  const clearAll = () => {
+    const title = curSess().title; btApp().forEach((t) => onDelete && onDelete(t.id));
+    R.trades = []; R.archive = []; R.years = []; R.seq = null; R.selTr = null; R.sel = -1;
+    R.dirty = true; rerender(); setMsg(`Tous les trades et stats de « ${title} » sont supprimés. Tu repars à zéro.`);
+  };
+
   /* ---------- import ---------- */
   const onFiles = async (files) => {
     let all = [];
@@ -2480,11 +2492,11 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           </div>}
       <style>{".tvw.zen .zh{display:none!important}"}</style>
       {/* barre du haut */}
-      <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, flexWrap: "nowrap", whiteSpace: "nowrap", flexShrink: 0 }}>
-        <span className="zh" style={{ display: "contents" }}><div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}>{TV_PAIR}</div>
+      <div ref={topRef} style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, flexWrap: "nowrap", whiteSpace: "nowrap", flexShrink: 0 }}>
+        <span className="zh" style={{ display: "contents" }}><div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}>{cfg.logo !== false && typeof PairLogo !== "undefined" && <PairLogo pair={TV_PAIR} size={20} />}{TV_PAIR}</div>
         {sep}</span>
         {TV_TFS.filter(([n]) => ["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <TvBtn key={n} active={tf === m} onClick={() => setTf(m)}>{n}</TvBtn>)}
-        {cfg.favTop && !live && <><span style={{ width: 1, height: 22, background: TV.border, margin: "0 4px" }} />{fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={"f" + id} title={TV_TOOLS[id].n + ((() => { const km = cfg.keys || tvDefKeys(fav); const l = Object.keys(km).find((k) => km[k] === id); return l ? " (" + l.toUpperCase() + ")" : ""; })())} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><span style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}><TvIcon id={id} /><span style={{ fontSize: 9, fontWeight: 700, color: TV.muted, marginTop: -2 }}>{((() => { const km = cfg.keys || tvDefKeys(fav); return (Object.keys(km).find((k) => km[k] === id) || "").toUpperCase(); })())}</span></span></TvBtn>)}<TvBtn title="Remettre la barre de favoris flottante sur le graphique" onClick={() => setCfg({ ...R.cfg, favTop: false })} style={{ padding: "2px 3px", color: TV.muted }}><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 12h10M7 2v7M4 6l3 3 3-3" /></svg></TvBtn></>}
+        {cfg.favTop && !live && <span style={{ display: "flex", alignItems: "center", minWidth: 0, flexShrink: 1, overflowX: "auto", scrollbarWidth: "none" }}><span style={{ width: 1, height: 22, background: TV.border, margin: "0 4px", flexShrink: 0 }} />{fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={"f" + id} title={TV_TOOLS[id].n + ((() => { const km = cfg.keys || tvDefKeys(fav); const l = Object.keys(km).find((k) => km[k] === id); return l ? " (" + l.toUpperCase() + ")" : ""; })())} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><span style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}><TvIcon id={id} /><span style={{ fontSize: 9, fontWeight: 700, color: TV.muted, marginTop: -2 }}>{((() => { const km = cfg.keys || tvDefKeys(fav); return (Object.keys(km).find((k) => km[k] === id) || "").toUpperCase(); })())}</span></span></TvBtn>)}<TvBtn title="Remettre la barre de favoris flottante sur le graphique" onClick={() => setCfg({ ...R.cfg, favTop: false })} style={{ padding: "2px 3px", color: TV.muted }}><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 12h10M7 2v7M4 6l3 3 3-3" /></svg></TvBtn></span>}
         <div style={{ position: "relative" }}>
           {(() => { const extra = TV_TFS.find((x) => x[1] === tf && !["15m", "1h", "4h", "D", "W", "M"].includes(x[0])); return <TvBtn active={!!extra || tfMenu} title="Autres timeframes" onClick={() => setTfMenu((v) => !v)}>{extra ? extra[0] : ""}<ChevronDown size={15} /></TvBtn>; })()}
           {tfMenu && <div style={{ position: "absolute", left: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 0", minWidth: 150 }}>
@@ -2505,7 +2517,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         </span>
         <div style={{ flex: 1 }} />
         <div style={{ position: "relative" }}>
-          <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}><Target size={15} style={{ verticalAlign: "-2px", marginRight: 4 }} />Modes</TvBtn>
+          <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}><Target size={15} style={{ verticalAlign: "-2px", marginRight: 4 }} />{narrow < 2 && "Modes"}</TvBtn>
           {modeMenu && <><div onClick={() => setModeMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 59 }} /><div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: 8, width: 300, fontSize: 14 }}>
             <div style={{ padding: "6px 8px", fontWeight: 700 }}>Session seulement</div>
             <div style={{ display: "flex", gap: 4, padding: "0 8px 8px", flexWrap: "wrap" }}>{[["", "Toutes"], ...Object.entries(TV_SESS_MODE).map(([k, [n]]) => [k, n])].map(([k, n]) => <button key={k || "all"} onClick={() => { setSessM(k || null); }} style={{ border: `1px solid ${(sessM || "") === k ? TV.blue : TV.border}`, background: (sessM || "") === k ? "rgba(41,98,255,0.08)" : "#fff", color: (sessM || "") === k ? TV.blue : TV.text, borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontFamily: TV_FONT, fontSize: 13 }}>{n}</button>)}</div>
@@ -2526,10 +2538,10 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           </div>}
         </div>
         <div style={{ position: "relative" }}>
-          <TvBtn active={indOpen} title="Afficher / masquer les indicateurs" onClick={() => setIndOpen((v) => !v)}><LineChart size={17} />Indicateurs</TvBtn>
+          <TvBtn active={indOpen} title="Afficher / masquer les indicateurs" onClick={() => setIndOpen((v) => !v)}><LineChart size={17} />{!narrow && "Indicateurs"}</TvBtn>
         </div>
         <span className="zh" style={{ display: "contents" }}><TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
-        <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />Données</TvBtn></span>
+        <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />{!narrow && "Données"}</TvBtn></span>
         <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">{zen ? <path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /> : <path d="M2 6V2h4M12 2h4v4M2 12v4h4M16 12v4h-4" />}</svg></TvBtn>
         {zen && <div style={{ position: "relative" }}><TvBtn title="Supprimer" active={trashM === "zen"} onClick={() => setTrashM(trashM === "zen" ? null : "zen")}><TvIcon id="trash" /></TvBtn>{trashM === "zen" && (() => { const dr = R.draws.filter((d) => trLock || !d.locked); const ind = indList.filter(([, on]) => on);
             const delD = () => { if (!dr.length) return; R.redo = [...R.draws]; R.draws = R.draws.filter((d) => !trLock && d.locked); R.sel = -1; setMsg(dr.length + " dessin" + (dr.length > 1 ? "s" : "") + " supprimé" + (dr.length > 1 ? "s" : "")); rerender(); };
@@ -2714,7 +2726,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       </div>
 
       {drawSet >= 0 && R.draws[drawSet] && <TvDrawSettings d={R.draws[drawSet]} onClose={() => setDrawSet(-1)} onApply={(v) => { R.draws[drawSet] = v; setDrawSet(-1); R.dirty = 1; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }} />}
-      {showSet && <TvSettings years={years} curYear={R.rows ? tvYear(R.rows[R.ci][0]) : undefined} onClearYear={(y) => { clearYear(y); setShowSet(false); }} cfg={cfg} onClose={() => setShowSet(false)} onApply={(v) => { setCfg(v); setShowSet(false); }} onCloseAll={closeAll} onReset={() => { R.trades = []; R.draws = []; rerender(); }} fav={fav} />}
+      {showSet && <TvSettings years={tradedYears()} onClearAll={() => { clearAll(); setShowSet(false); }} curYear={R.rows ? tvYear(R.rows[R.ci][0]) : undefined} onClearYear={(y) => { clearYear(y); setShowSet(false); }} cfg={cfg} onClose={() => setShowSet(false)} onApply={(v) => { setCfg(v); setShowSet(false); }} onCloseAll={closeAll} onReset={() => { R.trades = []; R.draws = []; rerender(); }} fav={fav} />}
       {showNew && <TvNewSession list={sess.list} onClose={() => setShowNew(false)} onCreate={createSess} onDelete={delSess} />}
       {/* panneau Replay Trading */}
       <div className="zh" style={{ borderTop: `4px solid ${TV.hover}`, flexShrink: 0 }}>
@@ -2883,7 +2895,8 @@ function TvDrawSettings({ d: d0, onClose, onApply }) {
 /* force un rendu régulier du parent (aperçu des lots qui suit le zoom du graphique) */
 function TvTick({ ms, render }) { const [, f] = useState(0); useEffect(() => { const id = setInterval(() => f((x) => x + 1), ms); return () => clearInterval(id); }, [ms]); return render(); }
 
-function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], onClearYear, curYear, fav = [] }) {
+function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], onClearYear, onClearAll, curYear, fav = [] }) {
+  const [sureAll, setSureAll] = useState(false);
   const [cy, setCy] = useState(curYear || years[years.length - 1] || 2010); const [sure, setSure] = useState(false);
   const [d, setD] = useState(() => JSON.parse(JSON.stringify(cfg)));
   const [tab, setTab] = useState("kz");
@@ -2928,6 +2941,10 @@ function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], on
           <div style={{ fontSize: 12, color: TV.muted, marginTop: 8 }}>Jour et semaine coupés à 17:00 New York, comme TradingView.</div>
         </>}
         {tab === "chart" && <>
+          <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BARRES</div>
+          {tvChk(!!d.favTop, (v) => set((n) => { n.favTop = v; }), "Barre de favoris en haut (sinon barre flottante que tu peux déplacer)")}
+          {tvChk(d.logo !== false, (v) => set((n) => { n.logo = v; }), "Logo devant le nom de la paire (EURUSD)")}
+          <div style={{ height: 10 }} />
           <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BOUGIES</div>
           <div style={row}><span>Corps haussier</span>{tvColor(d.up, (v) => set((n) => { n.up = v; }))}</div>
           <div style={row}><span>Corps baissier, mèches et bordures</span>{tvColor(d.down, (v) => set((n) => { n.down = v; }))}</div>
@@ -2954,11 +2971,19 @@ function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], on
           </div>
           <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, margin: "18px 0 6px" }}>RECOMMENCER UNE ANNÉE</div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <select value={cy} onChange={(e) => { setCy(+e.target.value); setSure(false); }} style={{ ...num, width: 110 }}>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select>
+            {!years.length ? <span style={{ fontSize: 13, color: TV.muted }}>Aucune année avec un trade.</span> : <>
+            <select value={years.includes(cy) ? cy : years[years.length - 1]} onChange={(e) => { setCy(+e.target.value); setSure(false); }} style={{ ...num, width: 110 }}>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select>
             {!sure ? <button onClick={() => setSure(true)} style={{ ...num, width: "auto", cursor: "pointer", background: "#fff", color: TV.red }}>Effacer les stats de {cy} et recommencer</button>
-              : <button onClick={() => onClearYear(cy)} style={{ ...num, width: "auto", cursor: "pointer", background: TV.red, color: "#fff", border: "none" }}>Confirmer : effacer {cy}</button>}
+              : <button onClick={() => onClearYear(years.includes(cy) ? cy : years[years.length - 1])} style={{ ...num, width: "auto", cursor: "pointer", background: TV.red, color: "#fff", border: "none" }}>Confirmer : effacer {years.includes(cy) ? cy : years[years.length - 1]}</button>}
+            </>}
           </div>
           <div style={{ fontSize: 12, color: TV.muted, marginTop: 6 }}>Supprime les trades de cette année pour la session active (aussi dans Saisie & stats) et remet le replay au 2 janvier.</div>
+          <div style={{ fontSize: 12, color: TV.red, letterSpacing: 0.6, margin: "18px 0 6px" }}>TOUT SUPPRIMER</div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            {!sureAll ? <button onClick={() => setSureAll(true)} style={{ ...num, width: "auto", cursor: "pointer", background: "#fff", color: TV.red }}>Supprimer tous les trades et stats</button>
+              : <><button onClick={onClearAll} style={{ ...num, width: "auto", cursor: "pointer", background: TV.red, color: "#fff", border: "none" }}>Confirmer : tout supprimer</button><button onClick={() => setSureAll(false)} style={{ ...num, width: "auto", cursor: "pointer", background: "#fff" }}>Annuler</button></>}
+          </div>
+          <div style={{ fontSize: 12, color: TV.muted, marginTop: 6 }}>Toutes les années de la session active, aussi dans Saisie & stats et Supabase. Irréversible.</div>
         </>}
       </div>
     </TvModal>
