@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   LayoutGrid, NotebookPen, BarChart3,
   Plus, X, Upload, Search, Download, ChevronLeft, ChevronRight, Bell,
@@ -1168,7 +1169,7 @@ const tvLots = (bal, pct, slPips) => Math.max(0.01, Math.floor(((bal * pct) / 10
 const TV_FONT = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 const TV_TFLAB = { 15: "M15", 30: "M30", 60: "H1", 120: "H2", 180: "H3", 240: "H4", 360: "H6", 480: "H8", 720: "H12", 1440: "D", 10080: "W", 43200: "M" };
 /* couleurs des annonces : différentes des killzones (vert, bleu, rouge, violet, orange) et des rectangles */
-const TV_NEWS_COL = { NFP: "#e91e63", CPI: "#00acc1", FOMC: "#8d6e63" };
+const TV_NEWS_COL = { NFP: "#6d4c41", CPI: "#546e7a", FOMC: "#212121" }; /* brun / gris-bleu / noir : jamais les couleurs des sessions ni des zones */
 const tvRgba = (h, a) => `rgba(${parseInt(h.slice(1, 3), 16)},${parseInt(h.slice(3, 5), 16)},${parseInt(h.slice(5, 7), 16)},${a})`;
 const TV_ZONE = { OB: "#2962ff", SIBI: "#f23645", BISI: "#089981", BB: "#9c27b0", IFVG: "#f5b700" };
 const TV_LIQ = { BSL: "#8b0000", SSL: "#089981" };
@@ -1473,7 +1474,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const [fav, setFav] = useState(tvLoadFav);
   const topRef = useRef(null); const [narrow, setNarrow] = useState(0);
   useEffect(() => { const el = topRef.current; if (!el || typeof ResizeObserver === "undefined") return; const ro = new ResizeObserver(() => { const w = el.clientWidth; setNarrow(w < 1180 ? 2 : w < 1500 ? 1 : 0); }); ro.observe(el); return () => ro.disconnect(); }, []);
-  const [drawSet, setDrawSet] = useState(-1); const [symMenu, setSymMenu] = useState(false);
+  const [drawSet, setDrawSet] = useState(-1); const [symMenu, setSymMenu] = useState(false); const [repSlot, setRepSlot] = useState(null);
   useEffect(() => { if (!symMenu) return; const f = () => setSymMenu(false); document.addEventListener("mousedown", f); return () => document.removeEventListener("mousedown", f); }, [symMenu]); R.openSet = setDrawSet;
   const [favOpen, setFavOpen] = useState(() => !cfg.favTop);
   const [favPos, setFavPos] = useState({ x: 10, y: 110 });
@@ -1988,7 +1989,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       { const xa = tToX(ev.t - 86400); if (xa !== null && R.agg.min <= 240) {
         const i0 = tvBsBars(A.bars, ev.t - 86400), i1 = Math.min(R.k, tvBsBars(A.bars, Math.min(ev.t, now))); let hi = -1e9, lo = 1e9;
         for (let q = Math.max(0, i0); q <= i1; q++) { const b = q === R.k ? liveBar() : A.bars[q]; if (b.high > hi) hi = b.high; if (b.low < lo) lo = b.low; }
-        if (hi > lo) { const ya = pToY(hi), yb = pToY(lo), xb = Math.min(x, tToX(now)); c.fillStyle = tvRgba(col[ev.n], 0.08); c.fillRect(xa, ya, xb - xa, yb - ya); c.strokeStyle = tvRgba(col[ev.n], 0.5); c.lineWidth = 1; c.strokeRect(xa, ya, xb - xa, yb - ya); c.fillStyle = "#9c27b0"; c.font = "11px " + TV_FONT; c.fillText(ev.n + " J-1", xa + 2, ya - 4); c.font = "600 10px " + TV_FONT; }
+        if (hi > lo) { const ya = pToY(hi), yb = pToY(lo), xb = Math.min(x, tToX(now)); c.fillStyle = tvRgba(col[ev.n], 0.08); c.fillRect(xa, ya, xb - xa, yb - ya); c.strokeStyle = tvRgba(col[ev.n], 0.5); c.lineWidth = 1; c.setLineDash([6, 4]); c.strokeRect(xa, ya, xb - xa, yb - ya); c.setLineDash([]); c.fillStyle = col[ev.n]; c.font = "600 11px " + TV_FONT; c.fillText(ev.n + " J-1", xa + 2, ya - 4); c.font = "600 10px " + TV_FONT; }
       } }
       c.globalAlpha = ev.t > now ? 0.55 : 1; /* à venir = plus pâle (comme un calendrier économique) */
       c.strokeStyle = col[ev.n]; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(x, 18); c.lineTo(x, ch); c.stroke(); c.setLineDash([]);
@@ -2556,6 +2557,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         {(curSess() || {}).blind && <TvBtn active title="Mode à l'aveugle : dates cachées. Clique pour révéler la date." onClick={() => { const v = snapSess(sess); v.list = v.list.map((x) => (x.id === v.cur ? { ...x, blind: false } : x)); setSessS(v); tvSaveSess(v); }} style={{ fontSize: 13 }}><EyeOff size={15} />Aveugle</TvBtn>}
         </span>
         <div style={{ flex: 1 }} />
+          {cfg.repTop && !live && <span ref={(el) => { if (el && el !== repSlot) setRepSlot(el); }} style={{ display: "flex", alignItems: "center", marginRight: 6 }} />}
           <TvBtn active={favOpen} title="Barre de favoris flottante (déplaçable)" onClick={() => setFavOpen((v) => !v)}><Star size={16} fill={favOpen ? "currentColor" : "none"} /></TvBtn>
         <div style={{ position: "relative" }}>
           <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}><GraduationCap size={18} /></TvBtn>
@@ -2584,7 +2586,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         <span className="zh" style={{ display: "contents" }}><TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
         <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />{!narrow && "Données"}</TvBtn></span>
         {!zen && <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">{zen ? <path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /> : <path d="M2 6V2h4M12 2h4v4M2 12v4h4M16 12v4h-4" />}</svg></TvBtn>}
-        {zen && <><TvBtn title="Annuler (Ctrl+Z / Retour arrière)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Undo2 size={17} /></TvBtn><TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Redo2 size={17} /></TvBtn><TvBtn active={zenTr} title="Afficher le trading (positions, historique, stats)" onClick={() => setZenTr((v) => !v)}><CandlestickChart size={18} /></TvBtn><TvBtn title="Paramètres" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn></>}
+        {zen && <><TvBtn title="Annuler (Ctrl+Z / Retour arrière)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Undo2 size={17} /></TvBtn><TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Redo2 size={17} /></TvBtn><TvBtn active={zenTr} title="Afficher le trading (positions, historique, stats)" onClick={() => setZenTr((v) => !v)}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l5-5 4 3 6-7" /><path d="M14 8h4v4" /><path d="M3 21h18" /><path d="M19.5 14.5v6M21 15.6c-.3-.6-.9-.9-1.6-.9-.9 0-1.6.5-1.6 1.2 0 1.6 3.3.9 3.3 2.6 0 .7-.7 1.2-1.7 1.2-.8 0-1.4-.3-1.7-.9" /></svg></TvBtn><TvBtn title="Paramètres" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn></>}
         {zen && <div style={{ position: "relative" }}><TvBtn title="Supprimer" active={trashM === "zen"} onClick={() => setTrashM(trashM === "zen" ? null : "zen")}><TvIcon id="trash" /></TvBtn>{trashM === "zen" && (() => { const dr = R.draws.filter((d) => trLock || !d.locked); const ind = indList.filter(([, on]) => on);
             const delD = () => { if (!dr.length) return; R.redo = [...R.draws]; R.draws = R.draws.filter((d) => !trLock && d.locked); R.sel = -1; setMsg(dr.length + " dessin" + (dr.length > 1 ? "s" : "") + " supprimé" + (dr.length > 1 ? "s" : "")); rerender(); };
             const delI = () => { ind.forEach(([, , fn]) => fn(false)); if (ind.length) setMsg(ind.length + " indicateur" + (ind.length > 1 ? "s" : "") + " masqué" + (ind.length > 1 ? "s" : "")); };
@@ -2736,9 +2738,10 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             </div>}
           </div>
           {/* barre de replay compacte et déplaçable */}
-          <div style={{ position: "absolute", ...(barPos ? { left: barPos.x, top: barPos.y } : cfg.repTop ? { left: "50%", top: 8, transform: "translateX(-50%)" } : { left: "50%", bottom: 42, transform: "translateX(-50%)" }), zIndex: 5, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 0, padding: "2px 4px", whiteSpace: "nowrap" }}>
-            <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); const host = e.currentTarget.parentElement.parentElement.getBoundingClientRect(), me = e.currentTarget.parentElement.getBoundingClientRect(); const ox = e.clientX - me.left, oy = e.clientY - me.top; const mv = (ev) => setBarPos({ x: Math.max(0, Math.min(host.width - me.width, ev.clientX - host.left - ox)), y: Math.max(0, Math.min(host.height - me.height, ev.clientY - host.top - oy)) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
-              style={{ cursor: "grab", padding: "0 3px", color: TV.muted, fontSize: 13, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>
+          {(() => { const bar = (
+          <div style={{ ...(cfg.repTop ? { position: "relative", boxShadow: "none" } : { position: "absolute", ...(barPos ? { left: barPos.x, top: barPos.y } : { left: "50%", bottom: 42, transform: "translateX(-50%)" }) }), zIndex: 5, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 0, padding: "2px 4px", whiteSpace: "nowrap" }}>
+            {!cfg.repTop && <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); const host = e.currentTarget.parentElement.parentElement.getBoundingClientRect(), me = e.currentTarget.parentElement.getBoundingClientRect(); const ox = e.clientX - me.left, oy = e.clientY - me.top; const mv = (ev) => setBarPos({ x: Math.max(0, Math.min(host.width - me.width, ev.clientX - host.left - ox)), y: Math.max(0, Math.min(host.height - me.height, ev.clientY - host.top - oy)) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
+              style={{ cursor: "grab", padding: "0 3px", color: TV.muted, fontSize: 13, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>}
             <TvBtn title="Sélectionner la date (Alt+G)" onClick={openDate} style={{ padding: "5px 6px" }}>{TvIco.cal}</TvBtn>
             <input ref={dateRef} className="tv-hidden-date" type="date" onChange={(e) => jumpTo(e.target.value)} style={{ position: "absolute", opacity: 0, width: 1, height: 1, left: 20, bottom: 0, pointerEvents: "none" }} aria-label="Date de départ" />
             <TvBtn title="Sélectionner la barre : clique sur une bougie pour reprendre le replay à partir de là" active={selBar} onClick={() => { setPlaying(false); R.selBar = !selBar; setSelBar(!selBar); }} style={{ padding: "5px 6px" }}>{TvIco.cut}</TvBtn>
@@ -2749,6 +2752,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             <select value={spd} onChange={(e) => { setSpd(+e.target.value); e.target.blur(); }} title="Vitesse" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_SPEEDS.map(([v]) => <option key={v} value={v}>{String(v).replace(".", ",")}x</option>)}</select>
             <select value={stepTf} onChange={(e) => { setStepTf(+e.target.value); e.target.blur(); }} title="Pas de lecture" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_TFS.slice(0, 10).map(([n, m]) => <option key={n} value={m}>{n}</option>)}</select>
           </div>
+          ); return cfg.repTop && repSlot ? createPortal(bar, repSlot) : bar; })()}
           {/* boutons de l'échelle : A = ajustement auto, » = revenir aux dernières bougies */}
           <div style={{ position: "absolute", right: 4, bottom: 32, zIndex: 6, display: "flex", gap: 4 }}>
             <button title="Revenir aux dernières bougies" onClick={() => R.chart.timeScale().scrollToRealTime()} style={{ width: 26, height: 22, border: `1px solid ${TV.border}`, borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, color: TV.text, padding: 0 }}>»</button>
@@ -2987,7 +2991,7 @@ function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], on
           <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BARRES</div>
           {tvChk(!!d.favTop, (v) => set((n) => { n.favTop = v; }), "Barre de favoris en haut (sinon barre flottante que tu peux déplacer)")}
           {tvChk(d.logo !== false, (v) => set((n) => { n.logo = v; }), "Logo devant le nom de la paire (EURUSD)")}
-          {tvChk(!!d.repTop, (v) => set((n) => { n.repTop = v; }), "Barre de simulation (lecture, avance) en haut du graphique")}
+          {tvChk(!!d.repTop, (v) => set((n) => { n.repTop = v; }), "Barre de simulation (date, lecture, bougie suivante, vitesse) dans la barre du haut, à côté des favoris")}
           {tvChk(!!d.showBS, (v) => set((n) => { n.showBS = v; }), "Boutons SELL / BUY sur les graphiques (sinon : outils Position longue / courte, ou Maj+B / Maj+S)")}
           {tvChk(d.bsUndo !== false, (v) => set((n) => { n.bsUndo = v; }), "Touche Retour arrière (⌫) : efface le dernier dessin posé, puis le précédent…")}
           <div style={{ height: 10 }} />
@@ -3112,7 +3116,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     if (RR.newsListX && RR.cfg && (RR.cfg.news || RR.cfg.cpi || RR.cfg.fomc) && S.min <= 1440) { const on = { NFP: !!RR.cfg.news, CPI: !!RR.cfg.cpi, FOMC: !!RR.cfg.fomc }; g.font = "600 10px " + TV_FONT;
       for (const ev of RR.newsListX()) { if (!on[ev.n] || ev.t - 86400 > now) continue; const x = xOf(ev.t); if (x == null || x < -cw || x > cw * 2) continue; const col = TV_NEWS_COL[ev.n];
         if (S.min <= 240 && S.A) { const xa = xOf(ev.t - 86400); let hi = -1e9, lo = 1e9; for (let q = Math.max(0, tvBsBars(S.A.bars, ev.t - 86400)); q <= Math.min(S.k, tvBsBars(S.A.bars, Math.min(ev.t, now))); q++) { const bb = S.A.bars[q]; if (!bb) continue; if (bb.high > hi) hi = bb.high; if (bb.low < lo) lo = bb.low; }
-          if (xa != null && hi > lo) { const ya = y(hi), yb = y(lo), xb = Math.min(x, xOf(now) ?? x); if (ya != null && yb != null) { g.fillStyle = tvRgba(col, 0.08); g.fillRect(xa, ya, xb - xa, yb - ya); g.strokeStyle = tvRgba(col, 0.5); g.strokeRect(xa, ya, xb - xa, yb - ya); g.fillStyle = "#9c27b0"; g.font = "11px " + TV_FONT; g.fillText(ev.n + " J-1", xa + 2, ya - 4); g.font = "600 10px " + TV_FONT; } } }
+          if (xa != null && hi > lo) { const ya = y(hi), yb = y(lo), xb = Math.min(x, xOf(now) ?? x); if (ya != null && yb != null) { g.fillStyle = tvRgba(col, 0.08); g.fillRect(xa, ya, xb - xa, yb - ya); g.strokeStyle = tvRgba(col, 0.5); g.setLineDash([6, 4]); g.strokeRect(xa, ya, xb - xa, yb - ya); g.setLineDash([]); g.fillStyle = col; g.font = "11px " + TV_FONT; g.fillText(ev.n + " J-1", xa + 2, ya - 4); g.font = "600 10px " + TV_FONT; } } }
         g.globalAlpha = ev.t > now ? 0.55 : 1; g.strokeStyle = col; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(Math.round(x) + 0.5, 18); g.lineTo(Math.round(x) + 0.5, h - 26); g.stroke(); g.setLineDash([]); g.fillStyle = col; g.fillText(ev.n, x - g.measureText(ev.n).width / 2, 30); g.globalAlpha = 1; } }
     const list = S.pend ? [...(RR.draws || []), S.pend] : RR.draws || [];
     list.forEach((d, di) => {
@@ -6845,24 +6849,31 @@ function PerformanceReview({ trades }) {
 
 /* ===================== PRÉPARATION : barème de setups + alertes ===================== */
 const PREP_KEY = "prep_v1";
-/* barème : sections de puces ; une section "any" donne ses points si au moins une puce est cochée */
-const PREP_SECT = [
-  { g: "Biais", items: [{ id: "bias", n: "D / H4 aligné", p: 2, must: true }, { id: "pd", n: "Discount / Premium", p: 1 }] },
-  { g: "PD array HTF", tf: "H4 · D", any: 2, items: [{ id: "h_fvg", n: "SIBI / BISI" }, { id: "h_ob", n: "OB" }, { id: "h_bb", n: "BB" }, { id: "h_ifvg", n: "IFVG" }] },
-  { g: "Liquidité", any: 2, must: true, items: [{ id: "l_pd", n: "PDH / PDL" }, { id: "l_as", n: "Asia H / L" }, { id: "l_eq", n: "EQH / EQL" }, { id: "l_pw", n: "PWH / PWL" }] },
-  { g: "Structure LTF", tf: "M15 · M5", items: [{ id: "mss", n: "MSS / CHoCH", p: 2, must: true }] },
-  { g: "PD array LTF", tf: "M15 · M5", any: 1, items: [{ id: "e_fvg", n: "FVG" }, { id: "e_ob", n: "OB" }, { id: "e_bb", n: "BB" }] },
-  { g: "Entrée", items: [{ id: "ote", n: "OTE 62-79", p: 1 }, { id: "smt", n: "SMT", p: 1 }] },
-  { g: "Killzone", any: 1, items: [{ id: "k_ld", n: "London" }, { id: "k_ny", n: "NY AM" }] },
-  { g: "Malus", neg: true, items: [{ id: "news", n: "News < 30 min", p: -3 }, { id: "contra", n: "Contre biais", p: -3 }, { id: "late", n: "Entrée tardive", p: -2 }] },
+/* barème inspiré des checklists ICT / SMT courantes : chaque critère vaut 0, 1 ou 2 selon sa QUALITÉ (pas juste « présent »),
+   + bonus SMT, + bloquants qui annulent le trade. Total sur 12. */
+const PREP_F = [
+  { id: "bias", n: "Biais", tf: "W · D · H4", must: true, lv: [[2, "D + H4 alignés", "et le Weekly pas contre"], [1, "H4 seul", "D neutre ou en range"], [0, "Contre / range", "pas de direction claire"]] },
+  { id: "pd", n: "Premium / Discount", tf: "range H4 · D", lv: [[2, "Zone profonde", "achat < 38 % · vente > 62 %"], [1, "Bon côté", "achat 38-50 % · vente 50-62 %"], [0, "Mauvais côté", "achat en premium / vente en discount"]] },
+  { id: "zone", n: "Zone HTF", tf: "H4 · D", lv: [[2, "Fraîche", "OB / FVG / BB jamais touché"], [1, "Touchée 1 fois", "réaction déjà faite"], [0, "Aucune / usée", "touchée 2 fois ou plus"]], tags: ["OB", "SIBI/BISI", "BB", "IFVG", "Rejection"] },
+  { id: "liq", n: "Liquidité prise", must: true, lv: [[2, "Externe", "PDH/PDL, PWH/PWL, EQH/EQL, Asia/London H-L"], [1, "Interne", "petit swing M15"], [0, "Rien", "pas de sweep avant"]], tags: ["PDH/PDL", "PWH/PWL", "EQH/EQL", "Asia H/L", "London H/L"] },
+  { id: "mss", n: "Cassure", tf: "M15 · M5", must: true, lv: [[2, "MSS + déplacement", "clôture + 2 grosses bougies + FVG"], [1, "MSS faible", "en mèche ou lent"], [0, "Pas de MSS", ""]] },
+  { id: "entry", n: "Entrée", tf: "M15 · M5", lv: [[2, "1er FVG / OB dans l'OTE", "après le MSS, 62-79 %"], [1, "FVG / OB hors OTE", "ou 2e FVG"], [0, "Au marché", "sans zone"]], tags: ["FVG", "OB", "BB", "IFVG"] },
+  { id: "time", n: "Heure", tf: "heure de New York", lv: [[2, "Sweep dans la killzone", "London 2h-5h · NY 8h30-11h"], [1, "Killzone seule", "ou NY PM 13h30-16h"], [0, "Hors killzone", "Asia, midi, soir"]] },
+  { id: "dol", n: "Cible (DOL)", lv: [[2, "Liquidité opposée nette", "RR ≥ 3, rien devant"], [1, "RR 2-3", "ou une zone devant"], [0, "RR < 2", "pas de cible claire"]] },
 ];
-const PREP_GRADES = [["A+", 10, 1, "#089981"], ["A", 7, 0.75, "#2962ff"], ["B", 5, 0.5, "#ff9800"], ["C", -99, 0, "#f23645"]];
-const prepScore = (chk) => { let sc = 0, mustOk = true; for (const S of PREP_SECT) { const on = S.items.filter((i) => chk[i.id]); if (S.any) { if (on.length) sc += S.any; if (S.must && !on.length) mustOk = false; } else for (const i of S.items) { if (chk[i.id]) sc += i.p; if (i.must && !chk[i.id]) mustOk = false; } } return { sc, mustOk }; };
-const prepGrade = (chk, risks) => { const { sc, mustOk } = prepScore(chk);
-  let g = PREP_GRADES.find(([, min]) => sc >= min) || PREP_GRADES[3]; if (g[0] === "A+" && !mustOk) g = PREP_GRADES[1]; if ((g[0] === "A" || g[0] === "A+") && !chk.bias) g = PREP_GRADES[2];
-  return { sc, g: g[0], risk: (risks && risks[g[0]] != null ? risks[g[0]] : g[2]), col: g[3], mustOk }; };
-const prepNote = (chk) => { const part = (g, suf) => { const S = PREP_SECT.find((x) => x.g === g); const on = S.items.filter((i) => chk[i.id]).map((i) => i.n.replace(/ \/ /g, "/")); return on.length ? on.join("+") + (suf ? " " + suf : "") : ""; };
-  return [part("PD array HTF", "H4"), part("Liquidité") && "sweep " + part("Liquidité"), chk.mss ? "MSS" : "", part("PD array LTF", "M15"), part("Killzone")].filter(Boolean).join(" · "); };
+const PREP_BONUS = [{ id: "smt", n: "SMT (DXY / paire corrélée)", p: 1 }, { id: "macro", n: "Macro ICT (xx:50 → xx:10)", p: 1 }];
+const PREP_STOP = [{ id: "news", n: "News forte ± 15 min" }, { id: "contra", n: "Contre le Weekly + Daily" }, { id: "block", n: "Zone HTF opposée devant la cible" }, { id: "losses", n: "Déjà 2 pertes aujourd'hui" }, { id: "spread", n: "Spread anormal" }];
+const PREP_GRADES = [["A+", 14, 1, "#089981"], ["A", 11, 0.75, "#2962ff"], ["B", 8, 0.5, "#ff9800"], ["C", -99, 0, "#f23645"]];
+const PREP_MAX = PREP_F.length * 2;
+const prepScore = (chk) => { let sc = 0, miss = 0, zero = []; for (const f of PREP_F) { const v = chk[f.id]; if (v == null) { miss++; continue; } sc += v; if (v === 0 && f.must) zero.push(f.n); } for (const b of PREP_BONUS) if (chk[b.id]) sc += b.p; const stop = PREP_STOP.filter((x) => chk[x.id]).map((x) => x.n); return { sc, miss, zero, stop }; };
+const prepGrade = (chk, risks) => { const { sc, miss, zero, stop } = prepScore(chk);
+  let g = PREP_GRADES.find(([, min]) => sc >= min) || PREP_GRADES[3]; let why = "";
+  if (stop.length) { g = PREP_GRADES[3]; why = "Bloqué : " + stop.join(", "); }
+  else if (zero.length) { g = PREP_GRADES[3]; why = "À 0 : " + zero.join(", "); }
+  else if (g[0] === "A+" && PREP_F.filter((f) => f.must).some((f) => chk[f.id] !== 2)) { g = PREP_GRADES[1]; why = "A+ : les ★ doivent être à 2"; }
+  return { sc, miss, g: g[0], risk: (risks && risks[g[0]] != null ? risks[g[0]] : g[2]), col: g[3], why }; };
+const prepNote = (chk) => { const t = (id) => (chk["t_" + id] || []).join("/"); const p = [];
+  if (t("zone")) p.push(t("zone") + " H4"); if (t("liq")) p.push("sweep " + t("liq")); if (chk.mss === 2) p.push("MSS + déplacement"); else if (chk.mss === 1) p.push("MSS faible"); if (t("entry")) p.push(t("entry") + " M15"); if (chk.time === 2) p.push("sweep en killzone"); else if (chk.time === 1) p.push("killzone"); if (chk.dol === 2) p.push("RR 3+"); if (chk.smt) p.push("SMT"); if (chk.macro) p.push("macro"); return p.join(" · "); };
 const prepLoad = () => { try { return JSON.parse(localStorage.getItem(PREP_KEY)) || {}; } catch { return {}; } };
 const PREP_MISS = ["Pas devant l'écran", "Alerte pas vue", "Hésitation / peur", "Attendu une meilleure entrée", "Doute sur le setup", "Déjà perdu dans la journée", "Autre"];
 
@@ -6884,20 +6895,25 @@ function PrepPage({ balance }) {
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.3fr) minmax(0,1fr)", gap: 14 }} className="prep-grid">
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><b style={{ fontSize: 16 }}>Setup</b><button onClick={() => setChk({})} style={{ ...btn.ghost, height: 30, padding: "0 10px", fontSize: 12 }}>Effacer</button></div>
-        {PREP_SECT.map((S) => { const on = S.items.filter((i) => chk[i.id]).length; const pts = S.any ? S.any : null;
-          return <div key={S.g} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
-            <div style={{ width: 120, flexShrink: 0 }}><div style={{ fontSize: 13, fontWeight: 700, color: S.neg ? C.red : C.text }}>{S.g}{S.must && <span style={{ color: C.purpleBright }}> ★</span>}</div>{S.tf && <div style={{ fontSize: 11, color: C.textMuted }}>{S.tf}</div>}</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flex: 1 }}>{S.items.map((i) => { const a = !!chk[i.id]; const col = S.neg ? C.red : C.purpleBright;
-              return <button key={i.id} onClick={() => setChk({ ...chk, [i.id]: !a })} style={{ border: `1px solid ${a ? col : C.border}`, background: a ? (S.neg ? C.redDim : C.purpleDim) : "transparent", color: a ? col : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{i.n}{i.must && <span> ★</span>}{i.p != null && <span style={{ opacity: 0.7, marginLeft: 5 }}>{i.p > 0 ? "+" : ""}{i.p}</span>}</button>; })}</div>
-            {pts != null && <span className="tnum" style={{ fontSize: 13, fontWeight: 700, color: on ? C.purpleBright : C.textMuted, width: 26, textAlign: "right" }}>+{pts}</span>}
+        {PREP_F.map((f) => { const v = chk[f.id]; const tags = chk["t_" + f.id] || [];
+          return <div key={f.id} style={{ padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}><b style={{ fontSize: 14 }}>{f.n}{f.must && <span style={{ color: C.purpleBright }}> ★</span>}</b>{f.tf && <span style={{ fontSize: 11.5, color: C.textMuted }}>{f.tf}</span>}<span className="tnum" style={{ marginLeft: "auto", fontSize: 13, fontWeight: 800, color: v == null ? C.textMuted : v === 2 ? C.teal : v === 1 ? C.amber : C.red }}>{v == null ? "–" : v} / 2</span></div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 6 }}>{f.lv.map(([p, lab, hint]) => { const a = v === p; const col = p === 2 ? C.teal : p === 1 ? C.amber : C.red;
+              return <button key={p} onClick={() => setChk({ ...chk, [f.id]: a ? undefined : p })} style={{ textAlign: "left", border: `1px solid ${a ? col : C.border}`, background: a ? `${col}22` : "transparent", color: a ? C.text : C.textSecondary, borderRadius: 10, padding: "7px 9px", fontSize: 12.5, lineHeight: 1.3, cursor: "pointer", fontFamily: "inherit" }}><b style={{ color: col, marginRight: 5 }}>{p}</b><b style={{ fontWeight: 600 }}>{lab}</b>{hint && <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>{hint}</div>}</button>; })}</div>
+            {f.tags && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{f.tags.map((t) => { const a = tags.includes(t); return <button key={t} onClick={() => setChk({ ...chk, ["t_" + f.id]: a ? tags.filter((x) => x !== t) : [...tags, t] })} style={{ border: `1px solid ${a ? C.purpleBright : C.border}`, background: a ? C.purpleDim : "transparent", color: a ? C.purpleBright : C.textMuted, borderRadius: 999, padding: "3px 9px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t}</button>; })}</div>}
           </div>; })}
-        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>★ obligatoire pour A+</div>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
+          <div style={{ flexBasis: "100%" }}><b style={{ fontSize: 13 }}>Bonus</b><div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{PREP_BONUS.map((x) => <button key={x.id} onClick={() => setChk({ ...chk, [x.id]: !chk[x.id] })} style={{ border: `1px solid ${chk[x.id] ? C.teal : C.border}`, background: chk[x.id] ? C.tealDim || "rgba(8,153,129,0.12)" : "transparent", color: chk[x.id] ? C.teal : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{x.n} +{x.p}</button>)}</div></div>
+          <div style={{ flexBasis: "100%" }}><b style={{ fontSize: 13, color: C.red }}>Bloquants : pas de trade</b><div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{PREP_STOP.map((x) => <button key={x.id} onClick={() => setChk({ ...chk, [x.id]: !chk[x.id] })} style={{ border: `1px solid ${chk[x.id] ? C.red : C.border}`, background: chk[x.id] ? C.redDim : "transparent", color: chk[x.id] ? C.red : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{x.n}</button>)}</div></div>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.textMuted }}>★ doit être à 2 pour A+ · un ★ à 0 = pas de trade · A+ 14+ · A 11-13 · B 8-10 · C ≤ 7</div>
       </div>
       <div>
         <div style={{ ...card, borderColor: G.col, textAlign: "center" }}>
           <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 700, letterSpacing: 0.6 }}>NOTE DU SETUP</div>
           <div style={{ fontSize: 64, fontWeight: 800, color: G.col, lineHeight: 1.1 }}>{G.g}</div>
-          <div className="tnum" style={{ fontSize: 13, color: C.textSecondary }}>{G.sc} pts{!G.mustOk && G.sc >= 10 ? " · manque un ★ pour A+" : ""}</div>
+          <div className="tnum" style={{ fontSize: 13, color: C.textSecondary }}>{G.sc} / {PREP_MAX}{G.miss ? ` · ${G.miss} critère${G.miss > 1 ? "s" : ""} à noter` : ""}{G.why ? <div style={{ color: C.red, fontWeight: 600, marginTop: 4 }}>{G.why}</div> : null}</div>
+          {prepNote(chk) && <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 6 }}>{prepNote(chk)}</div>}
           <div style={{ marginTop: 12, padding: "12px", borderRadius: 12, background: C.inputBg || C.bg }}>
             {G.risk > 0 ? <><div style={{ fontSize: 13, color: C.textSecondary }}>Risque conseillé</div><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{String(G.risk).replace(".", ",")} %</div><div className="tnum" style={{ fontSize: 13, color: C.textMuted }}>{fmtUsd(riskUsd)} sur {fmtUsd(Number(balance) || 0)}</div></>
               : <div style={{ fontSize: 15, fontWeight: 700, color: C.red }}>Pas de trade : setup C</div>}
@@ -6906,7 +6922,7 @@ function PrepPage({ balance }) {
         </div>
         <div style={card}>
           <b style={{ fontSize: 14 }}>Risque par note</b>
-          {PREP_GRADES.map(([g, min, , col]) => <div key={g} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}><span style={{ width: 34, fontWeight: 800, color: col }}>{g}</span><span style={{ flex: 1, fontSize: 12.5, color: C.textMuted }}>{g === "C" ? "< 5 pts" : `${min} pts +`}</span>
+          {PREP_GRADES.map(([g, min, , col]) => <div key={g} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}><span style={{ width: 34, fontWeight: 800, color: col }}>{g}</span><span style={{ flex: 1, fontSize: 12.5, color: C.textMuted }}>{g === "C" ? "≤ 7 pts" : `${min} pts +`}</span>
             <input type="number" step="0.25" min="0" value={st.risks[g]} onChange={(e) => save({ ...st, risks: { ...st.risks, [g]: Number(e.target.value) } })} style={{ ...inp, width: 80, padding: "6px 8px" }} /><span style={{ fontSize: 13 }}>%</span></div>)}
         </div>
       </div>
