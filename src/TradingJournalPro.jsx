@@ -1803,7 +1803,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     { const t0 = R.rows[R.ci][0], win = 20 * 86400, pr = 300 * TV_PIP; /* seulement les dessins proches du trade : 20 jours avant, ±300 pips */
       const near = R.draws.filter((d) => d.type !== "measure" && d.pts.some((q) => Math.abs(q.p - entry) <= pr) && (["hline", "hray"].includes(d.type) || d.pts.some((q) => q.t >= t0 - win && q.t <= t0 + 2 * 86400)));
       tr.drawSnap = JSON.parse(JSON.stringify(near.slice(-40))); }
-    R.trades.push(tr); rerender();
+    R.trades.push(tr); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw());
   }
   const closeAll = () => { for (const t of R.trades) if (t.status === "open") closeTrade(t, t.side > 0 ? bid() : ask(), "Manuel"); R.trades = R.trades.filter((t) => t.status !== "pending"); if (R.unseenAdd) { setUnseen((u) => u + R.unseenAdd); R.unseenAdd = 0; } rerender(); };
   const closeOne = (t) => { if (t.status === "open") closeTrade(t, t.side > 0 ? bid() : ask(), "Manuel"); else R.trades = R.trades.filter((x) => x !== t); if (R.unseenAdd) { setUnseen((u) => u + R.unseenAdd); R.unseenAdd = 0; } rerender(); };
@@ -1870,6 +1870,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     if (x2 === null || x2 < x1 + 30) x2 = x1 + 30;
     return { x1, x2, ye: pToY(tr.entry), ys: pToY(tr.sl), yt: pToY(tr.tp) };
   }
+  /* même durée de boîte sur l'autre graphique */
+  R.trSpan = (tr) => { const t1 = tr.anchorT ?? (tr.status === "pending" ? tr.placedT : tr.openT); if (tr.endT != null) return { t1, t2: tr.endT }; if (tr.status === "closed") return { t1, t2: tr.closeT }; try { const B = tradeBox(tr); const t2 = B ? xToT(B.x2) : null; if (t2 != null) return { t1, t2 }; } catch (e) {} return { t1, t2: (R.rows ? R.rows[R.ci][0] : t1) + 3 * 3600 }; };
 
   /* ---------- indicateurs : killzones (heure de New York) ---------- */
   function drawKillzones(c, cw, ch) {
@@ -2043,11 +2045,16 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         const usd = (d) => ((d / TV_PIP) * TV_PIPVAL * tr.lots).toFixed(2);
         const lab = (lines, yAnchor, bg, below) => {
           c.font = "13px " + TV_FONT; const w = Math.max(...lines.map((l) => c.measureText(l).width)) + 14, h = lines.length * 17 + 6;
-          const xm = Math.max(4, Math.min(cw - w - 4, (x1 + x2) / 2 - w / 2)), y0 = below ? yAnchor + 8 : yAnchor - 8 - h;
+          const xm = Math.round(Math.max(4, Math.min(cw - w - 4, (x1 + x2) / 2 - w / 2))), y0 = Math.round(below ? yAnchor + 8 : yAnchor - 8 - h);
           c.fillStyle = bg; c.beginPath(); if (c.roundRect) c.roundRect(xm, y0, w, h, 4); else c.rect(xm, y0, w, h); c.fill();
           c.fillStyle = "#fff"; lines.forEach((l, i) => c.fillText(l, xm + 7, y0 + 16 + i * 17));
         };
         const upTop = tr.side > 0; /* long : cible en haut ; short : cible en bas */
+        const rrTxt = (dTp / (dSl > TV_PIP * 0.05 ? dSl : dSl0)).toFixed(2).replace(".", ",");
+        if (R.drag && R.drag.tr === tr) { /* en mouvement : seulement le RR */
+          const yy = R.drag.kind === "sl" ? ys : R.drag.kind === "tp" ? yt : ye; const below = R.drag.kind === "sl" ? upTop : R.drag.kind === "tp" ? !upTop : true;
+          lab([`RR ${rrTxt}  ·  ${tr.lots.toFixed(2)} lot`], yy, R.drag.kind === "sl" ? TV.red : R.drag.kind === "tp" ? TV.green : "#131722", below);
+        } else {
         lab([`Cible: ${fx(dTp)} (${pc(dTp)}%) ${pts(dTp)}, Montant: ${usd(dTp)}`], upTop ? Math.min(yt, ye) : Math.max(yt, ye), TV.green, !upTop);
         lab([dSl < 0.05 * TV_PIP ? "Stop: BE (point d'entrée)" : `Stop: ${fx(dSl)} (${pc(dSl)}%) ${pts(dSl)}, Montant: ${usd(dSl)}`], upTop ? Math.max(ys, ye) : Math.min(ys, ye), TV.red, upTop);
         const pl = closed ? tr.pnl : tr.status === "open" ? (((tr.side > 0 ? bid() : ask()) - tr.entry) * tr.side / TV_PIP) * TV_PIPVAL * tr.lots : 0;
@@ -2057,6 +2064,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         const l1 = tr.status === "pending" ? `En attente, Qté: ${tr.lots.toFixed(2)}` : `${closed ? "Fermé" : "Ouverture"} P&L: ${pl.toFixed(2).replace(".", ",")}, Qté: ${tr.lots.toFixed(2)}`;
         /* comme TradingView : l'info est juste sous la ligne d'entrée (côté stop pour un long, côté cible pour un short) */
         lab([l0 + beTxt, l1, `Ratio Risque/Récompense: ${(dTp / (dSl > TV_PIP * 0.05 ? dSl : dSl0)).toFixed(2).replace(".", ",")}`], ye - 2, tr.status === "pending" ? "#787b86" : pl >= 0 ? TV.green : TV.red, true);
+        }
         R.trLabBottom = R.trLabBottom || {}; R.trLabBottom[tr.id] = Math.max(ys, yt) + 36; /* la barre d'actions reste sous le stop */
       }
       if (R.drag && R.drag.tr === tr && (R.drag.kind === "sl" || R.drag.kind === "tp")) {
@@ -2348,9 +2356,12 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     const leave = () => { R.mouse = null; R.dirty = true; };
     el.addEventListener("mousedown", down, true); el.addEventListener("touchstart", down, { capture: true, passive: false });
     el.addEventListener("mousemove", move, true); el.addEventListener("touchmove", move, { capture: true, passive: false });
+    /* glisser hors du graphique (au-dessus de la légende, des barres…) : on continue de suivre la souris */
+    const wmove = (e) => { if ((R.drag || R.dragS || (R.pend && R.pend.drag)) && !el.contains(e.target)) move(e); };
+    window.addEventListener("mousemove", wmove, true);
     el.addEventListener("dblclick", dbl, true); el.addEventListener("contextmenu", ctxm, true);
     window.addEventListener("mouseup", up); window.addEventListener("touchend", up); el.addEventListener("mouseleave", leave);
-    return () => { el.removeEventListener("mousedown", down, true); el.removeEventListener("touchstart", down, true); el.removeEventListener("mousemove", move, true); el.removeEventListener("touchmove", move, true); el.removeEventListener("dblclick", dbl, true); el.removeEventListener("contextmenu", ctxm, true); window.removeEventListener("mouseup", up); window.removeEventListener("touchend", up); el.removeEventListener("mouseleave", leave); };
+    return () => { window.removeEventListener("mousemove", wmove, true); el.removeEventListener("mousedown", down, true); el.removeEventListener("touchstart", down, true); el.removeEventListener("mousemove", move, true); el.removeEventListener("touchmove", move, true); el.removeEventListener("dblclick", dbl, true); el.removeEventListener("contextmenu", ctxm, true); window.removeEventListener("mouseup", up); window.removeEventListener("touchend", up); el.removeEventListener("mouseleave", leave); };
   }, [slP, rr, risk, qty, cap]);
 
   /* ---------- clavier : raccourcis de TradingView ---------- */
@@ -2545,7 +2556,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         <span className="zh" style={{ display: "contents" }}><TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
         <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />{!narrow && "Données"}</TvBtn></span>
         <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">{zen ? <path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /> : <path d="M2 6V2h4M12 2h4v4M2 12v4h4M16 12v4h-4" />}</svg></TvBtn>
-        {zen && <><TvBtn title="Annuler (Ctrl+Z / Retour arrière)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Undo2 size={17} /></TvBtn><TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Redo2 size={17} /></TvBtn><TvBtn active={zenTr} title="Afficher le trading (positions, historique, stats)" onClick={() => setZenTr((v) => !v)}><Rewind size={15} />{!narrow && "Trading"}</TvBtn></>}
+        {zen && <><TvBtn title="Annuler (Ctrl+Z / Retour arrière)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Undo2 size={17} /></TvBtn><TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Redo2 size={17} /></TvBtn><TvBtn active={zenTr} title="Afficher le trading (positions, historique, stats)" onClick={() => setZenTr((v) => !v)}><Rewind size={15} />{!narrow && "Trading"}</TvBtn><TvBtn title="Paramètres" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn></>}
         {zen && <div style={{ position: "relative" }}><TvBtn title="Supprimer" active={trashM === "zen"} onClick={() => setTrashM(trashM === "zen" ? null : "zen")}><TvIcon id="trash" /></TvBtn>{trashM === "zen" && (() => { const dr = R.draws.filter((d) => trLock || !d.locked); const ind = indList.filter(([, on]) => on);
             const delD = () => { if (!dr.length) return; R.redo = [...R.draws]; R.draws = R.draws.filter((d) => !trLock && d.locked); R.sel = -1; setMsg(dr.length + " dessin" + (dr.length > 1 ? "s" : "") + " supprimé" + (dr.length > 1 ? "s" : "")); rerender(); };
             const delI = () => { ind.forEach(([, , fn]) => fn(false)); if (ind.length) setMsg(ind.length + " indicateur" + (ind.length > 1 ? "s" : "") + " masqué" + (ind.length > 1 ? "s" : "")); };
@@ -3102,12 +3113,19 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
           if (xa != null && xb != null && ya2 != null && yb2 != null) { const xm = (xa + xb) / 2, ym = (ya2 + yb2) / 2; g.setLineDash([2, 3]); g.strokeStyle = TV.blue; g.beginPath(); g.moveTo(xa, ym); g.lineTo(xb, ym); g.stroke(); g.setLineDash([]);
             for (const [sx, sy] of [[xm, ya2], [xm, yb2], [xa, ym], [xb, ym]]) { g.fillStyle = "#fff"; g.strokeStyle = TV.blue; g.fillRect(sx - 4, sy - 4, 8, 8); g.strokeRect(sx - 4, sy - 4, 8, 8); } } } }
     });
-    for (const tr of RR.trades || []) { /* positions : entrée -> TP (vert) et entrée -> SL (rouge) */
-      if (tr.status === "pending" || !tr.openT) continue; const end = tr.status === "closed" ? tr.closeT : now; if (end < now - 30 * 86400) continue;
-      const x1 = xOf(tr.openT), x2 = xOf(end); if (x2 == null && x1 == null) continue; const X1 = x1 ?? 0, X2 = Math.max(X1 + (tr.status === "closed" ? 4 : 120), x2 ?? cw); const ye = y(tr.entry), yt = y(tr.tp), ys = y(tr.sl); if (ye == null) continue;
-      if (yt != null) { g.fillStyle = "rgba(8,153,129,0.22)"; g.fillRect(X1, Math.min(ye, yt), X2 - X1, Math.abs(yt - ye)); }
-      if (ys != null) { g.fillStyle = "rgba(242,54,69,0.22)"; g.fillRect(X1, Math.min(ye, ys), X2 - X1, Math.abs(ys - ye)); }
-      g.strokeStyle = "#787b86"; g.beginPath(); g.moveTo(X1, ye); g.lineTo(X2, ye); g.stroke();
+    for (const tr of RR.trades || []) { /* positions : même boîte que le graphique principal (même durée), suit en direct */
+      if (tr.status === "closed" && (!RR.cfg.showClosed || tr.hidden)) continue; if (tr.status === "closed" && tr.closeT < now - 30 * 86400) continue;
+      const sp = RR.trSpan ? RR.trSpan(tr) : { t1: tr.openT || tr.placedT, t2: now }; if (sp.t1 == null) continue;
+      const x1 = xOf(sp.t1), x2 = xOf(sp.t2); if (x2 == null && x1 == null) continue; const X1 = Math.round(x1 ?? 0); let X2 = Math.round(x2 ?? cw); if (X2 < X1 + 30) X2 = X1 + 30;
+      const ye = y(tr.entry), yt = y(tr.tp), ys = y(tr.sl); if (ye == null) continue; const closed = tr.status === "closed"; g.globalAlpha = closed ? 0.5 : 1;
+      if (yt != null) { g.fillStyle = "rgba(8,153,129,0.18)"; g.fillRect(X1, Math.min(ye, yt), X2 - X1, Math.abs(yt - ye)); }
+      if (ys != null) { g.fillStyle = "rgba(242,54,69,0.18)"; g.fillRect(X1, Math.min(ye, ys), X2 - X1, Math.abs(ys - ye)); }
+      if (tr.status === "pending") { g.setLineDash([4, 3]); }
+      g.strokeStyle = TV.text; g.lineWidth = 1; g.beginPath(); g.moveTo(X1, Math.round(ye) + 0.5); g.lineTo(X2, Math.round(ye) + 0.5); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+      const act = (S.tdrag && S.tdrag.tr === tr) || (RR.drag && RR.drag.tr === tr) || RR.selTr === tr;
+      if (act && yt != null && ys != null) { const dTp = Math.abs(tr.tp - tr.entry), dSl = Math.abs(tr.sl - tr.entry) || 1e-9; const txt = `RR ${(dTp / dSl).toFixed(2).replace(".", ",")}  ·  ${tr.lots.toFixed(2)} lot`;
+        g.font = "600 12px " + TV_FONT; const w = Math.round(g.measureText(txt).width + 14), xm = Math.round(Math.max(4, Math.min(cw - w - 4, (X1 + X2) / 2 - w / 2))), yy = Math.round(ye + 8);
+        g.fillStyle = "#131722"; g.beginPath(); if (g.roundRect) g.roundRect(xm, yy, w, 20, 4); else g.rect(xm, yy, w, 20); g.fill(); g.fillStyle = "#fff"; g.fillText(txt, xm + 7, yy + 14); }
     }
     g.restore();
   };
@@ -3122,7 +3140,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const ch = createChart(box.current, { autoSize: true, layout: { background: { color: TV.bg }, textColor: TV.text, fontSize: 11, fontFamily: TV_FONT }, grid: { vertLines: { visible: false }, horzLines: { visible: false } }, crosshair: { mode: 0 }, rightPriceScale: { borderColor: TV.border, scaleMargins: { top: 0.12, bottom: 0.08 } }, timeScale: { borderColor: TV.border, timeVisible: true, rightOffset: 10, barSpacing: 6, tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }, localization: { locale: "fr-FR", timeFormatter: (t) => tvFmtTime(t, S.tz, "full") } });
     S.ch = ch; S.se = ch.addCandlestickSeries({ priceLineVisible: false, upColor: cfg.up, downColor: cfg.down, borderUpColor: cfg.down, borderDownColor: cfg.down, wickUpColor: cfg.down, wickDownColor: cfg.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
     ch.timeScale().subscribeVisibleLogicalRangeChange(() => { S.redraw && S.redraw(); if (S.R && S.R.selOn === S) S.R.dirty = true; });
-    const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci; for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || "") + (x.color || "") + (x.w || "") + (x.dash ? 1 : 0) + (x.op ?? "") + (x.noZone ? 1 : 0) + (x.noTrend ? 1 : 0) + (x.lv ? JSON.stringify(x.lv) : "") + (x.text || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp; return s; };
+    const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci; for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || "") + (x.color || "") + (x.w || "") + (x.dash ? 1 : 0) + (x.op ?? "") + (x.noZone ? 1 : 0) + (x.noTrend ? 1 : 0) + (x.lv ? JSON.stringify(x.lv) : "") + (x.text || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp + x.entry + (x.anchorT || 0) + (x.endT || 0) + x.lots + (RR.selTr === x ? "S" : "") + (RR.drag && RR.drag.tr === x ? "D" : ""); return s; };
     const iv = setInterval(() => { const sg = sigOf(); if (sg !== S.lastSig) { S.lastSig = sg; S.redraw(); } }, 400);
     let vraf = 0; const vloop = () => { try { const v = S.se ? S.se.coordinateToPrice(0) + "|" + S.se.coordinateToPrice(400) : ""; if (v !== S.vSig) { S.vSig = v; redraw(); if (S.R && S.R.selOn === S) S.R.dirty = true; } } catch (e) {} vraf = requestAnimationFrame(vloop); }; vloop();
     /* le graphique principal prévient ce graphique à chaque modification : affichage instantané des deux côtés */
