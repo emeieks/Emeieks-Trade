@@ -596,6 +596,7 @@ function GlobalStyle() {
          ============================================================ */
       @media (max-width: 600px) { .desktop-only { display: none !important; } }
       @media (max-width: 900px) { .prep-grid { grid-template-columns: 1fr !important; } }
+      @media (max-width: 1100px) { .dash-split { grid-template-columns: 1fr !important; } }
       @media (min-width: 601px) { .mobile-only { display: none !important; } }
       @media (max-width: 600px) { .hide-sm { display: none !important; } }
       .never { display: none !important; }
@@ -1564,7 +1565,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const createSess = (title, mode, date, ex = {}) => {
     const id = "s" + Date.now(); let ci = null; if (ex.blind) mode = "random";
     if (mode === "date" && date) { const t = Date.parse(date + "T00:00:00Z") / 1000; const i = R.rows.findIndex((r) => r[0] >= t); ci = i < 0 ? R.rows.length - 1 : Math.max(50, i); }
-    const base = snapSess(sess); base.list = [...base.list, { id, sym: ex.sym || TV_PAIR, title: title || (ex.prop ? "Challenge " + (ex.prop.size / 1000) + "k" : "Session " + (base.list.length + 1)), ci, tf, draws: [], trades: [], blind: !!ex.blind, noSave: !!ex.noSave, prop: ex.prop ? { ...ex.prop, phase: 0, status: "on", phaseT: 0, hist: [], tries: 1 } : null }];
+    const base = snapSess(sess); base.list = [...base.list, { id, sym: ex.sym || TV_PAIR, ciT: ex.ciT || undefined, title: title || (ex.prop ? "Challenge " + (ex.prop.size / 1000) + "k" : "Session " + (base.list.length + 1)), ci, tf, draws: [], trades: [], blind: !!ex.blind, noSave: !!ex.noSave, prop: ex.prop ? { ...ex.prop, phase: 0, status: "on", phaseT: 0, hist: [], tries: 1 } : null }];
     openSess(id, base); setShowNew(false);
   };
   const delSess = (id) => { if (sess.list.length < 2) return; const v = snapSess(sess); v.list = v.list.filter((x) => x.id !== id); if (v.cur === id) { openSess(v.list[0].id, v); } else { setSessS(v); tvSaveSess(v); } };
@@ -2460,6 +2461,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     R.dirty = true; rerender(); setMsg(`Tous les trades et stats de « ${title} » sont supprimés. Tu repars à zéro.`);
   };
 
+  /* Saisie & stats → « tout supprimer » : vide les trades de toutes les sessions (les dessins restent) */
+  useEffect(() => { const h = () => { const v = snapSess(sess); v.list = v.list.map((x) => ({ ...x, trades: [], archive: [], years: [], seq: null })); setSessS(v); tvSaveSess(v); R.trades = []; R.archive = []; R.years = []; R.seq = null; R.selTr = null; R.dirty = true; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); setMsg("Historique supprimé : trades et stats remis à zéro."); }; window.addEventListener("tjp-bt-wipe", h); return () => window.removeEventListener("tjp-bt-wipe", h); });
   /* ---------- import ---------- */
   const onFiles = async (files) => {
     let all = [];
@@ -2526,9 +2529,10 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       <style>{".tvw.zen .zh{display:none!important}"}</style>
       {/* barre du haut */}
       <div ref={topRef} style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, flexWrap: "nowrap", whiteSpace: "nowrap", flexShrink: 0 }}>
-        <span className="zh" style={{ display: "contents" }}><div style={{ position: "relative" }}><button title="Changer de marché" onClick={() => setSymMenu((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, border: "none", borderRadius: 6, padding: "5px 10px 5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4, cursor: "pointer", fontFamily: TV_FONT, color: TV.text }}>{cfg.logo !== false && typeof PairLogo !== "undefined" && <PairLogo pair={TV_PAIR} size={20} />}{TV_PAIR}<ChevronDown size={14} /></button>
+        <span style={{ display: "contents" }}><div style={{ position: "relative" }}><button title="Changer de marché" onClick={() => setSymMenu((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, border: "none", borderRadius: 6, padding: "5px 10px 5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4, cursor: "pointer", fontFamily: TV_FONT, color: TV.text }}>{cfg.logo !== false && typeof PairLogo !== "undefined" && <PairLogo pair={TV_PAIR} size={20} />}{TV_PAIR}<ChevronDown size={14} /></button>
           {symMenu && <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 40, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", padding: 6, minWidth: 260 }}>
-            {Object.entries(TV_SYMS).map(([k, v]) => <button key={k} onClick={() => { setSymMenu(false); if (k === TV_PAIR) return; const ex = sess.list.find((x) => (x.sym || "EURUSD") === k); if (ex) openSess(ex.id); else createSess("Backtest libre", "free", null, { sym: k }); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", border: "none", borderRadius: 6, background: k === TV_PAIR ? TV.hover : "transparent", cursor: "pointer", fontFamily: TV_FONT, fontSize: 14, color: TV.text, textAlign: "left" }}>{typeof PairLogo !== "undefined" && <PairLogo pair={k} size={20} />}<b style={{ width: 70 }}>{k}</b><span style={{ color: TV.muted, fontSize: 12.5 }}>{v.name}</span></button>)}
+            {Object.entries(TV_SYMS).map(([k, v]) => <button key={k} onClick={() => { setSymMenu(false); if (k === TV_PAIR) return; const tNow = R.rows && !R.demo ? R.rows[R.ci][0] : null; const ex = sess.list.find((x) => (x.sym || "EURUSD") === k);
+              if (ex) { const v = snapSess(sess); v.list = v.list.map((x) => (x.id === ex.id && tNow ? { ...x, ciT: tNow, ci: null } : x)); openSess(ex.id, v); } else createSess("Backtest libre", "free", null, { sym: k, ciT: tNow }); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", border: "none", borderRadius: 6, background: k === TV_PAIR ? TV.hover : "transparent", cursor: "pointer", fontFamily: TV_FONT, fontSize: 14, color: TV.text, textAlign: "left" }}><b style={{ width: 70 }}>{k}</b><span style={{ color: TV.muted, fontSize: 12.5 }}>{v.name}</span></button>)}
           </div>}</div>
         {sep}</span>
         {TV_TFS.filter(([n]) => ["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <TvBtn key={n} active={tf === m} onClick={() => setTf(m)}>{n}</TvBtn>)}
@@ -2554,7 +2558,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         <div style={{ flex: 1 }} />
           <TvBtn active={favOpen} title="Barre de favoris flottante (déplaçable)" onClick={() => setFavOpen((v) => !v)}><Star size={16} fill={favOpen ? "currentColor" : "none"} /></TvBtn>
         <div style={{ position: "relative" }}>
-          <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}><Target size={15} style={{ verticalAlign: "-2px", marginRight: 4 }} />{narrow < 2 && "Modes"}</TvBtn>
+          <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}><GraduationCap size={18} /></TvBtn>
           {modeMenu && <><div onClick={() => setModeMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 59 }} /><div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: 8, width: 300, fontSize: 14 }}>
             <div style={{ padding: "6px 8px", fontWeight: 700 }}>Session seulement</div>
             <div style={{ display: "flex", gap: 4, padding: "0 8px 8px", flexWrap: "wrap" }}>{[["", "Toutes"], ...Object.entries(TV_SESS_MODE).map(([k, [n]]) => [k, n])].map(([k, n]) => <button key={k || "all"} onClick={() => { setSessM(k || null); }} style={{ border: `1px solid ${(sessM || "") === k ? TV.blue : TV.border}`, background: (sessM || "") === k ? "rgba(41,98,255,0.08)" : "#fff", color: (sessM || "") === k ? TV.blue : TV.text, borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontFamily: TV_FONT, fontSize: 13 }}>{n}</button>)}</div>
@@ -2575,12 +2579,12 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           </div>}
         </div>
         <div style={{ position: "relative" }}>
-          <TvBtn active={indOpen} title="Afficher / masquer les indicateurs" onClick={() => setIndOpen((v) => !v)}><LineChart size={17} />{!narrow && "Indicateurs"}</TvBtn>
+          <TvBtn active={indOpen} title="Afficher / masquer les indicateurs" onClick={() => setIndOpen((v) => !v)}><LineChart size={18} /></TvBtn>
         </div>
         <span className="zh" style={{ display: "contents" }}><TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
         <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />{!narrow && "Données"}</TvBtn></span>
-        <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">{zen ? <path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /> : <path d="M2 6V2h4M12 2h4v4M2 12v4h4M16 12v4h-4" />}</svg></TvBtn>
-        {zen && <><TvBtn title="Annuler (Ctrl+Z / Retour arrière)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Undo2 size={17} /></TvBtn><TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Redo2 size={17} /></TvBtn><TvBtn active={zenTr} title="Afficher le trading (positions, historique, stats)" onClick={() => setZenTr((v) => !v)}><Rewind size={15} />{!narrow && "Trading"}</TvBtn><TvBtn title="Paramètres" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn></>}
+        {!zen && <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">{zen ? <path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /> : <path d="M2 6V2h4M12 2h4v4M2 12v4h4M16 12v4h-4" />}</svg></TvBtn>}
+        {zen && <><TvBtn title="Annuler (Ctrl+Z / Retour arrière)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Undo2 size={17} /></TvBtn><TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Redo2 size={17} /></TvBtn><TvBtn active={zenTr} title="Afficher le trading (positions, historique, stats)" onClick={() => setZenTr((v) => !v)}><CandlestickChart size={18} /></TvBtn><TvBtn title="Paramètres" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn></>}
         {zen && <div style={{ position: "relative" }}><TvBtn title="Supprimer" active={trashM === "zen"} onClick={() => setTrashM(trashM === "zen" ? null : "zen")}><TvIcon id="trash" /></TvBtn>{trashM === "zen" && (() => { const dr = R.draws.filter((d) => trLock || !d.locked); const ind = indList.filter(([, on]) => on);
             const delD = () => { if (!dr.length) return; R.redo = [...R.draws]; R.draws = R.draws.filter((d) => !trLock && d.locked); R.sel = -1; setMsg(dr.length + " dessin" + (dr.length > 1 ? "s" : "") + " supprimé" + (dr.length > 1 ? "s" : "")); rerender(); };
             const delI = () => { ind.forEach(([, , fn]) => fn(false)); if (ind.length) setMsg(ind.length + " indicateur" + (ind.length > 1 ? "s" : "") + " masqué" + (ind.length > 1 ? "s" : "")); };
@@ -2592,12 +2596,13 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
               <div style={{ borderTop: `1px solid ${TV.hover}`, margin: "6px 0" }} />
               <div onClick={() => { const v = !trLock; setTrLock(v); try { localStorage.setItem("tjp_tv_trlock", v ? "1" : "0"); } catch (e) {} }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "8px 16px", fontSize: 14, cursor: "pointer" }}>Toujours supprimer les dessins verrouillés<span style={{ width: 36, height: 20, borderRadius: 10, background: trLock ? "#131722" : "#c3c6ce", position: "relative", flexShrink: 0 }}><span style={{ position: "absolute", top: 2, left: trLock ? 18 : 2, width: 16, height: 16, borderRadius: 8, background: "#fff" }} /></span></div>
             </div></>; })()}</div>}
+        {zen && <TvBtn title="Quitter le plein écran (Échap)" onClick={() => { setFsS(false); setZen(false); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /></svg></TvBtn>}
         <input ref={fileRef} type="file" accept=".csv,.txt" multiple hidden onChange={(e) => onFiles([...e.target.files])} />
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         {/* barre d'outils de gauche (groupes avec menu, comme TradingView) */}
-        <div className="zh" style={{ width: 52, borderRight: `4px solid ${TV.hover}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, paddingTop: 4, flexShrink: 0, position: "relative", zIndex: 30 }}>
+        <div style={{ width: 52, borderRight: `4px solid ${TV.hover}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, paddingTop: 4, flexShrink: 0, position: "relative", zIndex: 30 }}>
           {TV_GROUPS.map((g) => {
             const cur = g.items.includes(tool) ? tool : groupLast[g.id] || g.items[0];
             return (
@@ -2645,7 +2650,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           <div ref={boxRef} style={{ position: "absolute", ...lay[0] }} />
           {!demo && lay[1].length > 0 && !R.active && <div style={{ position: "absolute", ...lay[0], border: `2px solid ${TV.blue}`, pointerEvents: "none", zIndex: 4 }} />}
           {!demo && lay[1].map((pos, i) => <TvMini key={cfg.layout + i} pos={pos} rows={R.rows} ci={R.ci} getAgg={getAgg} min={(cfg.ltf || [])[i] || [240, 15, 1440][i]} setMin={(m) => { const l = [...(cfg.ltf || [240, 15, 1440])]; l[i] = m; setCfg({ ...R.cfg, ltf: l }); }} onActivate={(m) => { const l = [...(cfg.ltf || [240, 15, 1440])]; l[i] = tf; setCfg({ ...R.cfg, ltf: l }); setTf(m); setMsg("Graphique " + (TV_TFS.find((x) => x[1] === m) || [m])[0] + " actif : tu peux dessiner et trader dessus."); }} trades={R.trades} tz={tz} cfg={cfg} blind={TV_BLIND} R={R} />)}
-          {propS && <div className="zh" style={{ position: "absolute", left: 10, bottom: 44, zIndex: 6, background: "#fff", border: `1px solid ${R.prop.status === "fail" ? TV.red : R.prop.phase >= R.prop.steps ? TV.green : TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12 }}>
+          {propS && <div style={{ position: "absolute", left: 10, bottom: 44, zIndex: 6, background: "#fff", border: `1px solid ${R.prop.status === "fail" ? TV.red : R.prop.phase >= R.prop.steps ? TV.green : TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12 }}>
             {(() => { const P = R.prop, ph = P.steps === 2 ? ["Phase 1", "Phase 2", "Compte financé"] : ["Challenge", "Compte financé"]; const bar = (v, max, col, lab) => <div style={{ marginTop: 5 }}><div style={{ display: "flex", justifyContent: "space-between", color: TV.muted }}><span>{lab}</span><b style={{ color: TV.text }}>{v.toFixed(2).replace(".", ",")} % / {max} %</b></div><div style={{ height: 5, background: TV.hover, borderRadius: 3, marginTop: 2 }}><div style={{ width: Math.max(0, Math.min(100, (v / max) * 100)) + "%", height: 5, background: col, borderRadius: 3 }} /></div></div>;
               return <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><b style={{ fontSize: 13 }}>Prop {tvMoney(P.size).replace(",00", "")}</b><span style={{ fontWeight: 700, color: P.status === "fail" ? TV.red : P.phase >= P.steps ? TV.green : TV.blue }}>{P.status === "fail" ? "Échoué" : ph[P.phase]}</span></div>
@@ -2731,7 +2736,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             </div>}
           </div>
           {/* barre de replay compacte et déplaçable */}
-          <div style={{ position: "absolute", ...(barPos ? { left: barPos.x, top: barPos.y } : { left: "50%", bottom: 42, transform: "translateX(-50%)" }), zIndex: 5, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 0, padding: "2px 4px", whiteSpace: "nowrap" }}>
+          <div style={{ position: "absolute", ...(barPos ? { left: barPos.x, top: barPos.y } : cfg.repTop ? { left: "50%", top: 8, transform: "translateX(-50%)" } : { left: "50%", bottom: 42, transform: "translateX(-50%)" }), zIndex: 5, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 0, padding: "2px 4px", whiteSpace: "nowrap" }}>
             <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); const host = e.currentTarget.parentElement.parentElement.getBoundingClientRect(), me = e.currentTarget.parentElement.getBoundingClientRect(); const ox = e.clientX - me.left, oy = e.clientY - me.top; const mv = (ev) => setBarPos({ x: Math.max(0, Math.min(host.width - me.width, ev.clientX - host.left - ox)), y: Math.max(0, Math.min(host.height - me.height, ev.clientY - host.top - oy)) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
               style={{ cursor: "grab", padding: "0 3px", color: TV.muted, fontSize: 13, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>
             <TvBtn title="Sélectionner la date (Alt+G)" onClick={openDate} style={{ padding: "5px 6px" }}>{TvIco.cal}</TvBtn>
@@ -2982,6 +2987,7 @@ function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], on
           <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BARRES</div>
           {tvChk(!!d.favTop, (v) => set((n) => { n.favTop = v; }), "Barre de favoris en haut (sinon barre flottante que tu peux déplacer)")}
           {tvChk(d.logo !== false, (v) => set((n) => { n.logo = v; }), "Logo devant le nom de la paire (EURUSD)")}
+          {tvChk(!!d.repTop, (v) => set((n) => { n.repTop = v; }), "Barre de simulation (lecture, avance) en haut du graphique")}
           {tvChk(!!d.showBS, (v) => set((n) => { n.showBS = v; }), "Boutons SELL / BUY sur les graphiques (sinon : outils Position longue / courte, ou Maj+B / Maj+S)")}
           {tvChk(d.bsUndo !== false, (v) => set((n) => { n.bsUndo = v; }), "Touche Retour arrière (⌫) : efface le dernier dessin posé, puis le précédent…")}
           <div style={{ height: 10 }} />
@@ -6839,25 +6845,24 @@ function PerformanceReview({ trades }) {
 
 /* ===================== PRÉPARATION : barème de setups + alertes ===================== */
 const PREP_KEY = "prep_v1";
-const PREP_CRIT = [
-  { id: "bias", g: "Contexte HTF", n: "Biais D / H4 dans le sens du trade", p: 2, must: true },
-  { id: "htf", g: "Contexte HTF", n: "PD array HTF (SIBI/BISI, OB, BB H4 ou D)", p: 2 },
-  { id: "pd", g: "Contexte HTF", n: "En discount (achat) / premium (vente) du range", p: 1 },
-  { id: "liq", g: "Liquidité", n: "Prise de liquidité (PDH/PDL, Asia H/L, EQH/EQL)", p: 2, must: true },
-  { id: "mss", g: "Exécution LTF", n: "MSS / CHoCH M15-M5 avec déplacement", p: 2, must: true },
-  { id: "ltf", g: "Exécution LTF", n: "Entrée sur FVG / OB / BB M15-M5", p: 1 },
-  { id: "ote", g: "Exécution LTF", n: "Entrée dans l'OTE (62-79 %)", p: 1 },
-  { id: "kz", g: "Timing", n: "Dans une killzone (London / NY AM)", p: 1 },
-  { id: "smt", g: "Timing", n: "SMT divergence (DXY, paire corrélée)", p: 1 },
-  { id: "rr", g: "Objectif", n: "RR ≥ 3 vers la liquidité opposée", p: 1 },
-  { id: "news", g: "Malus", n: "News forte dans les 30 min", p: -3 },
-  { id: "contra", g: "Malus", n: "Contre le biais HTF", p: -3 },
-  { id: "late", g: "Malus", n: "Entrée tardive (prix déjà parti, > 50 % du move)", p: -2 },
+/* barème : sections de puces ; une section "any" donne ses points si au moins une puce est cochée */
+const PREP_SECT = [
+  { g: "Biais", items: [{ id: "bias", n: "D / H4 aligné", p: 2, must: true }, { id: "pd", n: "Discount / Premium", p: 1 }] },
+  { g: "PD array HTF", tf: "H4 · D", any: 2, items: [{ id: "h_fvg", n: "SIBI / BISI" }, { id: "h_ob", n: "OB" }, { id: "h_bb", n: "BB" }, { id: "h_ifvg", n: "IFVG" }] },
+  { g: "Liquidité", any: 2, must: true, items: [{ id: "l_pd", n: "PDH / PDL" }, { id: "l_as", n: "Asia H / L" }, { id: "l_eq", n: "EQH / EQL" }, { id: "l_pw", n: "PWH / PWL" }] },
+  { g: "Structure LTF", tf: "M15 · M5", items: [{ id: "mss", n: "MSS / CHoCH", p: 2, must: true }] },
+  { g: "PD array LTF", tf: "M15 · M5", any: 1, items: [{ id: "e_fvg", n: "FVG" }, { id: "e_ob", n: "OB" }, { id: "e_bb", n: "BB" }] },
+  { g: "Entrée", items: [{ id: "ote", n: "OTE 62-79", p: 1 }, { id: "smt", n: "SMT", p: 1 }] },
+  { g: "Killzone", any: 1, items: [{ id: "k_ld", n: "London" }, { id: "k_ny", n: "NY AM" }] },
+  { g: "Malus", neg: true, items: [{ id: "news", n: "News < 30 min", p: -3 }, { id: "contra", n: "Contre biais", p: -3 }, { id: "late", n: "Entrée tardive", p: -2 }] },
 ];
-const PREP_GRADES = [["A+", 11, 1, "#089981"], ["A", 8, 0.75, "#2962ff"], ["B", 5, 0.5, "#ff9800"], ["C", -99, 0, "#f23645"]];
-const prepGrade = (chk, risks) => { const sc = PREP_CRIT.reduce((a, c) => a + (chk[c.id] ? c.p : 0), 0); const mustOk = PREP_CRIT.filter((c) => c.must).every((c) => chk[c.id]);
+const PREP_GRADES = [["A+", 10, 1, "#089981"], ["A", 7, 0.75, "#2962ff"], ["B", 5, 0.5, "#ff9800"], ["C", -99, 0, "#f23645"]];
+const prepScore = (chk) => { let sc = 0, mustOk = true; for (const S of PREP_SECT) { const on = S.items.filter((i) => chk[i.id]); if (S.any) { if (on.length) sc += S.any; if (S.must && !on.length) mustOk = false; } else for (const i of S.items) { if (chk[i.id]) sc += i.p; if (i.must && !chk[i.id]) mustOk = false; } } return { sc, mustOk }; };
+const prepGrade = (chk, risks) => { const { sc, mustOk } = prepScore(chk);
   let g = PREP_GRADES.find(([, min]) => sc >= min) || PREP_GRADES[3]; if (g[0] === "A+" && !mustOk) g = PREP_GRADES[1]; if ((g[0] === "A" || g[0] === "A+") && !chk.bias) g = PREP_GRADES[2];
   return { sc, g: g[0], risk: (risks && risks[g[0]] != null ? risks[g[0]] : g[2]), col: g[3], mustOk }; };
+const prepNote = (chk) => { const part = (g, suf) => { const S = PREP_SECT.find((x) => x.g === g); const on = S.items.filter((i) => chk[i.id]).map((i) => i.n.replace(/ \/ /g, "/")); return on.length ? on.join("+") + (suf ? " " + suf : "") : ""; };
+  return [part("PD array HTF", "H4"), part("Liquidité") && "sweep " + part("Liquidité"), chk.mss ? "MSS" : "", part("PD array LTF", "M15"), part("Killzone")].filter(Boolean).join(" · "); };
 const prepLoad = () => { try { return JSON.parse(localStorage.getItem(PREP_KEY)) || {}; } catch { return {}; } };
 const PREP_MISS = ["Pas devant l'écran", "Alerte pas vue", "Hésitation / peur", "Attendu une meilleure entrée", "Doute sur le setup", "Déjà perdu dans la journée", "Autre"];
 
@@ -6868,7 +6873,6 @@ function PrepPage({ balance }) {
   const G = prepGrade(chk, st.risks); const riskUsd = ((Number(balance) || 0) * G.risk) / 100;
   const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, marginBottom: 14 };
   const inp = { background: C.inputBg || C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 11px", color: C.text, fontSize: 14, fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
-  const groups = [...new Set(PREP_CRIT.map((c) => c.g))];
   const weekAgo = Date.now() - 7 * 86400000; const wk = st.alerts.filter((a) => a.t >= weekAgo);
   const missed = wk.filter((a) => a.status === "missed"), taken = wk.filter((a) => a.status === "taken");
   const missedR = missed.reduce((s, a) => s + (Number(a.r) || 0), 0);
@@ -6879,56 +6883,48 @@ function PrepPage({ balance }) {
   return <>
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.3fr) minmax(0,1fr)", gap: 14 }} className="prep-grid">
       <div style={card}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><b style={{ fontSize: 16 }}>Noter un setup</b><button onClick={() => setChk({})} style={{ ...btn.ghost, height: 30, padding: "0 10px", fontSize: 12 }}>Effacer</button></div>
-        {groups.map((g) => <div key={g} style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: g === "Malus" ? C.red : C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, margin: "6px 0 4px" }}>{g}</div>
-          {PREP_CRIT.filter((c) => c.g === g).map((c) => <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 4px", cursor: "pointer", fontSize: 14, borderRadius: 8 }}>
-            <input type="checkbox" checked={!!chk[c.id]} onChange={(e) => setChk({ ...chk, [c.id]: e.target.checked })} style={{ width: 17, height: 17, accentColor: C.purple }} />
-            <span style={{ flex: 1 }}>{c.n}{c.must && <span style={{ color: C.purpleBright, fontSize: 11, fontWeight: 700, marginLeft: 6 }}>obligatoire A+</span>}</span>
-            <span className="tnum" style={{ fontWeight: 700, color: c.p < 0 ? C.red : C.textSecondary }}>{c.p > 0 ? "+" : ""}{c.p}</span></label>)}
-        </div>)}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><b style={{ fontSize: 16 }}>Setup</b><button onClick={() => setChk({})} style={{ ...btn.ghost, height: 30, padding: "0 10px", fontSize: 12 }}>Effacer</button></div>
+        {PREP_SECT.map((S) => { const on = S.items.filter((i) => chk[i.id]).length; const pts = S.any ? S.any : null;
+          return <div key={S.g} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
+            <div style={{ width: 120, flexShrink: 0 }}><div style={{ fontSize: 13, fontWeight: 700, color: S.neg ? C.red : C.text }}>{S.g}{S.must && <span style={{ color: C.purpleBright }}> ★</span>}</div>{S.tf && <div style={{ fontSize: 11, color: C.textMuted }}>{S.tf}</div>}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flex: 1 }}>{S.items.map((i) => { const a = !!chk[i.id]; const col = S.neg ? C.red : C.purpleBright;
+              return <button key={i.id} onClick={() => setChk({ ...chk, [i.id]: !a })} style={{ border: `1px solid ${a ? col : C.border}`, background: a ? (S.neg ? C.redDim : C.purpleDim) : "transparent", color: a ? col : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{i.n}{i.must && <span> ★</span>}{i.p != null && <span style={{ opacity: 0.7, marginLeft: 5 }}>{i.p > 0 ? "+" : ""}{i.p}</span>}</button>; })}</div>
+            {pts != null && <span className="tnum" style={{ fontSize: 13, fontWeight: 700, color: on ? C.purpleBright : C.textMuted, width: 26, textAlign: "right" }}>+{pts}</span>}
+          </div>; })}
+        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>★ obligatoire pour A+</div>
       </div>
       <div>
         <div style={{ ...card, borderColor: G.col, textAlign: "center" }}>
           <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 700, letterSpacing: 0.6 }}>NOTE DU SETUP</div>
           <div style={{ fontSize: 64, fontWeight: 800, color: G.col, lineHeight: 1.1 }}>{G.g}</div>
-          <div className="tnum" style={{ fontSize: 13, color: C.textSecondary }}>{G.sc} points{!G.mustOk && G.sc >= 11 ? " · il manque un critère obligatoire pour A+" : ""}</div>
+          <div className="tnum" style={{ fontSize: 13, color: C.textSecondary }}>{G.sc} pts{!G.mustOk && G.sc >= 10 ? " · manque un ★ pour A+" : ""}</div>
           <div style={{ marginTop: 12, padding: "12px", borderRadius: 12, background: C.inputBg || C.bg }}>
             {G.risk > 0 ? <><div style={{ fontSize: 13, color: C.textSecondary }}>Risque conseillé</div><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{String(G.risk).replace(".", ",")} %</div><div className="tnum" style={{ fontSize: 13, color: C.textMuted }}>{fmtUsd(riskUsd)} sur {fmtUsd(Number(balance) || 0)}</div></>
               : <div style={{ fontSize: 15, fontWeight: 700, color: C.red }}>Pas de trade : setup C</div>}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
-            <input value={pair} onChange={(e) => setPair(e.target.value.toUpperCase())} placeholder="Paire" style={inp} />
-            <input value={lvl} onChange={(e) => setLvl(e.target.value)} placeholder="Niveau d'alerte" inputMode="decimal" style={inp} />
-          </div>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (ex. SIBI H4 + OB M15 en London)" style={{ ...inp, marginTop: 8 }} />
-          <button onClick={() => { save({ ...st, alerts: [{ id: Date.now(), t: Date.now(), pair, lvl, note, grade: G.g, risk: G.risk, sc: G.sc, status: "wait" }, ...st.alerts].slice(0, 300) }); setNote(""); setLvl(""); }} style={{ ...btn.primary, width: "100%", height: 42, justifyContent: "center", marginTop: 10 }}><Bell size={15} />Ajouter à mes alertes</button>
+
         </div>
         <div style={card}>
           <b style={{ fontSize: 14 }}>Risque par note</b>
-          {PREP_GRADES.map(([g, min, , col]) => <div key={g} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}><span style={{ width: 34, fontWeight: 800, color: col }}>{g}</span><span style={{ flex: 1, fontSize: 12.5, color: C.textMuted }}>{g === "C" ? "moins de 5 pts" : `${min} pts et +`}</span>
+          {PREP_GRADES.map(([g, min, , col]) => <div key={g} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}><span style={{ width: 34, fontWeight: 800, color: col }}>{g}</span><span style={{ flex: 1, fontSize: 12.5, color: C.textMuted }}>{g === "C" ? "< 5 pts" : `${min} pts +`}</span>
             <input type="number" step="0.25" min="0" value={st.risks[g]} onChange={(e) => save({ ...st, risks: { ...st.risks, [g]: Number(e.target.value) } })} style={{ ...inp, width: 80, padding: "6px 8px" }} /><span style={{ fontSize: 13 }}>%</span></div>)}
         </div>
       </div>
     </div>
 
-    <div style={card}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}><b style={{ fontSize: 16 }}>Mes alertes</b>
-        <span className="tnum" style={{ fontSize: 13, color: C.textSecondary }}>7 derniers jours : {taken.length} pris · <b style={{ color: C.red }}>{missed.length} manqués</b>{missedR ? ` (${missedR > 0 ? "+" : ""}${missedR.toFixed(1)} R laissés)` : ""}</span></div>
-      {reasons.length > 0 && <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: C.redDim || "rgba(242,54,69,0.1)", fontSize: 13, color: C.text }}>Pourquoi tu les rates : {reasons.map(([w, n]) => `${w} (${n})`).join(" · ")}</div>}
-      {st.alerts.length === 0 && <div style={{ fontSize: 13, color: C.textMuted, marginTop: 10 }}>Note un setup au-dessus puis ajoute-le : tu sauras ensuite si tu l'as pris ou manqué, et pourquoi.</div>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-        {st.alerts.slice(0, 40).map((a) => { const gc = (PREP_GRADES.find((x) => x[0] === a.grade) || [])[3]; return <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 10 }}>
-          <span style={{ fontWeight: 800, color: gc, width: 28 }}>{a.grade}</span><PairLogo pair={a.pair} size={18} /><b>{a.pair}</b><span className="tnum" style={{ color: C.textSecondary }}>{a.lvl}</span>
-          <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: C.textMuted }}>{a.note} · {new Date(a.t).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</span>
-          <select value={a.status} onChange={(e) => upd(a.id, { status: e.target.value })} style={{ ...inp, width: "auto", padding: "5px 8px", fontSize: 13, color: stCol[a.status], fontWeight: 700 }}>{Object.entries(stLab).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
-          {a.status === "missed" && <><select value={a.why || ""} onChange={(e) => upd(a.id, { why: e.target.value })} style={{ ...inp, width: "auto", padding: "5px 8px", fontSize: 13 }}><option value="">Pourquoi ?</option>{PREP_MISS.map((w) => <option key={w}>{w}</option>)}</select>
-            <input value={a.r ?? ""} onChange={(e) => upd(a.id, { r: e.target.value })} placeholder="R manqué" inputMode="decimal" style={{ ...inp, width: 90, padding: "5px 8px", fontSize: 13 }} /></>}
-          <button onClick={() => save({ ...st, alerts: st.alerts.filter((x) => x.id !== a.id) })} title="Supprimer" style={{ border: "none", background: "none", color: C.textMuted, cursor: "pointer" }}><X size={15} /></button>
-        </div>; })}
-      </div>
-    </div>
   </>;
+}
+
+/* accueil : mon plan de trading en points, à droite du dashboard */
+function PlanBullets({ onEdit }) {
+  const [txt, setTxt] = useState(() => { try { return localStorage.getItem("trading_plan_text") || ""; } catch { return ""; } });
+  useEffect(() => { const f = () => { try { setTxt(localStorage.getItem("trading_plan_text") || ""); } catch {} }; window.addEventListener("focus", f); window.addEventListener("storage", f); return () => { window.removeEventListener("focus", f); window.removeEventListener("storage", f); }; }, []);
+  const lines = txt.split(/\r?\n/).map((l) => l.replace(/^\s*([-—–•*·>]|\d+[.)])\s*/, "").trim()).filter(Boolean);
+  return <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, position: "sticky", top: 12 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><b style={{ fontSize: 15 }}>Mon plan de trading</b><button onClick={onEdit} style={{ ...btn.ghost, height: 28, padding: "0 10px", fontSize: 12 }}>Modifier</button></div>
+    {lines.length ? <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 7 }}>{lines.map((l, i) => <li key={i} style={{ fontSize: 13.5, lineHeight: 1.45, color: C.text }}>{l}</li>)}</ul>
+      : <div style={{ fontSize: 13, color: C.textMuted }}>Écris ton plan dans Préparation (une règle par ligne) : il s'affiche ici.</div>}
+  </div>;
 }
 
 function PlanDeTrading({ trades = [], balance }) {
@@ -6956,7 +6952,6 @@ function PlanDeTrading({ trades = [], balance }) {
         <h1 style={{ fontSize: 24, fontWeight: 600, color: C.text, margin: 0 }}>Préparation</h1>
       </div>
       <PrepPage balance={balance} />
-      <PlanRules trades={trades} balance={balance} />
       <div style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary, margin: "4px 0 8px" }}>Mes notes de plan</div>
       <textarea
         value={text}
@@ -8151,9 +8146,6 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
         <button onClick={onOpenBacktest} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: "12px 15px", fontSize: 14, borderRadius: 10 }}><LineChart size={15} /> Ouvrir le backtesting</button>
       </SettingsSection>}
 
-      {onImport && <SettingsSection title="Importer depuis MT4 / MT5" icon={Download}>
-        <MtImport trades={trades} onImport={onImport} accountId={activeAccountId || accounts?.[0]?.id || null} />
-      </SettingsSection>}
 
       {/* Paires tradées */}
       <SettingsSection title="Paires tradées" icon={LineChart}>
@@ -8269,7 +8261,7 @@ function CalcPicker({ pair, setPair, inp }) {
       <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher…" style={{ ...inp, marginBottom: 6, padding: "8px 10px", fontSize: 14 }} />
       {CALC_GROUPS.map(([g, list]) => { const L = list.filter((x) => !q || x.includes(q.toUpperCase()) || lab(x).toLowerCase().includes(q.toLowerCase())); if (!L.length) return null;
         return <div key={g}><div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, padding: "8px 8px 4px" }}>{g}</div>
-          {L.map((x) => <button key={x} onClick={() => { setPair(x); setOpen(false); setQ(""); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 8px", border: "none", borderRadius: 8, background: x === pair ? C.purpleDim : "transparent", color: C.text, cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}><PairLogo pair={x} size={20} /><b style={{ fontWeight: 600 }}>{x}</b><span style={{ color: C.textMuted, fontSize: 12.5 }}>{lab(x)}</span></button>)}</div>; })}
+          {L.map((x) => <button key={x} onClick={() => { setPair(x); setOpen(false); setQ(""); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 8px", border: "none", borderRadius: 8, background: x === pair ? C.purpleDim : "transparent", color: C.text, cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}><b style={{ fontWeight: 600 }}>{x}</b><span style={{ color: C.textMuted, fontSize: 12.5 }}>{lab(x)}</span></button>)}</div>; })}
     </div>}
   </div>;
 }
@@ -9613,11 +9605,21 @@ function BacktestPage(props) {
 
       </div>
       <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLabMemo key={symKey} {...stable} /></div>
-      {tab === "stats" && <BacktestView {...props} />}
+      {tab === "stats" && <><BtWipe trades={props.trades} onDelete={props.onDelete} /><BacktestView {...props} /></>}
       {tab === "bot" && <BacktestBot />}
       {tab === "coach" && <TradeCoach trades={props.trades} />}
     </div>
   );
+}
+
+/* Saisie & stats : tout supprimer l'historique du backtest */
+function BtWipe({ trades = [], onDelete }) {
+  const [sure, setSure] = useState(false); const L = trades.filter((t) => t.accountId === BT_ACC);
+  if (!L.length) return null;
+  return <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 10 }}>
+    {!sure ? <button onClick={() => setSure(true)} style={{ ...btn.ghost, color: C.red, borderColor: C.border }}><Trash2 size={14} />Tout supprimer l'historique ({L.length})</button>
+      : <><button onClick={() => setSure(false)} style={btn.ghost}>Annuler</button><button onClick={() => { L.forEach((t) => onDelete && onDelete(t.id)); setSure(false); window.dispatchEvent(new CustomEvent("tjp-bt-wipe")); }} style={{ ...btn.primary, background: C.red }}><Trash2 size={14} />Confirmer : supprimer {L.length} trades et les stats</button></>}
+  </div>;
 }
 
 function BacktestView({ trades, onSave, onDelete, showToast, pairs, appSettings }) {
@@ -10319,7 +10321,7 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <Dashboard extra={<><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} onDelete={(id) => { const rest = accounts.filter((a) => a.id !== id); saveAccounts(rest); if (rest[0]) switchAccount ? switchAccount(rest[0].id) : null; }} />}</>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} />}
+              {view === "dashboard" && <div className="dash-split" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 16, alignItems: "start" }}><div style={{ minWidth: 0 }}><Dashboard extra={<><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} onDelete={(id) => { const rest = accounts.filter((a) => a.id !== id); saveAccounts(rest); if (rest[0]) switchAccount ? switchAccount(rest[0].id) : null; }} />}</>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} /></div><PlanBullets onEdit={() => setView("plan")} /></div>}
               {view === "backtest" && <BacktestPage trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
