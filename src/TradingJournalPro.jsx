@@ -1450,7 +1450,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const setTz = (v) => { setTzS(v); R.tz = v; try { localStorage.setItem("tjp_tv_tz", v); } catch (e) {} };
   if (R.tz === undefined) R.tz = tz;
   const setLegend = (b) => { R.legBar = b; if (R.setLeg) R.setLeg(b); }; /* légende OHLC : petit composant à part, le graphique ne se re-rend plus quand la souris bouge */
-  const [fs, setFsS] = useState(false); const [zen, setZen] = useState(false);
+  const [fs, setFsS] = useState(false); const [zen, setZen] = useState(false); const [zenTr, setZenTr] = useState(false);
   const setFs = (v) => { setZen(false); setFsS(v); };
   const [live, setLive] = useState(false);
   const [magnet, setMagnetS] = useState(false);
@@ -1461,7 +1461,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const topRef = useRef(null); const [narrow, setNarrow] = useState(0);
   useEffect(() => { const el = topRef.current; if (!el || typeof ResizeObserver === "undefined") return; const ro = new ResizeObserver(() => { const w = el.clientWidth; setNarrow(w < 1180 ? 2 : w < 1500 ? 1 : 0); }); ro.observe(el); return () => ro.disconnect(); }, []);
   const [drawSet, setDrawSet] = useState(-1); R.openSet = setDrawSet;
-  const [favOpen, setFavOpen] = useState(true);
+  const [favOpen, setFavOpen] = useState(() => !cfg.favTop);
   const [favPos, setFavPos] = useState({ x: 10, y: 110 });
   const [stay, setStay] = useState(false);
   const [sess, setSessS] = useState(tvLoadSess);
@@ -2364,7 +2364,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       if (e.shiftKey && key === "b") { e.preventDefault(); order(1); return; }
       if (e.shiftKey && key === "s") { e.preventDefault(); order(-1); return; }
       if (e.shiftKey && key === "f") { e.preventDefault(); setFs((v) => !v); return; }
-      if ((key === "delete" || key === "backspace") && sel) { e.preventDefault(); R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; rerender(); return; }
+      if ((key === "delete" || key === "backspace") && sel) { e.preventDefault(); R.redo.push(R.draws.splice(R.sel, 1)[0]); R.sel = -1; R.selOn = null; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); return; }
+      if (key === "backspace" && !sel && R.cfg.bsUndo !== false && R.draws.length) { e.preventDefault(); R.redo.push(R.draws.pop()); R.sel = -1; R.selOn = null; R.dirty = true; rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); return; }
       if (e.key.startsWith("Arrow") && sel && (e.ctrlKey || e.metaKey)) { /* Ctrl + flèches = décaler le dessin sélectionné (→ seul = replay) */
         e.preventDefault(); const dt = e.key === "ArrowRight" ? tfSec() : e.key === "ArrowLeft" ? -tfSec() : 0, dp = e.key === "ArrowUp" ? TV_PIP : e.key === "ArrowDown" ? -TV_PIP : 0;
         sel.pts = sel.pts.map((q) => ({ t: q.t + dt, p: q.p + dp })); rerender(); return;
@@ -2516,6 +2517,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         {(curSess() || {}).blind && <TvBtn active title="Mode à l'aveugle : dates cachées. Clique pour révéler la date." onClick={() => { const v = snapSess(sess); v.list = v.list.map((x) => (x.id === v.cur ? { ...x, blind: false } : x)); setSessS(v); tvSaveSess(v); }} style={{ fontSize: 13 }}><EyeOff size={15} />Aveugle</TvBtn>}
         </span>
         <div style={{ flex: 1 }} />
+          <TvBtn active={favOpen} title="Barre de favoris flottante (déplaçable)" onClick={() => setFavOpen((v) => !v)}><Star size={16} fill={favOpen ? "currentColor" : "none"} /></TvBtn>
         <div style={{ position: "relative" }}>
           <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}><Target size={15} style={{ verticalAlign: "-2px", marginRight: 4 }} />{narrow < 2 && "Modes"}</TvBtn>
           {modeMenu && <><div onClick={() => setModeMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 59 }} /><div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: 8, width: 300, fontSize: 14 }}>
@@ -2543,6 +2545,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         <span className="zh" style={{ display: "contents" }}><TvBtn title="Paramètres du graphique" onClick={() => setShowSet(true)}><Settings size={17} /></TvBtn>
         <TvBtn title="Importer tes données Dukascopy" onClick={() => fileRef.current.click()}><Database size={16} />{!narrow && "Données"}</TvBtn></span>
         <TvBtn active={zen} title={zen ? "Quitter le mode épuré (Échap)" : "Mode épuré plein écran : seulement le graphique, les timeframes, les indicateurs, les favoris et la barre de replay"} onClick={() => { setFsS(false); setZen((v) => !v); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">{zen ? <path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /> : <path d="M2 6V2h4M12 2h4v4M2 12v4h4M16 12v4h-4" />}</svg></TvBtn>
+        {zen && <><TvBtn title="Annuler (Ctrl+Z / Retour arrière)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Undo2 size={17} /></TvBtn><TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Redo2 size={17} /></TvBtn><TvBtn active={zenTr} title="Afficher le trading (positions, historique, stats)" onClick={() => setZenTr((v) => !v)}><Rewind size={15} />{!narrow && "Trading"}</TvBtn></>}
         {zen && <div style={{ position: "relative" }}><TvBtn title="Supprimer" active={trashM === "zen"} onClick={() => setTrashM(trashM === "zen" ? null : "zen")}><TvIcon id="trash" /></TvBtn>{trashM === "zen" && (() => { const dr = R.draws.filter((d) => trLock || !d.locked); const ind = indList.filter(([, on]) => on);
             const delD = () => { if (!dr.length) return; R.redo = [...R.draws]; R.draws = R.draws.filter((d) => !trLock && d.locked); R.sel = -1; setMsg(dr.length + " dessin" + (dr.length > 1 ? "s" : "") + " supprimé" + (dr.length > 1 ? "s" : "")); rerender(); };
             const delI = () => { ind.forEach(([, , fn]) => fn(false)); if (ind.length) setMsg(ind.length + " indicateur" + (ind.length > 1 ? "s" : "") + " masqué" + (ind.length > 1 ? "s" : "")); };
@@ -2660,7 +2663,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             </div>
           )}
           {/* barre des favoris flottante (déplaçable) */}
-          {(favOpen || zen) && !live && !cfg.favTop && (
+          {(favOpen || (zen && !cfg.favTop)) && !live && (
             <div style={{ position: "absolute", left: favPos.x, top: favPos.y, zIndex: 9, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", padding: "3px 4px", gap: 1 }}>
               <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); const sx = e.clientX - favPos.x, sy = e.clientY - favPos.y; const mv = (ev) => setFavPos({ x: Math.max(0, ev.clientX - sx), y: Math.max(0, ev.clientY - sy) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
                 style={{ cursor: "grab", padding: "0 4px", color: TV.muted, fontSize: 14, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>
@@ -2729,7 +2732,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       {showSet && <TvSettings years={tradedYears()} onClearAll={() => { clearAll(); setShowSet(false); }} curYear={R.rows ? tvYear(R.rows[R.ci][0]) : undefined} onClearYear={(y) => { clearYear(y); setShowSet(false); }} cfg={cfg} onClose={() => setShowSet(false)} onApply={(v) => { setCfg(v); setShowSet(false); }} onCloseAll={closeAll} onReset={() => { R.trades = []; R.draws = []; rerender(); }} fav={fav} />}
       {showNew && <TvNewSession list={sess.list} onClose={() => setShowNew(false)} onCreate={createSess} onDelete={delSess} />}
       {/* panneau Replay Trading */}
-      <div className="zh" style={{ borderTop: `4px solid ${TV.hover}`, flexShrink: 0 }}>
+      <div className={zen && zenTr ? "" : "zh"} style={{ borderTop: `4px solid ${TV.hover}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", overflowX: "auto" }}>
           <TvBtn onClick={() => setPanel((p) => !p)} style={{ fontWeight: 600 }}><Rewind size={15} />Replay Trading {unseen > 0 && <span style={{ background: TV.blue, color: "#fff", borderRadius: 10, fontSize: 11, fontWeight: 700, padding: "1px 6px" }}>{unseen}</span>}<ChevronDown size={14} style={{ transform: panel ? "none" : "rotate(180deg)" }} /></TvBtn>
           {sep}
@@ -2944,6 +2947,7 @@ function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], on
           <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BARRES</div>
           {tvChk(!!d.favTop, (v) => set((n) => { n.favTop = v; }), "Barre de favoris en haut (sinon barre flottante que tu peux déplacer)")}
           {tvChk(d.logo !== false, (v) => set((n) => { n.logo = v; }), "Logo devant le nom de la paire (EURUSD)")}
+          {tvChk(d.bsUndo !== false, (v) => set((n) => { n.bsUndo = v; }), "Touche Retour arrière (⌫) : efface le dernier dessin posé, puis le précédent…")}
           <div style={{ height: 10 }} />
           <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BOUGIES</div>
           <div style={row}><span>Corps haussier</span>{tvColor(d.up, (v) => set((n) => { n.up = v; }))}</div>
