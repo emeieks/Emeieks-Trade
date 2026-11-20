@@ -1162,8 +1162,8 @@ const TV_SYMS = {
   USOIL: { pip: 0.01, pv: 10, dig: 3, sp: 2, name: "WTI Crude Oil", file: "usoil-m15.csv", duka: "lightcmdusd" },
 };
 let TV_PAIR = "EURUSD", TV_PIP = 0.0001, TV_PIPVAL = 10, TV_DIG = 5, TV_SPREAD = 0.2;
-function tvSetSym(sym) { const S = TV_SYMS[sym] || TV_SYMS.EURUSD; TV_PAIR = TV_SYMS[sym] ? sym : "EURUSD"; TV_PIP = S.pip; TV_PIPVAL = S.pv; TV_DIG = S.dig; TV_SPREAD = S.sp; try { localStorage.setItem("tjp_bt_sym", TV_PAIR); } catch (e) {} }
-try { tvSetSym(localStorage.getItem("tjp_bt_sym") || "EURUSD"); } catch (e) {}
+function tvSetSym(sym) { const S = TV_SYMS[sym] || TV_SYMS.EURUSD; try { for (const k of Object.keys(TV_AUTOS)) if (k !== sym) delete TV_AUTOS[k]; } catch (e) {} /* un seul marché en mémoire */ TV_PAIR = TV_SYMS[sym] ? sym : "EURUSD"; TV_PIP = S.pip; TV_PIPVAL = S.pv; TV_DIG = S.dig; TV_SPREAD = S.sp; try { localStorage.setItem("tjp_bt_sym", TV_PAIR); } catch (e) {} }
+
 /* calculatrice automatique (comme la page Calculatrice) : lots = risque $ / ((SL + spread) × valeur du pip), arrondi vers le bas à 0,01 */
 const tvLots = (bal, pct, slPips) => Math.max(0.01, Math.floor(((bal * pct) / 100 / ((Math.max(0.1, slPips) + TV_SPREAD) * TV_PIPVAL)) * 100 + 1e-9) / 100);
 const TV_FONT = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
@@ -1234,7 +1234,7 @@ function tvFmtTime(t, tz, type) {
   const d = new Date((t + tvTzOff(t, tz)) * 1000), p2 = (n) => String(n).padStart(2, "0");
   const hm = p2(d.getUTCHours()) + ":" + p2(d.getUTCMinutes());
   if (TV_BLIND) return type === "full" ? "•• •• ••  " + hm : typeof type === "number" && type < 3 ? "" : hm;
-  if (type === "full") return `${d.getUTCDate()} ${TV_MOIS[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}  ${hm}`;
+  if (type === "full") return `${["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."][d.getUTCDay()]} ${d.getUTCDate()} ${TV_MOIS[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}  ${hm}`;
   const dd = new Date((t + tvTzOff(t, tz) + (tz === "ny" ? 7 * 3600 : 0)) * 1000); /* jour de trading (17:00 New York) pour les années, mois et jours */
   if (type === 0) return String(dd.getUTCFullYear());
   if (type === 1) return TV_MOIS[dd.getUTCMonth()];
@@ -1255,6 +1255,7 @@ async function tvPut(k, v) { const db = await tvDB(); if (!db) return; return ne
 
 /* --- données publiées avec le site : public/data/eurusd-m15.csv (GitHub). Chargées une fois, puis gardées dans le navigateur --- */
 const TV_AUTOS = {};
+try { tvSetSym(localStorage.getItem("tjp_bt_sym") || "EURUSD"); } catch (e) {}
 function tvAutoLoad(onMsg) {
   const sym = TV_PAIR; if (TV_AUTOS[sym]) return TV_AUTOS[sym];
   const P = (TV_AUTOS[sym] = (async () => {
@@ -1464,7 +1465,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const setTz = (v) => { setTzS(v); R.tz = v; try { localStorage.setItem("tjp_tv_tz", v); } catch (e) {} };
   if (R.tz === undefined) R.tz = tz;
   const setLegend = (b) => { R.legBar = b; if (R.setLeg) R.setLeg(b); }; /* légende OHLC : petit composant à part, le graphique ne se re-rend plus quand la souris bouge */
-  const [fs, setFsS] = useState(false); const [zen, setZen] = useState(false); const [zenTr, setZenTr] = useState(false);
+  const [fs, setFsS] = useState(false); const [zen, setZenS] = useState(() => !!window.__tvZen); const setZen = (v) => setZenS((o) => { const n = typeof v === "function" ? v(o) : v; window.__tvZen = n; return n; }); const [zenTr, setZenTr] = useState(false);
   const setFs = (v) => { setZen(false); setFsS(v); };
   const [live, setLive] = useState(false);
   const [magnet, setMagnetS] = useState(false);
@@ -6899,7 +6900,7 @@ function PrepPage({ balance }) {
           return <div key={f.id} style={{ padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}><b style={{ fontSize: 14 }}>{f.n}{f.must && <span style={{ color: C.purpleBright }}> ★</span>}</b>{f.tf && <span style={{ fontSize: 11.5, color: C.textMuted }}>{f.tf}</span>}<span className="tnum" style={{ marginLeft: "auto", fontSize: 13, fontWeight: 800, color: v == null ? C.textMuted : v === 2 ? C.teal : v === 1 ? C.amber : C.red }}>{v == null ? "–" : v} / 2</span></div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 6 }}>{f.lv.map(([p, lab, hint]) => { const a = v === p; const col = p === 2 ? C.teal : p === 1 ? C.amber : C.red;
-              return <button key={p} onClick={() => setChk({ ...chk, [f.id]: a ? undefined : p })} style={{ textAlign: "left", border: `1px solid ${a ? col : C.border}`, background: a ? `${col}22` : "transparent", color: a ? C.text : C.textSecondary, borderRadius: 10, padding: "7px 9px", fontSize: 12.5, lineHeight: 1.3, cursor: "pointer", fontFamily: "inherit" }}><b style={{ color: col, marginRight: 5 }}>{p}</b><b style={{ fontWeight: 600 }}>{lab}</b>{hint && <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>{hint}</div>}</button>; })}</div>
+              return <button key={p} onClick={() => setChk({ ...chk, [f.id]: a ? undefined : p })} style={{ textAlign: "left", border: `1px solid ${a ? col : C.border}`, background: a ? `${col}22` : "transparent", color: a ? C.text : C.textSecondary, borderRadius: 10, padding: "7px 9px", fontSize: 12.5, lineHeight: 1.3, cursor: "pointer", fontFamily: "inherit" }}><b style={{ color: col, marginRight: 5 }}>{p}</b><b style={{ fontWeight: 600 }}>{lab}</b></button>; })}</div>
             {f.tags && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{f.tags.map((t) => { const a = tags.includes(t); return <button key={t} onClick={() => setChk({ ...chk, ["t_" + f.id]: a ? tags.filter((x) => x !== t) : [...tags, t] })} style={{ border: `1px solid ${a ? C.purpleBright : C.border}`, background: a ? C.purpleDim : "transparent", color: a ? C.purpleBright : C.textMuted, borderRadius: 999, padding: "3px 9px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t}</button>; })}</div>}
           </div>; })}
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
