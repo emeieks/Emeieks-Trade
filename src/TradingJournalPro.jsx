@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   LayoutGrid, NotebookPen, BarChart3,
-  Plus, X, Upload, Search, Download, ChevronLeft, ChevronRight,
+  Plus, X, Upload, Search, Download, ChevronLeft, ChevronRight, Bell,
   TrendingUp, TrendingDown, Minus, Filter, ArrowUpRight, ArrowDownRight,
   Trash2, Edit3, Trophy, Clock, Save, Info, ChevronDown,
   Sparkles, CheckCircle2, AlertCircle, Brain, Calculator,
@@ -595,6 +595,7 @@ function GlobalStyle() {
          Desktop : > 1024px   (1440p, 1920p)
          ============================================================ */
       @media (max-width: 600px) { .desktop-only { display: none !important; } }
+      @media (max-width: 900px) { .prep-grid { grid-template-columns: 1fr !important; } }
       @media (min-width: 601px) { .mobile-only { display: none !important; } }
       @media (max-width: 600px) { .hide-sm { display: none !important; } }
       .never { display: none !important; }
@@ -1149,7 +1150,18 @@ function RessourcesICT() {
 
 const TV = { bg: "#ffffff", border: "#e0e3eb", text: "#131722", muted: "#787b86", hover: "#f0f3fa", blue: "#2962ff", red: "#f23645", green: "#089981", up: "#7fd1bd", down: "#131722" };
 const TV_TFS = [["15m", 15], ["30m", 30], ["1h", 60], ["2h", 120], ["3h", 180], ["4h", 240], ["6h", 360], ["8h", 480], ["12h", 720], ["D", 1440], ["W", 10080], ["M", 43200]];
-const TV_PAIR = "EURUSD", TV_PIP = 0.0001, TV_PIPVAL = 10, TV_DIG = 5, TV_SPREAD = 0.2;
+/* marchés du backtest : valeurs ClickFunded / TradeLocker (1 lot), pip = unité de distance affichée */
+const TV_SYMS = {
+  EURUSD: { pip: 0.0001, pv: 10, dig: 5, sp: 0.2, name: "Euro / U.S. Dollar", file: "eurusd-m15.csv", duka: "eurusd" },
+  GBPUSD: { pip: 0.0001, pv: 10, dig: 5, sp: 0.5, name: "British Pound / U.S. Dollar", file: "gbpusd-m15.csv", duka: "gbpusd" },
+  NAS100: { pip: 1, pv: 100, dig: 2, sp: 1.3, name: "Nasdaq 100", file: "nas100-m15.csv", duka: "usatechidxusd" },
+  US500: { pip: 1, pv: 100, dig: 2, sp: 0.5, name: "S&P 500", file: "us500-m15.csv", duka: "usa500idxusd" },
+  XAUUSD: { pip: 0.1, pv: 10, dig: 2, sp: 1.5, name: "Gold / U.S. Dollar", file: "xauusd-m15.csv", duka: "xauusd" },
+  USOIL: { pip: 0.01, pv: 10, dig: 3, sp: 2, name: "WTI Crude Oil", file: "usoil-m15.csv", duka: "lightcmdusd" },
+};
+let TV_PAIR = "EURUSD", TV_PIP = 0.0001, TV_PIPVAL = 10, TV_DIG = 5, TV_SPREAD = 0.2;
+function tvSetSym(sym) { const S = TV_SYMS[sym] || TV_SYMS.EURUSD; TV_PAIR = TV_SYMS[sym] ? sym : "EURUSD"; TV_PIP = S.pip; TV_PIPVAL = S.pv; TV_DIG = S.dig; TV_SPREAD = S.sp; try { localStorage.setItem("tjp_bt_sym", TV_PAIR); } catch (e) {} }
+try { tvSetSym(localStorage.getItem("tjp_bt_sym") || "EURUSD"); } catch (e) {}
 /* calculatrice automatique (comme la page Calculatrice) : lots = risque $ / ((SL + spread) × valeur du pip), arrondi vers le bas à 0,01 */
 const tvLots = (bal, pct, slPips) => Math.max(0.01, Math.floor(((bal * pct) / 100 / ((Math.max(0.1, slPips) + TV_SPREAD) * TV_PIPVAL)) * 100 + 1e-9) / 100);
 const TV_FONT = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
@@ -1240,21 +1252,21 @@ async function tvGet(k) { const db = await tvDB(); if (!db) return null; return 
 async function tvPut(k, v) { const db = await tvDB(); if (!db) return; return new Promise((r) => { const tx = db.transaction("bars", "readwrite"); tx.objectStore("bars").put(v, k); tx.oncomplete = r; tx.onerror = r; }); }
 
 /* --- données publiées avec le site : public/data/eurusd-m15.csv (GitHub). Chargées une fois, puis gardées dans le navigateur --- */
-let TV_AUTO = null;
+const TV_AUTOS = {};
 function tvAutoLoad(onMsg) {
-  if (TV_AUTO) return TV_AUTO;
-  TV_AUTO = (async () => {
-    const d = await tvGet(TV_PAIR); if (d && d.rows && d.rows.length) return d.rows;
+  const sym = TV_PAIR; if (TV_AUTOS[sym]) return TV_AUTOS[sym];
+  const P = (TV_AUTOS[sym] = (async () => {
+    const d = await tvGet(sym); if (d && d.rows && d.rows.length) return d.rows;
     let base = "/"; try { base = (import.meta && import.meta.env && import.meta.env.BASE_URL) || "/"; } catch (e) {}
     try {
-      onMsg && onMsg("Téléchargement de l'historique EURUSD depuis le site…");
-      const r = await fetch(base + "data/eurusd-m15.csv"); if (!r.ok) return null;
+      onMsg && onMsg(`Téléchargement de l'historique ${sym} depuis le site…`);
+      const r = await fetch(base + "data/" + TV_SYMS[sym].file); if (!r.ok) return null;
       const txt = await r.text(); const rows = tvParse(txt); if (!rows.length) return null;
-      rows.sort((a, b) => a[0] - b[0]); await tvPut(TV_PAIR, { rows }); onMsg && onMsg(`${rows.length.toLocaleString("fr-CA")} bougies réelles chargées et gardées sur cet appareil.`); return rows;
+      rows.sort((a, b) => a[0] - b[0]); await tvPut(sym, { rows }); onMsg && onMsg(`${rows.length.toLocaleString("fr-CA")} bougies réelles chargées et gardées sur cet appareil.`); return rows;
     } catch (e) { return null; }
-  })();
-  TV_AUTO.then((r) => { if (!r) TV_AUTO = null; });
-  return TV_AUTO;
+  })());
+  P.then((r) => { if (!r) delete TV_AUTOS[sym]; });
+  return P;
 }
 
 /* --- lecture CSV (dukascopy-node, Dukascopy web, HistData, MT4) --- */
@@ -1460,7 +1472,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const [fav, setFav] = useState(tvLoadFav);
   const topRef = useRef(null); const [narrow, setNarrow] = useState(0);
   useEffect(() => { const el = topRef.current; if (!el || typeof ResizeObserver === "undefined") return; const ro = new ResizeObserver(() => { const w = el.clientWidth; setNarrow(w < 1180 ? 2 : w < 1500 ? 1 : 0); }); ro.observe(el); return () => ro.disconnect(); }, []);
-  const [drawSet, setDrawSet] = useState(-1); R.openSet = setDrawSet;
+  const [drawSet, setDrawSet] = useState(-1); const [symMenu, setSymMenu] = useState(false);
+  useEffect(() => { if (!symMenu) return; const f = () => setSymMenu(false); document.addEventListener("mousedown", f); return () => document.removeEventListener("mousedown", f); }, [symMenu]); R.openSet = setDrawSet;
   const [favOpen, setFavOpen] = useState(() => !cfg.favTop);
   const [favPos, setFavPos] = useState({ x: 10, y: 110 });
   const [stay, setStay] = useState(false);
@@ -1543,6 +1556,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const openSess = (id, base) => {
     const v = snapSess(base || sess); const n = { ...v, cur: id }; setSessS(n); tvSaveSess(n);
     const c = n.list.find((x) => x.id === id); setPlaying(false);
+    if ((c.sym || "EURUSD") !== TV_PAIR) { tvSetSym(c.sym || "EURUSD"); window.dispatchEvent(new CustomEvent("tjp-bt-sym", { detail: TV_PAIR })); return; } /* autre marché : on recharge le backtest */
     R.trades = c.trades || []; R.draws = c.draws || []; R.years = c.years || []; R.archive = c.archive || []; R.seq = c.seq ?? null; R.sel = -1; R.selTr = null; R.prop = c.prop || null; R.missPtr = null;
     R.ci = c.ciT != null ? Math.max(50, tvBsRows(R.rows, c.ciT)) : c.ci != null && c.ci < R.rows.length ? c.ci : Math.min(R.rows.length - 1, 2000 + Math.floor(Math.random() * Math.max(1, R.rows.length - 4000)));
     if (c.tf && c.tf !== tf) setTf(c.tf); else rebuild(c.tf || tf, true);
@@ -1550,13 +1564,14 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const createSess = (title, mode, date, ex = {}) => {
     const id = "s" + Date.now(); let ci = null; if (ex.blind) mode = "random";
     if (mode === "date" && date) { const t = Date.parse(date + "T00:00:00Z") / 1000; const i = R.rows.findIndex((r) => r[0] >= t); ci = i < 0 ? R.rows.length - 1 : Math.max(50, i); }
-    const base = snapSess(sess); base.list = [...base.list, { id, title: title || (ex.prop ? "Challenge " + (ex.prop.size / 1000) + "k" : "Session " + (base.list.length + 1)), ci, tf, draws: [], trades: [], blind: !!ex.blind, noSave: !!ex.noSave, prop: ex.prop ? { ...ex.prop, phase: 0, status: "on", phaseT: 0, hist: [], tries: 1 } : null }];
+    const base = snapSess(sess); base.list = [...base.list, { id, sym: ex.sym || TV_PAIR, title: title || (ex.prop ? "Challenge " + (ex.prop.size / 1000) + "k" : "Session " + (base.list.length + 1)), ci, tf, draws: [], trades: [], blind: !!ex.blind, noSave: !!ex.noSave, prop: ex.prop ? { ...ex.prop, phase: 0, status: "on", phaseT: 0, hist: [], tries: 1 } : null }];
     openSess(id, base); setShowNew(false);
   };
   const delSess = (id) => { if (sess.list.length < 2) return; const v = snapSess(sess); v.list = v.list.filter((x) => x.id !== id); if (v.cur === id) { openSess(v.list[0].id, v); } else { setSessS(v); tvSaveSess(v); } };
 
   /* ---------- données ---------- */
   const load = async () => {
+    { const c0 = curSess(); if ((c0.sym || "EURUSD") !== TV_PAIR) tvSetSym(c0.sym || "EURUSD"); }
     const real = await tvAutoLoad(setMsg); const d = real ? { rows: real } : null;
     if (d && d.rows && d.rows.length) { R.rows = d.rows; setDemo(false); } else { R.rows = tvDemo(); setDemo(true); }
     R.demo = !(d && d.rows && d.rows.length);
@@ -1667,7 +1682,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   function sessTick() { const s = R.sessM; if (!s || !R.rows) return; const m = tvNyMin(R.rows[R.ci][0]); const ins = inSess(m, s); if (R.sessWas && !ins) { R.sessWas = false; setPlaying(false); R.yearMsg = `Fin de la session ${TV_SESS_MODE[s][0]}. » pour la journée suivante.`; } else if (ins) R.sessWas = true; }
   /* ---------- mode examen : tes anciens trades au hasard, tu dois les reconnaître ---------- */
   const examStart = () => {
-    const app = ((getApp ? getApp() : appTrades) || []).filter((x) => (x.pair || "").toUpperCase() === "EURUSD" && x.status !== "open" && x.resultR != null && x.entryTime);
+    const app = ((getApp ? getApp() : appTrades) || []).filter((x) => (x.pair || "").toUpperCase() === TV_PAIR && x.status !== "open" && x.resultR != null && x.entryTime);
     const T0 = R.rows[0][0] + 86400 * 3, T1 = R.rows[R.rows.length - 1][0] - 86400 * 2;
     const pool = app.filter((x) => { const s = Date.parse(x.entryTime) / 1000; return s > T0 && s < T1; });
     if (!pool.length) { setMsg("Pas encore de trades EURUSD à rejouer."); return; }
@@ -2452,7 +2467,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     if (!all.length) { setMsg("Aucune bougie reconnue dans ce fichier."); return; }
     const old = await tvGet(TV_PAIR); const map = new Map(); for (const r of (old && old.rows) || []) map.set(r[0], r); for (const r of all) map.set(r[0], r);
     const rows = [...map.values()].sort((a, b) => a[0] - b[0]);
-    await tvPut(TV_PAIR, { rows }); R.agg = null;
+    await tvPut(TV_PAIR, { rows }); delete TV_AUTOS[TV_PAIR]; R.agg = null;
     setMsg(`${rows.length.toLocaleString("fr-CA")} bougies importées : ${new Date(rows[0][0] * 1000).toISOString().slice(0, 10)} → ${new Date(rows[rows.length - 1][0] * 1000).toISOString().slice(0, 10)}`);
     await load();
   };
@@ -2511,7 +2526,10 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       <style>{".tvw.zen .zh{display:none!important}"}</style>
       {/* barre du haut */}
       <div ref={topRef} style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 8px", borderBottom: `4px solid ${TV.hover}`, flexWrap: "nowrap", whiteSpace: "nowrap", flexShrink: 0 }}>
-        <span className="zh" style={{ display: "contents" }}><div style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, borderRadius: 6, padding: "5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4 }}>{cfg.logo !== false && typeof PairLogo !== "undefined" && <PairLogo pair={TV_PAIR} size={20} />}{TV_PAIR}</div>
+        <span className="zh" style={{ display: "contents" }}><div style={{ position: "relative" }}><button title="Changer de marché" onClick={() => setSymMenu((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: TV.hover, border: "none", borderRadius: 6, padding: "5px 10px 5px 12px", fontWeight: 700, fontSize: 15, marginRight: 4, cursor: "pointer", fontFamily: TV_FONT, color: TV.text }}>{cfg.logo !== false && typeof PairLogo !== "undefined" && <PairLogo pair={TV_PAIR} size={20} />}{TV_PAIR}<ChevronDown size={14} /></button>
+          {symMenu && <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 40, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", padding: 6, minWidth: 260 }}>
+            {Object.entries(TV_SYMS).map(([k, v]) => <button key={k} onClick={() => { setSymMenu(false); if (k === TV_PAIR) return; const ex = sess.list.find((x) => (x.sym || "EURUSD") === k); if (ex) openSess(ex.id); else createSess("Backtest libre", "free", null, { sym: k }); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", border: "none", borderRadius: 6, background: k === TV_PAIR ? TV.hover : "transparent", cursor: "pointer", fontFamily: TV_FONT, fontSize: 14, color: TV.text, textAlign: "left" }}>{typeof PairLogo !== "undefined" && <PairLogo pair={k} size={20} />}<b style={{ width: 70 }}>{k}</b><span style={{ color: TV.muted, fontSize: 12.5 }}>{v.name}</span></button>)}
+          </div>}</div>
         {sep}</span>
         {TV_TFS.filter(([n]) => ["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <TvBtn key={n} active={tf === m} onClick={() => setTf(m)}>{n}</TvBtn>)}
         {cfg.favTop && !live && <span style={{ display: "flex", alignItems: "center", minWidth: 0, flexShrink: 1, overflowX: "auto", scrollbarWidth: "none" }}><span style={{ width: 1, height: 22, background: TV.border, margin: "0 4px", flexShrink: 0 }} />{fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={"f" + id} title={TV_TOOLS[id].n + ((() => { const km = cfg.keys || tvDefKeys(fav); const l = Object.keys(km).find((k) => km[k] === id); return l ? " (" + l.toUpperCase() + ")" : ""; })())} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><span style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}><TvIcon id={id} /><span style={{ fontSize: 9, fontWeight: 700, color: TV.muted, marginTop: -2 }}>{((() => { const km = cfg.keys || tvDefKeys(fav); return (Object.keys(km).find((k) => km[k] === id) || "").toUpperCase(); })())}</span></span></TvBtn>)}<TvBtn title="Remettre la barre de favoris flottante sur le graphique" onClick={() => setCfg({ ...R.cfg, favTop: false })} style={{ padding: "2px 3px", color: TV.muted }}><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 12h10M7 2v7M4 6l3 3 3-3" /></svg></TvBtn></span>}
@@ -2528,7 +2546,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         {sep}
         {!(curSess() || {}).blind && <TvBtn title="Revenir au début de l'année (2 janvier)" onClick={() => { if (!R.rows) return; const y = tvYear(R.rows[R.ci][0]); goToIndex(tvBsRows(R.rows, Date.UTC(y, 0, 2) / 1000)); setMsg(`Retour au début de ${y}.`); }} style={{ fontSize: 13, fontWeight: 600 }}><Rewind size={15} /></TvBtn>}
         <select value={sess.cur} onChange={(e) => { if (e.target.value === "__new") setShowNew(true); else openSess(e.target.value); }} title="Session de backtest" style={{ border: `1px solid ${TV.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 14, fontWeight: 600, color: TV.text, background: "#fff", maxWidth: 220, fontFamily: TV_FONT }}>
-          {sess.list.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
+          {sess.list.filter((x) => (x.sym || "EURUSD") === TV_PAIR).map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
           <option value="__new">+ Nouvelle session…</option>
         </select>
         {(curSess() || {}).blind && <TvBtn active title="Mode à l'aveugle : dates cachées. Clique pour révéler la date." onClick={() => { const v = snapSess(sess); v.list = v.list.map((x) => (x.id === v.cur ? { ...x, blind: false } : x)); setSessS(v); tvSaveSess(v); }} style={{ fontSize: 13 }}><EyeOff size={15} />Aveugle</TvBtn>}
@@ -2692,13 +2710,13 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           {/* pas de bougies inventées : sans tes données Dukascopy, le graphique reste vide */}
           {demo && <div style={{ position: "absolute", inset: 0, zIndex: 30, background: TV.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, textAlign: "center", padding: 24 }}>
             <div style={{ fontSize: 18, fontWeight: 600 }}>Aucune donnée réelle chargée sur cet appareil</div>
-            <div style={{ fontSize: 14, color: TV.muted, maxWidth: 460, lineHeight: 1.5 }}>Le replay utilise uniquement tes vraies bougies EURUSD (Dukascopy, M15 depuis 2010). Sur iPhone : mets le fichier dans ton dépôt GitHub sous <b>public/data/eurusd-m15.csv</b> et il se chargera tout seul sur tous tes appareils. Sinon, importe le fichier ici.</div>
+            <div style={{ fontSize: 14, color: TV.muted, maxWidth: 460, lineHeight: 1.5 }}>Le replay utilise uniquement tes vraies bougies {TV_PAIR} (Dukascopy, M15). Mets le fichier dans ton dépôt GitHub sous <b>public/data/{TV_SYMS[TV_PAIR].file}</b> et il se chargera tout seul sur tous tes appareils, ou importe-le ici.<br /><span style={{ fontSize: 12.5 }}>Téléchargement : <code>npx dukascopy-node -i {TV_SYMS[TV_PAIR].duka} -from 2010-01-01 -to now -t m15 -f csv</code></span></div>
             <button onClick={() => fileRef.current.click()} style={{ border: "none", background: TV.text, color: "#fff", borderRadius: 8, padding: "10px 18px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: TV_FONT }}>Importer mes données</button>
           </div>}
           {/* légende OHLC + SELL / BUY */}
           <div style={{ position: "absolute", left: 10, top: 6, zIndex: 4, pointerEvents: "none" }}>
             <div style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 14 }}>
-              <b style={{ fontWeight: 600 }}>Euro / U.S. Dollar · {tfName} · Dukascopy</b>
+              <b style={{ fontWeight: 600 }}>{TV_SYMS[TV_PAIR].name} · {tfName} · Dukascopy</b>
               {demo && <span style={{ fontSize: 11, fontWeight: 700, color: TV.red }}>DONNÉES DÉMO</span>}
               <TvLegend R={R} />
             </div>
@@ -3290,7 +3308,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
           <button title={t.status === "open" ? "Fermer la position" : "Supprimer l'ordre"} onClick={() => { R.api.closeOne(t); R.selTr = null; R.selOn = null; R.rerenderX(); S.redraw(); }} style={{ ...b(false), color: TV.red }}>✕</button>
         </div>; })()}
       <div style={{ position: "absolute", left: 8, top: 5, zIndex: 3, display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-        <b style={{ fontWeight: 600 }}>EURUSD ·</b>
+        <b style={{ fontWeight: 600 }}>{TV_PAIR} ·</b>
         <select value={min} onChange={(e) => setMin(+e.target.value)} style={{ border: `1px solid ${TV.border}`, borderRadius: 4, fontSize: 12, padding: "1px 4px", fontFamily: TV_FONT, background: "#fff" }}>{TV_TFS.map(([n, m]) => <option key={m} value={m}>{n}</option>)}</select>
         {R.api && R.rows && !blind && R.cfg && R.cfg.showBS && [[-1, "SELL", TV.red], [1, "BUY", TV.blue]].map(([sd, n, c]) => <button key={n} onMouseDown={(e) => e.stopPropagation()} onClick={() => { const top = S.se && S.se.coordinateToPrice(0), bot = S.se && box.current ? S.se.coordinateToPrice(box.current.clientHeight - 30) : null; const mkt = R.rows[R.ci][4]; const dist = top != null && bot != null ? Math.max(3 * TV_PIP, Math.round(((top - bot) * 0.1) / TV_PIP) * TV_PIP) : undefined; R.api.order(sd, dist ? { sl: mkt - sd * dist } : {}); R.dirty = true; S.redraw(); }} style={{ border: "none", background: c, color: "#fff", borderRadius: 4, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: TV_FONT }}>{n}</button>)}
       </div>
@@ -6819,6 +6837,100 @@ function PerformanceReview({ trades }) {
    PLAN DE TRADING
    ============================================================================ */
 
+/* ===================== PRÉPARATION : barème de setups + alertes ===================== */
+const PREP_KEY = "prep_v1";
+const PREP_CRIT = [
+  { id: "bias", g: "Contexte HTF", n: "Biais D / H4 dans le sens du trade", p: 2, must: true },
+  { id: "htf", g: "Contexte HTF", n: "PD array HTF (SIBI/BISI, OB, BB H4 ou D)", p: 2 },
+  { id: "pd", g: "Contexte HTF", n: "En discount (achat) / premium (vente) du range", p: 1 },
+  { id: "liq", g: "Liquidité", n: "Prise de liquidité (PDH/PDL, Asia H/L, EQH/EQL)", p: 2, must: true },
+  { id: "mss", g: "Exécution LTF", n: "MSS / CHoCH M15-M5 avec déplacement", p: 2, must: true },
+  { id: "ltf", g: "Exécution LTF", n: "Entrée sur FVG / OB / BB M15-M5", p: 1 },
+  { id: "ote", g: "Exécution LTF", n: "Entrée dans l'OTE (62-79 %)", p: 1 },
+  { id: "kz", g: "Timing", n: "Dans une killzone (London / NY AM)", p: 1 },
+  { id: "smt", g: "Timing", n: "SMT divergence (DXY, paire corrélée)", p: 1 },
+  { id: "rr", g: "Objectif", n: "RR ≥ 3 vers la liquidité opposée", p: 1 },
+  { id: "news", g: "Malus", n: "News forte dans les 30 min", p: -3 },
+  { id: "contra", g: "Malus", n: "Contre le biais HTF", p: -3 },
+  { id: "late", g: "Malus", n: "Entrée tardive (prix déjà parti, > 50 % du move)", p: -2 },
+];
+const PREP_GRADES = [["A+", 11, 1, "#089981"], ["A", 8, 0.75, "#2962ff"], ["B", 5, 0.5, "#ff9800"], ["C", -99, 0, "#f23645"]];
+const prepGrade = (chk, risks) => { const sc = PREP_CRIT.reduce((a, c) => a + (chk[c.id] ? c.p : 0), 0); const mustOk = PREP_CRIT.filter((c) => c.must).every((c) => chk[c.id]);
+  let g = PREP_GRADES.find(([, min]) => sc >= min) || PREP_GRADES[3]; if (g[0] === "A+" && !mustOk) g = PREP_GRADES[1]; if ((g[0] === "A" || g[0] === "A+") && !chk.bias) g = PREP_GRADES[2];
+  return { sc, g: g[0], risk: (risks && risks[g[0]] != null ? risks[g[0]] : g[2]), col: g[3], mustOk }; };
+const prepLoad = () => { try { return JSON.parse(localStorage.getItem(PREP_KEY)) || {}; } catch { return {}; } };
+const PREP_MISS = ["Pas devant l'écran", "Alerte pas vue", "Hésitation / peur", "Attendu une meilleure entrée", "Doute sur le setup", "Déjà perdu dans la journée", "Autre"];
+
+function PrepPage({ balance }) {
+  const [st, setSt] = useState(() => ({ risks: { "A+": 1, A: 0.75, B: 0.5, C: 0 }, alerts: [], ...prepLoad() }));
+  const save = (n) => { setSt(n); try { localStorage.setItem(PREP_KEY, JSON.stringify(n)); } catch {} clearTimeout(window._prepSync); window._prepSync = setTimeout(() => { saveSettingsPatch({ prep: n }).catch(() => {}); }, 1500); };
+  const [chk, setChk] = useState({}); const [pair, setPair] = useState("EURUSD"); const [lvl, setLvl] = useState(""); const [note, setNote] = useState("");
+  const G = prepGrade(chk, st.risks); const riskUsd = ((Number(balance) || 0) * G.risk) / 100;
+  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, marginBottom: 14 };
+  const inp = { background: C.inputBg || C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 11px", color: C.text, fontSize: 14, fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
+  const groups = [...new Set(PREP_CRIT.map((c) => c.g))];
+  const weekAgo = Date.now() - 7 * 86400000; const wk = st.alerts.filter((a) => a.t >= weekAgo);
+  const missed = wk.filter((a) => a.status === "missed"), taken = wk.filter((a) => a.status === "taken");
+  const missedR = missed.reduce((s, a) => s + (Number(a.r) || 0), 0);
+  const reasons = Object.entries(missed.filter((a) => a.why).reduce((m, a) => ((m[a.why || "?"] = (m[a.why || "?"] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
+  const upd = (id, patch) => save({ ...st, alerts: st.alerts.map((a) => (a.id === id ? { ...a, ...patch } : a)) });
+  const stCol = { wait: C.textMuted, taken: C.teal, missed: C.red, inval: C.textMuted };
+  const stLab = { wait: "En attente", taken: "Pris", missed: "Manqué", inval: "Invalidé" };
+  return <>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.3fr) minmax(0,1fr)", gap: 14 }} className="prep-grid">
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><b style={{ fontSize: 16 }}>Noter un setup</b><button onClick={() => setChk({})} style={{ ...btn.ghost, height: 30, padding: "0 10px", fontSize: 12 }}>Effacer</button></div>
+        {groups.map((g) => <div key={g} style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: g === "Malus" ? C.red : C.textMuted, textTransform: "uppercase", letterSpacing: 0.6, margin: "6px 0 4px" }}>{g}</div>
+          {PREP_CRIT.filter((c) => c.g === g).map((c) => <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 4px", cursor: "pointer", fontSize: 14, borderRadius: 8 }}>
+            <input type="checkbox" checked={!!chk[c.id]} onChange={(e) => setChk({ ...chk, [c.id]: e.target.checked })} style={{ width: 17, height: 17, accentColor: C.purple }} />
+            <span style={{ flex: 1 }}>{c.n}{c.must && <span style={{ color: C.purpleBright, fontSize: 11, fontWeight: 700, marginLeft: 6 }}>obligatoire A+</span>}</span>
+            <span className="tnum" style={{ fontWeight: 700, color: c.p < 0 ? C.red : C.textSecondary }}>{c.p > 0 ? "+" : ""}{c.p}</span></label>)}
+        </div>)}
+      </div>
+      <div>
+        <div style={{ ...card, borderColor: G.col, textAlign: "center" }}>
+          <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 700, letterSpacing: 0.6 }}>NOTE DU SETUP</div>
+          <div style={{ fontSize: 64, fontWeight: 800, color: G.col, lineHeight: 1.1 }}>{G.g}</div>
+          <div className="tnum" style={{ fontSize: 13, color: C.textSecondary }}>{G.sc} points{!G.mustOk && G.sc >= 11 ? " · il manque un critère obligatoire pour A+" : ""}</div>
+          <div style={{ marginTop: 12, padding: "12px", borderRadius: 12, background: C.inputBg || C.bg }}>
+            {G.risk > 0 ? <><div style={{ fontSize: 13, color: C.textSecondary }}>Risque conseillé</div><div className="tnum" style={{ fontSize: 26, fontWeight: 800 }}>{String(G.risk).replace(".", ",")} %</div><div className="tnum" style={{ fontSize: 13, color: C.textMuted }}>{fmtUsd(riskUsd)} sur {fmtUsd(Number(balance) || 0)}</div></>
+              : <div style={{ fontSize: 15, fontWeight: 700, color: C.red }}>Pas de trade : setup C</div>}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+            <input value={pair} onChange={(e) => setPair(e.target.value.toUpperCase())} placeholder="Paire" style={inp} />
+            <input value={lvl} onChange={(e) => setLvl(e.target.value)} placeholder="Niveau d'alerte" inputMode="decimal" style={inp} />
+          </div>
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (ex. SIBI H4 + OB M15 en London)" style={{ ...inp, marginTop: 8 }} />
+          <button onClick={() => { save({ ...st, alerts: [{ id: Date.now(), t: Date.now(), pair, lvl, note, grade: G.g, risk: G.risk, sc: G.sc, status: "wait" }, ...st.alerts].slice(0, 300) }); setNote(""); setLvl(""); }} style={{ ...btn.primary, width: "100%", height: 42, justifyContent: "center", marginTop: 10 }}><Bell size={15} />Ajouter à mes alertes</button>
+        </div>
+        <div style={card}>
+          <b style={{ fontSize: 14 }}>Risque par note</b>
+          {PREP_GRADES.map(([g, min, , col]) => <div key={g} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}><span style={{ width: 34, fontWeight: 800, color: col }}>{g}</span><span style={{ flex: 1, fontSize: 12.5, color: C.textMuted }}>{g === "C" ? "moins de 5 pts" : `${min} pts et +`}</span>
+            <input type="number" step="0.25" min="0" value={st.risks[g]} onChange={(e) => save({ ...st, risks: { ...st.risks, [g]: Number(e.target.value) } })} style={{ ...inp, width: 80, padding: "6px 8px" }} /><span style={{ fontSize: 13 }}>%</span></div>)}
+        </div>
+      </div>
+    </div>
+
+    <div style={card}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}><b style={{ fontSize: 16 }}>Mes alertes</b>
+        <span className="tnum" style={{ fontSize: 13, color: C.textSecondary }}>7 derniers jours : {taken.length} pris · <b style={{ color: C.red }}>{missed.length} manqués</b>{missedR ? ` (${missedR > 0 ? "+" : ""}${missedR.toFixed(1)} R laissés)` : ""}</span></div>
+      {reasons.length > 0 && <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: C.redDim || "rgba(242,54,69,0.1)", fontSize: 13, color: C.text }}>Pourquoi tu les rates : {reasons.map(([w, n]) => `${w} (${n})`).join(" · ")}</div>}
+      {st.alerts.length === 0 && <div style={{ fontSize: 13, color: C.textMuted, marginTop: 10 }}>Note un setup au-dessus puis ajoute-le : tu sauras ensuite si tu l'as pris ou manqué, et pourquoi.</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+        {st.alerts.slice(0, 40).map((a) => { const gc = (PREP_GRADES.find((x) => x[0] === a.grade) || [])[3]; return <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 10 }}>
+          <span style={{ fontWeight: 800, color: gc, width: 28 }}>{a.grade}</span><PairLogo pair={a.pair} size={18} /><b>{a.pair}</b><span className="tnum" style={{ color: C.textSecondary }}>{a.lvl}</span>
+          <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: C.textMuted }}>{a.note} · {new Date(a.t).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</span>
+          <select value={a.status} onChange={(e) => upd(a.id, { status: e.target.value })} style={{ ...inp, width: "auto", padding: "5px 8px", fontSize: 13, color: stCol[a.status], fontWeight: 700 }}>{Object.entries(stLab).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          {a.status === "missed" && <><select value={a.why || ""} onChange={(e) => upd(a.id, { why: e.target.value })} style={{ ...inp, width: "auto", padding: "5px 8px", fontSize: 13 }}><option value="">Pourquoi ?</option>{PREP_MISS.map((w) => <option key={w}>{w}</option>)}</select>
+            <input value={a.r ?? ""} onChange={(e) => upd(a.id, { r: e.target.value })} placeholder="R manqué" inputMode="decimal" style={{ ...inp, width: 90, padding: "5px 8px", fontSize: 13 }} /></>}
+          <button onClick={() => save({ ...st, alerts: st.alerts.filter((x) => x.id !== a.id) })} title="Supprimer" style={{ border: "none", background: "none", color: C.textMuted, cursor: "pointer" }}><X size={15} /></button>
+        </div>; })}
+      </div>
+    </div>
+  </>;
+}
+
 function PlanDeTrading({ trades = [], balance }) {
   const STORAGE_KEY = "trading_plan_text";
   const [text, setText] = useState(() => {
@@ -6841,8 +6953,9 @@ function PlanDeTrading({ trades = [], balance }) {
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 600, color: C.text, margin: 0 }}>Plan de trading</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 600, color: C.text, margin: 0 }}>Préparation</h1>
       </div>
+      <PrepPage balance={balance} />
       <PlanRules trades={trades} balance={balance} />
       <div style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary, margin: "4px 0 8px" }}>Mes notes de plan</div>
       <textarea
@@ -9473,6 +9586,7 @@ const BacktestLabMemo = React.memo(BacktestLab);
 function BacktestPage(props) {
   const [tab, setTab] = useState("chart");
   const PR = useRef(props); PR.current = props;
+  const [symKey, setSymKey] = useState(0); useEffect(() => { const h = () => setSymKey((k) => k + 1); window.addEventListener("tjp-bt-sym", h); return () => window.removeEventListener("tjp-bt-sym", h); }, []);
   const stable = useMemo(() => ({ onSave: (t) => PR.current.onSave(t), onDelete: (id) => PR.current.onDelete(id), getApp: () => PR.current.trades }), []);
   useEffect(() => { const h = () => setTab("chart"); window.addEventListener("tjp-bt-goto", h); window.addEventListener("tjp-bot-live", h); return () => { window.removeEventListener("tjp-bt-goto", h); window.removeEventListener("tjp-bot-live", h); }; }, []);
   /* anciens trades de replay entre -0,1 R et +0,1 R : enregistrés comme BE (0 R), pas comme perdants */
@@ -9498,7 +9612,7 @@ function BacktestPage(props) {
         <button onClick={() => setTab("coach")} style={tb(tab === "coach")}><Bot size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Coach</button>
 
       </div>
-      <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLabMemo {...stable} /></div>
+      <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLabMemo key={symKey} {...stable} /></div>
       {tab === "stats" && <BacktestView {...props} />}
       {tab === "bot" && <BacktestBot />}
       {tab === "coach" && <TradeCoach trades={props.trades} />}
