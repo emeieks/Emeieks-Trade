@@ -215,7 +215,7 @@ function KillzoneBanner({ part = "all" }) {
         flex: 1, minWidth: 0,
         padding: "0 12px",
         height: 28,
-        display: "flex", alignItems: "center", gap: 0,
+        display: "flex", alignItems: "center", gap: 0, justifyContent: "center",
         overflow: "hidden", whiteSpace: "nowrap",
       }}>
         <div style={{ position: "relative", width: 18, height: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 8 }}>
@@ -1817,7 +1817,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       if (tr.status === "pending") { tr.sl0 = pr; tr.lots = tvLots(balance(), tr.riskPct ?? R.cfg.risk, Math.abs(tr.entry - tr.sl) / TV_PIP); tr.risk = (Math.abs(tr.entry - tr.sl) / TV_PIP) * TV_PIPVAL * tr.lots; } }
     if (kind === "entry" && tr.status === "pending") { const d = pr - tr.entry; tr.entry = pr; tr.sl += d; tr.tp += d; tr.sl0 = tr.sl; }
     R.dirty = true; };
-  R.api = { toBE, closeOne, order, setCtx, adjST, openSet: () => setShowSet(true) };
+  const setRiskT = (t, v) => { if (t.status !== "pending") return; t.riskPct = v; t.lots = tvLots(balance(), v, Math.abs(t.entry - t.sl) / TV_PIP); t.risk = (Math.abs(t.entry - t.sl) / TV_PIP) * TV_PIPVAL * t.lots; R.dirty = true; };
+  R.api = { toBE, closeOne, order, setCtx, adjST, setRiskT, openSet: () => setShowSet(true) };
 
   /* ---------- coordonnées ---------- */
   const tToX = (t) => {
@@ -1901,9 +1902,10 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     }
   }
   /* ---------- indicateurs : structure (swings, BOS / MSS, EQH / EQL, FVG), seulement sur les bougies déjà passées ---------- */
-  function structure() {
-    const A = R.agg, k = R.k, n = R.cfg.st.len || 3; const key = A.min + "|" + k + "|" + n + "|" + A.bars.length;
-    if (R.stc && R.stc.key === key) return R.stc;
+  function structure(CX) {
+    const HC = CX ? CX.cache : R, liveB = CX ? CX.live : liveBar;
+    const A = CX ? CX.A : R.agg, k = CX ? CX.k : R.k, n = R.cfg.st.len || 3; const key = A.min + "|" + k + "|" + n + "|" + A.bars.length;
+    if (HC.stc && HC.stc.key === key) return HC.stc;
     const from = Math.max(0, k - 400), B = A.bars; const sw = [], bos = [], eq = [], fvg = [];
     for (let i = from + n; i <= k - 1 - n; i++) {
       let hi = true, lo = true;
@@ -1926,20 +1928,22 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       if (B[i - 2].low - B[i].high >= minG) fvg.push({ i, top: B[i - 2].low, bot: B[i].high, up: false });
     }
     /* FVG encore ouverts : pas recomblés jusqu'à la bougie actuelle */
-    const lvb = liveBar(); const open = fvg.filter((f) => { for (let j = f.i + 1; j <= k; j++) { const b = j === k ? lvb : B[j]; if (f.up ? b.low <= f.bot : b.high >= f.top) { f.end = j; return j > k - 40; } } return true; }).slice(-8);
-    R.stc = { key, sw: sw.filter((w) => w.i > k - 150), bos: bos.slice(-12), eq: eq.slice(-6), fvg: open };
-    return R.stc;
+    const lvb = liveB(); const open = fvg.filter((f) => { for (let j = f.i + 1; j <= k; j++) { const b = j === k ? lvb : B[j]; if (f.up ? b.low <= f.bot : b.high >= f.top) { f.end = j; return j > k - 40; } } return true; }).slice(-8);
+    HC.stc = { key, sw: sw.filter((w) => w.i > k - 150), bos: bos.slice(-12), eq: eq.slice(-6), fvg: open };
+    return HC.stc;
   }
-  function drawStructure(c, cw, ch) {
-    const S = R.cfg.st; if (!(S.swings || S.bos || S.mss || S.eq || S.fvg) || !R.agg || R.k < 10) return;
-    const st = structure(), ts = R.chart.timeScale(), X = (i) => ts.logicalToCoordinate(i), lab = TV_TFLAB[R.agg.min];
+  function drawStructure(c, cw, ch, PJ) {
+    const S = R.cfg.st; const AG = PJ ? PJ.A : R.agg, KK = PJ ? PJ.k : R.k; if (!(S.swings || S.bos || S.mss || S.eq || S.fvg) || !AG || KK < 10) return;
+    const pY = PJ ? PJ.pToY : pToY;
+    const st = structure(PJ), ts = PJ ? PJ.ts : R.chart.timeScale(), X = (i) => ts.logicalToCoordinate(i), lab = TV_TFLAB[AG.min];
     c.font = "11px " + TV_FONT; c.lineWidth = 1;
-    if (S.fvg) for (const f of st.fvg) { const xa = X(f.i - 1), xb = f.end != null ? X(f.end) : cw; const ya = pToY(f.top), yb = pToY(f.bot); c.fillStyle = f.up ? "rgba(8,153,129,0.10)" : "rgba(242,54,69,0.10)"; c.fillRect(xa, ya, xb - xa, yb - ya); c.fillStyle = f.up ? TV.green : TV.red; c.fillText(f.up ? "BISI " + lab : "SIBI " + lab, Math.min(xb, cw) - 62, (ya + yb) / 2 + 4); }
-    if (S.swings) for (const w of st.sw) { const x = X(w.i), y = pToY(w.p); if (x < 0 || x > cw) continue; c.fillStyle = "#787b86"; c.beginPath(); if (w.hi) { c.moveTo(x, y - 6); c.lineTo(x - 4, y - 12); c.lineTo(x + 4, y - 12); } else { c.moveTo(x, y + 6); c.lineTo(x - 4, y + 12); c.lineTo(x + 4, y + 12); } c.fill(); }
-    if (S.eq) for (const q of st.eq) { const xa = X(q.i0), xb = X(q.i1), y = pToY(q.p); c.strokeStyle = "#9c27b0"; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke(); c.setLineDash([]); c.fillStyle = "#9c27b0"; c.fillText(q.hi ? "EQH" : "EQL", (xa + xb) / 2 - 12, q.hi ? y - 5 : y + 13); }
-    for (const b of st.bos) { if (!(b.k === "MSS" ? S.mss : S.bos)) continue; const xa = X(b.i0), xb = X(b.i1), y = pToY(b.p); if (xb < 0) continue; const col = b.k === "MSS" ? TV_STRUCT.MSS : TV_STRUCT.BOS; c.strokeStyle = col; c.setLineDash(b.k === "MSS" ? [] : [4, 3]); c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke(); c.setLineDash([]); c.fillStyle = col; const t = b.k + " " + lab; c.fillText(t, (xa + xb) / 2 - c.measureText(t).width / 2, b.up ? y - 4 : y + 12); }
+    if (S.fvg) for (const f of st.fvg) { const xa = X(f.i - 1), xb = f.end != null ? X(f.end) : cw; const ya = pY(f.top), yb = pY(f.bot); c.fillStyle = f.up ? "rgba(8,153,129,0.10)" : "rgba(242,54,69,0.10)"; c.fillRect(xa, ya, xb - xa, yb - ya); c.fillStyle = f.up ? TV.green : TV.red; c.fillText(f.up ? "BISI " + lab : "SIBI " + lab, Math.min(xb, cw) - 62, (ya + yb) / 2 + 4); }
+    if (S.swings) for (const w of st.sw) { const x = X(w.i), y = pY(w.p); if (x < 0 || x > cw) continue; c.fillStyle = "#787b86"; c.beginPath(); if (w.hi) { c.moveTo(x, y - 6); c.lineTo(x - 4, y - 12); c.lineTo(x + 4, y - 12); } else { c.moveTo(x, y + 6); c.lineTo(x - 4, y + 12); c.lineTo(x + 4, y + 12); } c.fill(); }
+    if (S.eq) for (const q of st.eq) { const xa = X(q.i0), xb = X(q.i1), y = pY(q.p); c.strokeStyle = "#9c27b0"; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke(); c.setLineDash([]); c.fillStyle = "#9c27b0"; c.fillText(q.hi ? "EQH" : "EQL", (xa + xb) / 2 - 12, q.hi ? y - 5 : y + 13); }
+    for (const b of st.bos) { if (!(b.k === "MSS" ? S.mss : S.bos)) continue; const xa = X(b.i0), xb = X(b.i1), y = pY(b.p); if (xb < 0) continue; const col = b.k === "MSS" ? TV_STRUCT.MSS : TV_STRUCT.BOS; c.strokeStyle = col; c.setLineDash(b.k === "MSS" ? [] : [4, 3]); c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke(); c.setLineDash([]); c.fillStyle = col; const t = b.k + " " + lab; c.fillText(t, (xa + xb) / 2 - c.measureText(t).width / 2, b.up ? y - 4 : y + 12); }
   }
 
+  R.drawStructX = drawStructure; R.missListX = () => missList();
   /* ---------- annonces US : NFP calculé (1er vendredi du mois, 8h30 New York) ---------- */
   function newsList() {
     if (R.newsL) return R.newsL; const L = [];
@@ -1978,17 +1982,18 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   }
 
   /* ---------- indicateurs : PDH / PDL / PWH / PWL ---------- */
-  function drawLevels(c, cw, ch) {
+  function drawLevels(c, cw, ch, PJ) {
+    const tX = PJ ? PJ.tToX : tToX, pY = PJ ? PJ.pToY : pToY;
     const L = R.cfg.lv; if (!(L.pd || L.pw) || !R.rows) return;
     const key = R.rows.length + "|" + R.cfg.hideFlat;
     if (!R.lvc || R.lvc.key !== key) R.lvc = { key, D: tvBuild(R.rows, 1440, R.cfg.hideFlat), W: tvBuild(R.rows, 10080, R.cfg.hideFlat) };
     const one = (A, col, hiName, loName) => {
       const k = tvBs(A.start, R.ci); if (k < 1) return; const pb = A.bars[k - 1];
-      const xa = Math.max(0, tToX(pb.time) ?? 0), xb = cw; if (xa >= cw) return;
+      const xa = Math.max(0, tX(pb.time) ?? 0), xb = cw; if (xa >= cw) return;
       c.setLineDash([6, 4]); c.lineWidth = 1; c.strokeStyle = col; c.fillStyle = col; c.font = "12px " + TV_FONT;
       for (const [p, n, up] of [[pb.high, hiName, true], [pb.low, loName, false]]) {
         if (L[n.toLowerCase()] === false) continue;
-        const y = pToY(p); if (y === null) continue; c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke();
+        const y = pY(p); if (y === null) continue; c.beginPath(); c.moveTo(xa, y); c.lineTo(xb, y); c.stroke();
         const w = c.measureText(n).width; const xm = Math.min(cw - w - 70, Math.max(xa + 4, (xa + xb) / 2 - w / 2)); c.fillText(n, xm, up ? y - 6 : y + 15);
       }
       c.setLineDash([]);
@@ -1997,6 +2002,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     if (L.pd) one(R.lvc.D, L.pdColor, "PDH", "PDL");
   }
 
+  R.drawLevelsX = drawLevels; R.newsListX = newsList;
   /* ---------- calque de dessin (positions, outils) ---------- */
   function drawOverlay() {
     const cv = ovRef.current, box = boxRef.current; if (!cv || !box || !R.chart || !R.agg || !R.rows) return;
@@ -2517,8 +2523,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           </div>}
         </div>
         <span className="zh" style={{ display: "contents" }}>{sep}
-        <TvBtn title="Annuler (Ctrl+Z)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); }}><Undo2 size={17} /></TvBtn>
-        <TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); }}><Redo2 size={17} /></TvBtn>
+        <TvBtn title="Annuler (Ctrl+Z)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Undo2 size={17} /></TvBtn>
+        <TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }}><Redo2 size={17} /></TvBtn>
         {sep}
         {!(curSess() || {}).blind && <TvBtn title="Revenir au début de l'année (2 janvier)" onClick={() => { if (!R.rows) return; const y = tvYear(R.rows[R.ci][0]); goToIndex(tvBsRows(R.rows, Date.UTC(y, 0, 2) / 1000)); setMsg(`Retour au début de ${y}.`); }} style={{ fontSize: 13, fontWeight: 600 }}><Rewind size={15} /></TvBtn>}
         <select value={sess.cur} onChange={(e) => { if (e.target.value === "__new") setShowNew(true); else openSess(e.target.value); }} title="Session de backtest" style={{ border: `1px solid ${TV.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 14, fontWeight: 600, color: TV.text, background: "#fff", maxWidth: 220, fontFamily: TV_FONT }}>
@@ -2650,7 +2656,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           </div>}
           {/* stake sous le SL de la position sélectionnée : 0,5 / 1 / 1,5 / 2 % (lots recalculés) */}
           <div ref={trBarRef} onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", display: "none", zIndex: 8, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", padding: 2, gap: 2, alignItems: "center", fontFamily: TV_FONT }}>
-            {[0.5, 1, 1.5, 2].map((v) => { const t = R.selTr; const cur = t ? Math.round((t.riskPct ?? R.cfg.risk) * 10) / 10 : R.cfg.risk; return <button key={v} title={t && t.status === "open" ? "Mise d'une position déjà ouverte : non modifiable" : "Risquer " + v + " % sur ce trade"} disabled={!t || t.status !== "pending"} onClick={() => { if (!t) return; t.riskPct = v; t.lots = Math.max(0.01, Math.round(((balance() * v) / 100 / (Math.abs(t.entry - t.sl) / TV_PIP * TV_PIPVAL)) * 100) / 100); t.risk = (Math.abs(t.entry - t.sl) / TV_PIP) * TV_PIPVAL * t.lots; rerender(); }} style={{ border: "none", borderRadius: 4, padding: "3px 7px", fontSize: 12, fontWeight: 700, cursor: t && t.status === "pending" ? "pointer" : "default", background: cur === v ? TV.text : "transparent", color: cur === v ? "#fff" : TV.text, fontFamily: TV_FONT }}>{String(v).replace(".", ",")}%</button>; })}
+            {[0.5, 1, 1.5, 2].map((v) => { const t = R.selTr; const cur = t ? Math.round((t.riskPct ?? R.cfg.risk) * 10) / 10 : R.cfg.risk; return <button key={v} title={t && t.status === "open" ? "Mise d'une position déjà ouverte : non modifiable" : "Risquer " + v + " % sur ce trade"} disabled={!t || t.status !== "pending"} onClick={() => { if (!t) return; setRiskT(t, v); rerender(); }} style={{ border: "none", borderRadius: 4, padding: "3px 7px", fontSize: 12, fontWeight: 700, cursor: t && t.status === "pending" ? "pointer" : "default", background: cur === v ? TV.text : "transparent", color: cur === v ? "#fff" : TV.text, fontFamily: TV_FONT }}>{String(v).replace(".", ",")}%</button>; })}
             <span style={{ fontSize: 11, color: TV.muted, padding: "0 4px" }}>{R.selTr ? R.selTr.lots.toFixed(2) + " lot" : ""}</span>
           </div>
           <div ref={barRef} style={{ position: "absolute", display: "none", zIndex: 8, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.15)", padding: 3, gap: 2, alignItems: "center" }}>
@@ -2699,12 +2705,12 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             {indList.filter(([n]) => indFav.includes(n)).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, pointerEvents: "auto" }}>
               {indList.filter(([n]) => indFav.includes(n)).map(([n, on, fn]) => <span key={n} onClick={() => fn(!on)} title={on ? "Masquer" : "Afficher"} style={{ cursor: "pointer", fontSize: 12, padding: "1px 7px", borderRadius: 4, border: `1px solid ${TV.border}`, background: "#fff", color: on ? TV.text : TV.muted, textDecoration: on ? "none" : "line-through", userSelect: "none" }}>{on ? <Eye size={12} style={{ verticalAlign: "-1px" }} /> : <EyeOff size={12} style={{ verticalAlign: "-1px" }} />} {n}</span>)}
             </div>}
-            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, pointerEvents: "auto" }}>
+            {cfg.showBS && <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, pointerEvents: "auto" }}>
               {priceBox(-1)}
               <TvTick ms={400} render={() => { const d = autoDist(); const L = tvLots(balance(), R.cfg.risk, d), rk = L * (d + TV_SPREAD) * TV_PIPVAL;
                 return <div title={`Calcul automatique : ${String(R.cfg.risk).replace(".", ",")} % de ${Math.round(balance())} $ · SL ${d.toFixed(1)} pips (+${TV_SPREAD} spread) · 1 lot = ${TV_PIPVAL} $/pip`} style={{ textAlign: "center", fontSize: 11, color: TV.muted, minWidth: 54, lineHeight: 1.25, background: "rgba(255,255,255,0.92)", borderRadius: 4, padding: "1px 3px" }}><b style={{ color: TV.text }}>{String(R.cfg.risk).replace(".", ",")} %</b><br /><b style={{ color: TV.blue }}>{L.toFixed(2)} lot</b><br />{Math.round(rk)} $</div>; }} />
               {priceBox(1)}
-            </div>
+            </div>}
           </div>
           {/* barre de replay compacte et déplaçable */}
           <div style={{ position: "absolute", ...(barPos ? { left: barPos.x, top: barPos.y } : { left: "50%", bottom: 42, transform: "translateX(-50%)" }), zIndex: 5, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 0, padding: "2px 4px", whiteSpace: "nowrap" }}>
@@ -2958,6 +2964,7 @@ function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], on
           <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BARRES</div>
           {tvChk(!!d.favTop, (v) => set((n) => { n.favTop = v; }), "Barre de favoris en haut (sinon barre flottante que tu peux déplacer)")}
           {tvChk(d.logo !== false, (v) => set((n) => { n.logo = v; }), "Logo devant le nom de la paire (EURUSD)")}
+          {tvChk(!!d.showBS, (v) => set((n) => { n.showBS = v; }), "Boutons SELL / BUY sur les graphiques (sinon : outils Position longue / courte, ou Maj+B / Maj+S)")}
           {tvChk(d.bsUndo !== false, (v) => set((n) => { n.bsUndo = v; }), "Touche Retour arrière (⌫) : efface le dernier dessin posé, puis le précédent…")}
           <div style={{ height: 10 }} />
           <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BOUGIES</div>
@@ -3045,7 +3052,7 @@ function TvLegend({ R }) {
 
 /* graphique secondaire synchronisé sur le replay (autre timeframe), comme les dispositions de TradingView */
 function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R, onActivate }) {
-  const box = useRef(null), cv = useRef(null), S = useRef({}).current; S.tz = tz; S.rows = rows; S.R = R; S.min = min;
+  const box = useRef(null), cv = useRef(null), S = useRef({}).current; S.tz = tz; S.rows = rows; S.R = R; S.min = min; const [, bumpM] = useState(0); S.bump = () => bumpM((x) => x + 1);
   useEffect(() => { if (R.active === S && R.setStepX) R.setStepX(min); }, [min]);
   /* graphique commun : mêmes rectangles, lignes et positions que le graphique principal */
   const xOf = (tt) => { const A = S.A; if (!A || !S.rows || S.k == null) return null; const ts = S.ch.timeScale();
@@ -3057,6 +3064,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const c = cv.current, el = box.current; if (!c || !el || !S.se || !S.A) return; const w = el.clientWidth, h = el.clientHeight, dpr = window.devicePixelRatio || 1;
     if (c.width !== w * dpr || c.height !== h * dpr) { c.width = w * dpr; c.height = h * dpr; c.style.width = w + "px"; c.style.height = h + "px"; }
     const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h); const cw = w - 60; const y = (p) => S.se.priceToCoordinate(p);
+    try { S.syncLines(); } catch (e) {}
     const RR = S.R || {}; const now = S.rows ? S.rows[ci][0] : 0;
     g.save(); g.beginPath(); g.rect(0, 0, cw, h - 26); g.clip();
     { const K = (S.R && S.R.cfg && S.R.cfg.kz) || null; const A = S.A; const ts = S.ch.timeScale(), lr = ts.getVisibleLogicalRange();
@@ -3072,6 +3080,16 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
             const loc = t + tvNyOff(t), m = Math.floor((((loc % 86400) + 86400) % 86400) / 60);
             if (inS(m, s2)) { if (run && i === run.i1 + 1 && t - run.t1 < 6 * 3600) { run.i1 = i; run.t1 = t; run.h = Math.max(run.h, bar.high); run.l = Math.min(run.l, bar.low); } else { flush(); run = { i0: i, i1: i, t1: t, h: bar.high, l: bar.low }; } } else flush(); }
           flush(); } } }
+    if (RR.drawStructX && RR.cfg && RR.cfg.st && S.A && S.k != null) { try { S.stCache = S.stCache || {}; RR.drawStructX(g, cw, h - 26, { A: S.A, k: S.k, live: () => S.A.bars[S.k], ts: S.ch.timeScale(), pToY: (pp) => y(pp), cache: S.stCache }); } catch (e) {} }
+    if (RR.cfg && RR.cfg.miss && RR.missAll && RR.missListX) { try { for (const m of RR.missListX()) { const xa = xOf(m.formT), xb = xOf(Math.min(m.tOut, now)); if (xa == null && xb == null) continue; const X1 = xa ?? 0, X2 = Math.max(X1 + 6, xb ?? cw), y1 = y(m.top), y2 = y(m.bot); if (y1 == null || y2 == null) continue;
+      g.fillStyle = "rgba(255,152,0,0.10)"; g.fillRect(X1, Math.min(y1, y2), X2 - X1, Math.abs(y2 - y1)); g.setLineDash([4, 3]); g.strokeStyle = "#ff9800"; g.strokeRect(X1, Math.min(y1, y2), X2 - X1, Math.abs(y2 - y1)); g.setLineDash([]);
+      g.font = "11px " + TV_FONT; g.fillStyle = "#e65100"; g.fillText(`Manqué ${m.kind === "BB" ? "Breaker" : m.kind} ${m.tf}`, X1 + 3, Math.min(y1, y2) - 3); } } catch (e) {} }
+    if (RR.drawLevelsX && RR.cfg && RR.cfg.lv) { try { RR.drawLevelsX(g, cw, h - 26, { tToX: (t) => xOf(t), pToY: (pp) => y(pp) }); } catch (e) {} }
+    if (RR.newsListX && RR.cfg && (RR.cfg.news || RR.cfg.cpi || RR.cfg.fomc) && S.min <= 1440) { const on = { NFP: !!RR.cfg.news, CPI: !!RR.cfg.cpi, FOMC: !!RR.cfg.fomc }; g.font = "600 10px " + TV_FONT;
+      for (const ev of RR.newsListX()) { if (!on[ev.n] || ev.t - 86400 > now) continue; const x = xOf(ev.t); if (x == null || x < -cw || x > cw * 2) continue; const col = TV_NEWS_COL[ev.n];
+        if (S.min <= 240 && S.A) { const xa = xOf(ev.t - 86400); let hi = -1e9, lo = 1e9; for (let q = Math.max(0, tvBsBars(S.A.bars, ev.t - 86400)); q <= Math.min(S.k, tvBsBars(S.A.bars, Math.min(ev.t, now))); q++) { const bb = S.A.bars[q]; if (!bb) continue; if (bb.high > hi) hi = bb.high; if (bb.low < lo) lo = bb.low; }
+          if (xa != null && hi > lo) { const ya = y(hi), yb = y(lo), xb = Math.min(x, xOf(now) ?? x); if (ya != null && yb != null) { g.fillStyle = tvRgba(col, 0.08); g.fillRect(xa, ya, xb - xa, yb - ya); g.strokeStyle = tvRgba(col, 0.5); g.strokeRect(xa, ya, xb - xa, yb - ya); g.fillStyle = "#9c27b0"; g.font = "11px " + TV_FONT; g.fillText(ev.n + " J-1", xa + 2, ya - 4); g.font = "600 10px " + TV_FONT; } } }
+        g.globalAlpha = ev.t > now ? 0.55 : 1; g.strokeStyle = col; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(Math.round(x) + 0.5, 18); g.lineTo(Math.round(x) + 0.5, h - 26); g.stroke(); g.setLineDash([]); g.fillStyle = col; g.fillText(ev.n, x - g.measureText(ev.n).width / 2, 30); g.globalAlpha = 1; } }
     const list = S.pend ? [...(RR.draws || []), S.pend] : RR.draws || [];
     list.forEach((d, di) => {
       if (!d.pts || !d.pts.length || d.type === "measure") return; const selD = di === RR.sel || d === S.pend; const col = d.color || (d.kind && ((typeof TV_ZONE !== "undefined" && TV_ZONE[d.kind]) || (typeof TV_LIQ !== "undefined" && TV_LIQ[d.kind]) || (typeof TV_STRUCT !== "undefined" && TV_STRUCT[d.kind]))) || TV.blue;
@@ -3094,6 +3112,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
         if (!d.noTrend && PP.every((q) => q.x != null && q.y != null)) { g.setLineDash([4, 3]); g.strokeStyle = "#787b86"; g.lineWidth = 1; g.beginPath(); PP.forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y))); g.stroke(); }
         g.setLineDash([]); g.lineWidth = d.w || 1; fnt(11);
         for (const [v, lc] of lv) { const pr = lvl(v), yy = y(pr); if (yy == null) continue; g.strokeStyle = lc; ln(xl, yy, xr, yy); g.fillStyle = lc; g.fillText(`${v} (${pr.toFixed(TV_DIG)})`, xr + 4, yy + 4); } }
+      else if (T === "label") { const xx = xOf(a.t), yy = y(a.p); if (xx == null || yy == null) return; g.font = "12px " + TV_FONT; const txt = d.text || a.p.toFixed(TV_DIG); const w = g.measureText(txt).width + 14; g.setLineDash([]); g.fillStyle = d.color || TV.blue; g.beginPath(); g.moveTo(xx, yy); g.lineTo(xx + 8, yy - 11); g.lineTo(xx + 8 + w, yy - 11); g.lineTo(xx + 8 + w, yy + 11); g.lineTo(xx + 8, yy + 11); g.closePath(); g.fill(); g.fillStyle = "#fff"; g.fillText(txt, xx + 15, yy + 4); }
       else if (T === "text" && d.text) { const xx = xOf(a.t), yy = y(a.p); if (xx == null || yy == null) return; g.font = "13px " + TV_FONT; g.fillStyle = d.color || TV.text; g.fillText(d.text, xx, yy); }
       else if ((T === "trend" || T === "ray" || T === "ext") && b) { const [p1, p2] = PP; if (p1.x == null || p2.x == null || p1.y == null || p2.y == null) return; let A1 = p1, A2 = p2;
         if (T !== "trend" && (p2.x !== p1.x || p2.y !== p1.y)) { const dx = p2.x - p1.x, dy = p2.y - p1.y, L = 4000 / Math.hypot(dx, dy); A2 = { x: p2.x + dx * L, y: p2.y + dy * L }; if (T === "ext") A1 = { x: p1.x - dx * L, y: p1.y - dy * L }; }
@@ -3113,6 +3132,7 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
           if (xa != null && xb != null && ya2 != null && yb2 != null) { const xm = (xa + xb) / 2, ym = (ya2 + yb2) / 2; g.setLineDash([2, 3]); g.strokeStyle = TV.blue; g.beginPath(); g.moveTo(xa, ym); g.lineTo(xb, ym); g.stroke(); g.setLineDash([]);
             for (const [sx, sy] of [[xm, ya2], [xm, yb2], [xa, ym], [xb, ym]]) { g.fillStyle = "#fff"; g.strokeStyle = TV.blue; g.fillRect(sx - 4, sy - 4, 8, 8); g.strokeRect(sx - 4, sy - 4, 8, 8); } } } }
     });
+    S.trBoxes = []; S.trBar = null;
     for (const tr of RR.trades || []) { /* positions : même boîte que le graphique principal (même durée), suit en direct */
       if (tr.status === "closed" && (!RR.cfg.showClosed || tr.hidden)) continue; if (tr.status === "closed" && tr.closeT < now - 30 * 86400) continue;
       const sp = RR.trSpan ? RR.trSpan(tr) : { t1: tr.openT || tr.placedT, t2: now }; if (sp.t1 == null) continue;
@@ -3122,11 +3142,19 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
       if (ys != null) { g.fillStyle = "rgba(242,54,69,0.18)"; g.fillRect(X1, Math.min(ye, ys), X2 - X1, Math.abs(ys - ye)); }
       if (tr.status === "pending") { g.setLineDash([4, 3]); }
       g.strokeStyle = TV.text; g.lineWidth = 1; g.beginPath(); g.moveTo(X1, Math.round(ye) + 0.5); g.lineTo(X2, Math.round(ye) + 0.5); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
-      const act = (S.tdrag && S.tdrag.tr === tr) || (RR.drag && RR.drag.tr === tr) || RR.selTr === tr;
-      if (act && yt != null && ys != null) { const dTp = Math.abs(tr.tp - tr.entry), dSl = Math.abs(tr.sl - tr.entry) || 1e-9; const txt = `RR ${(dTp / dSl).toFixed(2).replace(".", ",")}  ·  ${tr.lots.toFixed(2)} lot`;
-        g.font = "600 12px " + TV_FONT; const w = Math.round(g.measureText(txt).width + 14), xm = Math.round(Math.max(4, Math.min(cw - w - 4, (X1 + X2) / 2 - w / 2))), yy = Math.round(ye + 8);
-        g.fillStyle = "#131722"; g.beginPath(); if (g.roundRect) g.roundRect(xm, yy, w, 20, 4); else g.rect(xm, yy, w, 20); g.fill(); g.fillStyle = "#fff"; g.fillText(txt, xm + 7, yy + 14); }
+      S.trBoxes.push({ tr, X1, X2, ye, ys, yt });
+      const dragging = (S.tdrag && S.tdrag.tr === tr) || (RR.drag && RR.drag.tr === tr), sel = RR.selTr === tr, hov = S.mouse && S.mouse.x >= X1 - 6 && S.mouse.x <= X2 + 6 && ys != null && yt != null && S.mouse.y >= Math.min(ys, yt) - 8 && S.mouse.y <= Math.max(ys, yt) + 8;
+      if (sel && ys != null && yt != null) { g.strokeStyle = TV.blue; g.setLineDash([3, 3]); g.strokeRect(X1 + 0.5, Math.round(Math.min(ys, yt)) + 0.5, X2 - X1, Math.round(Math.abs(ys - yt))); g.setLineDash([]);
+        for (const [hx, hy, sq] of [[X1, yt, 1], [X1, ys, 1], [X1, ye, 0], [X2, ye, 0]]) { g.fillStyle = "#fff"; g.strokeStyle = TV.blue; g.lineWidth = 1.5; g.beginPath(); if (sq) g.rect(Math.round(hx) - 5, Math.round(hy) - 5, 10, 10); else g.arc(hx, hy, 5, 0, 7); g.fill(); g.stroke(); } g.lineWidth = 1;
+        S.trBar = { x: X1, y: Math.max(ys, yt) + 10, tr }; }
+      const lab2 = (lines, yA, bg, below) => { g.font = "12px " + TV_FONT; const w = Math.round(Math.max(...lines.map((l) => g.measureText(l).width)) + 14), hh = lines.length * 16 + 6, xm = Math.round(Math.max(4, Math.min(cw - w - 4, (X1 + X2) / 2 - w / 2))), y0 = Math.round(below ? yA + 8 : yA - 8 - hh);
+        g.fillStyle = bg; g.beginPath(); if (g.roundRect) g.roundRect(xm, y0, w, hh, 4); else g.rect(xm, y0, w, hh); g.fill(); g.fillStyle = "#fff"; lines.forEach((l, i) => g.fillText(l, xm + 7, y0 + 15 + i * 16)); };
+      if ((dragging || sel || hov) && yt != null && ys != null) { const dTp = Math.abs(tr.tp - tr.entry), dSl = Math.abs(tr.sl - tr.entry) || 1e-9, rr = (dTp / dSl).toFixed(2).replace(".", ","), up = tr.side > 0, usd = (d) => ((d / TV_PIP) * TV_PIPVAL * tr.lots).toFixed(2);
+        if (dragging) { const k2 = (S.tdrag || RR.drag).kind; lab2([`RR ${rr}  ·  ${tr.lots.toFixed(2)} lot`], k2 === "sl" ? ys : k2 === "tp" ? yt : ye, k2 === "sl" ? TV.red : k2 === "tp" ? TV.green : "#131722", k2 === "sl" ? up : k2 === "tp" ? !up : true); }
+        else { lab2([`Cible: ${(dTp / TV_PIP).toFixed(1)} pips, ${usd(dTp)} $`], up ? Math.min(yt, ye) : Math.max(yt, ye), TV.green, !up); lab2([`Stop: ${(dSl / TV_PIP).toFixed(1)} pips, ${usd(dSl)} $`], up ? Math.max(ys, ye) : Math.min(ys, ye), TV.red, up);
+          lab2([`#${tr.no || ""} · ${tr.status === "pending" ? "En attente" : closed ? "Fermé" : "Ouvert"} · ${tr.lots.toFixed(2)} lot · RR ${rr}`], ye - 2, tr.status === "pending" ? "#787b86" : "#131722", true); } }
     }
+    { const kb = S.trBar ? S.trBar.tr.id + ":" + Math.round(S.trBar.x) + ":" + Math.round(S.trBar.y) : ""; if (kb !== S.trBarKey) { S.trBarKey = kb; setTimeout(() => S.bump && S.bump(), 0); } }
     g.restore();
   };
   /* un seul dessin par image, et seulement si quelque chose a changé */
@@ -3135,12 +3163,16 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const xs = d.pts.map((q) => xOf(q.t)).filter((v) => v != null), ys = d.pts.map((q) => S.se.priceToCoordinate(q.p)).filter((v) => v != null); if (!ys.length) return null;
     const cx = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : el.clientWidth / 2; const top = Math.min(...ys);
     return { x: Math.max(4, Math.min(ro.width - 300, cx - 140)) + ro.left - rh.left, y: Math.max(40, top - 48) + ro.top - rh.top }; };
+  /* étiquettes de prix entrée / SL / TP sur l'échelle : mises à jour en direct (aussi pendant un glisser) */
+  S.syncLines = () => { if (!S.se) return; const T = ((S.R && S.R.trades) || []).filter((t) => t.status !== "closed"); const sig = T.map((t) => [t.entry, t.sl, t.tp].join()).join("|"); if (sig === S.sig) return; S.sig = sig;
+    if (S.lines && S.lines.length === T.length * 3) { let i = 0; for (const t of T) for (const pr of [t.entry, t.sl, t.tp]) S.lines[i++].applyOptions({ price: pr }); return; }
+    (S.lines || []).forEach((l) => S.se.removePriceLine(l)); S.lines = []; for (const t of T) [[t.entry, "#787b86"], [t.sl, TV.red], [t.tp, TV.green]].forEach(([pr, c]) => S.lines.push(S.se.createPriceLine({ price: pr, color: c, lineWidth: 1, lineStyle: 2, axisLabelVisible: true }))); };
   S.redraw = () => { if (S.raf) return; S.raf = requestAnimationFrame(() => { S.raf = 0; redraw(); }); };
   useEffect(() => {
     const ch = createChart(box.current, { autoSize: true, layout: { background: { color: TV.bg }, textColor: TV.text, fontSize: 11, fontFamily: TV_FONT }, grid: { vertLines: { visible: false }, horzLines: { visible: false } }, crosshair: { mode: 0 }, rightPriceScale: { borderColor: TV.border, scaleMargins: { top: 0.12, bottom: 0.08 } }, timeScale: { borderColor: TV.border, timeVisible: true, rightOffset: 10, barSpacing: 6, tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }, localization: { locale: "fr-FR", timeFormatter: (t) => tvFmtTime(t, S.tz, "full") } });
     S.ch = ch; S.se = ch.addCandlestickSeries({ priceLineVisible: false, upColor: cfg.up, downColor: cfg.down, borderUpColor: cfg.down, borderDownColor: cfg.down, wickUpColor: cfg.down, wickDownColor: cfg.down, priceFormat: { type: "price", precision: TV_DIG, minMove: 0.00001 } });
     ch.timeScale().subscribeVisibleLogicalRangeChange(() => { S.redraw && S.redraw(); if (S.R && S.R.selOn === S) S.R.dirty = true; });
-    const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci; for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || "") + (x.color || "") + (x.w || "") + (x.dash ? 1 : 0) + (x.op ?? "") + (x.noZone ? 1 : 0) + (x.noTrend ? 1 : 0) + (x.lv ? JSON.stringify(x.lv) : "") + (x.text || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp + x.entry + (x.anchorT || 0) + (x.endT || 0) + x.lots + (RR.selTr === x ? "S" : "") + (RR.drag && RR.drag.tr === x ? "D" : ""); return s; };
+    const sigOf = () => { const RR = S.R || {}; const d = RR.draws || []; let s = d.length + "|" + (RR.trades || []).length + "|" + ci + "|" + RR.sel + (RR.selOn === S ? "o" : ""); for (const x of d) s += (x.pts || []).map((q) => q.t + "," + q.p).join(";") + (x.kind || "") + (x.color || "") + (x.w || "") + (x.dash ? 1 : 0) + (x.op ?? "") + (x.noZone ? 1 : 0) + (x.noTrend ? 1 : 0) + (x.lv ? JSON.stringify(x.lv) : "") + (x.text || ""); for (const x of RR.trades || []) s += x.status + x.sl + x.tp + x.entry + (x.anchorT || 0) + (x.endT || 0) + x.lots + (RR.selTr === x ? "S" : "") + (RR.drag && RR.drag.tr === x ? "D" : ""); return s; };
     const iv = setInterval(() => { const sg = sigOf(); if (sg !== S.lastSig) { S.lastSig = sg; S.redraw(); } }, 400);
     let vraf = 0; const vloop = () => { try { const v = S.se ? S.se.coordinateToPrice(0) + "|" + S.se.coordinateToPrice(400) : ""; if (v !== S.vSig) { S.vSig = v; redraw(); if (S.R && S.R.selOn === S) S.R.dirty = true; } } catch (e) {} vraf = requestAnimationFrame(vloop); }; vloop();
     /* le graphique principal prévient ce graphique à chaque modification : affichage instantané des deux côtés */
@@ -3160,7 +3192,9 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     const el = box.current;
     const xToT = (x) => { const A = S.A; if (!A) return null; const lg = Math.round(ch.timeScale().coordinateToLogical(x)); if (lg <= S.k) return A.bars[Math.max(0, lg)].time; return A.bars[S.k].time + (lg - S.k) * S.min * 60; };
     const P = (e) => { const r = el.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    const pt = (p) => ({ t: xToT(p.x), p: S.se.coordinateToPrice(p.y) });
+    const pt = (p, force) => { const t = xToT(p.x); let pr = S.se.coordinateToPrice(p.y); const RR = S.R || {};
+      if ((RR.magnet || force) && S.A) { const lg = Math.round(ch.timeScale().coordinateToLogical(p.x)); const bb = lg >= 0 && lg <= S.k ? S.A.bars[lg] : null; if (bb) { let bd = 1e9; for (const v of [bb.open, bb.high, bb.low, bb.close]) { const yy = S.se.priceToCoordinate(v); if (yy == null) continue; const dd = Math.abs(yy - p.y); if (dd < bd) { bd = dd; pr = v; } } } }
+      return { t, p: pr }; };
     const hit = (p) => { const RR = S.R; let best = null; (RR.draws || []).forEach((d, i) => { if (!d.pts || RR.hidden) return; const a = d.pts[0], b = d.pts[1]; const ya = S.se.priceToCoordinate(a.p);
         if (d.type === "rect" && b) { const x1 = xOf(Math.min(a.t, b.t)) ?? 0, x2 = xOf(Math.max(a.t, b.t)) ?? el.clientWidth, y1 = Math.min(ya, S.se.priceToCoordinate(b.p)), y2 = Math.max(ya, S.se.priceToCoordinate(b.p));
           const corner = [[0, 0], [1, 0], [0, 1], [1, 1]].find(([cx, cy]) => Math.abs(p.x - (cx ? x2 : x1)) < 8 && Math.abs(p.y - (cy ? y2 : y1)) < 8);
@@ -3178,13 +3212,16 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
       return best; };
     const down = (e) => {
       const RR = S.R; if (!RR || !S.A || e.button !== 0) return; const p = P(e); if (p.x > el.clientWidth - 60 || p.y > el.clientHeight - 26) return;
-      const tool = RR.tool || "cursor", def = TV_TOOLS[tool] || {}; const q = pt(p); if (q.t == null || q.p == null) return;
+      const tool = RR.tool || "cursor", def = TV_TOOLS[tool] || {}; const q = pt(p, e.ctrlKey && tool !== "cursor"); if (q.t == null || q.p == null) return;
       if (RR.active !== S) { RR.active = S; RR.setStepX && RR.setStepX(S.min); RR.sel = -1; RR.selOn = null; if (RR.minis) RR.minis.forEach((m) => m.redraw()); RR.dirty = true; RR.rerenderX && RR.rerenderX(); if (tool !== "cursor") { e.stopPropagation(); e.preventDefault(); return; } }
       if (tool === "cursor") {
         for (const tr of RR.trades || []) { if (tr.status === "closed" || !RR.api || !RR.api.adjST) continue; 
           const kk = [["sl", tr.sl], ["tp", tr.tp], ["entry", tr.entry]].find(([, v]) => { const yy = S.se.priceToCoordinate(v); return yy != null && Math.abs(p.y - yy) < 6; });
-          if (kk) { e.stopPropagation(); e.preventDefault(); S.tdrag = { tr, kind: kk[0] }; el.style.cursor = "ns-resize"; return; } }
-        const h = hit(p); if (!h) { if (RR.sel !== -1) { RR.sel = -1; RR.rerenderX && RR.rerenderX(); } return; }
+          if (kk) { e.stopPropagation(); e.preventDefault(); RR.selTr = tr; RR.selOn = S; S.tdrag = { tr, kind: kk[0] }; el.style.cursor = "ns-resize"; RR.dirty = true; return; } }
+        const tb = (S.trBoxes || []).find((b) => b.ys != null && b.yt != null && p.x >= b.X1 - 4 && p.x <= b.X2 + 4 && p.y >= Math.min(b.ys, b.yt) - 4 && p.y <= Math.max(b.ys, b.yt) + 4);
+        if (tb) { e.stopPropagation(); e.preventDefault(); RR.selTr = tb.tr; RR.sel = -1; RR.selOn = S; if (tb.tr.status === "pending") S.tdrag = { tr: tb.tr, kind: "entry" }; RR.dirty = true; RR.rerenderX && RR.rerenderX(); S.redraw(); return; }
+        const h = hit(p); if (!h) { if (RR.sel !== -1 || RR.selTr) { RR.sel = -1; RR.selTr = null; RR.selOn = null; RR.dirty = true; RR.rerenderX && RR.rerenderX(); } S.redraw(); if (RR.minis) RR.minis.forEach((m) => m !== S && m.redraw()); return; }
+        RR.selTr = null;
         e.stopPropagation(); e.preventDefault(); RR.sel = h.i; RR.selOn = S; S.drag = { ...h, q0: q, orig: JSON.parse(JSON.stringify(RR.draws[h.i])) }; RR.rerenderX && RR.rerenderX(); S.redraw(); return;
       }
       e.stopPropagation(); e.preventDefault(); const as = def.as || tool;
@@ -3192,10 +3229,18 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
       if (tool === "text") { const txt = window.prompt("Texte :", "Texte"); if (!txt) return; RR.draws.push({ type: "text", text: txt, pts: [q] }); RR.sel = RR.draws.length - 1; RR.selOn = S; RR.redo = []; if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
       if (def.mode === 1 && ["hline", "hray"].includes(as)) { const kd = def.kind || (tool === "hray" && RR.rayKind !== "none" ? RR.rayKind : undefined) || (tool === "hline" && RR.lineKind !== "none" ? RR.lineKind : undefined); RR.draws.push({ type: as, kind: kd, pts: [q] }); RR.sel = RR.draws.length - 1; RR.selOn = S; RR.redo = []; if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
       if (def.mode === 2 && ["rect", "trend", "ray", "ext", "fib"].includes(as)) { const kd = def.kind || (as === "rect" && RR.rectKind !== "none" ? RR.rectKind : undefined); S.pend = { type: as, kind: kd, tf: kd ? TV_TFLAB[S.min] : undefined, pts: [q, { ...q }] }; S.redraw(); return; }
+      /* tous les autres outils, comme sur le graphique de gauche */
+      const kd2 = def.kind || (as === "rect" && RR.rectKind !== "none" ? RR.rectKind : undefined) || (as === "hray" && RR.rayKind !== "none" ? RR.rayKind : undefined) || (as === "trend" && RR.lineKind !== "none" ? RR.lineKind : undefined);
+      if (S.pend && S.pend.clicks) { const P2 = S.pend.pts; P2[P2.length - 1] = q; if (def.mode === 3 && P2.length >= 3) { const sh = S.pend; S.pend = null; S.commit(sh); return; } P2.push({ ...q }); S.redraw(); return; }
+      if (def.mode === 1) { const d = { type: as, kind: kd2, pts: [q] }; if (as === "label") d.text = q.p.toFixed(TV_DIG); S.commit(d); return; }
+      if (def.mode === "free") { S.pend = { type: as, pts: [q], free: true }; S.redraw(); return; }
+      if (def.mode === 3 || def.mode === "multi") { S.pend = { type: as, kind: kd2, pts: [q, { ...q }], clicks: true }; S.redraw(); return; }
+      if (def.mode === 2) { S.pend = { type: as, kind: kd2, tf: kd2 ? TV_TFLAB[S.min] : undefined, pts: [q, { ...q }] }; if (as === "channel") S.pend.off = -20 * TV_PIP; S.redraw(); return; }
     };
     const move = (e) => {
       const RR = S.R; if (!RR) return; const p = P(e);
-      if (S.pend) { const q = pt(p); if (q.t != null && q.p != null) S.pend.pts[1] = q; S.redraw(); e.stopPropagation(); return; }
+      if (e.target === el || el.contains(e.target)) { const was = S.mouse; S.mouse = p; const inB = (q) => q && (S.trBoxes || []).some((b) => b.ys != null && q.x >= b.X1 - 6 && q.x <= b.X2 + 6 && q.y >= Math.min(b.ys, b.yt) - 8 && q.y <= Math.max(b.ys, b.yt) + 8); if (inB(p) || inB(was)) S.redraw(); } else if (S.mouse) { S.mouse = null; S.redraw(); }
+      if (S.pend) { const q = pt(p); if (q.t != null && q.p != null) { if (S.pend.free) S.pend.pts.push(q); else S.pend.pts[S.pend.pts.length - 1] = q; } S.redraw(); e.stopPropagation(); return; }
       if (S.tdrag) { e.stopPropagation(); e.preventDefault(); const pr = S.se.coordinateToPrice(p.y); if (pr != null) { RR.api.adjST(S.tdrag.tr, S.tdrag.kind, pr); S.redraw(); RR.rerenderX && RR.rerenderX(); } return; }
       if (S.drag) { e.stopPropagation(); e.preventDefault(); const q = pt(p); if (q.t == null || q.p == null) return; const D = S.drag, d = RR.draws[D.i], o = D.orig; if (!d) return; const dt = q.t - D.q0.t, dp = q.p - D.q0.p;
         if (D.mode === "move") d.pts = o.pts.map((z) => ({ t: z.t + (d.type === "hline" ? 0 : dt), p: z.p + dp }));
@@ -3208,14 +3253,18 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     };
     const up = (e) => {
       const RR = S.R; if (!RR) return;
-      if (S.pend) { const s = S.pend; S.pend = null; const a = s.pts[0], b = s.pts[1]; if (a.t !== b.t || Math.abs(a.p - b.p) > 1e-6) { RR.draws.push(s); RR.sel = RR.draws.length - 1; RR.selOn = S; RR.redo = []; } if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
+      if (S.pend && S.pend.clicks) return;
+      if (S.pend && S.pend.free) { const s = S.pend; S.pend = null; if (s.pts.length > 1) S.commit(s); else S.redraw(); return; }
+      if (S.pend) { const s = S.pend; S.pend = null; const a = s.pts[0], b = s.pts[1]; if (s.type === "measure") { S.redraw(); if (!RR.stay) RR.setToolX("cursor"); return; } if (a.t !== b.t || Math.abs(a.p - b.p) > 1e-6) { RR.draws.push(s); RR.sel = RR.draws.length - 1; RR.selOn = S; RR.redo = []; } if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); return; }
       if (S.tdrag) { S.tdrag = null; el.style.cursor = ""; RR.dirty = true; RR.rerenderX(); S.redraw(); }
       if (S.drag) { S.drag = null; RR.dirty = true; RR.rerenderX(); S.redraw(); }
       RR.dirty = true;
     };
-    const dblM = (e) => { const RR = S.R; if (!RR || !S.A) return; const h = hit(P(e)); if (h && RR.openSet) { e.stopPropagation(); RR.sel = h.i; RR.selOn = S; RR.openSet(h.i); } }; el.addEventListener("dblclick", dblM, true);
+    S.commit = (d) => { const RR = S.R; if (!RR) return; if (d.type !== "measure") { RR.draws.push(d); RR.sel = RR.draws.length - 1; RR.selOn = S; RR.redo = []; } if (!RR.stay) RR.setToolX("cursor"); RR.dirty = true; RR.rerenderX(); S.redraw(); if (RR.minis) RR.minis.forEach((m) => m !== S && m.redraw()); };
+    const dblM = (e) => { const RR = S.R; if (!RR || !S.A) return; if (S.pend && S.pend.clicks) { e.stopPropagation(); const sh = S.pend; S.pend = null; sh.pts.pop(); if (sh.pts.length > 2 && sh.pts[sh.pts.length - 1].t === sh.pts[sh.pts.length - 2].t) sh.pts.pop(); if (sh.pts.length >= 2) S.commit(sh); return; } const h = hit(P(e)); if (h && RR.openSet) { e.stopPropagation(); RR.sel = h.i; RR.selOn = S; RR.openSet(h.i); } }; el.addEventListener("dblclick", dblM, true);
+    const keyM = (e) => { if (!S.pend || !S.pend.clicks) return; if (e.key === "Enter") { const sh = S.pend; S.pend = null; sh.pts.pop(); if (sh.pts.length >= 2) S.commit(sh); else S.redraw(); } else if (e.key === "Escape") { S.pend = null; S.redraw(); } }; window.addEventListener("keydown", keyM, true);
     el.addEventListener("mousedown", down, true); window.addEventListener("mousemove", move, true); window.addEventListener("mouseup", up, true);
-    S.unbind = () => { el.removeEventListener("dblclick", dblM, true); el.removeEventListener("mousedown", down, true); window.removeEventListener("mousemove", move, true); window.removeEventListener("mouseup", up, true); };
+    S.unbind = () => { window.removeEventListener("keydown", keyM, true); el.removeEventListener("dblclick", dblM, true); el.removeEventListener("mousedown", down, true); window.removeEventListener("mousemove", move, true); window.removeEventListener("mouseup", up, true); };
     return () => { cancelAnimationFrame(vraf); if (mainCh) try { mainCh.timeScale().unsubscribeVisibleLogicalRangeChange(fromMain); } catch (e) {} if (S.R && S.R.minis) S.R.minis.delete(S); if (S.R && S.R.active === S) S.R.active = null; S.unbind && S.unbind(); clearInterval(iv); if (mainCh) try { mainCh.unsubscribeCrosshairMove(toMiniT); } catch (e) {} ch.remove(); S.se = null; S.A = null; };
   }, []);
   useEffect(() => { if (S.ch) S.ch.timeScale().applyOptions({ tickMarkFormatter: (t, ty) => tvFmtTime(t, S.tz, ty) }); }, [blind, tz]);
@@ -3226,19 +3275,24 @@ function TvMini({ pos, rows, ci, getAgg, min, setMin, trades, tz, cfg, blind, R,
     if (S.A !== A || S.k == null || k < S.k || ci < S.ci) { const data = new Array(k + 1); for (let j = 0; j < k; j++) data[j] = bar(A.bars[j]); data[k] = live(); S.se.setData(data); if (S.A !== A) S.ch.timeScale().scrollToRealTime(); }
     else { for (let j = S.k; j < k; j++) S.se.update(bar(A.bars[j])); S.se.update(live()); }
     S.A = A; S.k = k; S.ci = ci;
-    const sig = trades.filter((t) => t.status !== "closed").map((t) => [t.entry, t.sl, t.tp].join()).join("|");
-    if (sig !== S.sig) { S.sig = sig; (S.lines || []).forEach((l) => S.se.removePriceLine(l)); S.lines = [];
-      for (const t of trades) if (t.status !== "closed") [[t.entry, "#787b86"], [t.sl, TV.red], [t.tp, TV.green]].forEach(([p, c]) => S.lines.push(S.se.createPriceLine({ price: p, color: c, lineWidth: 1, lineStyle: 2, axisLabelVisible: true }))); }
+    S.syncLines();
   }, [ci, min, rows, trades.length, trades.map((x) => x.status + x.sl + x.tp).join()]);
   return (
     <div style={{ position: "absolute", ...pos, background: TV.bg, borderLeft: pos.left && pos.left !== 0 ? `4px solid ${TV.hover}` : "none", borderTop: pos.top && pos.top !== 0 ? `4px solid ${TV.hover}` : "none", zIndex: 2 }}>
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
       <canvas ref={cv} style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 2 }} />
       {R.active === S && <div style={{ position: "absolute", inset: 0, border: `2px solid ${TV.blue}`, pointerEvents: "none", zIndex: 4 }} />}
+      {R.selTr && R.selOn === S && S.trBar && S.trBar.tr === R.selTr && R.api && (() => { const t = R.selTr, cur = Math.round((t.riskPct ?? R.cfg.risk) * 10) / 10, b = (on) => ({ border: "none", borderRadius: 4, padding: "3px 7px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: on ? TV.text : "transparent", color: on ? "#fff" : TV.text, fontFamily: TV_FONT });
+        return <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: Math.max(4, S.trBar.x), top: S.trBar.y, zIndex: 6, display: "flex", gap: 2, alignItems: "center", background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", padding: 3 }}>
+          {t.status === "pending" && [0.5, 1, 1.5, 2].map((v) => <button key={v} onClick={() => { R.api.setRiskT(t, v); R.rerenderX(); S.redraw(); }} style={b(cur === v)}>{String(v).replace(".", ",")} %</button>)}
+          {t.status === "open" && <button onClick={() => { R.api.toBE(t); R.rerenderX(); S.redraw(); }} style={b(false)}>BE</button>}
+          <span style={{ fontSize: 11, color: TV.muted, padding: "0 4px" }}>{t.lots.toFixed(2)} lot</span>
+          <button title={t.status === "open" ? "Fermer la position" : "Supprimer l'ordre"} onClick={() => { R.api.closeOne(t); R.selTr = null; R.selOn = null; R.rerenderX(); S.redraw(); }} style={{ ...b(false), color: TV.red }}>✕</button>
+        </div>; })()}
       <div style={{ position: "absolute", left: 8, top: 5, zIndex: 3, display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
         <b style={{ fontWeight: 600 }}>EURUSD ·</b>
         <select value={min} onChange={(e) => setMin(+e.target.value)} style={{ border: `1px solid ${TV.border}`, borderRadius: 4, fontSize: 12, padding: "1px 4px", fontFamily: TV_FONT, background: "#fff" }}>{TV_TFS.map(([n, m]) => <option key={m} value={m}>{n}</option>)}</select>
-        {R.api && R.rows && !blind && [[-1, "SELL", TV.red], [1, "BUY", TV.blue]].map(([sd, n, c]) => <button key={n} onMouseDown={(e) => e.stopPropagation()} onClick={() => { const top = S.se && S.se.coordinateToPrice(0), bot = S.se && box.current ? S.se.coordinateToPrice(box.current.clientHeight - 30) : null; const mkt = R.rows[R.ci][4]; const dist = top != null && bot != null ? Math.max(3 * TV_PIP, Math.round(((top - bot) * 0.1) / TV_PIP) * TV_PIP) : undefined; R.api.order(sd, dist ? { sl: mkt - sd * dist } : {}); R.dirty = true; S.redraw(); }} style={{ border: "none", background: c, color: "#fff", borderRadius: 4, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: TV_FONT }}>{n}</button>)}
+        {R.api && R.rows && !blind && R.cfg && R.cfg.showBS && [[-1, "SELL", TV.red], [1, "BUY", TV.blue]].map(([sd, n, c]) => <button key={n} onMouseDown={(e) => e.stopPropagation()} onClick={() => { const top = S.se && S.se.coordinateToPrice(0), bot = S.se && box.current ? S.se.coordinateToPrice(box.current.clientHeight - 30) : null; const mkt = R.rows[R.ci][4]; const dist = top != null && bot != null ? Math.max(3 * TV_PIP, Math.round(((top - bot) * 0.1) / TV_PIP) * TV_PIP) : undefined; R.api.order(sd, dist ? { sl: mkt - sd * dist } : {}); R.dirty = true; S.redraw(); }} style={{ border: "none", background: c, color: "#fff", borderRadius: 4, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: TV_FONT }}>{n}</button>)}
       </div>
     </div>
   );
