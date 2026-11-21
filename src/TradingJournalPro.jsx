@@ -3858,8 +3858,9 @@ function ErrorsPage({ trades, appSettings, balance = 10000, onOpenTrade }) {
 
 function MobileNav({ view, setView, onNewTrade }) {
   const [more, setMore] = useState(false);
-  const MAIN = [NAV_ITEMS[0], NAV_ITEMS[1], null, NAV_ITEMS.find(i => i.id === "calculator"), NAV_ITEMS.find(i => i.id === "stats")];
+  const MAIN = [NAV_ITEMS[0], NAV_ITEMS[1], null, NAV_ITEMS.find(i => i.id === "stats")];
   const EXTRA = [
+    { id: "calculator", label: "Calculatrice", icon: Calculator },
     { id: "backtest", label: "Backtest", icon: TvLogoIcon },
     { id: "plan", label: "Préparation", icon: BookOpen },
     { id: "coach", label: "IA Coach", icon: Brain },
