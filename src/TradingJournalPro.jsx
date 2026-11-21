@@ -5342,12 +5342,15 @@ function tvSimTrade(t, rows, be) {
 }
 /* trades réels rejoués (règle : BE à 50 % du TP). Un trade compte une seule fois, même rejoué 50 fois : on garde le dernier résultat. */
 function ReplayedCard({ trades }) {
-  const [mode, setMode] = useState("be"); const [unit, setUnit] = useState("usd");
+  const [mode, setMode] = useState("be"); const [unit, setUnit] = useState("usd"); const [one, setOne] = useState(false);
   const list = (trades || []).filter((t) => t.rules?.replay && t.rules.replay[mode]).sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
   if (!(trades || []).some((t) => t.rules?.replay)) return null;
   const col = (v) => (v > 0.5 ? C.teal : v < -0.5 ? C.red : C.textSecondary); const n2 = (v) => Math.abs(v).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   /* une seule conversion pour toutes les cases : $ brut, % du compte ou R (risque $ du trade) */
-  const cv = (t, v) => unit === "pct" ? (accBalanceOf(t.accountId) ? (v / accBalanceOf(t.accountId)) * 100 : 0) : unit === "r" ? (tradeRiskUsd(t) ? v / tradeRiskUsd(t) : 0) : v;
+  /* « 1 % sur chaque trade » : même trade, lots recalculés pour risquer 1 % du compte (risque réel au SL) */
+  const k1 = (t) => { const rk = tradeRiskUsd(t), b = accBalanceOf(t.accountId); return one && rk && b ? (b * 0.01) / rk : 1; };
+  const cv0 = (t, v) => unit === "pct" ? (accBalanceOf(t.accountId) ? (v / accBalanceOf(t.accountId)) * 100 : 0) : unit === "r" ? (tradeRiskUsd(t) ? v / tradeRiskUsd(t) : 0) : v;
+  const cv = (t, v) => cv0(t, unit === "r" ? v : v * k1(t));
   const usd = (v) => (v >= 0 ? "+" : "−") + n2(v) + (unit === "pct" ? " %" : unit === "r" ? " R" : " $");
   const tot = list.reduce((a, t) => { const b = cv(t, Number(t.resultUsd) || 0), sm = cv(t, t.rules.replay[mode].usd || 0); return [a[0] + b, a[1] + sm, a[2] + sm - b]; }, [0, 0, 0]);
   const th = { textAlign: "left", padding: "8px 10px", color: C.textMuted, fontSize: 11.5, fontWeight: 700, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }, td = { padding: "8px 10px", fontSize: 13, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
@@ -5356,7 +5359,8 @@ function ReplayedCard({ trades }) {
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
       <div><div style={{ fontSize: 15, fontWeight: 800 }}>Trades rejoués</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Chaque trade compte une seule fois (dernier replay).</div></div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button style={chip(mode === "be")} onClick={() => setMode("be")}>Avec BE à 50 %</button><button style={chip(mode === "noBE")} onClick={() => setMode("noBE")}>Sans BE</button>
-        <span style={{ width: 1, background: C.border, margin: "0 2px" }} />{[["usd", "$"], ["pct", "%"], ["r", "R"]].map(([k, l]) => <button key={k} style={chip(unit === k)} onClick={() => setUnit(k)}>{l}</button>)}</div>
+        <span style={{ width: 1, background: C.border, margin: "0 2px" }} />{[["usd", "$"], ["pct", "%"], ["r", "R"]].map(([k, l]) => <button key={k} style={chip(unit === k)} onClick={() => setUnit(k)}>{l}</button>)}
+        <span style={{ width: 1, background: C.border, margin: "0 2px" }} /><button style={chip(one)} onClick={() => setOne(!one)} title="Lots recalculés automatiquement pour risquer 1 % du compte sur chaque trade">Si 1 % par trade</button></div>
     </div>
     {list.length === 0 ? <div style={{ fontSize: 12.5, color: C.textMuted }}>Aucun trade rejoué {mode === "noBE" ? "jusqu'au bout sans BE" : ""} pour l'instant.</div> :
     <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%" }}>
@@ -5364,7 +5368,7 @@ function ReplayedCard({ trades }) {
       <tbody>{list.map((t) => { const x = t.rules.replay[mode], b = cv(t, Number(t.resultUsd) || 0), sv = cv(t, x.usd || 0), d = sv - b, rk = tradeRiskUsd(t), pc = tradeRiskPct(t); return <tr key={t.id}>
         <td style={{ ...td, textTransform: "capitalize" }}>{fmtDateTime(t.entryTime)}</td>
         <td style={td}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={16} /><b>{t.pair}</b></span></td>
-        <td className="tnum" style={td}><b>{String(t.positionSize ?? "—").replace(".", ",")}</b> lot{rk ? <span style={{ color: C.textMuted }}> · {Math.round(rk).toLocaleString("fr-FR")} $ risqués{pc != null ? ` (${pc.toFixed(2).replace(".", ",")} %)` : ""}</span> : null}</td>
+        <td className="tnum" style={td}><b>{String(t.positionSize ?? "—").replace(".", ",")}</b> lot{one && k1(t) !== 1 ? <b style={{ color: C.purpleBright }}> → {(Math.floor(Number(t.positionSize) * k1(t) * 100) / 100).toLocaleString("fr-FR")} lot</b> : null}{rk ? <span style={{ color: C.textMuted }}> · {Math.round(rk).toLocaleString("fr-FR")} $ risqués{pc != null ? ` (${pc.toFixed(2).replace(".", ",")} %)` : ""}</span> : null}</td>
         <td className="tnum" style={{ ...td, color: col(b) }}>{usd(b)}</td>
         <td className="tnum" style={{ ...td, color: col(sv) }}><b>{x.out}{mode === "noBE" ? " (NO BE)" : ""}</b> · {usd(sv)}</td>
         <td className="tnum" style={{ ...td, color: col(d), fontWeight: 700 }}>{usd(d)}</td></tr>; })}</tbody>
@@ -6709,7 +6713,6 @@ function SimpleStats({ trades }) {
           </ResponsiveContainer>
         </div>
       </div>}
-      <HourHeatmap trades={closed} useUsd={useUsd} />
       {mistakes.length > 0 && <div style={card}><H>Erreurs fréquentes</H><Table rows={mistakes} /></div>}
       <ReplayedCard trades={trades} />
       <SimCard trades={trades} />
@@ -8087,6 +8090,20 @@ function parseMtReport(text, accountId) {
 /* ===== Import d'une capture « Positions fermées » TradeLocker (OCR local) ===== */
 const TL_SYMS = ["EURUSD","GBPUSD","USDJPY","USDCHF","USDCAD","AUDUSD","NZDUSD","EURGBP","EURJPY","GBPJPY","AUDJPY","CADJPY","CHFJPY","EURCHF","EURAUD","EURCAD","GBPCHF","GBPAUD","GBPCAD","AUDCAD","AUDCHF","AUDNZD","NZDJPY","CADCHF","XAUUSD","XAGUSD","XAUEUR","USOIL","UKOIL","NGAS","NAS100","US30","SPX500","US500","GER40","UK100","FRA40","JPN225","BTCUSD","ETHUSD","LTCUSD"];
 const TL_ALIAS = { SPX500: "US500", "XAUUSD.PRO": "XAUUSD" };
+const TL_BACKFILL = [ /* [paire, entrée EET, sortie EET, type] */
+  ["EURUSD", "2026/11/10 15:41:05", "2026/11/10 17:35:07", "Market"], ["EURUSD", "2026/11/09 10:53:27", "2026/11/09 21:38:34", "Stop Loss"],
+  ["USOIL", "2026/10/29 11:13:35", "2026/10/29 12:35:27", "Stop Loss"], ["USOIL", "2026/10/29 11:15:22", "2026/10/29 11:15:54", "Market"],
+  ["XAUUSD", "2026/10/20 09:30:45", "2026/10/20 09:41:00", "Market"], ["GBPUSD", "2026/10/20 09:26:37", "2026/10/20 09:40:56", "Market"],
+  ["GBPUSD", "2026/10/20 09:25:37", "2026/10/20 09:26:46", "Market"], ["USDCHF", "2026/10/19 19:07:12", "2026/10/19 20:04:44", "Market"],
+  ["EURUSD", "2026/10/19 10:48:31", "2026/10/19 17:25:49", "Market"], ["US500", "2026/10/13 08:49:59", "2026/10/13 14:12:32", "Market"],
+  ["USOIL", "2026/10/13 07:03:33", "2026/10/13 10:46:54", "Market"], ["US500", "2026/10/13 03:43:01", "2026/10/13 08:39:52", "Market"],
+  ["XAUUSD", "2026/10/13 04:05:08", "2026/10/13 08:31:46", "Market"], ["XAUUSD", "2026/10/13 03:58:55", "2026/10/13 04:03:33", "Market"],
+  ["XAUUSD", "2026/10/12 15:59:21", "2026/10/12 17:15:21", "Stop Loss"], ["BTCUSD", "2026/11/21 06:43:38", "2026/11/21 08:33:12", "Market"],
+  ["NAS100", "2026/11/19 11:35:52", "2026/11/19 11:42:56", "Market"], ["USOIL", "2026/11/17 11:18:48", "2026/11/17 12:29:29", "Market"],
+  ["USOIL", "2026/11/12 08:19:21", "2026/11/12 08:22:39", "Market"], ["USOIL", "2026/11/12 08:18:18", "2026/11/12 08:22:36", "Market"],
+  ["EURUSD", "2026/11/10 18:36:35", "2026/11/10 20:29:45", "Stop Loss"], ["EURUSD", "2026/11/10 18:37:38", "2026/11/10 20:28:46", "Stop Loss"],
+  ["GBPUSD", "2026/11/10 15:40:30", "2026/11/10 17:48:23", "Take Profit"],
+];
 /* EET/EEST (heure du serveur TradeLocker) -> ISO UTC */
 function tlEetToIso(y, mo, d, h, mi, s) {
   const guess = Date.UTC(y, mo - 1, d, h, mi, s);
@@ -10692,6 +10709,10 @@ export default function TradingJournalApp() {
   useEffect(() => { const h = (e) => { const d = e.detail || {}; const t = tradesRef.current.find((x) => x.id === d.id); if (!t) return;
       const rp = { ...((t.rules || {}).replay || {}), [d.mode]: { out: d.out, usd: d.usd, r: d.r }, at: Date.now() }; patchTrade(t.id, { rules: { ...(t.rules || {}), replay: rp } }); };
     window.addEventListener("tjp-real-replay", h); return () => window.removeEventListener("tjp-real-replay", h); }, []);
+  /* heure de sortie / type de clôture de tes trades TradeLocker (captures du 21 nov.), perdus avant la synchro : complétés une fois puis gardés dans Supabase */
+  useEffect(() => { if (!trades.length) return; const P = (x) => { const m = x.match(/(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})/); return tlEetToIso(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]); };
+    TL_BACKFILL.forEach(([pair, en, ex, ct]) => { const ei = new Date(P(en)).getTime(); const t = tradesRef.current.find((x) => (TL_ALIAS[x.pair] || x.pair) === pair && Math.abs(new Date(x.entryTime).getTime() - ei) < 90e3); if (!t) return;
+      const pt = {}; if (!t.exitTime) pt.exitTime = P(ex); if (!t.closeType) pt.closeType = ct; if (Object.keys(pt).length) patchTrade(t.id, pt); }); }, [trades.length]);
   const importTrades = (list) => {
     const have = new Set(tradesRef.current.map((t) => t.id)); const now = Date.now();
     /* trades déjà là : on complète ce qui manque (heure de sortie, type de clôture, RR prévu) sans toucher au reste */
