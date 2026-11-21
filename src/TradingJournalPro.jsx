@@ -278,7 +278,7 @@ function fmtDate(iso, opts = {}) {
 }
 function fmtDateTime(iso) {
   const d = new Date(iso);
-  return d.toLocaleDateString("fr-FR", { timeZone: APP_TZ, day: "2-digit", month: "short" }) + " · " +
+  return d.toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" }) + " · " +
     d.toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" });
 }
 function toLocalInput(iso) {
@@ -4668,8 +4668,8 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
               <div key={monthKey} style={{ marginBottom: 16 }}>
                 <button onClick={() => toggleMonth(monthKey)} style={{
                   width: "100%",
-                  background: `linear-gradient(90deg, ${monthR > 0 ? C.tealDim : monthR < 0 ? C.redDim : C.purpleDim}, transparent 70%), ${C.card}`,
-                  border: `1px solid ${C.border}`, borderLeft: `4px solid ${monthR > 0 ? C.teal : monthR < 0 ? C.red : C.purple}`, borderRadius: 16, padding: "14px 18px", marginBottom: isOpen ? 10 : 0,
+                  background: `linear-gradient(90deg, ${C.purpleDim}, transparent 70%), ${C.card}`,
+                  border: `1px solid ${C.border}`, borderLeft: `4px solid ${C.purple}`, borderRadius: 16, padding: "14px 18px", marginBottom: isOpen ? 10 : 0,
                   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 26px -18px rgba(0,0,0,0.55)",
                   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "inherit",
                   }}>
@@ -4848,7 +4848,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {(trade.pair || "").toUpperCase() === "EURUSD" && <button onClick={() => { onClose(); replayRealTrade(trade); }} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ ...btn.ghost, justifyContent: "center" }}><Rewind size={13} /> Rejouer</button>}
+          {tvSimSym(trade.pair) && <button onClick={() => { onClose(); replayRealTrade(trade); }} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ ...btn.ghost, justifyContent: "center" }}><Rewind size={13} /> Rejouer</button>}
           {onOpenFull && <button onClick={() => { onClose(); onOpenFull(trade.id); }} style={{ ...btn.ghost, flex: 1, justifyContent: "center" }}>Détail complet</button>}
           <button onClick={save} style={{ ...btn.primary, flex: 2, justifyContent: "center", padding: "12px" }}>Enregistrer</button>
         </div>
@@ -4911,7 +4911,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
           <div style={{ display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", overflow: "hidden" }}>
             <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>
             <span style={{ fontSize: 12.5, fontWeight: 800, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "▲ LONG" : "▼ SHORT"}</span>
-            <span className="tnum" style={{ fontSize: 12.5, color: C.textMuted }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
+            <span className="tnum" style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}</span>
           </div>
           <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden" }}>
             {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span></span>}
@@ -4951,7 +4951,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
             </div>))}
         </div>}
         {t.notes && <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, whiteSpace: "pre-wrap" }}>{t.notes}</div>}
-        <div style={{ display: "flex" }}>{(t.pair || "").toUpperCase() === "EURUSD" && <button onClick={() => replayRealTrade(t)} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Rewind size={14} /> Rejouer</button>}        <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
+        <div style={{ display: "flex" }}>{tvSimSym(t.pair) && <button onClick={() => replayRealTrade(t)} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Rewind size={14} /> Rejouer</button>}        <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
       </div>}
     </div>
   );
@@ -5212,8 +5212,80 @@ function AmeliorerSection({ appSettings, trade, onPatch }) {
   );
 }
 
+/* ===== Simulation : et si j'avais laissé courir jusqu'au SL ou au TP ? (bougies M15 réelles) ===== */
+const tvSimSym = (p) => { const u = String(p || "").toUpperCase().replace(/\.PRO$/, ""); const m = { SPX500: "US500", US100: "NAS100", NDX: "NAS100", WTI: "USOIL", GOLD: "XAUUSD" }; const k = m[u] || u; return TV_SYMS[k] ? k : null; };
+const SIM_CACHE = {};
+async function tvSimRows(sym) {
+  if (SIM_CACHE[sym]) return SIM_CACHE[sym];
+  const P = (SIM_CACHE[sym] = (async () => { const d = await tvGet(sym); if (d && d.rows && d.rows.length) return d.rows;
+    let base = "/"; try { base = (import.meta && import.meta.env && import.meta.env.BASE_URL) || "/"; } catch (e) {}
+    try { const r = await fetch(base + "data/" + TV_SYMS[sym].file); if (!r.ok) return null; const rows = tvParse(await r.text()); rows.sort((a, b) => a[0] - b[0]); if (rows.length) await tvPut(sym, { rows }); return rows; } catch (e) { return null; } })());
+  P.then((r) => { if (!r) delete SIM_CACHE[sym]; }); return P;
+}
+/* be = true : SL remonté à l'entrée quand le prix a fait la moitié du chemin vers le TP. Bougie ambiguë (SL et TP touchés) : on compte le SL (prudent). */
+function tvSimTrade(t, rows, be) {
+  const e = Number(t.entryPrice), sl0 = Number(t.stopLoss), tp = Number(t.takeProfit); const L = t.direction === "long";
+  if (!e || !sl0 || !tp || !rows || !rows.length) return { st: "nodata" };
+  if (L ? !(sl0 < e && tp > e) : !(sl0 > e && tp < e)) return { st: "bad" };
+  const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); let lo = 0, hi = rows.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (rows[m][0] + 900 <= t0) lo = m + 1; else hi = m; }
+  let i = lo + 1; if (lo >= rows.length || rows[lo][0] > t0 + 3600) return { st: "nodata" };
+  const risk = Math.abs(e - sl0), rr = Math.abs(tp - e) / risk; let sl = sl0, moved = false; const half = L ? e + (tp - e) / 2 : e - (e - tp) / 2;
+  for (let n = 0; i < rows.length && n < 2880; i++, n++) { const [bt, , h, l, c] = rows[i];
+    if (L ? l <= sl : h >= sl) return { st: "ok", out: moved ? "BE" : "SL", R: moved ? 0 : -1, exitT: bt };
+    if (L ? h >= tp : l <= tp) return { st: "ok", out: "TP", R: rr, exitT: bt };
+    if (be && !moved && (L ? h >= half : l <= half)) { moved = true; sl = e; } }
+  const last = rows[Math.min(i, rows.length) - 1]; if (!last || last[0] <= t0) return { st: "nodata" };
+  return { st: "ok", out: "ouvert", R: ((last[4] - e) * (L ? 1 : -1)) / risk, exitT: last[0] };
+}
+function SimCard({ trades }) {
+  const [be, setBe] = useState(() => { try { return localStorage.getItem("tjp_sim_be") !== "0"; } catch (e) { return true; } });
+  const [manual, setManual] = useState(true); const [res, setRes] = useState(null); const [busy, setBusy] = useState(false); const [open, setOpen] = useState(false);
+  const pool = (trades || []).filter((t) => t.status !== "open" && t.stopLoss && t.takeProfit && (!manual || !t.closeType || t.closeType === "Market"));
+  const run = async (beV = be) => { setBusy(true); const out = []; const bySym = {};
+    for (const t of pool) { const k = tvSimSym(t.pair); (bySym[k || "?"] = bySym[k || "?"] || []).push(t); }
+    for (const [k, list] of Object.entries(bySym)) { const rows = k !== "?" ? await tvSimRows(k) : null;
+      for (const t of list) { const r = k === "?" ? { st: "nodata" } : tvSimTrade(t, rows, beV); const rk = Math.abs(Number(t.riskUsd) || (t.resultR ? t.resultUsd / t.resultR : 0)) || null;
+        out.push({ t, ...r, usd: r.R != null && rk ? r.R * rk : null }); } }
+    out.sort((a, b) => new Date(b.t.entryTime) - new Date(a.t.entryTime)); setRes(out); setBusy(false); };
+  useEffect(() => { if (res) run(be); }, [be, manual]);
+  const ok = (res || []).filter((x) => x.st === "ok"); const realR = ok.reduce((s2, x) => s2 + (Number(x.t.resultR) || 0), 0); const simR = ok.reduce((s2, x) => s2 + x.R, 0);
+  const realU = ok.reduce((s2, x) => s2 + (Number(x.t.resultUsd) || 0), 0); const simU = ok.reduce((s2, x) => s2 + (x.usd || 0), 0);
+  const wr = ok.length ? Math.round((ok.filter((x) => x.R > 0).length / ok.length) * 100) : 0; const miss = (res || []).filter((x) => x.st !== "ok");
+  const chip = (on) => ({ border: `1.5px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" });
+  const col = (v) => (v > 0 ? C.teal : v < 0 ? C.red : C.textSecondary);
+  return <Card style={{ padding: 16, marginBottom: 14 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+      <div><div style={{ fontSize: 15, fontWeight: 800 }}>Simulation : laisser courir jusqu'au SL / TP</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Rejoue tes trades sur les vraies bougies M15 et montre ce qu'ils auraient donné.</div></div>
+      <button onClick={() => run()} disabled={busy || !pool.length} style={{ ...btn.primary, opacity: busy || !pool.length ? 0.6 : 1 }}>{busy ? "Simulation…" : res ? "Relancer" : `Simuler ${pool.length} trade${pool.length > 1 ? "s" : ""}`}</button>
+    </div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
+      <button style={chip(be)} onClick={() => { setBe(true); try { localStorage.setItem("tjp_sim_be", "1"); } catch (e) {} }}>Moitié du TP → BE auto</button>
+      <button style={chip(!be)} onClick={() => { setBe(false); try { localStorage.setItem("tjp_sim_be", "0"); } catch (e) {} }}>Sans BE</button>
+      <span style={{ width: 1, background: C.border, margin: "0 4px" }} />
+      <button style={chip(manual)} onClick={() => setManual(true)}>Clôtures manuelles</button>
+      <button style={chip(!manual)} onClick={() => setManual(false)}>Tous les trades</button>
+    </div>
+    {res && <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, marginTop: 14 }}>
+        {[["Réel", realR, realU], ["Simulé", simR, simU], ["Différence", simR - realR, simU - realU]].map(([l, r, u]) => <div key={l} style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px" }}>
+          <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 700 }}>{l}</div><div className="tnum" style={{ fontSize: 20, fontWeight: 800, color: col(r) }}>{r >= 0 ? "+" : ""}{r.toFixed(1)}R</div><div className="tnum" style={{ fontSize: 12, color: col(u) }}>{fmtUsdSigned(u)}</div></div>)}
+        <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px" }}><div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 700 }}>Winrate simulé</div><div className="tnum" style={{ fontSize: 20, fontWeight: 800 }}>{wr}%</div><div style={{ fontSize: 12, color: C.textMuted }}>{ok.length} trades simulés</div></div>
+      </div>
+      {miss.length > 0 && <div style={{ fontSize: 12, color: C.amber, marginTop: 8 }}>{miss.length} trade{miss.length > 1 ? "s" : ""} non simulé{miss.length > 1 ? "s" : ""} : pas de bougies pour cette date ou ce marché ({[...new Set(miss.map((x) => x.t.pair))].join(", ")}), ou SL/TP incohérent.</div>}
+      <button onClick={() => setOpen(!open)} style={{ ...btn.ghost, marginTop: 10, fontSize: 12.5 }}>{open ? "Masquer le détail" : "Voir le détail trade par trade"}</button>
+      {open && <div style={{ overflowX: "auto", marginTop: 8 }}><table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}><thead><tr>{["Paire", "Date", "Réel", "Simulé", "Sortie", "Durée simulée", ""].map((h) => <th key={h} style={{ textAlign: "left", padding: "6px 8px", color: C.textMuted, borderBottom: `1px solid ${C.border}` }}>{h}</th>)}</tr></thead>
+        <tbody>{ok.map((x) => <tr key={x.t.id}><td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><PairLogo pair={x.t.pair} size={16} /><b>{x.t.pair}</b></span></td>
+          <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{fmtDateTime(x.t.entryTime)}</td><td className="tnum" style={{ padding: "6px 8px", color: col(x.t.resultR) }}>{(Number(x.t.resultR) || 0).toFixed(2)}R</td>
+          <td className="tnum" style={{ padding: "6px 8px", color: col(x.R), fontWeight: 700 }}>{x.R.toFixed(2)}R</td><td style={{ padding: "6px 8px" }}>{x.out}</td><td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{fmtDur(x.t.entryTime, new Date(x.exitT * 1000 + 900e3).toISOString())}</td>
+          <td style={{ padding: "6px 8px" }}><button onClick={() => replayRealTrade(x.t)} style={{ ...btn.ghost, padding: "3px 8px", fontSize: 11.5 }}>Rejouer</button></td></tr>)}</tbody></table></div>}
+    </>}
+  </Card>;
+}
+
 /* rejouer un trade réel EURUSD dans le replay : contexte 24 h avant, entrée / SL / TP dessinés, session à part (pas comptée dans tes stats) */
 function replayRealTrade(t) {
+  const sym = tvSimSym(t.pair); if (sym && sym !== TV_PAIR) { tvSetSym(sym); setTimeout(() => window.dispatchEvent(new CustomEvent("tjp-bt-sym", { detail: sym })), 0); }
   const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const e = Number(t.entryPrice), sl = Number(t.stopLoss), tp = Number(t.takeProfit);
   const draws = [];
   if (e && tp) draws.push({ type: "rect", color: "#089981", pts: [{ t: t0, p: Math.max(e, tp) }, { t: t0 + 6 * 3600, p: Math.min(e, tp) }] });
@@ -5283,7 +5355,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {(trade.pair || "").toUpperCase() === "EURUSD" && trade.accountId !== BT_ACC && <button onClick={() => replayRealTrade(trade)} title="Rejoue ce trade dans le replay, 24 h avant l'entrée, avec ton entrée, ton SL et ton TP dessinés" style={btn.ghost}><Rewind size={13} /> Rejouer</button>}
+          {tvSimSym(trade.pair) && trade.accountId !== BT_ACC && <button onClick={() => replayRealTrade(trade)} title="Rejoue ce trade dans le replay, 24 h avant l'entrée, avec ton entrée, ton SL et ton TP dessinés" style={btn.ghost}><Rewind size={13} /> Rejouer</button>}
           <button onClick={() => onEdit(trade)} style={btn.ghost}><Edit3 size={13} /> Modifier</button>
           <button onClick={() => shareTradeCard(trade)} style={btn.ghost} aria-label="Partager"><Share2 size={15} /></button>
           {confirmDelete
@@ -6345,6 +6417,7 @@ function SimpleStats({ trades }) {
   return (
     <div className="fade-in" style={{ maxWidth: 860, margin: "0 auto" }}>
       <PageHeader title="Statistiques" action={<Seg v={unit} set={setUnit} opts={[["usd", "$"], ["r", "R"]]} />} />
+      <SimCard trades={trades} />
 
       <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14 }}>
         {["tout", "7j", "30j", "90j"].map((p) => <button key={p} onClick={() => setPeriod(p)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: period === p ? C.purpleDim : "transparent", color: period === p ? C.purpleBright : C.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{p === "tout" ? "Tout" : p}</button>)}
@@ -7913,6 +7986,8 @@ function parseTradeLockerText(text, balance = 50000) {
     const slOk = sl != null && Math.abs(sl - en) > 1e-9 && (direction === "long" ? sl < en : sl > en); /* SL déplacé au BE ou en profit : risque d'origine inconnu */
     let R = slOk ? ((ex - en) * (direction === "long" ? 1 : -1)) / Math.abs(en - sl) : null;
     let riskUsd = R && pnl != null && Math.abs(R) > 0.01 ? Math.abs(pnl / R) : null;
+    /* SL remonté près de l'entrée : TradeLocker montre le SL final, pas celui de départ -> R irréaliste, on prend 1 % du compte */
+    if (R != null && Math.abs(R) > 10) { R = null; riskUsd = null; }
     if (R == null && pnl != null) { riskUsd = balance * 0.01; R = pnl / riskUsd; }
     out.push({ id: "tl_" + (posId || pair + entryTime), pair, direction, entryTime, exitTime, entryPrice: en, stopLoss: sl, takeProfit: tp, exitPrice: ex, positionSize: lots, closeType,
       riskUsd: riskUsd == null ? null : Math.round(riskUsd * 100) / 100, resultUsd: pnl, resultR: R == null ? null : Math.round(R * 100) / 100, resultRManual: true,
@@ -10457,6 +10532,9 @@ export default function TradingJournalApp() {
   };
 
   // ── Import MT4/MT5 : ajoute les positions, sans doublon ──
+  /* trades TradeLocker déjà importés avec un R irréaliste (SL final au lieu du SL de départ) : R recalculé sur 1 % du compte */
+  useEffect(() => { const bad = (trades || []).filter((t) => String(t.id).startsWith("tl_") && Math.abs(Number(t.resultR) || 0) > 10 && t.resultUsd != null);
+    bad.forEach((t) => { const acc = (accounts || []).find((a) => a.id === t.accountId); const rk = (Number(acc?.balance) || initialBalance || 10000) * 0.01; patchTrade(t.id, { riskUsd: Math.round(rk * 100) / 100, resultR: Math.round((t.resultUsd / rk) * 100) / 100 }); }); }, [trades.length]);
   const importTrades = (list) => {
     const have = new Set(tradesRef.current.map((t) => t.id)); const now = Date.now();
     const fresh = list.filter((t) => !have.has(t.id)).map((t) => ({ ...t, accountId: t.accountId || effectiveAccountId, updatedAt: now }));
