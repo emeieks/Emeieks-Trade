@@ -5340,6 +5340,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
               <DetailStat label="Direction" value={trade.direction === "long" ? "Achat" : "Vente"} valueColor={trade.direction === "long" ? "#4A9EFF" : C.red} />
               <DetailStat label="Session" value={getSession(trade.entryTime) || "—"} />
               {fmtDur(trade.entryTime, trade.exitTime) && <DetailStat label="Durée" value={fmtDur(trade.entryTime, trade.exitTime)} />}
+              {trade.closeType && <DetailStat label="Clôture" value={trade.closeType} />}
               <DetailStat label="Timeframe" value={(trade.tags || []).find(t => ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(t)) || "—"} />
               {trade.tfAlignment && <DetailStat label="TF sup." value={trade.tfAlignment + (trade.tfAlignmentSetup ? " · " + trade.tfAlignmentSetup : "")} />}
               {trade.oteFib && <DetailStat label="Zone OTE" value={trade.oteFib} valueColor={C.teal} />}
@@ -7521,9 +7522,9 @@ function PrevPairIcon({ pair, fallback, color }) {
   if (ASSET_BADGE[pair] || (pair.length === 6 && FLAG_CURS.includes(pair.slice(0, 3)) && FLAG_CURS.includes(pair.slice(3)))) return <AutoPairLogo pair={pair} size={38} />;
   return <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}15`, border: `1.5px solid ${color}40`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{fallback}</div>;
 }
-function SettingsSection({ title, children, icon: Icon }) {
+function SettingsSection({ title, children, icon: Icon, fit }) {
   return (
-    <Card style={{ padding: 20, marginBottom: 14 }}>
+    <Card style={{ padding: 20, marginBottom: 14, ...(fit ? { width: "fit-content", maxWidth: "100%", boxSizing: "border-box" } : {}) }}>
       <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
         {Icon && <span style={{ width: 28, height: 28, borderRadius: 8, background: C.purpleDim, color: C.purpleBright, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={15} strokeWidth={2.2} /></span>}{title}</div>
       {children}
@@ -7888,6 +7889,8 @@ function parseTradeLockerText(text, balance = 50000) {
     const mid = line.slice(dts[0].index + dts[0][0].length, dts[1].index);
     const sideM = mid.toUpperCase().match(/\b(ACHETER|VENDRE|BUY|SELL|ACHAT|VENTE)\b/); if (!sideM) continue;
     const direction = /ACHETER|BUY|ACHAT/.test(sideM[1]) ? "long" : "short";
+    const tyS = mid.slice(0, mid.toUpperCase().indexOf(sideM[1])).toUpperCase().replace(/[^A-Z]/g, "");
+    const closeType = /STOP|SL/.test(tyS) ? "Stop Loss" : /TAKE|PROFIT|TP/.test(tyS) ? "Take Profit" : /LIMIT/.test(tyS) ? "Limit" : "Market";
     let tk = mid.slice(mid.toUpperCase().indexOf(sideM[1]) + sideM[1].length).trim().split(/\s+/).filter(Boolean);
     /* recolle les milliers coupés : "4" "129,38" -> "4129,38" */
     const t2 = []; for (let i = 0; i < tk.length; i++) { if (/^\d{1,3}$/.test(tk[i]) && /^\d{3}[.,]\d+$/.test(tk[i + 1] || "")) { t2.push(tk[i] + tk[i + 1]); i++; } else t2.push(tk[i]); } tk = t2.filter((x) => /^[-–—]$|\d/.test(x));
@@ -7911,7 +7914,7 @@ function parseTradeLockerText(text, balance = 50000) {
     let R = slOk ? ((ex - en) * (direction === "long" ? 1 : -1)) / Math.abs(en - sl) : null;
     let riskUsd = R && pnl != null && Math.abs(R) > 0.01 ? Math.abs(pnl / R) : null;
     if (R == null && pnl != null) { riskUsd = balance * 0.01; R = pnl / riskUsd; }
-    out.push({ id: "tl_" + (posId || pair + entryTime), pair, direction, entryTime, exitTime, entryPrice: en, stopLoss: sl, takeProfit: tp, exitPrice: ex, positionSize: lots,
+    out.push({ id: "tl_" + (posId || pair + entryTime), pair, direction, entryTime, exitTime, entryPrice: en, stopLoss: sl, takeProfit: tp, exitPrice: ex, positionSize: lots, closeType,
       riskUsd: riskUsd == null ? null : Math.round(riskUsd * 100) / 100, resultUsd: pnl, resultR: R == null ? null : Math.round(R * 100) / 100, resultRManual: true,
       status: pnl === 0 || (R != null && Math.abs(R) < 0.05) ? "breakeven" : "closed", tags: sl == null ? ["Sans SL"] : [], notes: slOk ? "" : sl == null ? "Importé sans stop loss : R calculé sur 1 % du compte." : "SL déplacé (BE ou profit) : R calculé sur 1 % du compte.", rules: { source: "tradelocker" } });
   }
@@ -7951,10 +7954,10 @@ function TlShotImport({ trades = [], onImport, accountId, balance }) {
     <input ref={ref} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { go(e.target.files?.[0]); e.target.value = ""; }} />
     {msg && <div style={{ fontSize: 12.5, color: st === "fail" ? C.red : C.textSecondary }}>{msg}</div>}
     {rows.length > 0 && <>
-      <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}><table style={{ borderCollapse: "collapse", width: "100%" }}><thead><tr>{["", "Paire", "Sens", "Lots", "Entrée", "SL", "TP", "Sortie", APP_TZ === "America/Toronto" ? "Ouvert (Québec)" : "Ouvert (Thaïlande)", "Durée", "P&L", "R"].map((h) => <th key={h} style={{ ...cell, textAlign: "left", color: C.textMuted, fontWeight: 700 }}>{h}</th>)}</tr></thead>
+      <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}><table style={{ borderCollapse: "collapse", width: "100%" }}><thead><tr>{["", "Paire", "Sens", "Type", "Lots", "Entrée", "SL", "TP", "Sortie", APP_TZ === "America/Toronto" ? "Ouvert (Québec)" : "Ouvert (Thaïlande)", "Durée", "P&L", "R"].map((h) => <th key={h} style={{ ...cell, textAlign: "left", color: C.textMuted, fontWeight: 700 }}>{h}</th>)}</tr></thead>
         <tbody>{rows.map((t) => <tr key={t.id} style={{ opacity: pick[t.id] ? 1 : 0.45 }}>
           <td style={cell}><input type="checkbox" checked={!!pick[t.id]} onChange={(e) => setPick({ ...pick, [t.id]: e.target.checked })} /></td>
-          <td style={cell}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={18} /><b>{t.pair}</b></span>{have.has(t.id) && <span style={{ color: C.textMuted }}> · déjà là</span>}</td><td style={{ ...cell, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "Achat" : "Vente"}</td>
+          <td style={cell}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={18} /><b>{t.pair}</b></span>{have.has(t.id) && <span style={{ color: C.textMuted }}> · déjà là</span>}</td><td style={{ ...cell, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "Achat" : "Vente"}</td><td style={{ ...cell, color: t.closeType === "Stop Loss" ? C.red : t.closeType === "Take Profit" ? C.teal : C.textSecondary, fontWeight: 600 }}>{t.closeType || "Market"}</td>
           <td style={cell}>{t.positionSize}</td><td style={cell}>{t.entryPrice}</td><td style={{ ...cell, color: t.stopLoss == null ? C.amber : C.text }}>{t.stopLoss ?? "aucun"}</td><td style={cell}>{t.takeProfit ?? "—"}</td><td style={cell}>{t.exitPrice}</td>
           <td style={cell}>{new Date(t.entryTime).toLocaleString("fr-FR", { timeZone: APP_TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td><td style={cell}>{fmtDur(t.entryTime, t.exitTime)}</td>
           <td style={{ ...cell, color: (t.resultUsd || 0) >= 0 ? C.teal : C.red, fontWeight: 700 }}>{t.resultUsd}</td><td style={cell}>{t.resultR}</td></tr>)}</tbody></table></div>
@@ -8004,12 +8007,12 @@ function ChallengeRules({ trades = [], accountId, accounts = [], onSaveAccounts,
       const rowsT = [["Profit Target", ty === 2 ? null : `${R0.target}%`], ...(ty === 2 ? [["Max. Daily Loss", `${R0.dailyLoss}%`]] : []), ["Max. Loss", `${R0.maxLoss}%`], ["Min. Trading Days", `${R0.minDays} Days`], ["Trading Period", "Unlimited"], ["News Trading", "Allowed"],
         ...(ty === 1 ? [["Trade Consistency", `${R0.consistency}%`]] : []), ["Rewards Split", "badge:" + R0.split], ...(ty === 2 ? [["Refund", "badge:" + R0.refund]] : []), ["Activation Fee", "€199,99"]];
       const cellH = 34;
-      return <div style={{ background: "#0a0a0a", borderRadius: 16, padding: "14px 14px", fontFamily: "Inter, system-ui, sans-serif", color: "#fff", width: "100%", boxSizing: "border-box" }}>
+      return <div style={{ background: "#0a0a0a", borderRadius: 16, padding: "14px 14px", fontFamily: "Inter, system-ui, sans-serif", color: "#fff", width: "fit-content", maxWidth: "100%", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <img src={CF_LOGO} alt="ClickFunded" style={{ height: 24 }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 999, background: "#161616", border: "1px solid #262626" }}>{[1, 2].map((k) => <button key={k} onClick={() => save({ ...r, ...CH_TYPES[k].r, phase: 1, size: CH_TYPES[k].sizes.includes(r.size) ? r.size : CH_TYPES[k].sizes[1] })} style={{ border: "none", borderRadius: 999, padding: "8px 18px", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", background: ty === k ? `linear-gradient(180deg, #ffb84d, ${OR})` : "transparent", color: ty === k ? "#111" : "#bdbdbd", boxShadow: ty === k ? `0 0 18px ${OR}66` : "none" }}>{k} Phase{k > 1 ? "s" : ""}</button>)}</div>
-          <button onClick={() => setEdit(!edit)} title="Modifier les règles" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${edit ? OR : "#2a2a2a"}`, background: "#161616", color: edit ? OR : "#cfcfcf", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Edit3 size={15} /></button></div>
+          <button onClick={() => setEdit(!edit)} title="Modifier les règles" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${edit ? OR : "#2a2a2a"}`, background: "#161616", color: edit ? OR : "#cfcfcf", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Edit3 size={15} /></button>
         </div>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}><div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 999, background: "#161616", border: "1px solid #262626" }}>{[1, 2].map((k) => <button key={k} onClick={() => save({ ...r, ...CH_TYPES[k].r, phase: 1, size: CH_TYPES[k].sizes.includes(r.size) ? r.size : CH_TYPES[k].sizes[1] })} style={{ border: "none", borderRadius: 999, padding: "8px 18px", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", background: ty === k ? `linear-gradient(180deg, #ffb84d, ${OR})` : "transparent", color: ty === k ? "#111" : "#bdbdbd", boxShadow: ty === k ? `0 0 18px ${OR}66` : "none" }}>{k} Phase{k > 1 ? "s" : ""}</button>)}</div></div>
         <div style={{ overflowX: "auto", paddingBottom: 6 }}><div style={{ display: "grid", gridTemplateColumns: `118px repeat(${sizes.length}, 96px)`, gap: 6, justifyContent: "start" }}>
           <div style={{ paddingTop: 38 }}>{rowsT.map(([l, v]) => <div key={l} style={{ height: l === "Profit Target" && ty === 2 ? cellH + 10 : cellH, display: "flex", alignItems: "center", fontSize: 12.5, color: "#d6d6d6" }}>{l}</div>)}{ty === 2 && <div style={{ height: 0 }} />}</div>
           {sizes.map((sz) => { const on = r.size === sz; return <button key={sz} onClick={() => set("size", sz)} style={{ textAlign: "left", cursor: "pointer", fontFamily: "inherit", color: "#fff", padding: "8px 10px 4px", borderRadius: 12, border: `1px solid ${on ? OR : "#2a2a2a"}`, background: "linear-gradient(180deg, #1d1d1d, #121212)", boxShadow: on ? `0 0 24px ${OR}55, inset 0 0 0 1px ${OR}55` : "none" }}>
@@ -8390,7 +8393,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
       <PageHeader title="Paramètres" />
 
 
-      <SettingsSection title="Conditions du challenge" icon={Trophy}>
+      <SettingsSection title="Conditions du challenge" icon={Trophy} fit>
         <ChallengeRules trades={trades} accountId={activeAccountId} accounts={accounts} onSaveAccounts={onSaveAccounts} onSwitchAccount={onSwitchAccount} />
       </SettingsSection>
 
