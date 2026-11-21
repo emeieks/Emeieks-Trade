@@ -268,19 +268,23 @@ function fmtPct(n) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   return `${n.toFixed(1)}%`;
 }
+/* Fuseau d'affichage choisi dans Réglages (Thaïlande par défaut, ou Québec) */
+const APP_TZ = (() => { try { return localStorage.getItem("tjp_tz") || "Asia/Bangkok"; } catch (e) { return "Asia/Bangkok"; } })();
+function tzParts(d) { const o = {}; try { new Intl.DateTimeFormat("en-US", { timeZone: APP_TZ, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(d).forEach((x) => (o[x.type] = x.value)); } catch (e) {} return o; }
+function fromLocalInput(str) { const m = String(str || "").match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/); if (!m) return new Date(str).toISOString(); const g = Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]); const q = tzParts(new Date(g)); const shown = Date.UTC(+q.year, q.month - 1, +q.day, +q.hour, +q.minute); return new Date(g - (shown - g)).toISOString(); }
 function fmtDate(iso, opts = {}) {
   const d = new Date(iso);
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: opts.year ? "numeric" : undefined });
+  return d.toLocaleDateString("fr-FR", { timeZone: APP_TZ, day: "2-digit", month: "short", year: opts.year ? "numeric" : undefined });
 }
 function fmtDateTime(iso) {
   const d = new Date(iso);
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) + " · " +
-    d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("fr-FR", { timeZone: APP_TZ, day: "2-digit", month: "short" }) + " · " +
+    d.toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" });
 }
 function toLocalInput(iso) {
   const d = iso ? new Date(iso) : new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  const q = tzParts(d); if (!q.year) { const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+  return `${q.year}-${q.month}-${q.day}T${q.hour}:${q.minute}`;
 }
 function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; }
 
@@ -4759,7 +4763,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
     const risk = Number(trade.riskUsd) || null;
     const keep = (trade.tags || []).filter((g) => !SESS.includes(g) && !ALLTF.includes(g) && !setupNames.includes(g) && !TAG_CATALOG.find((c) => c.name === g && c.category === "setup"));
     const tags = [...new Set([...keep, ...rows.map((r) => r.tf).filter(Boolean), ...rows.flatMap((r) => r.setups), ...(sess ? [sess] : [])])];
-    const iso = when && !isNaN(new Date(when).getTime()) ? new Date(when).toISOString() : trade.entryTime;
+    const iso = when && !isNaN(new Date(when).getTime()) ? fromLocalInput(when) : trade.entryTime;
     onPatch(trade.id, { entryTime: iso, tags, rules: { ...(trade.rules || {}), tfSetups: rows.filter((r) => r.tf || r.setups.length) }, entryPrice: en, stopLoss: s, takeProfit: t, direction: dir, screenshotBefore: before, screenshotAfter: after,
       exitPrice: exN, status: st === "win" || st === "loss" ? "closed" : st, resultR, resultUsd: resultR == null ? null : risk ? Math.round(resultR * risk * 100) / 100 : trade.resultUsd ?? null, retroRating: note });
     onClose();
@@ -5897,7 +5901,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
     if (!canSave) return;
     const tfTags = tfRows.map((r) => r.tf).filter(Boolean);
     const stTags = tfRows.flatMap((r) => r.setups);
-    const sess = getSession(new Date(entryTime).toISOString());
+    const sess = getSession(fromLocalInput(entryTime));
     const keep = (initial?.tags || []).filter((t) => !["M1","M5","M15","M30","H1","H4","D1","W1",...tfList].includes(t) && !setupNames.includes(t) && !["London Session", "New York Session", "Asia Session", "Hors session"].includes(t));
     const tags = [...new Set([...keep, ...tfTags, ...stTags, ...(sess === "Hors session" ? [] : [sess])])];
     const finalR = rFinal == null ? null : Math.round(rFinal * 100) / 100;
@@ -5906,8 +5910,8 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
     onSave({
       ...init0,
       id: initial?.id || uid(), pair, direction,
-      entryTime: new Date(entryTime).toISOString(),
-      exitTime: exitTime && !isNaN(new Date(exitTime).getTime()) && status !== "open" ? new Date(exitTime).toISOString() : (status === "open" ? null : initial?.exitTime ?? null),
+      entryTime: fromLocalInput(entryTime),
+      exitTime: exitTime && !isNaN(new Date(exitTime).getTime()) && status !== "open" ? fromLocalInput(exitTime) : (status === "open" ? null : initial?.exitTime ?? null),
       entryPrice: en, stopLoss: sl, takeProfit: tp,
       exitPrice: initial?.exitPrice ?? (status === "win" ? tp : status === "loss" ? sl : status === "breakeven" ? en : null),
       positionSize: lots, riskUsd,
@@ -7815,8 +7819,8 @@ function ChallengeCard({ acc, trades, onDelete }) {
   return (
     <div style={{ background: C.card, border: `1px solid ${st.c}55`, borderRadius: 16, padding: "16px 18px", marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        <Trophy size={18} color={C.amber} />
-        <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{acc.name} · {s.c.phase}</div><div style={{ fontSize: 12, color: C.textMuted }}>{s.nDays} / {s.c.minDays || 0} jours tradés{s.left != null ? ` · ${s.left >= 0 ? s.left + " j restants" : "délai passé"}` : ""}</div></div>
+        {isCF(acc) ? <img src={CF_SHIELD} alt="" style={{ width: 22, height: 20 }} /> : <Trophy size={18} color={C.amber} />}
+        <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{isCF(acc) ? accTitle(acc) : acc.name + " · " + s.c.phase}</div><div style={{ fontSize: 12, color: C.textMuted }}>{s.nDays} / {s.c.minDays || 0} jours tradés{s.left != null ? ` · ${s.left >= 0 ? s.left + " j restants" : "délai passé"}` : ""}</div></div>
         <span style={{ fontSize: 12, fontWeight: 700, color: st.c, background: st.c + "1A", padding: "4px 10px", borderRadius: 7 }}>{st.t}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -7893,8 +7897,11 @@ function parseTradeLockerText(text, balance = 50000) {
     const aft = after.trim().split(/\s+/); let exS = aft[0]; if (/^\d{1,3}$/.test(exS) && /^\d{3}[.,]\d+$/.test(aft[1] || "")) exS += aft[1]; let ex = tlNum(exS);
     if (en == null || ex == null || !lots) continue;
     const dec = tlDec(enS) || 2; /* virgule perdue par l OCR : 778360 -> 7783,60 */
-    const fixD = (v) => (v != null && v > en * 5 ? v / Math.pow(10, dec) : v);
-    sl = fixD(sl); tp = fixD(tp); ex = fixD(ex);
+    /* chiffre en trop ou virgule perdue par l'OCR : on garde la lecture la plus proche du prix d'entrée */
+    const fixD = (v, raw) => { if (v == null || !(v > en * 1.6 || v < en / 1.6)) return v; const cands = []; for (let k = 1; k <= 5; k++) cands.push(v / Math.pow(10, k));
+      const dg = String(raw || "").replace(/[^\d]/g, ""); for (let i = 0; i < dg.length; i++) { const d2 = dg.slice(0, i) + dg.slice(i + 1); const n = Number(d2) / Math.pow(10, dec); if (n > 0) cands.push(n); }
+      const best = cands.reduce((b, c) => (Math.abs(Math.log(c / en)) < Math.abs(Math.log(b / en)) ? c : b), v); return Math.abs(Math.log(best / en)) < 0.4 ? Math.round(best * Math.pow(10, dec)) / Math.pow(10, dec) : v; };
+    sl = fixD(sl, tk[2]); tp = fixD(tp, tk[3]); ex = fixD(ex, exS);
     const money = [...after.slice(exS.length).matchAll(/-?\d{1,3}(?:[  ]?\d{3})*[.,]\d{2}(?!\d)/g)].map((m) => tlNum(m[0]));
     const pnl = money.length >= 4 ? money[3] : money.length ? money[money.length - 1] : null;
     const ids = after.match(/\d{12,}/g) || []; const posId = ids[ids.length - 1] || null;
@@ -7944,12 +7951,12 @@ function TlShotImport({ trades = [], onImport, accountId, balance }) {
     <input ref={ref} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { go(e.target.files?.[0]); e.target.value = ""; }} />
     {msg && <div style={{ fontSize: 12.5, color: st === "fail" ? C.red : C.textSecondary }}>{msg}</div>}
     {rows.length > 0 && <>
-      <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}><table style={{ borderCollapse: "collapse", width: "100%" }}><thead><tr>{["", "Paire", "Sens", "Lots", "Entrée", "SL", "TP", "Sortie", "Ouvert", "Durée", "P&L", "R"].map((h) => <th key={h} style={{ ...cell, textAlign: "left", color: C.textMuted, fontWeight: 700 }}>{h}</th>)}</tr></thead>
+      <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}><table style={{ borderCollapse: "collapse", width: "100%" }}><thead><tr>{["", "Paire", "Sens", "Lots", "Entrée", "SL", "TP", "Sortie", APP_TZ === "America/Toronto" ? "Ouvert (Québec)" : "Ouvert (Thaïlande)", "Durée", "P&L", "R"].map((h) => <th key={h} style={{ ...cell, textAlign: "left", color: C.textMuted, fontWeight: 700 }}>{h}</th>)}</tr></thead>
         <tbody>{rows.map((t) => <tr key={t.id} style={{ opacity: pick[t.id] ? 1 : 0.45 }}>
           <td style={cell}><input type="checkbox" checked={!!pick[t.id]} onChange={(e) => setPick({ ...pick, [t.id]: e.target.checked })} /></td>
-          <td style={cell}><b>{t.pair}</b>{have.has(t.id) && <span style={{ color: C.textMuted }}> · déjà là</span>}</td><td style={{ ...cell, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "Achat" : "Vente"}</td>
+          <td style={cell}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={18} /><b>{t.pair}</b></span>{have.has(t.id) && <span style={{ color: C.textMuted }}> · déjà là</span>}</td><td style={{ ...cell, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "Achat" : "Vente"}</td>
           <td style={cell}>{t.positionSize}</td><td style={cell}>{t.entryPrice}</td><td style={{ ...cell, color: t.stopLoss == null ? C.amber : C.text }}>{t.stopLoss ?? "aucun"}</td><td style={cell}>{t.takeProfit ?? "—"}</td><td style={cell}>{t.exitPrice}</td>
-          <td style={cell}>{new Date(t.entryTime).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td><td style={cell}>{fmtDur(t.entryTime, t.exitTime)}</td>
+          <td style={cell}>{new Date(t.entryTime).toLocaleString("fr-FR", { timeZone: APP_TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td><td style={cell}>{fmtDur(t.entryTime, t.exitTime)}</td>
           <td style={{ ...cell, color: (t.resultUsd || 0) >= 0 ? C.teal : C.red, fontWeight: 700 }}>{t.resultUsd}</td><td style={cell}>{t.resultR}</td></tr>)}</tbody></table></div>
       <button disabled={!sel.length} onClick={() => { onImport(sel); setMsg(`${sel.length} trades importés ✓`); setRows([]); setSt("idle"); }} style={{ ...btn.primary, justifyContent: "center", opacity: sel.length ? 1 : 0.5 }}><Check size={14} /> Importer {sel.length} trade{sel.length > 1 ? "s" : ""}</button>
     </>}
@@ -7997,20 +8004,20 @@ function ChallengeRules({ trades = [], accountId, accounts = [], onSaveAccounts,
       const rowsT = [["Profit Target", ty === 2 ? null : `${R0.target}%`], ...(ty === 2 ? [["Max. Daily Loss", `${R0.dailyLoss}%`]] : []), ["Max. Loss", `${R0.maxLoss}%`], ["Min. Trading Days", `${R0.minDays} Days`], ["Trading Period", "Unlimited"], ["News Trading", "Allowed"],
         ...(ty === 1 ? [["Trade Consistency", `${R0.consistency}%`]] : []), ["Rewards Split", "badge:" + R0.split], ...(ty === 2 ? [["Refund", "badge:" + R0.refund]] : []), ["Activation Fee", "€199,99"]];
       const cellH = 34;
-      return <div style={{ background: "#0a0a0a", borderRadius: 16, padding: "18px 14px", fontFamily: "Inter, system-ui, sans-serif", color: "#fff" }}>
+      return <div style={{ background: "#0a0a0a", borderRadius: 16, padding: "14px 14px", fontFamily: "Inter, system-ui, sans-serif", color: "#fff", width: "100%", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <img src={CF_LOGO} alt="ClickFunded" style={{ height: 24 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 999, background: "#161616", border: "1px solid #262626" }}>{[1, 2].map((k) => <button key={k} onClick={() => save({ ...r, ...CH_TYPES[k].r, phase: 1, size: CH_TYPES[k].sizes.includes(r.size) ? r.size : CH_TYPES[k].sizes[1] })} style={{ border: "none", borderRadius: 999, padding: "8px 18px", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", background: ty === k ? `linear-gradient(180deg, #ffb84d, ${OR})` : "transparent", color: ty === k ? "#111" : "#bdbdbd", boxShadow: ty === k ? `0 0 18px ${OR}66` : "none" }}>{k} Phase{k > 1 ? "s" : ""}</button>)}</div>
           <button onClick={() => setEdit(!edit)} title="Modifier les règles" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${edit ? OR : "#2a2a2a"}`, background: "#161616", color: edit ? OR : "#cfcfcf", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Edit3 size={15} /></button></div>
         </div>
-        <div style={{ overflowX: "auto", paddingBottom: 6 }}><div style={{ display: "grid", gridTemplateColumns: `112px repeat(${sizes.length}, minmax(96px,1fr))`, gap: 6, minWidth: 112 + sizes.length * 102 }}>
-          <div style={{ paddingTop: 50 }}>{rowsT.map(([l, v]) => <div key={l} style={{ height: l === "Profit Target" && ty === 2 ? cellH + 10 : cellH, display: "flex", alignItems: "center", fontSize: 12.5, color: "#d6d6d6" }}>{l}</div>)}{ty === 2 && <div style={{ height: 0 }} />}</div>
-          {sizes.map((sz) => { const on = r.size === sz; return <button key={sz} onClick={() => set("size", sz)} style={{ textAlign: "left", cursor: "pointer", fontFamily: "inherit", color: "#fff", padding: "10px 10px 10px", borderRadius: 12, border: `1px solid ${on ? OR : "#2a2a2a"}`, background: "linear-gradient(180deg, #1d1d1d, #121212)", boxShadow: on ? `0 0 24px ${OR}55, inset 0 0 0 1px ${OR}55` : "none" }}>
-            <div style={{ textAlign: "center", height: 36, fontSize: 20, fontWeight: 800 }}>{sz / 1000}k</div>
+        <div style={{ overflowX: "auto", paddingBottom: 6 }}><div style={{ display: "grid", gridTemplateColumns: `118px repeat(${sizes.length}, 96px)`, gap: 6, justifyContent: "start" }}>
+          <div style={{ paddingTop: 38 }}>{rowsT.map(([l, v]) => <div key={l} style={{ height: l === "Profit Target" && ty === 2 ? cellH + 10 : cellH, display: "flex", alignItems: "center", fontSize: 12.5, color: "#d6d6d6" }}>{l}</div>)}{ty === 2 && <div style={{ height: 0 }} />}</div>
+          {sizes.map((sz) => { const on = r.size === sz; return <button key={sz} onClick={() => set("size", sz)} style={{ textAlign: "left", cursor: "pointer", fontFamily: "inherit", color: "#fff", padding: "8px 10px 4px", borderRadius: 12, border: `1px solid ${on ? OR : "#2a2a2a"}`, background: "linear-gradient(180deg, #1d1d1d, #121212)", boxShadow: on ? `0 0 24px ${OR}55, inset 0 0 0 1px ${OR}55` : "none" }}>
+            <div style={{ height: 30, fontSize: 18, fontWeight: 800 }}>{sz / 1000}k</div>
             {rowsT.map(([l, v]) => <div key={l} style={{ height: l === "Profit Target" && ty === 2 ? cellH + 10 : cellH, display: "flex", alignItems: "center", borderTop: "1px solid #232323", fontSize: 13 }}>
               {l === "Profit Target" && ty === 2 ? <div style={{ width: "100%", fontSize: 11, color: "#9a9a9a", lineHeight: 1.9 }}><div style={{ display: "flex", justifyContent: "space-between", whiteSpace: "nowrap" }}>PHASE 1<b style={{ color: "#fff", fontSize: 14 }}>{R0.target}%</b></div><div style={{ display: "flex", justifyContent: "space-between", whiteSpace: "nowrap" }}>PHASE 2<b style={{ color: "#fff", fontSize: 14 }}>{R0.target2}%</b></div></div>
                 : String(v).startsWith("badge:") ? <span style={{ whiteSpace: "nowrap" }}>Yes <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "#34d399", border: "1px solid #34d39966", background: "#34d3991a", borderRadius: 999, padding: "2px 8px" }}>{v.slice(6)}%</span></span> : v}</div>)}
-            {price[sz] && <div style={{ textAlign: "center", fontSize: 17, fontWeight: 800, marginTop: 6 }}>{price[sz]}</div>}
+            
           </button>; })}
         </div></div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
@@ -8399,6 +8406,10 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
         <PairsSettings settings={settings} addPair={addPair} removePair={removePair} />
       </SettingsSection>
 
+      <SettingsSection title="Fuseau horaire" icon={Timer}>
+        <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>Heure utilisée pour afficher et saisir tes trades (TradeLocker est converti automatiquement).</div>
+        <div style={{ display: "flex", gap: 8 }}>{[["Asia/Bangkok", "Thaïlande (UTC+7)"], ["America/Toronto", "Québec (UTC-5/-4)"]].map(([z, l]) => <button key={z} onClick={() => { try { localStorage.setItem("tjp_tz", z); } catch (e) {} location.reload(); }} style={{ ...btn.ghost, flex: 1, justifyContent: "center", border: `1.5px solid ${APP_TZ === z ? C.teal : C.border}`, color: APP_TZ === z ? C.teal : C.text, fontWeight: APP_TZ === z ? 700 : 500 }}>{l}</button>)}</div>
+      </SettingsSection>
       <SettingsSection title="Logos des actifs" icon={Coins}>
         <PairLogosSettings />
       </SettingsSection>
