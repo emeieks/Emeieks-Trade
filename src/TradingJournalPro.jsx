@@ -2432,10 +2432,25 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   /* ---------- revivre un trade cliqué dans Saisie & stats ---------- */
   useEffect(() => {
     const h = (e) => {
-      const { t, session, draws, create, noSave, msg: m } = e.detail || {}; if (!R.rows || R.demo || !t) return false;
+      const { t, session, draws, create, noSave, msg: m, real } = e.detail || {}; if (!R.rows || R.demo || !t) return false;
       const go = () => {
         if (Array.isArray(draws) && draws.length) { const have = new Set(R.draws.map((d) => JSON.stringify(d.pts) + d.type)); draws.forEach((d) => { if (!have.has(JSON.stringify(d.pts) + d.type)) R.draws.push(d); }); }
         if (t < R.rows[0][0] || t > R.rows[R.rows.length - 1][0]) { setMsg("Ce trade est en dehors de tes données de bougies."); return; }
+        if (real) { /* trade réel : replay posé sur la bougie M15 de l'entrée, position aux prix et lots exacts */
+          let i = tvBsRows(R.rows, t); if (R.rows[i][0] > t && i > 0) i--; goToIndex(i);
+          R.trades = R.trades.filter((x) => !x.real);
+          const e0 = real.entry, sl = real.sl, tp = real.tp, side = real.side, bt = R.rows[i][0];
+          if (sl && tp) {
+            if (R.seq == null) R.seq = Math.max(0, ...R.trades.map((x) => x.no || 0)); R.seq += 1;
+            const lots = real.lots || lotsFor(Math.abs(e0 - sl) / TV_PIP);
+            const tr = { id: Date.now() + Math.random(), no: R.seq, real: true, pd: [], riskPct: R.cfg.risk, type: "mkt", side, entry: e0, sl, tp, sl0: sl, lots, status: "open", openT: bt, placedT: bt, anchorT: bt, tf: TV_TFLAB[R.agg ? R.agg.min : 15] };
+            tr.risk = (Math.abs(e0 - sl) / TV_PIP) * TV_PIPVAL * lots; tr.endT = bt + 25 * tfSec(); R.trades.push(tr);
+          } else {
+            R.draws.push({ type: "hray", color: "#2962ff", pts: [{ t: bt, p: e0 }] }); if (sl) R.draws.push({ type: "hray", color: "#f23645", pts: [{ t: bt, p: sl }] }); if (tp) R.draws.push({ type: "hray", color: "#089981", pts: [{ t: bt, p: tp }] });
+            if (real.exit && real.exitT) R.draws.push({ type: "hray", color: "#9c27b0", pts: [{ t: real.exitT, p: real.exit }] });
+          }
+          rerender(); if (R.minis) R.minis.forEach((mm) => mm.redraw()); setMsg(m); return;
+        }
         goToIndex(tvBsRows(R.rows, t - 86400)); setMsg(m || "Replay repris 24 h avant le trade, avec tes dessins : rejoue-le.");
       };
       const sid = session && sess.list.find((x) => x.title === session);
@@ -5286,12 +5301,12 @@ function SimCard({ trades }) {
 /* rejouer un trade réel EURUSD dans le replay : contexte 24 h avant, entrée / SL / TP dessinés, session à part (pas comptée dans tes stats) */
 function replayRealTrade(t) {
   const sym = tvSimSym(t.pair); if (sym && sym !== TV_PAIR) { tvSetSym(sym); setTimeout(() => window.dispatchEvent(new CustomEvent("tjp-bt-sym", { detail: sym })), 0); }
-  const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const e = Number(t.entryPrice), sl = Number(t.stopLoss), tp = Number(t.takeProfit);
-  const draws = [];
-  if (e && tp) draws.push({ type: "rect", color: "#089981", pts: [{ t: t0, p: Math.max(e, tp) }, { t: t0 + 6 * 3600, p: Math.min(e, tp) }] });
-  if (e && sl) draws.push({ type: "rect", color: "#f23645", pts: [{ t: t0, p: Math.max(e, sl) }, { t: t0 + 6 * 3600, p: Math.min(e, sl) }] });
-  if (e) draws.push({ type: "hray", color: "#131722", pts: [{ t: t0, p: e }] });
-  window.TJP_PENDING_GOTO = { t: t0, draws, session: "Rejouer mes trades réels", create: true, noSave: true, msg: `Ton trade réel du ${fmtDateTime(t.entryTime)} : replay repris 24 h avant. Qu'aurais-tu dû voir ?` };
+  const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const n = (v) => (v == null || v === "" || isNaN(Number(v)) ? null : Number(v));
+  const real = { side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(t.stopLoss), tp: n(t.takeProfit), lots: n(t.positionSize), exit: n(t.exitPrice), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
+  const ok = real.sl && real.tp;
+  window.TJP_PENDING_GOTO = { t: t0, real, session: "Rejouer mes trades réels", create: true, noSave: true,
+    msg: ok ? `Trade réel du ${fmtDateTime(t.entryTime)} posé aux prix exacts (entrée ${real.entry}, SL ${real.sl}, TP ${real.tp}). Lance le replay pour voir la suite.`
+      : `Trade réel du ${fmtDateTime(t.entryTime)} sans ${!real.sl && !real.tp ? "SL ni TP" : !real.sl ? "SL" : "TP"} (trade erreur) : entrée en bleu${real.exit ? ", sortie en violet" : ""}.` };
   window.dispatchEvent(new CustomEvent("tjp-goto", { detail: "backtest" }));
 }
 
