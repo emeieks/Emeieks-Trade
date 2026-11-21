@@ -1627,7 +1627,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     for (let i = 0; i < R.k; i++) { const b = R.agg.bars[i]; data[i] = { time: b.time + R.off, open: b.open, high: b.high, low: b.low, close: b.close }; }
     data[R.k] = liveBar();
     R.series.setData(data);
-    if (scroll) R.chart.timeScale().scrollToRealTime();
+    if (scroll && R.chart) R.chart.timeScale().scrollToRealTime();
     setLegend(liveBar()); rerender();
   }
 
@@ -2433,6 +2433,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   useEffect(() => {
     const h = (e) => {
       const { t, session, draws, create, noSave, msg: m, real } = e.detail || {}; if (!R.rows || R.demo || !t) return false;
+      if (real && real.sym && (real.sym !== TV_PAIR || (curSess().sym || "EURUSD") !== real.sym)) { /* mauvais marché : on ouvre (ou crée) la session de ce marché, le backtest se recharge, puis on revient ici */
+        window.TJP_PENDING_GOTO = e.detail; const s0 = sess.list.find((x) => x.title === session && (x.sym || "EURUSD") === real.sym);
+        if (s0) openSess(s0.id); else createSess(session, "random", null, { noSave, sym: real.sym }); return true; }
       const go = () => {
         if (Array.isArray(draws) && draws.length) { const have = new Set(R.draws.map((d) => JSON.stringify(d.pts) + d.type)); draws.forEach((d) => { if (!have.has(JSON.stringify(d.pts) + d.type)) R.draws.push(d); }); }
         if (t < R.rows[0][0] || t > R.rows[R.rows.length - 1][0]) { setMsg("Ce trade est en dehors de tes données de bougies."); return; }
@@ -2440,7 +2443,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           let i = tvBsRows(R.rows, t); if (R.rows[i][0] > t && i > 0) i--; goToIndex(i);
           R.trades = R.trades.filter((x) => !x.real);
           const e0 = real.entry, sl = real.sl, tp = real.tp, side = real.side, bt = R.rows[i][0];
-          if (sl && tp) {
+          if (sl && tp && real.posOk !== false) {
             if (R.seq == null) R.seq = Math.max(0, ...R.trades.map((x) => x.no || 0)); R.seq += 1;
             const lots = real.lots || lotsFor(Math.abs(e0 - sl) / TV_PIP);
             const tr = { id: Date.now() + Math.random(), no: R.seq, real: true, pd: [], riskPct: R.cfg.risk, type: "mkt", side, entry: e0, sl, tp, sl0: sl, lots, status: "open", openT: bt, placedT: bt, anchorT: bt, tf: TV_TFLAB[R.agg ? R.agg.min : 15] };
@@ -5228,7 +5231,7 @@ function AmeliorerSection({ appSettings, trade, onPatch }) {
 }
 
 /* ===== Simulation : et si j'avais laissé courir jusqu'au SL ou au TP ? (bougies M15 réelles) ===== */
-const tvSimSym = (p) => { const u = String(p || "").toUpperCase().replace(/\.PRO$/, ""); const m = { SPX500: "US500", US100: "NAS100", NDX: "NAS100", WTI: "USOIL", GOLD: "XAUUSD" }; const k = m[u] || u; return TV_SYMS[k] ? k : null; };
+const tvSimSym = (p) => { const u = String(p || "").toUpperCase().replace(/\.PRO$/, ""); const m = { SPX500: "US500", SP500: "US500", SPX: "US500", ES: "US500", US100: "NAS100", NDX: "NAS100", USTEC: "NAS100", NQ: "NAS100", NAS: "NAS100", WTI: "USOIL", XTIUSD: "USOIL", CL: "USOIL", OIL: "USOIL", GOLD: "XAUUSD", "XAUUSD.PRO": "XAUUSD" }; const k = m[u] || u; return TV_SYMS[k] ? k : null; };
 const SIM_CACHE = {};
 async function tvSimRows(sym) {
   if (SIM_CACHE[sym]) return SIM_CACHE[sym];
@@ -5302,10 +5305,13 @@ function SimCard({ trades }) {
 function replayRealTrade(t) {
   const sym = tvSimSym(t.pair); if (sym && sym !== TV_PAIR) { tvSetSym(sym); setTimeout(() => window.dispatchEvent(new CustomEvent("tjp-bt-sym", { detail: sym })), 0); }
   const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const n = (v) => (v == null || v === "" || isNaN(Number(v)) ? null : Number(v));
-  const real = { side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(t.stopLoss), tp: n(t.takeProfit), lots: n(t.positionSize), exit: n(t.exitPrice), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
-  const ok = real.sl && real.tp;
-  window.TJP_PENDING_GOTO = { t: t0, real, session: "Rejouer mes trades réels", create: true, noSave: true,
+  const real = { sym: sym || TV_PAIR, side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(t.stopLoss), tp: n(t.takeProfit), lots: n(t.positionSize), exit: n(t.exitPrice), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
+  const L = real.side > 0; const slWrong = real.sl && real.entry && (L ? real.sl >= real.entry : real.sl <= real.entry);
+  real.posOk = !slWrong && !!(real.sl && real.tp && (L ? real.tp > real.entry : real.tp < real.entry));
+  const ok = real.posOk;
+  window.TJP_PENDING_GOTO = { t: t0, real, session: "Rejouer · " + (sym || TV_PAIR), create: true, noSave: true,
     msg: ok ? `Trade réel du ${fmtDateTime(t.entryTime)} posé aux prix exacts (entrée ${real.entry}, SL ${real.sl}, TP ${real.tp}). Lance le replay pour voir la suite.`
+      : slWrong ? `Trade réel du ${fmtDateTime(t.entryTime)} : SL ${real.sl} déjà remonté au-dessus${L ? "" : " (en dessous)"} de l'entrée (TradeLocker garde le SL final, pas celui de départ). Entrée en bleu, SL final en rouge${real.tp ? ", TP en vert" : ""}${real.exit ? ", sortie en violet" : ""}.`
       : `Trade réel du ${fmtDateTime(t.entryTime)} sans ${!real.sl && !real.tp ? "SL ni TP" : !real.sl ? "SL" : "TP"} (trade erreur) : entrée en bleu${real.exit ? ", sortie en violet" : ""}.` };
   window.dispatchEvent(new CustomEvent("tjp-goto", { detail: "backtest" }));
 }
