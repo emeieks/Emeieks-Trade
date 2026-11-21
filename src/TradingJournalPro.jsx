@@ -4787,6 +4787,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
   const SESS = ["London Session", "New York Session", "Asia Session", "Hors session"];
   const [when, setWhen] = useState(toLocalInput(trade.entryTime));
   const userTags = useUserTags(); const [uTags, setUTags] = useState(() => (trade.tags || []).filter((g) => userTagsGet().includes(g))); const [newTag, setNewTag] = useState("");
+  const [feedback, setFeedback] = useState(trade.rules?.feedback || "");
   const addTag = () => { const v = newTag.trim(); if (!v) return; const ex = userTags.find((x) => x.toLowerCase() === v.toLowerCase()); if (!ex) userTagsSave([...userTags, v]); const n = ex || v; if (!uTags.includes(n)) setUTags([...uTags, n]); setNewTag(""); };
   const [sess, setSess] = useState((trade.tags || []).find((g) => SESS.includes(g)) || getSession(trade.entryTime));
   const tfList = appSettings?.timeframes && appSettings.timeframes.length ? [...new Set(appSettings.timeframes.map(tfFix))] : DEFAULT_TFS;
@@ -4823,7 +4824,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
     const keep = (trade.tags || []).filter((g) => !SESS.includes(g) && !ALLTF.includes(g) && !setupNames.includes(g) && !TAG_CATALOG.find((c) => c.name === g && c.category === "setup"));
     const tags = [...new Set([...keep.filter((g) => !userTags.includes(g)), ...uTags, ...rows.map((r) => r.tf).filter(Boolean), ...rows.flatMap((r) => r.setups), ...(sess ? [sess] : [])])];
     const iso = when && !isNaN(new Date(when).getTime()) ? fromLocalInput(when) : trade.entryTime;
-    onPatch(trade.id, { entryTime: iso, tags, rules: { ...(trade.rules || {}), tfSetups: rows.filter((r) => r.tf || r.setups.length) }, entryPrice: en, stopLoss: s, takeProfit: t, direction: dir, screenshotBefore: before, screenshotAfter: after,
+    onPatch(trade.id, { entryTime: iso, tags, rules: { ...(trade.rules || {}), tfSetups: rows.filter((r) => r.tf || r.setups.length), feedback: feedback.trim() || null }, entryPrice: en, stopLoss: s, takeProfit: t, direction: dir, screenshotBefore: before, screenshotAfter: after,
       exitPrice: exN, status: st === "win" || st === "loss" ? "closed" : st, resultR, resultUsd: resultR == null ? null : risk ? Math.round(resultR * risk * 100) / 100 : trade.resultUsd ?? null, retroRating: note });
     onClose();
   };
@@ -4861,6 +4862,10 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
             <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }} placeholder="+ Nouveau tag" style={{ width: 130, padding: "7px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "transparent", color: C.text, fontSize: 12.5, fontFamily: "inherit" }} />
             {newTag.trim() && <button onClick={addTag} style={{ ...btn.primary, padding: "6px 12px", fontSize: 12.5 }}><Plus size={13} /> Créer</button>}
           </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Ressenti / retour sur le trade</div>
+          <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} placeholder="Ex. : lecture bonne, mais SL trop court sous la mèche. Sorti par peur avant la news…" style={{ width: "100%", boxSizing: "border-box", padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 13, resize: "vertical" }} />
         </div>
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Setup</div>
@@ -5019,12 +5024,14 @@ function OptimizeBox({ t, onDone }) {
   const ok = e && s1 && t1 && (long ? s1 < e && t1 > e : s1 > e && t1 < e);
   const lots = ok && sl0 && Math.abs(e - sl0) > 0 ? Math.max(0.01, Math.floor(((L * Math.abs(e - sl0)) / Math.abs(e - s1)) * 100 + 1e-9) / 100) : L;
   const inp = { width: 110, padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 13 };
-  const can = !!tvSimSym(t.pair);
+  const can = true;
+  const setOpt = (out) => { const tt = { ...t, rules: { ...(t.rules || {}), initialSL: s1, initialTP: t1 } }; const o = manualOutcome(tt, out); const k = L ? lots / L : 1; o.usd = Math.round(o.usd * k * 100) / 100;
+    window.dispatchEvent(new CustomEvent("tjp-real-replay", { detail: { id: t.id, mode: "opt", ...o, sl: s1, tp: t1, lots } })); onDone && onDone(); };
   return <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12.5 }}>
     <span style={{ color: C.textMuted }}>SL</span><input value={sl} onChange={(e2) => setSl(e2.target.value)} style={inp} />
     <span style={{ color: C.textMuted }}>TP</span><input value={tp} onChange={(e2) => setTp(e2.target.value)} style={inp} />
     <span style={{ color: C.textMuted }}>→ {lots} lot (même risque)</span>
-    <button disabled={!ok || !can} onClick={() => { replayRealTrade(t, { sl: s1, tp: t1, lots }); onDone && onDone(); }} title={can ? "" : "Pas de bougies pour ce marché"} style={{ ...btn.primary, padding: "6px 12px", fontSize: 12.5, opacity: ok && can ? 1 : 0.5 }}><Rewind size={13} /> Rejouer optimisé</button>
+    <span style={{ color: C.textMuted }}>Le prix a touché :</span>{[["TP", C.teal], ["SL", C.red]].map(([o, c2]) => { const on = op?.out === o && op?.sl === s1 && op?.tp === t1; return <button key={o} disabled={!ok} onClick={() => setOpt(o)} style={{ border: `1.5px solid ${on ? c2 : C.border}`, background: on ? c2 + "22" : "transparent", color: on ? c2 : C.textSecondary, borderRadius: 8, padding: "5px 12px", fontSize: 12.5, fontWeight: 800, cursor: ok ? "pointer" : "default", fontFamily: "inherit", opacity: ok ? 1 : 0.5 }}>{o}</button>; })}
     {!ok && <span style={{ color: C.amber }}>SL et TP doivent être de chaque côté de l'entrée.</span>}
   </div>;
 }
@@ -5113,8 +5120,9 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
             : <span style={{ fontSize: 12, color: C.textMuted }}>Crée tes tags dans Réglages → Tags.</span>}
         </div>
         {t.rules?.replay && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><ReplayLine rp={t.rules.replay} /></div>}
+        {t.rules?.feedback && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, lineHeight: 1.5, whiteSpace: "pre-wrap" }}><span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginRight: 8 }}>Ressenti</span>{t.rules.feedback}</div>}
         {canManualReplay(t) && <ManualReplay t={t} />}
-        {tvSimSym(t.pair) && slOf(t) && tpOf(t) && t.status !== "open" && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>Optimiser (SL / TP modifiés)</div><OptimizeBox t={t} /></div>}
+        {canManualReplay(t) && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>Optimiser (SL / TP modifiés)</div><OptimizeBox t={t} /></div>}
         <div style={{ display: "flex" }}>{tvSimSym(t.pair) && <button disabled={!tvCanReplay(t)} onClick={() => replayRealTrade(t)} title={tvCanReplay(t) ? "Rejouer ce trade au moment exact de l'entrée" : RP_OFF} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, ...rpOff(t) }}><Rewind size={14} /> Rejouer</button>}        <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
       </div>}
     </div>
@@ -5431,25 +5439,24 @@ function tvSimTrade(t, rows, be) {
 /* trades réels rejoués (règle : BE à 50 % du TP). Un trade compte une seule fois, même rejoué 50 fois : on garde le dernier résultat. */
 function ReplayedCard({ trades }) {
   const [mode, setMode] = useState("be"); const [unit, setUnit] = useState("usd"); const [one, setOne] = useState(false);
-  const [incDone, setIncDone] = useState(false); const [hide15, setHide15] = useState(false); const [hideTags, setHideTags] = useState([]); const allUT = useUserTags();
-  /* trade terminé au SL / TP / BE : son résultat réel sert de résultat simulé (rien à rejouer), pour pouvoir le recalculer à 1 % */
+  const [showF, setShowF] = useState(false); const [info, setInfo] = useState(null); const [onlyRp, setOnlyRp] = useState(false); const [hide15, setHide15] = useState(false); const [hideTags, setHideTags] = useState([]); const allUT = useUserTags();
+  /* trade terminé au SL / TP / BE : son résultat réel sert de résultat simulé (rien à rejouer) */
   const doneRes = (t) => { const isDone = t.closeType === "Stop Loss" || t.closeType === "Take Profit" || t.status === "breakeven" || tvHitLevel(t); if (!isDone) return null;
     const out = t.status === "breakeven" || Math.abs(Number(t.resultUsd) || 0) < 1 ? "BE" : t.closeType === "Take Profit" || (Number(t.resultUsd) || 0) > 0 && !(t.closeType === "Stop Loss") ? "TP" : "SL"; return { out, usd: Number(t.resultUsd) || 0, done: true }; };
-  const resOf = (t) => (t.rules?.replay && t.rules.replay[mode]) || (incDone ? doneRes(t) : null);
-  const list = (trades || []).filter((t) => t.status !== "open" && resOf(t)).filter((t) => !(hide15 && tradeMin(t) != null && tradeMin(t) <= 15)).filter((t) => !hideTags.some((g) => (t.tags || []).includes(g))).sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
-  if (!(trades || []).some((t) => t.rules?.replay) && !incDone) { return <Card style={{ padding: 16, marginBottom: 14 }}><div style={{ fontSize: 15, fontWeight: 800 }}>Trades rejoués</div><div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 4 }}>Aucun replay pour l'instant. <button onClick={() => setIncDone(true)} style={{ border: "none", background: "none", color: C.purpleBright, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: 12.5, textDecoration: "underline" }}>Voir mes trades terminés (TP, SL, BE)</button></div></Card>; }
-  /* verdict de la sortie : réel vs simulé */
-  const verdict = (t, x) => { if (x.done) return null; const b = Number(t.resultUsd) || 0, sv = x.usd || 0; if (Math.abs(sv - b) < 1) return null; return sv < b ? "Bonne sortie" : x.out === "TP" ? "Sortie trop tôt" : "Mauvaise sortie"; };
+  /* tous les trades fermés : rejoué -> résultat du replay ; terminé -> résultat réel ; sinon pas encore rejoué (compté comme le réel) */
+  const resOf = (t) => (t.rules?.replay && t.rules.replay[mode]) || doneRes(t) || { out: "Pas rejoué", usd: Number(t.resultUsd) || 0, none: true };
+  const list = (trades || []).filter((t) => t.status !== "open" && t.resultUsd != null).filter((t) => !onlyRp || (t.rules?.replay && t.rules.replay[mode])).filter((t) => !(hide15 && tradeMin(t) != null && tradeMin(t) <= 15)).filter((t) => !hideTags.some((g) => (t.tags || []).includes(g))).sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
+  const nF = (onlyRp ? 1 : 0) + (hide15 ? 1 : 0) + hideTags.length + (mode !== "be" ? 1 : 0);
+  const verdict = (t, x) => { if (x.done || x.none) return null; const b = Number(t.resultUsd) || 0, sv = x.usd || 0; if (Math.abs(sv - b) < 1) return null; return sv < b ? "Bonne sortie" : x.out === "TP" ? "Sortie trop tôt" : "Mauvaise sortie"; };
   const addTag = (t, g) => { if (!allUT.includes(g)) userTagsSave([...allUT, g]); const has = (t.tags || []).includes(g); const others = ["Bonne sortie", "Sortie trop tôt", "Mauvaise sortie"].filter((x) => x !== g);
     window.dispatchEvent(new CustomEvent("tjp-patch-trade", { detail: { id: t.id, patch: { tags: has ? (t.tags || []).filter((x) => x !== g) : [...(t.tags || []).filter((x) => !others.includes(x)), g] } } })); };
   const col = (v) => (v > 0.5 ? C.teal : v < -0.5 ? C.red : C.textSecondary); const n2 = (v) => Math.abs(v).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  /* une seule conversion pour toutes les cases : $ brut, % du compte ou R (risque $ du trade) */
-  /* « 1 % sur chaque trade » : même trade, lots recalculés pour risquer 1 % du compte (risque réel au SL) */
-  /* lots à 1 % arrondis au 0,01 comme chez le broker, puis le même ratio s'applique au résultat */
+  /* « 1 % par trade » : lots recalculés pour risquer 1 % (risque réel au SL de départ), arrondis au 0,01. Risque inconnu (SL posé en profit / pas de SL) : déjà compté à 1 % */
   const lots1 = (t) => { const rk = tradeRiskUsd(t), b = accBalanceOf(t.accountId), L = Number(t.positionSize); return rk && b && L ? Math.max(0.01, Math.floor(((b * 0.01) / rk) * L * 100 + 1e-9) / 100) : null; };
   const k1 = (t) => { const l1 = lots1(t), L = Number(t.positionSize); return one && l1 && L ? l1 / L : 1; };
+  const riskFor = (t) => tradeRiskUsd(t) || (accBalanceOf(t.accountId) * 0.01) || null;
   const delRp = (t) => { const r = { ...(t.rules || {}) }; delete r.replay; window.dispatchEvent(new CustomEvent("tjp-patch-trade", { detail: { id: t.id, patch: { rules: r } } })); };
-  const cv0 = (t, v) => unit === "pct" ? (accBalanceOf(t.accountId) ? (v / accBalanceOf(t.accountId)) * 100 : 0) : unit === "r" ? (tradeRiskUsd(t) ? v / tradeRiskUsd(t) : 0) : v;
+  const cv0 = (t, v) => unit === "pct" ? (accBalanceOf(t.accountId) ? (v / accBalanceOf(t.accountId)) * 100 : 0) : unit === "r" ? (riskFor(t) ? v / riskFor(t) : 0) : v;
   const cv = (t, v) => cv0(t, unit === "r" ? v : v * k1(t));
   const usd = (v) => (v >= 0 ? "+" : "−") + n2(v) + (unit === "pct" ? " %" : unit === "r" ? " R" : " $");
   const tot = list.reduce((a, t) => { const b = cv(t, Number(t.resultUsd) || 0), sm = cv(t, resOf(t).usd || 0); return [a[0] + b, a[1] + sm, a[2] + sm - b]; }, [0, 0, 0]);
@@ -5457,28 +5464,30 @@ function ReplayedCard({ trades }) {
   const chip = (on) => ({ border: `1.5px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" });
   return <Card style={{ padding: 16, marginBottom: 14 }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-      <div><div style={{ fontSize: 15, fontWeight: 800 }}>Trades rejoués</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Chaque trade compte une seule fois (dernier replay). <button onClick={() => { (trades || []).filter((t) => t.rules?.replay).forEach(delRp); }} style={{ border: "none", background: "none", color: C.red, cursor: "pointer", fontSize: 12, padding: 0, fontFamily: "inherit", textDecoration: "underline" }}>Tout effacer</button></div></div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button style={chip(mode === "be")} onClick={() => setMode("be")}>Avec BE à 50 %</button><button style={chip(mode === "noBE")} onClick={() => setMode("noBE")}>Sans BE</button><button style={chip(mode === "opt")} onClick={() => setMode("opt")}>Optimisé</button>
-        <span style={{ width: 1, background: C.border, margin: "0 2px" }} />{[["usd", "$"], ["pct", "%"], ["r", "R"]].map(([k, l]) => <button key={k} style={chip(unit === k)} onClick={() => setUnit(k)}>{l}</button>)}
-        <span style={{ width: 1, background: C.border, margin: "0 2px" }} /><button style={chip(one)} onClick={() => setOne(!one)} title="Lots recalculés automatiquement pour risquer 1 % du compte sur chaque trade">Si 1 % par trade</button></div>
+      <div><div style={{ fontSize: 15, fontWeight: 800 }}>Trades rejoués</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Tous tes trades fermés : réel vs rejoué ({mode === "be" ? "BE à 50 %" : mode === "noBE" ? "sans BE" : "optimisé"}).</div></div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{[["usd", "$"], ["pct", "%"], ["r", "R"]].map(([k, l]) => <button key={k} style={chip(unit === k)} onClick={() => setUnit(k)}>{l}</button>)}
+        <span style={{ width: 1, background: C.border, margin: "0 2px" }} /><button style={chip(one)} onClick={() => setOne(!one)} title="Lots recalculés automatiquement pour risquer 1 % du compte sur chaque trade">Si 1 % par trade</button>
+        <span style={{ width: 1, background: C.border, margin: "0 2px" }} /><button style={chip(showF || nF > 0)} onClick={() => setShowF(!showF)}><Filter size={13} style={{ verticalAlign: "-2px" }} /> Filtres{nF ? ` (${nF})` : ""}</button></div>
     </div>
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-      <button style={chip(incDone)} onClick={() => setIncDone(!incDone)}>+ Trades terminés (TP / SL / BE)</button>
-      <button style={chip(hide15)} onClick={() => setHide15(!hide15)}>Masquer ≤ 15 min</button>
-      {allUT.length > 0 && <><span style={{ fontSize: 12, color: C.textMuted, marginLeft: 4 }}>Masquer tags :</span>{allUT.map((g) => <button key={g} style={{ ...chip(hideTags.includes(g)), padding: "4px 10px", fontSize: 12 }} onClick={() => setHideTags(hideTags.includes(g) ? hideTags.filter((x) => x !== g) : [...hideTags, g])}>{hideTags.includes(g) ? "✕ " : ""}{g}</button>)}</>}
-    </div>
-    {list.length === 0 ? <div style={{ fontSize: 12.5, color: C.textMuted }}>{mode === "opt" ? "Aucun trade optimisé : ouvre un trade dans Mes trades → « Optimiser », change le SL / TP et rejoue-le." : `Aucun trade rejoué ${mode === "noBE" ? "jusqu'au bout sans BE" : ""} pour l'instant.`}</div> :
+    {showF && <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, marginBottom: 10 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><span style={{ fontSize: 12, color: C.textMuted, width: 90 }}>Replay</span><button style={chip(mode === "be")} onClick={() => setMode("be")}>Avec BE à 50 %</button><button style={chip(mode === "noBE")} onClick={() => setMode("noBE")}>Sans BE</button><button style={chip(mode === "opt")} onClick={() => setMode("opt")}>Optimisé</button></div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><span style={{ fontSize: 12, color: C.textMuted, width: 90 }}>Afficher</span><button style={chip(onlyRp)} onClick={() => setOnlyRp(!onlyRp)}>Seulement les rejoués</button><button style={chip(hide15)} onClick={() => setHide15(!hide15)}>Masquer ≤ 15 min</button></div>
+      {allUT.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}><span style={{ fontSize: 12, color: C.textMuted, width: 90 }}>Masquer tags</span>{allUT.map((g) => <button key={g} style={{ ...chip(hideTags.includes(g)), padding: "4px 10px", fontSize: 12 }} onClick={() => setHideTags(hideTags.includes(g) ? hideTags.filter((x) => x !== g) : [...hideTags, g])}>{hideTags.includes(g) ? "✕ " : ""}{g}</button>)}</div>}
+      <div><button onClick={() => { (trades || []).filter((t) => t.rules?.replay).forEach(delRp); }} style={{ border: "none", background: "none", color: C.red, cursor: "pointer", fontSize: 12, padding: 0, fontFamily: "inherit", textDecoration: "underline" }}>Effacer tous les replays</button></div>
+    </div>}
+    {list.length === 0 ? <div style={{ fontSize: 12.5, color: C.textMuted }}>Aucun trade avec ces filtres.</div> :
     <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%" }}>
       <thead><tr>{["Date", "Paire", "Lots", "Résultat de base", "Résultat simulé", "Changement", "Verdict", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
-      <tbody>{list.map((t) => { const x = resOf(t), vd = verdict(t, x), b = cv(t, Number(t.resultUsd) || 0), sv = cv(t, x.usd || 0), d = sv - b, rk = tradeRiskUsd(t), pc = tradeRiskPct(t); return <tr key={t.id}>
+      <tbody>{list.map((t) => { const x = resOf(t), vd = verdict(t, x), b = cv(t, Number(t.resultUsd) || 0), sv = cv(t, x.usd || 0), d = sv - b, rk = tradeRiskUsd(t), pc = tradeRiskPct(t); return <tr key={t.id} style={{ opacity: x.none ? 0.6 : 1 }}>
         <td style={{ ...td, textTransform: "capitalize" }}>{fmtDateTime(t.entryTime)}</td>
-        <td style={td}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={16} /><b>{t.pair}</b></span></td>
-        <td className="tnum" style={td}><b>{String(t.positionSize ?? "—").replace(".", ",")}</b> lot{one && lots1(t) != null ? <b style={{ color: C.purpleBright }}> → {lots1(t).toLocaleString("fr-FR")} lot</b> : null}{rk ? <span style={{ color: C.textMuted }}> · {Math.round(rk * k1(t)).toLocaleString("fr-FR")} $ risqués{pc != null ? ` (${(pc * k1(t)).toFixed(2).replace(".", ",")} %)` : ""}</span> : null}</td>
+        <td style={td}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={16} /><b>{t.pair}</b>{t.rules?.feedback && <button onClick={() => setInfo(info === t.id ? null : t.id)} title={t.rules.feedback} style={{ border: `1px solid ${info === t.id ? C.purpleBright : C.border}`, background: info === t.id ? C.purpleDim : "transparent", color: C.purpleBright, borderRadius: 999, width: 18, height: 18, fontSize: 11, fontWeight: 800, fontStyle: "italic", fontFamily: "Georgia, serif", cursor: "pointer", padding: 0, lineHeight: "16px" }}>i</button>}</span>
+          {info === t.id && <div style={{ whiteSpace: "pre-wrap", minWidth: 240, maxWidth: 340, marginTop: 6, fontSize: 12.5, color: C.textSecondary, lineHeight: 1.45, background: C.purpleDim, borderRadius: 8, padding: "6px 9px" }}>{t.rules.feedback}</div>}</td>
+        <td className="tnum" style={td}><b>{String(t.positionSize ?? "—").replace(".", ",")}</b> lot{one && lots1(t) != null ? <b style={{ color: C.purpleBright }}> → {lots1(t).toLocaleString("fr-FR")} lot</b> : null}{rk ? <span style={{ color: C.textMuted }}> · {Math.round(rk * k1(t)).toLocaleString("fr-FR")} $ risqués{pc != null ? ` (${(pc * k1(t)).toFixed(2).replace(".", ",")} %)` : ""}</span> : <span style={{ color: C.amber }} title="Pas de SL de départ valable (SL posé en profit ou aucun SL) : impossible de recalculer les lots, compté comme 1 %"> · risque inconnu</span>}</td>
         <td className="tnum" style={{ ...td, color: col(b) }}>{usd(b)}</td>
-        <td className="tnum" style={{ ...td, color: col(sv) }}><b>{x.out}{x.done ? " (réel)" : mode === "noBE" ? " (NO BE)" : ""}</b> · {usd(sv)}{mode === "opt" && x.sl != null ? <div style={{ fontSize: 11, color: C.textMuted }}>SL {x.sl} · TP {x.tp}{x.lots ? " · " + x.lots + " lot" : ""}</div> : null}</td>
-        <td className="tnum" style={{ ...td, color: col(d), fontWeight: 700 }}>{usd(d)}</td>
+        <td className="tnum" style={{ ...td, color: x.none ? C.textMuted : col(sv) }}>{x.none ? <span>Pas rejoué</span> : <><b>{x.out}{x.done ? " (réel)" : mode === "noBE" ? " (NO BE)" : ""}</b> · {usd(sv)}</>}{mode === "opt" && x.sl != null ? <div style={{ fontSize: 11, color: C.textMuted }}>SL {x.sl} · TP {x.tp}{x.lots ? " · " + x.lots + " lot" : ""}</div> : null}</td>
+        <td className="tnum" style={{ ...td, color: col(d), fontWeight: 700 }}>{x.none ? "—" : usd(d)}</td>
         <td style={td}>{vd ? <button onClick={() => addTag(t, vd)} title="Clique pour ajouter ce verdict en tag sur le trade" style={{ border: `1.5px solid ${(t.tags || []).includes(vd) ? C.amber : C.border}`, background: (t.tags || []).includes(vd) ? "rgba(245,158,11,0.14)" : "transparent", color: vd === "Bonne sortie" ? C.teal : C.red, borderRadius: 999, padding: "3px 9px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{(t.tags || []).includes(vd) ? "✓ " : "+ "}{vd}</button> : <span style={{ color: C.textMuted }}>—</span>}</td>
-        <td style={td}>{x.done ? null : <button onClick={() => delRp(t)} title="Supprimer ce replay (tu pourras le rejouer à nouveau)" style={{ border: "none", background: "none", color: C.textMuted, cursor: "pointer", padding: 2, display: "flex" }}><Trash2 size={14} /></button>}</td></tr>; })}</tbody>
+        <td style={td}>{x.done || x.none ? null : <button onClick={() => delRp(t)} title="Supprimer ce replay (tu pourras le rejouer à nouveau)" style={{ border: "none", background: "none", color: C.textMuted, cursor: "pointer", padding: 2, display: "flex" }}><Trash2 size={14} /></button>}</td></tr>; })}</tbody>
       <tfoot><tr><td style={{ ...td, fontWeight: 800, borderBottom: "none" }} colSpan={3}>Total · {list.length} trade{list.length > 1 ? "s" : ""}</td>
         <td className="tnum" style={{ ...td, borderBottom: "none", fontWeight: 800, color: col(tot[0]) }}>{usd(tot[0])}</td>
         <td className="tnum" style={{ ...td, borderBottom: "none", fontWeight: 800, color: col(tot[1]) }}>{usd(tot[1])}</td>
