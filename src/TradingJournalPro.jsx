@@ -7522,8 +7522,9 @@ function pairLogoSet(pair, url) { const m = pairLogosGet(); if (url) m[pair] = u
   if (!url || !String(url).startsWith("data:")) { clearTimeout(pairLogoSet._t); pairLogoSet._t = setTimeout(() => { saveSettingsPatch({ pair_logos: pairLogosGet() }).catch(() => {}); }, 800); } }
 function usePairLogos() { const [m, setM] = useState(pairLogosGet); useEffect(() => { const h = () => setM(pairLogosGet()); window.addEventListener("pairlogos", h); return () => window.removeEventListener("pairlogos", h); }, []); return m; }
 function PairLogo({ pair, size = 22, radius }) {
-  const m = usePairLogos(); const src = m[pair];
-  if (!src) return <AutoPairLogo pair={pair} size={size} />;
+  const AL = { US500: "SPX500", SPX500: "US500", USTEC: "NAS100", XAUUSDPRO: "XAUUSD" }; const k = String(pair || "").toUpperCase().replace(/\./g, "");
+  const m = usePairLogos(); const src = m[pair] || m[AL[k]];
+  if (!src) return <AutoPairLogo pair={k === "US500" ? "SPX500" : pair} size={size} />;
   return <img src={src} alt="" style={{ width: size, height: size, borderRadius: radius ?? size * 0.28, objectFit: "contain", flexShrink: 0, display: "block" }} />;
 }
 const ASSET_CATS = [
@@ -7983,13 +7984,13 @@ function parseTradeLockerText(text, balance = 50000) {
     const ids = after.match(/\d{12,}/g) || []; const posId = ids[ids.length - 1] || null;
     const entryTime = tlEetToIso(+dts[0][1], +dts[0][2], +dts[0][3], +dts[0][4], +dts[0][5], +dts[0][6]);
     const exitTime = tlEetToIso(+dts[1][1], +dts[1][2], +dts[1][3], +dts[1][4], +dts[1][5], +dts[1][6]);
+    const plannedRR = sl != null && tp != null && Math.abs(en - sl) > 1e-9 ? Math.round((Math.abs(tp - en) / Math.abs(en - sl)) * 100) / 100 : null;
     const slOk = sl != null && Math.abs(sl - en) > 1e-9 && (direction === "long" ? sl < en : sl > en); /* SL déplacé au BE ou en profit : risque d'origine inconnu */
     let R = slOk ? ((ex - en) * (direction === "long" ? 1 : -1)) / Math.abs(en - sl) : null;
     let riskUsd = R && pnl != null && Math.abs(R) > 0.01 ? Math.abs(pnl / R) : null;
-    /* SL remonté près de l'entrée : TradeLocker montre le SL final, pas celui de départ -> R irréaliste, on prend 1 % du compte */
-    if (R != null && Math.abs(R) > 10) { R = null; riskUsd = null; }
-    if (R == null && pnl != null) { riskUsd = balance * 0.01; R = pnl / riskUsd; }
-    out.push({ id: "tl_" + (posId || pair + entryTime), pair, direction, entryTime, exitTime, entryPrice: en, stopLoss: sl, takeProfit: tp, exitPrice: ex, positionSize: lots, closeType,
+    /* R crédible : P&L ÷ risque fixe (1 % du compte). TradeLocker montre le SL final, pas celui de départ, donc la distance au SL fausse le R */
+    if (pnl != null) { riskUsd = balance * 0.01; R = pnl / riskUsd; }
+    out.push({ id: "tl_" + (posId || pair + entryTime), pair, direction, entryTime, exitTime, entryPrice: en, stopLoss: sl, takeProfit: tp, exitPrice: ex, positionSize: lots, closeType, plannedRR,
       riskUsd: riskUsd == null ? null : Math.round(riskUsd * 100) / 100, resultUsd: pnl, resultR: R == null ? null : Math.round(R * 100) / 100, resultRManual: true,
       status: pnl === 0 || (R != null && Math.abs(R) < 0.05) ? "breakeven" : "closed", tags: sl == null ? ["Sans SL"] : [], notes: slOk ? "" : sl == null ? "Importé sans stop loss : R calculé sur 1 % du compte." : "SL déplacé (BE ou profit) : R calculé sur 1 % du compte.", rules: { source: "tradelocker" } });
   }
@@ -10533,8 +10534,9 @@ export default function TradingJournalApp() {
 
   // ── Import MT4/MT5 : ajoute les positions, sans doublon ──
   /* trades TradeLocker déjà importés avec un R irréaliste (SL final au lieu du SL de départ) : R recalculé sur 1 % du compte */
-  useEffect(() => { const bad = (trades || []).filter((t) => String(t.id).startsWith("tl_") && Math.abs(Number(t.resultR) || 0) > 10 && t.resultUsd != null);
-    bad.forEach((t) => { const acc = (accounts || []).find((a) => a.id === t.accountId); const rk = (Number(acc?.balance) || initialBalance || 10000) * 0.01; patchTrade(t.id, { riskUsd: Math.round(rk * 100) / 100, resultR: Math.round((t.resultUsd / rk) * 100) / 100 }); }); }, [trades.length]);
+  useEffect(() => { (trades || []).forEach((t) => { if (!String(t.id).startsWith("tl_") || t.resultUsd == null) return;
+      const acc = (accounts || []).find((a) => a.id === t.accountId); const rk = Math.round((Number(acc?.balance) || initialBalance || 10000) * 0.01 * 100) / 100; const r = Math.round((t.resultUsd / rk) * 100) / 100;
+      if (Math.abs((Number(t.resultR) || 0) - r) > 0.005 || Number(t.riskUsd) !== rk) patchTrade(t.id, { riskUsd: rk, resultR: r }); }); }, [trades.length, accounts]);
   const importTrades = (list) => {
     const have = new Set(tradesRef.current.map((t) => t.id)); const now = Date.now();
     const fresh = list.filter((t) => !have.has(t.id)).map((t) => ({ ...t, accountId: t.accountId || effectiveAccountId, updatedAt: now }));
