@@ -4766,6 +4766,8 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
   useEscClose(onClose);
   const SESS = ["London Session", "New York Session", "Asia Session", "Hors session"];
   const [when, setWhen] = useState(toLocalInput(trade.entryTime));
+  const userTags = useUserTags(); const [uTags, setUTags] = useState(() => (trade.tags || []).filter((g) => userTagsGet().includes(g))); const [newTag, setNewTag] = useState("");
+  const addTag = () => { const v = newTag.trim(); if (!v) return; const ex = userTags.find((x) => x.toLowerCase() === v.toLowerCase()); if (!ex) userTagsSave([...userTags, v]); const n = ex || v; if (!uTags.includes(n)) setUTags([...uTags, n]); setNewTag(""); };
   const [sess, setSess] = useState((trade.tags || []).find((g) => SESS.includes(g)) || getSession(trade.entryTime));
   const tfList = appSettings?.timeframes && appSettings.timeframes.length ? [...new Set(appSettings.timeframes.map(tfFix))] : DEFAULT_TFS;
   const hiddenT = appSettings?.hiddenTags || [];
@@ -4799,7 +4801,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
     let resultR = st === "open" ? null : st === "breakeven" ? 0 : liveR != null ? Math.round(liveR * 100) / 100 : null;
     const risk = Number(trade.riskUsd) || null;
     const keep = (trade.tags || []).filter((g) => !SESS.includes(g) && !ALLTF.includes(g) && !setupNames.includes(g) && !TAG_CATALOG.find((c) => c.name === g && c.category === "setup"));
-    const tags = [...new Set([...keep, ...rows.map((r) => r.tf).filter(Boolean), ...rows.flatMap((r) => r.setups), ...(sess ? [sess] : [])])];
+    const tags = [...new Set([...keep.filter((g) => !userTags.includes(g)), ...uTags, ...rows.map((r) => r.tf).filter(Boolean), ...rows.flatMap((r) => r.setups), ...(sess ? [sess] : [])])];
     const iso = when && !isNaN(new Date(when).getTime()) ? fromLocalInput(when) : trade.entryTime;
     onPatch(trade.id, { entryTime: iso, tags, rules: { ...(trade.rules || {}), tfSetups: rows.filter((r) => r.tf || r.setups.length) }, entryPrice: en, stopLoss: s, takeProfit: t, direction: dir, screenshotBefore: before, screenshotAfter: after,
       exitPrice: exN, status: st === "win" || st === "loss" ? "closed" : st, resultR, resultUsd: resultR == null ? null : risk ? Math.round(resultR * risk * 100) / 100 : trade.resultUsd ?? null, retroRating: note });
@@ -4830,6 +4832,14 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
           <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Session</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {SESS.map((x) => <button key={x} onClick={() => setSess(x)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: `1px solid ${sess === x ? C.purple : C.border}`, background: sess === x ? C.purpleDim : "transparent", color: sess === x ? C.purpleBright : C.textSecondary }}><SessionFlag name={x} size={15} />{x.replace(" Session", "")}</button>)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Tags</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            {userTags.map((g) => { const on = uTags.includes(g); return <button key={g} onClick={() => setUTags(on ? uTags.filter((x) => x !== g) : [...uTags, g])} style={{ padding: "7px 11px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? C.purpleBright : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary }}>{g}</button>; })}
+            <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }} placeholder="+ Nouveau tag" style={{ width: 130, padding: "7px 10px", borderRadius: 999, border: `1px dashed ${C.border}`, background: "transparent", color: C.text, fontSize: 12.5, fontFamily: "inherit" }} />
+            {newTag.trim() && <button onClick={addTag} style={{ ...btn.primary, padding: "6px 12px", fontSize: 12.5 }}><Plus size={13} /> Créer</button>}
           </div>
         </div>
         <div>
@@ -4927,7 +4937,7 @@ function TradeRow({ t, onOpen }) {
 
 /* % du compte risqué : distance réelle au SL × valeur du point × lots (marchés connus), sinon risque $ enregistré */
 function accBalanceOf(id) { try { const a = JSON.parse(localStorage.getItem("accounts") || "[]"); const x = a.find((q) => q.id === id) || a.find((q) => q.id === localStorage.getItem("activeAccountId")) || a[0]; return Number(x?.balance) || 0; } catch (e) { return 0; } }
-function tradeRiskUsd(t) { const k = tvSimSym(t.pair), S = k && TV_SYMS[k], e = Number(t.entryPrice), sl = Number(t.stopLoss), L = Number(t.positionSize);
+function tradeRiskUsd(t) { const k = tvSimSym(t.pair), S = k && TV_SYMS[k], e = Number(t.entryPrice), sl = Number(t.rules?.initialSL ?? t.stopLoss), L = Number(t.positionSize);
   const okSide = e && sl && (t.direction === "long" ? sl < e : sl > e);
   if (S && okSide && L) return (Math.abs(e - sl) / S.pip) * S.pv * L;
   const x = Number(t.exitPrice), dir = t.direction === "short" ? -1 : 1; /* autre marché : $ par point tiré du vrai P&L */
@@ -5012,6 +5022,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
           <div><div style={lab}>Take profit</div><div className="tnum" style={val}>{fp(t.takeProfit)}</div></div>
           <div><div style={lab}>Résultat</div><div className="tnum" style={{ ...val, color: col, fontWeight: 600 }}>{isOpenSt ? "—" : fmtR(r)}</div></div>
           <div><div style={lab}>Profit net</div><div className="tnum" style={{ ...val, color: col }}>{!isOpenSt && t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : "—"}</div></div>
+          {t.rules?.initialSL != null && <div><div style={lab}>SL de départ</div><div className="tnum" style={val}>{fp(t.rules.initialSL)}</div></div>}
           <div><div style={lab}>Risque réel</div><div className="tnum" style={val}>{tradeRiskUsd(t) ? <>{fmtUsd(tradeRiskUsd(t))}{tradeRiskPct(t) != null && <span style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 500 }}> ({tradeRiskPct(t).toFixed(2).replace(".", ",")} %)</span>}</> : <span style={{ fontSize: 13, color: C.textMuted }}>inconnu (SL déplacé)</span>}</div></div>
           <div><div style={lab}>Session</div><div style={{ ...val, display: "flex", alignItems: "center", gap: 6 }}><SessionFlag name={getSession(t.entryTime)} size={15} />{getSession(t.entryTime).replace(" Session", "")}</div></div>
         </div>
@@ -8090,6 +8101,8 @@ function parseMtReport(text, accountId) {
 /* ===== Import d'une capture « Positions fermées » TradeLocker (OCR local) ===== */
 const TL_SYMS = ["EURUSD","GBPUSD","USDJPY","USDCHF","USDCAD","AUDUSD","NZDUSD","EURGBP","EURJPY","GBPJPY","AUDJPY","CADJPY","CHFJPY","EURCHF","EURAUD","EURCAD","GBPCHF","GBPAUD","GBPCAD","AUDCAD","AUDCHF","AUDNZD","NZDJPY","CADCHF","XAUUSD","XAGUSD","XAUEUR","USOIL","UKOIL","NGAS","NAS100","US30","SPX500","US500","GER40","UK100","FRA40","JPN225","BTCUSD","ETHUSD","LTCUSD"];
 const TL_ALIAS = { SPX500: "US500", "XAUUSD.PRO": "XAUUSD" };
+/* SL / TP de départ tirés de ton historique des ordres TradeLocker (21 nov.) : appliqués une fois, puis gardés dans Supabase */
+const TL_ORDERS_BACKFILL = {"432345564231126158":{"sl":58771.73,"slFinal":null,"tp":52941.34},"432345564231063703":{"sl":28072.23,"slFinal":null,"tp":26953.85},"432345564230875059":{"sl":86.76,"slFinal":null,"tp":null},"432345564230875052":{"sl":null,"slFinal":null,"tp":85.39},"432345564230830222":{"sl":1.11575,"slFinal":1.11572,"tp":1.11353},"432345564230830175":{"sl":1.11575,"slFinal":null,"tp":1.11353},"432345564230821657":{"sl":1.12147,"slFinal":null,"tp":1.11353},"432345564230821621":{"sl":1.34216,"slFinal":null,"tp":1.33471},"432345564230785024":{"sl":1.12184,"slFinal":null,"tp":1.11321},"432345564230578717":{"sl":101,"slFinal":101.86,"tp":103.11},"432345564230578764":{"sl":101,"slFinal":null,"tp":null},"432345564230372338":{"sl":4162,"slFinal":null,"tp":4068},"432345564230372284":{"sl":1.33265,"slFinal":null,"tp":1.34066},"432345564230372274":{"sl":1.33265,"slFinal":null,"tp":null},"432345564230361931":{"sl":0.82857,"slFinal":null,"tp":0.82334},"432345564230234722":{"sl":7783.6,"slFinal":null,"tp":7834.34},"432345564230229284":{"sl":4141.2,"slFinal":4160,"tp":4214.11},"432345564230233512":{"sl":91.77,"slFinal":null,"tp":94.37},"432345564230228717":{"sl":7775.16,"slFinal":null,"tp":7822.51},"432345564230217269":{"sl":4168.78,"slFinal":null,"tp":4209}};
 const TL_BACKFILL = [ /* [paire, entrée EET, sortie EET, type] */
   ["EURUSD", "2026/11/10 15:41:05", "2026/11/10 17:35:07", "Market"], ["EURUSD", "2026/11/09 10:53:27", "2026/11/09 21:38:34", "Stop Loss"],
   ["USOIL", "2026/10/29 11:13:35", "2026/10/29 12:35:27", "Stop Loss"], ["USOIL", "2026/10/29 11:15:22", "2026/10/29 11:15:54", "Market"],
@@ -8170,6 +8183,35 @@ async function ocrTradeLocker(src) {
 }
 
 const fmtDur = (a, b) => { if (!a || !b) return null; const m = Math.round((new Date(b) - new Date(a)) / 60000); if (!(m >= 0)) return null; if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; if (h < 24) return h + " h" + (r ? " " + String(r).padStart(2, "0") : ""); const d = Math.floor(h / 24), hh = h % 24; return d + " j" + (hh ? " " + hh + " h" : ""); };
+/* Historique des ordres TradeLocker (copier-coller) : par position, 1er SL placé = SL de départ, dernier = SL final */
+function parseTlOrders(text) {
+  const out = {}; const blocks = String(text).split(/(?=\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})/);
+  for (const b of blocks) { const dm = b.match(/^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/); if (!dm) continue;
+    const st = (b.match(/(Remplacé|Placé|Exécuté|Annulé|Déclenché|Replaced|Placed|Modified|Filled|Executed|Cancell?ed|Triggered)/i) || [])[1] || "";
+    const ty = /stop\s*loss/i.test(b) ? "sl" : /take\s*profit/i.test(b) ? "tp" : null; if (!ty || /annul|cancel|exécut|execut|filled|déclench|trigger/i.test(st)) continue;
+    const ids = b.match(/\d{15,}/g) || []; if (ids.length < 2) continue; const pos = ids[ids.length - 1];
+    const line = b.split(/\n/).find((l) => /\b(Vendre|Acheter|Sell|Buy)\b/i.test(l)) || ""; const cells = line.split(/\t+/).map((x) => x.trim());
+    const si = cells.findIndex((x) => /^(Vendre|Acheter|Sell|Buy)$/i.test(x)); const raw = si >= 0 ? cells[si + 2] : null;
+    const px = raw ? Number(raw.replace(/[\s\u00a0\u202f]/g, "").replace(",", ".")) : NaN; if (!(px > 0)) continue;
+    const t = Date.UTC(+dm[1], dm[2] - 1, +dm[3], +dm[4], +dm[5], +dm[6]); const o = (out[pos] = out[pos] || { ev: [] }); o.ev.push({ t, ty, px }); }
+  for (const k of Object.keys(out)) { const ev = out[k].ev.sort((a, b) => a.t - b.t); const sls = ev.filter((x) => x.ty === "sl"), tps = ev.filter((x) => x.ty === "tp");
+    out[k] = { sl: sls[0]?.px ?? null, slFinal: sls.length > 1 ? sls[sls.length - 1].px : null, tp: tps[0]?.px ?? null, n: ev.length }; }
+  return out;
+}
+function TlOrdersImport({ trades }) {
+  const [txt, setTxt] = useState(""); const [msg, setMsg] = useState("");
+  useEffect(() => { const h = (e) => setMsg(`${e.detail} trade${e.detail > 1 ? "s" : ""} mis à jour avec leur SL de départ ✓ (risque réel et R recalculés)`); window.addEventListener("tjp-initial-sl-done", h); return () => window.removeEventListener("tjp-initial-sl-done", h); }, []);
+  const go = () => { const m = parseTlOrders(txt); const k = Object.keys(m).filter((p) => (trades || []).some((t) => t.id === "tl_" + p)); if (!Object.keys(m).length) { setMsg("Rien trouvé : copie le tableau de l'onglet Historique des ordres."); return; }
+    if (!k.length) { setMsg(`${Object.keys(m).length} position(s) lues, mais aucune ne correspond à un trade importé. Importe d'abord la capture des positions fermées.`); return; }
+    window.dispatchEvent(new CustomEvent("tjp-initial-sl", { detail: m })); setTxt(""); };
+  return <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+    <div style={{ fontSize: 12.5, fontWeight: 700 }}>SL de départ (historique des ordres)</div>
+    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>TradeLocker garde seulement le SL final. Dans l'onglet <b>Historique des ordres</b>, sélectionne le tableau, copie-le (Ctrl+C) et colle-le ici : l'app retrouve le 1er SL placé de chaque trade et recalcule ton vrai risque et tes R.</div>
+    <textarea value={txt} onChange={(e) => setTxt(e.target.value)} placeholder="Colle ici l'historique des ordres…" rows={4} style={{ padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 12.5, resize: "vertical" }} />
+    <button disabled={!txt.trim()} onClick={go} style={{ ...btn.primary, justifyContent: "center", opacity: txt.trim() ? 1 : 0.5 }}><Check size={14} /> Lire les SL de départ</button>
+    {msg && <div style={{ fontSize: 12.5, color: msg.includes("✓") ? C.teal : C.amber }}>{msg}</div>}
+  </div>;
+}
 function TlShotImport({ trades = [], onImport, accountId, balance }) {
   const ref = useRef(null); const [st, setSt] = useState("idle"); const [msg, setMsg] = useState(""); const [rows, setRows] = useState([]); const [pick, setPick] = useState({});
   const go = async (file) => { if (!file || !file.type.startsWith("image/")) return; setSt("reading"); setMsg(""); setRows([]);
@@ -8642,6 +8684,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
 
       {onImport && <SettingsSection title="Importer depuis TradeLocker (capture)" icon={Upload}>
         <TlShotImport trades={trades} onImport={onImport} accountId={activeAccountId || accounts?.[0]?.id || null} balance={(accounts || []).find((a) => a.id === activeAccountId)?.balance} />
+        <TlOrdersImport trades={trades} />
       </SettingsSection>}
 
 
@@ -10702,7 +10745,7 @@ export default function TradingJournalApp() {
 
   // ── Import MT4/MT5 : ajoute les positions, sans doublon ──
   /* trades TradeLocker déjà importés avec un R irréaliste (SL final au lieu du SL de départ) : R recalculé sur 1 % du compte */
-  useEffect(() => { (trades || []).forEach((t) => { if (!String(t.id).startsWith("tl_") || t.resultUsd == null) return;
+  useEffect(() => { (trades || []).forEach((t) => { if (!String(t.id).startsWith("tl_") || t.resultUsd == null || t.rules?.initialSL != null) return;
       const acc = (accounts || []).find((a) => a.id === t.accountId); const rk = Math.round((Number(acc?.balance) || initialBalance || 10000) * 0.01 * 100) / 100; const r = Math.round((t.resultUsd / rk) * 100) / 100;
       if (Math.abs((Number(t.resultR) || 0) - r) > 0.005 || Number(t.riskUsd) !== rk) patchTrade(t.id, { riskUsd: rk, resultR: r }); }); }, [trades.length, accounts]);
   /* résultat d'un trade réel rejoué : gardé dans rules.replay (Supabase), un seul par trade et par mode */
@@ -10711,8 +10754,20 @@ export default function TradingJournalApp() {
     window.addEventListener("tjp-real-replay", h); return () => window.removeEventListener("tjp-real-replay", h); }, []);
   /* heure de sortie / type de clôture de tes trades TradeLocker (captures du 21 nov.), perdus avant la synchro : complétés une fois puis gardés dans Supabase */
   useEffect(() => { if (!trades.length) return; const P = (x) => { const m = x.match(/(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})/); return tlEetToIso(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]); };
-    TL_BACKFILL.forEach(([pair, en, ex, ct]) => { const ei = new Date(P(en)).getTime(); const t = tradesRef.current.find((x) => (TL_ALIAS[x.pair] || x.pair) === pair && Math.abs(new Date(x.entryTime).getTime() - ei) < 90e3); if (!t) return;
-      const pt = {}; if (!t.exitTime) pt.exitTime = P(ex); if (!t.closeType) pt.closeType = ct; if (Object.keys(pt).length) patchTrade(t.id, pt); }); }, [trades.length]);
+    /* le trade le plus proche (deux entrées peuvent être à 1 min d'écart) ; l'heure TradeLocker fait foi */
+    TL_BACKFILL.forEach(([pair, en, ex, ct]) => { const ei = new Date(P(en)).getTime(); let t = null, best = 30e3;
+      for (const x of tradesRef.current) { if ((TL_ALIAS[x.pair] || x.pair) !== pair) continue; const d = Math.abs(new Date(x.entryTime).getTime() - ei); if (d < best) { best = d; t = x; } } if (!t) return;
+      const pt = {}, xi = P(ex); if (!t.exitTime || Math.abs(new Date(t.exitTime).getTime() - new Date(xi).getTime()) > 1000) pt.exitTime = xi; if (!t.closeType) pt.closeType = ct; if (Object.keys(pt).length) patchTrade(t.id, pt); }); }, [trades.length]);
+  /* SL / TP de départ lus dans l'historique des ordres TradeLocker : risque réel et R = P&L ÷ risque de départ */
+  useEffect(() => { const h = (e) => { const m = e.detail || {}; let n = 0;
+      for (const t of tradesRef.current) { const posId = String(t.id).replace(/^tl_/, ""); const o = m[posId]; if (!o || o.sl == null) continue;
+        const rules = { ...(t.rules || {}), initialSL: o.sl, ...(o.tp != null ? { initialTP: o.tp } : {}), ...(o.slFinal != null ? { finalSL: o.slFinal } : {}) };
+        const rk = tradeRiskUsd({ ...t, rules }); const pt = { rules }; if (rk && t.resultUsd != null) { pt.riskUsd = Math.round(rk * 100) / 100; pt.resultR = Math.round((t.resultUsd / rk) * 100) / 100; }
+        patchTrade(t.id, pt); n++; }
+      window.dispatchEvent(new CustomEvent("tjp-initial-sl-done", { detail: n })); };
+    window.addEventListener("tjp-initial-sl", h); return () => window.removeEventListener("tjp-initial-sl", h); }, []);
+  useEffect(() => { if (!trades.length) return; const todo = {}; for (const t of trades) { const k = String(t.id).replace(/^tl_/, ""); const o = TL_ORDERS_BACKFILL[k]; if (o && o.sl != null && t.rules?.initialSL == null) todo[k] = o; }
+    if (Object.keys(todo).length) setTimeout(() => window.dispatchEvent(new CustomEvent("tjp-initial-sl", { detail: todo })), 300); }, [trades.length]);
   const importTrades = (list) => {
     const have = new Set(tradesRef.current.map((t) => t.id)); const now = Date.now();
     /* trades déjà là : on complète ce qui manque (heure de sortie, type de clôture, RR prévu) sans toucher au reste */
