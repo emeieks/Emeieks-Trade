@@ -4807,7 +4807,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
               {row.setups.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{row.setups.map((st) => <span key={st} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: C.purpleDim, color: C.purpleBright, fontSize: 12, fontWeight: 700 }}><b style={{ color: C.text }}>{row.tf}</b> {st}
                 <button onClick={() => upd((r) => ({ ...r, setups: r.setups.filter((x) => x !== st) }))} aria-label={"Retirer " + st} style={{ background: "none", border: "none", color: C.purpleBright, cursor: "pointer", padding: 0, display: "flex" }}><X size={12} /></button></span>)}</div>}
             </div>); })}
-          <button onClick={() => setRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 12.5, cursor: "pointer", padding: 0 }}>+ Ajouter des PD arrays</button>
+          <button onClick={() => setRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 12.5, cursor: "pointer", padding: 0 }}>+ Autre timeframe</button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <ImageUploadBox label="Avant" value={before} onChange={setBefore} />
@@ -5336,6 +5336,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
               <DetailStat label="Paire" value={trade.pair} />
               <DetailStat label="Direction" value={trade.direction === "long" ? "Achat" : "Vente"} valueColor={trade.direction === "long" ? "#4A9EFF" : C.red} />
               <DetailStat label="Session" value={getSession(trade.entryTime) || "—"} />
+              {fmtDur(trade.entryTime, trade.exitTime) && <DetailStat label="Durée" value={fmtDur(trade.entryTime, trade.exitTime)} />}
               <DetailStat label="Timeframe" value={(trade.tags || []).find(t => ["M1","M5","M15","M30","H1","H4","D1","W1","D","W"].includes(t)) || "—"} />
               {trade.tfAlignment && <DetailStat label="TF sup." value={trade.tfAlignment + (trade.tfAlignmentSetup ? " · " + trade.tfAlignmentSetup : "")} />}
               {trade.oteFib && <DetailStat label="Zone OTE" value={trade.oteFib} valueColor={C.teal} />}
@@ -5828,6 +5829,7 @@ function ShotAutoFill({ onResult, onImage }) {
 function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const isEdit = !!initial && !initial._draft;
   const [entryTime, setEntryTime] = useState(toLocalInput(initial?.entryTime));
+  const [exitTime, setExitTime] = useState(initial?.exitTime ? toLocalInput(initial.exitTime) : "");
   const [pair, setPair] = useState(initial?.pair || "");
   const [q, setQ] = useState("");
   const [direction, setDirection] = useState(initial?.direction || "long");
@@ -5845,7 +5847,8 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
     return [{ tf: tf || tfList[Math.min(2, tfList.length - 1)], setups: st }];
   })();
   const [tfRows, setTfRows] = useState(initTf);
-  const [rowQ, setRowQ] = useState({});
+  const [rowQ, setRowQ] = useState({}); const [allSt, setAllSt] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(!!(initial && (initial.notes || (initial.mistakes || []).length || (initial.positives || []).length || initial.verdict)));
   const [shotBefore, setShotBefore] = useState(initial?.screenshotBefore || null);
   const [shotAfter, setShotAfter] = useState(initial?.screenshotAfter || null);
   const [grade, setGrade] = useState(initial?.rules?.grade || "");
@@ -5905,6 +5908,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
       ...init0,
       id: initial?.id || uid(), pair, direction,
       entryTime: new Date(entryTime).toISOString(),
+      exitTime: exitTime && !isNaN(new Date(exitTime).getTime()) && status !== "open" ? new Date(exitTime).toISOString() : (status === "open" ? null : initial?.exitTime ?? null),
       entryPrice: en, stopLoss: sl, takeProfit: tp,
       exitPrice: initial?.exitPrice ?? (status === "win" ? tp : status === "loss" ? sl : status === "breakeven" ? en : null),
       positionSize: lots, riskUsd,
@@ -5953,9 +5957,9 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
         }} />}
 
         {/* 1. Date */}
-        <div style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Date et heure</span>{kz && <span style={{ color: kz === "Hors killzone" ? C.amber : C.teal, display: "inline-flex", alignItems: "center", gap: 6 }}><SessionFlag name={kz} size={15} />{kz}</span>}</div>
-          <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={inp} aria-label="Date et heure" />
+        <div style={{ ...card, display: "flex", alignItems: "center", gap: 10, padding: "8px 12px" }}>
+          <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={{ ...inp, border: "none", background: "transparent", padding: "6px 0", flex: 1, minWidth: 0 }} aria-label="Date et heure" />
+          {kz && <span style={{ color: kz === "Hors killzone" ? C.amber : C.teal, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" }}><SessionFlag name={kz} size={15} />{kz}</span>}
         </div>
 
         {/* 2. Paire */}
@@ -6033,7 +6037,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
                 {hits.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                   {hits.map((h) => <Chip key={h} onClick={() => { upd((r) => ({ ...r, setups: [...r.setups, h] })); setRowQ((m) => ({ ...m, [i]: "" })); }}>+ {h}</Chip>)}
                 </div>}
-                {!rq && (() => { const fav = setupNames.filter((n) => !row.setups.includes(n)).sort((a, b) => (setupFreq[b] || 0) - (setupFreq[a] || 0)); return fav.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>{fav.map((h) => <Chip key={h} onClick={() => upd((r) => ({ ...r, setups: [...r.setups, h] }))}>+ {h}</Chip>)}</div>; })()}
+                {!rq && (() => { const fav = setupNames.filter((n) => !row.setups.includes(n)).sort((a, b) => (setupFreq[b] || 0) - (setupFreq[a] || 0)); const shown = allSt ? fav : fav.slice(0, 6); return fav.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>{shown.map((h) => <Chip key={h} onClick={() => upd((r) => ({ ...r, setups: [...r.setups, h] }))}>+ {h}</Chip>)}{fav.length > 6 && <button type="button" onClick={() => setAllSt(!allSt)} style={{ background: "none", border: "none", color: C.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{allSt ? "Moins" : `+ ${fav.length - 6} autres`}</button>}</div>; })()}
                 {row.setups.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                   {row.setups.map((st) => <span key={st} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 999, background: C.purpleDim, color: C.purpleBright, fontSize: 12.5, fontWeight: 700 }}>
                     <b style={{ color: C.text }}>{row.tf}</b> {st}
@@ -6054,6 +6058,27 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
           <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>Les stats comparent tes trades avec et sans check-list complète.</div>
         </div>}
 
+        {/* 6. Confiance + résultat */}
+        <div style={card}>
+          <div style={lab}>Note du setup</div>
+          <div style={{ display: "flex", gap: 6 }}>{[["A+", C.teal], ["A", C.purpleBright], ["B", C.amber], ["C", C.red]].map(([g, col]) => <button key={g} type="button" onClick={() => setGrade(grade === g ? "" : g)} style={{ ...big(grade === g, col), fontSize: 15, fontWeight: 800, padding: "10px 4px" }}>{g}</button>)}</div>
+          <div style={{ ...lab, marginTop: 14 }}>Résultat</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[["open", "En cours", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary]].map(([v, l, col]) =>
+              <button key={v} onClick={() => setStatus(v)} style={{ ...big(status === v, col), fontSize: 13, padding: "11px 4px" }}>{l}</button>)}
+          </div>
+          {status !== "open" && <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+            <span style={{ ...lab, marginBottom: 0 }}>Sortie</span>
+            <input type="datetime-local" value={exitTime} onChange={(e) => setExitTime(e.target.value)} style={{ ...inp, flex: 1, minWidth: 0, padding: "8px 10px", fontSize: 14 }} aria-label="Heure de sortie" />
+            {fmtDur(entryTime, exitTime) && <span className="tnum" style={{ fontSize: 13, fontWeight: 700, color: C.textSecondary, whiteSpace: "nowrap" }}><Clock size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{fmtDur(entryTime, exitTime)}</span>}
+          </div>}
+          {(status === "win" || status === "loss") && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+            <input type="number" inputMode="decimal" step="0.1" value={rIn} onChange={(e) => setRIn(e.target.value)} placeholder={status === "win" ? (rr ? rr.toFixed(2) : "R") : "1"} aria-label="R" style={{ ...inp, width: 100 }} />
+            <span style={{ color: C.textMuted, fontWeight: 700 }}>R</span>
+            {rFinal != null && <span className="tnum" style={{ marginLeft: "auto", fontSize: 18, fontWeight: 700, color: rFinal >= 0 ? C.teal : C.red }}>{fmtR(rFinal)}{riskUsd ? " · " + fmtUsdSigned(rFinal * riskUsd) : ""}</span>}
+          </div>}
+        </div>
+
         {/* 5. Photos */}
         <div style={card}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
@@ -6062,29 +6087,11 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
           </div>
         </div>
 
-        {/* 6. Confiance + résultat */}
-        <div style={card}>
-          <div style={lab}>Niveau de confiance</div>
-          <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ ...inp, fontWeight: 600 }} aria-label="Niveau de confiance">
-            <option value="">—</option>
-            {GRADES.map((g, i) => <optgroup key={i} label={g[0][0]}>{g.map((x) => <option key={x} value={x}>{x}</option>)}</optgroup>)}
-          </select>
-          <div style={{ ...lab, marginTop: 14 }}>Résultat</div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {[["open", "En cours", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary]].map(([v, l, col]) =>
-              <button key={v} onClick={() => setStatus(v)} style={{ ...big(status === v, col), fontSize: 13, padding: "11px 4px" }}>{l}</button>)}
-          </div>
-          {(status === "win" || status === "loss") && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-            <input type="number" inputMode="decimal" step="0.1" value={rIn} onChange={(e) => setRIn(e.target.value)} placeholder={status === "win" ? (rr ? rr.toFixed(2) : "R") : "1"} aria-label="R" style={{ ...inp, width: 100 }} />
-            <span style={{ color: C.textMuted, fontWeight: 700 }}>R</span>
-            {rFinal != null && <span className="tnum" style={{ marginLeft: "auto", fontSize: 18, fontWeight: 700, color: rFinal >= 0 ? C.teal : C.red }}>{fmtR(rFinal)}{riskUsd ? " · " + fmtUsdSigned(rFinal * riskUsd) : ""}</span>}
-          </div>}
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optionnel)" rows={2} style={{ ...inp, marginTop: 12, resize: "vertical", fontFamily: "inherit" }} />
-        </div>
-
-        {/* 7. Revue : tout de suite, pendant que c'est frais */}
-        <div style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Revue {status === "open" ? "(tu peux la faire plus tard)" : ""}</span>{(mist.length > 0 || clean) && <span style={{ color: mist.length ? C.red : C.teal }}>{mist.length ? mist.length + " erreur" + (mist.length > 1 ? "s" : "") : "✓ propre"}</span>}</div>
+        {/* 7. Notes + revue : repliées, optionnelles */}
+        <button type="button" onClick={() => setMoreOpen(!moreOpen)} style={{ ...btn.ghost, justifyContent: "space-between", width: "100%", padding: "12px 14px" }}><span>Notes et revue <span style={{ color: C.textMuted, fontWeight: 500 }}>(optionnel)</span>{(notes || mist.length || pos.length || verd) ? <span style={{ color: C.teal }}> · rempli</span> : null}</span><ChevronDown size={16} style={{ transform: moreOpen ? "rotate(180deg)" : "none" }} /></button>
+        {moreOpen && <div style={card}>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes : contexte, état d'esprit, pourquoi ce trade" rows={3} style={{ ...inp, marginBottom: 12, resize: "vertical", fontFamily: "inherit" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Revue</span>{(mist.length > 0 || clean) && <span style={{ color: mist.length ? C.red : C.teal }}>{mist.length ? mist.length + " erreur" + (mist.length > 1 ? "s" : "") : "✓ propre"}</span>}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             {[["good", <><ThumbsUp size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Bon trade</>, C.teal], ["bad", <><ThumbsDown size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Mauvais trade</>, C.red]].map(([k, l, c]) => <button key={k} type="button" onClick={() => setVerd(verd === k ? null : k)} style={{ ...big(verd === k, c), fontSize: 13.5, padding: "10px 6px" }}>{l}</button>)}
           </div>
@@ -6093,7 +6100,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
           <TagPick items={errChoices} value={mist} onToggle={(x) => { setClean(false); setMist((l) => (l.includes(x) ? l.filter((y) => y !== x) : [...l, x])); }} col={C.red} max={6} />
           <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "12px 0 6px" }}>Bien fait</div>
           <TagPick items={posChoices} value={pos} onToggle={(x) => setPos((l) => (l.includes(x) ? l.filter((y) => y !== x) : [...l, x]))} col={C.teal} max={5} />
-        </div>
+        </div>}
       </div>
 
       <div className="tf2-bar" style={{ position: "fixed", left: 0, right: 0, bottom: 0, padding: "10px 16px calc(12px + env(safe-area-inset-bottom, 0px))", background: C.bg, borderTop: `1px solid ${C.border}`, zIndex: 40, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
@@ -7802,6 +7809,133 @@ function parseMtReport(text, accountId) {
   return out;
 }
 
+/* ===== Import d'une capture « Positions fermées » TradeLocker (OCR local) ===== */
+const TL_SYMS = ["EURUSD","GBPUSD","USDJPY","USDCHF","USDCAD","AUDUSD","NZDUSD","EURGBP","EURJPY","GBPJPY","AUDJPY","CADJPY","CHFJPY","EURCHF","EURAUD","EURCAD","GBPCHF","GBPAUD","GBPCAD","AUDCAD","AUDCHF","AUDNZD","NZDJPY","CADCHF","XAUUSD","XAGUSD","XAUEUR","USOIL","UKOIL","NGAS","NAS100","US30","SPX500","US500","GER40","UK100","FRA40","JPN225","BTCUSD","ETHUSD","LTCUSD"];
+const TL_ALIAS = { SPX500: "US500", "XAUUSD.PRO": "XAUUSD" };
+/* EET/EEST (heure du serveur TradeLocker) -> ISO UTC */
+function tlEetToIso(y, mo, d, h, mi, s) {
+  const guess = Date.UTC(y, mo - 1, d, h, mi, s);
+  let off = 2;
+  try { const f = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Athens", timeZoneName: "shortOffset" }); const p = f.formatToParts(new Date(guess - 2 * 3600e3)).find((x) => x.type === "timeZoneName"); const m = p && p.value.match(/GMT([+-]\d+)/); if (m) off = +m[1]; } catch (e) {}
+  return new Date(guess - off * 3600e3).toISOString();
+}
+const tlNum = (s) => { if (s == null || /^[-–—]$/.test(s)) return null; const v = Number(String(s).replace(/[^\d,.-]/g, "").replace(/\s/g, "").replace(",", ".")); return isNaN(v) ? null : v; };
+const tlDec = (s) => { const m = String(s || "").match(/[.,](\d+)$/); return m ? m[1].length : 0; };
+function parseTradeLockerText(text, balance = 50000) {
+  const out = []; const DT = /(\d{4})\/(\d{2})\/(\d{2})\s*(\d{2}):(\d{2}):(\d{2})/g;
+  for (const raw of String(text).split(/\n/)) {
+    const line = raw.replace(/[|]/g, " ");
+    const dts = [...line.matchAll(DT)]; if (dts.length < 2) continue;
+    const symM = line.toUpperCase().match(new RegExp("\\b(" + TL_SYMS.join("|") + ")(\\.PRO)?\\b")); if (!symM) continue;
+    const pair = TL_ALIAS[symM[1]] || symM[1];
+    const mid = line.slice(dts[0].index + dts[0][0].length, dts[1].index);
+    const sideM = mid.toUpperCase().match(/\b(ACHETER|VENDRE|BUY|SELL|ACHAT|VENTE)\b/); if (!sideM) continue;
+    const direction = /ACHETER|BUY|ACHAT/.test(sideM[1]) ? "long" : "short";
+    let tk = mid.slice(mid.toUpperCase().indexOf(sideM[1]) + sideM[1].length).trim().split(/\s+/).filter(Boolean);
+    /* recolle les milliers coupés : "4" "129,38" -> "4129,38" */
+    const t2 = []; for (let i = 0; i < tk.length; i++) { if (/^\d{1,3}$/.test(tk[i]) && /^\d{3}[.,]\d+$/.test(tk[i + 1] || "")) { t2.push(tk[i] + tk[i + 1]); i++; } else t2.push(tk[i]); } tk = t2.filter((x) => /^[-–—]$|\d/.test(x));
+    if (tk.length < 4) continue;
+    const lots = tlNum(tk[0]), enS = tk[1]; let en = tlNum(enS), sl = tlNum(tk[2]), tp = tlNum(tk[3]);
+    const after = line.slice(dts[1].index + dts[1][0].length);
+    const aft = after.trim().split(/\s+/); let exS = aft[0]; if (/^\d{1,3}$/.test(exS) && /^\d{3}[.,]\d+$/.test(aft[1] || "")) exS += aft[1]; let ex = tlNum(exS);
+    if (en == null || ex == null || !lots) continue;
+    const dec = tlDec(enS) || 2; /* virgule perdue par l OCR : 778360 -> 7783,60 */
+    const fixD = (v) => (v != null && v > en * 5 ? v / Math.pow(10, dec) : v);
+    sl = fixD(sl); tp = fixD(tp); ex = fixD(ex);
+    const money = [...after.slice(exS.length).matchAll(/-?\d{1,3}(?:[  ]?\d{3})*[.,]\d{2}(?!\d)/g)].map((m) => tlNum(m[0]));
+    const pnl = money.length >= 4 ? money[3] : money.length ? money[money.length - 1] : null;
+    const ids = after.match(/\d{12,}/g) || []; const posId = ids[ids.length - 1] || null;
+    const entryTime = tlEetToIso(+dts[0][1], +dts[0][2], +dts[0][3], +dts[0][4], +dts[0][5], +dts[0][6]);
+    const exitTime = tlEetToIso(+dts[1][1], +dts[1][2], +dts[1][3], +dts[1][4], +dts[1][5], +dts[1][6]);
+    const slOk = sl != null && Math.abs(sl - en) > 1e-9 && (direction === "long" ? sl < en : sl > en); /* SL déplacé au BE ou en profit : risque d'origine inconnu */
+    let R = slOk ? ((ex - en) * (direction === "long" ? 1 : -1)) / Math.abs(en - sl) : null;
+    let riskUsd = R && pnl != null && Math.abs(R) > 0.01 ? Math.abs(pnl / R) : null;
+    if (R == null && pnl != null) { riskUsd = balance * 0.01; R = pnl / riskUsd; }
+    out.push({ id: "tl_" + (posId || pair + entryTime), pair, direction, entryTime, exitTime, entryPrice: en, stopLoss: sl, takeProfit: tp, exitPrice: ex, positionSize: lots,
+      riskUsd: riskUsd == null ? null : Math.round(riskUsd * 100) / 100, resultUsd: pnl, resultR: R == null ? null : Math.round(R * 100) / 100, resultRManual: true,
+      status: pnl === 0 || (R != null && Math.abs(R) < 0.05) ? "breakeven" : "closed", tags: sl == null ? ["Sans SL"] : [], notes: slOk ? "" : sl == null ? "Importé sans stop loss : R calculé sur 1 % du compte." : "SL déplacé (BE ou profit) : R calculé sur 1 % du compte.", rules: { source: "tradelocker" } });
+  }
+  return out;
+}
+async function ocrTradeLocker(src) {
+  const img = await loadImg(src); const k = img.naturalWidth < 2200 ? 2 : 1;
+  const cv = document.createElement("canvas"); cv.width = img.naturalWidth * k; cv.height = img.naturalHeight * k;
+  const g = cv.getContext("2d", { willReadFrequently: true }); g.imageSmoothingQuality = "high"; g.drawImage(img, 0, 0, cv.width, cv.height);
+  const D = g.getImageData(0, 0, cv.width, cv.height); const a = D.data; let sum = 0;
+  for (let i = 0; i < a.length; i += 4) sum += a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11; const dark = sum / (a.length / 4) < 128;
+  for (let i = 0; i < a.length; i += 4) { let v = a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11; if (dark) v = 255 - v; a[i] = a[i + 1] = a[i + 2] = v; }
+  g.putImageData(D, 0, 0);
+  const w = await getOcrWorker(); await w.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" });
+  const r = await w.recognize(cv); await w.setParameters({ tessedit_pageseg_mode: "3" }).catch(() => {});
+  return r.data.text;
+}
+
+const fmtDur = (a, b) => { if (!a || !b) return null; const m = Math.round((new Date(b) - new Date(a)) / 60000); if (!(m >= 0)) return null; if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; if (h < 24) return h + " h" + (r ? " " + String(r).padStart(2, "0") : ""); const d = Math.floor(h / 24), hh = h % 24; return d + " j" + (hh ? " " + hh + " h" : ""); };
+function TlShotImport({ trades = [], onImport, accountId, balance }) {
+  const ref = useRef(null); const [st, setSt] = useState("idle"); const [msg, setMsg] = useState(""); const [rows, setRows] = useState([]); const [pick, setPick] = useState({});
+  const go = async (file) => { if (!file || !file.type.startsWith("image/")) return; setSt("reading"); setMsg(""); setRows([]);
+    try { const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+      const txt = await ocrTradeLocker(data); const L = parseTradeLockerText(txt, Number(balance) || 50000).map((t) => ({ ...t, accountId }));
+      const have = new Set(trades.map((t) => t.id)); setRows(L); const pk = {}; L.forEach((t) => { pk[t.id] = !have.has(t.id); }); setPick(pk);
+      setSt(L.length ? "done" : "fail"); setMsg(L.length ? `${L.length} trades lus · vérifie les dates et les prix avant d'importer` : "Aucune ligne de trade reconnue. Prends une capture nette de l'onglet « Positions fermées »."); }
+    catch (e) { setSt("fail"); setMsg("Lecture impossible : " + (e.message || e)); } };
+  const goRef = useRef(go); goRef.current = go;
+  const have = new Set(trades.map((t) => t.id)); const sel = rows.filter((t) => pick[t.id]);
+  const cell = { padding: "6px 8px", fontSize: 12, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+  return <div onPaste={(e) => { const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); go(it.getAsFile()); } }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); go(e.dataTransfer.files?.[0]); }} tabIndex={0} style={{ display: "flex", flexDirection: "column", gap: 8, outline: "none" }}>
+    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>Dans TradeLocker : onglet <b>Positions fermées</b>, fais une capture d'écran du tableau, puis colle-la ici (Ctrl+V) ou choisis le fichier. La lecture se fait sur ton appareil. Les trades déjà importés ne sont pas dupliqués.</div>
+    <button onClick={() => ref.current?.click()} style={{ ...btn.ghost, justifyContent: "center", border: `1.5px dashed ${st === "fail" ? C.red : C.border}` }}>{st === "reading" ? <><Sparkles size={14} className="spin-slow" /> Lecture de la capture…</> : <><Upload size={14} /> Choisir ou coller la capture TradeLocker</>}</button>
+    <input ref={ref} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { go(e.target.files?.[0]); e.target.value = ""; }} />
+    {msg && <div style={{ fontSize: 12.5, color: st === "fail" ? C.red : C.textSecondary }}>{msg}</div>}
+    {rows.length > 0 && <>
+      <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}><table style={{ borderCollapse: "collapse", width: "100%" }}><thead><tr>{["", "Paire", "Sens", "Lots", "Entrée", "SL", "TP", "Sortie", "Ouvert", "Durée", "P&L", "R"].map((h) => <th key={h} style={{ ...cell, textAlign: "left", color: C.textMuted, fontWeight: 700 }}>{h}</th>)}</tr></thead>
+        <tbody>{rows.map((t) => <tr key={t.id} style={{ opacity: pick[t.id] ? 1 : 0.45 }}>
+          <td style={cell}><input type="checkbox" checked={!!pick[t.id]} onChange={(e) => setPick({ ...pick, [t.id]: e.target.checked })} /></td>
+          <td style={cell}><b>{t.pair}</b>{have.has(t.id) && <span style={{ color: C.textMuted }}> · déjà là</span>}</td><td style={{ ...cell, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "Achat" : "Vente"}</td>
+          <td style={cell}>{t.positionSize}</td><td style={cell}>{t.entryPrice}</td><td style={{ ...cell, color: t.stopLoss == null ? C.amber : C.text }}>{t.stopLoss ?? "aucun"}</td><td style={cell}>{t.takeProfit ?? "—"}</td><td style={cell}>{t.exitPrice}</td>
+          <td style={cell}>{new Date(t.entryTime).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td><td style={cell}>{fmtDur(t.entryTime, t.exitTime)}</td>
+          <td style={{ ...cell, color: (t.resultUsd || 0) >= 0 ? C.teal : C.red, fontWeight: 700 }}>{t.resultUsd}</td><td style={cell}>{t.resultR}</td></tr>)}</tbody></table></div>
+      <button disabled={!sel.length} onClick={() => { onImport(sel); setMsg(`${sel.length} trades importés ✓`); setRows([]); setSt("idle"); }} style={{ ...btn.primary, justifyContent: "center", opacity: sel.length ? 1 : 0.5 }}><Check size={14} /> Importer {sel.length} trade{sel.length > 1 ? "s" : ""}</button>
+    </>}
+  </div>;
+}
+
+/* Réglages : conditions du challenge (mêmes rubriques que ClickFunded) + suivi en direct */
+const CH_KEY = "challenge_rules_v1";
+const CH_PRESETS = { "ClickFunded 25k": { size: 25000 }, "ClickFunded 50k": { size: 50000 }, "ClickFunded 100k": { size: 100000 }, "ClickFunded 200k": { size: 200000 } };
+const CH_BASE = { firm: "ClickFunded", size: 50000, target: 6, maxLoss: 3, minDays: 2, period: 0, news: true, consistency: 50, split: 80, fee: 199.99 };
+function ChallengeRules({ trades = [], accountId }) {
+  const [r, setR] = useState(() => { try { return { ...CH_BASE, ...(JSON.parse(localStorage.getItem(CH_KEY)) || {}) }; } catch { return CH_BASE; } });
+  const save = (n) => { setR(n); try { localStorage.setItem(CH_KEY, JSON.stringify(n)); } catch {} clearTimeout(window._chSync); window._chSync = setTimeout(() => { saveSettingsPatch({ challenge: n }).catch(() => {}); }, 1200); };
+  const set = (k, v) => save({ ...r, [k]: v });
+  const T = trades.filter((t) => (!accountId || t.accountId === accountId) && t.status !== "open" && t.resultUsd != null).sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
+  let cum = 0, low = 0; const days = {}; for (const t of T) { cum += Number(t.resultUsd) || 0; low = Math.min(low, cum); const d = String(t.exitTime || t.entryTime).slice(0, 10); days[d] = (days[d] || 0) + (Number(t.resultUsd) || 0); }
+  const size = Number(r.size) || 1, profitPct = (cum / size) * 100, ddPct = (-low / size) * 100, nDays = Object.keys(days).length;
+  const best = Math.max(0, ...Object.values(days)); const cons = cum > 0 ? (best / cum) * 100 : 0;
+  const rows = [
+    ["Objectif de profit", "target", "%", `${profitPct.toFixed(2)} % / ${r.target} %`, profitPct >= r.target ? "ok" : "wait"],
+    ["Perte max.", "maxLoss", "%", `${ddPct.toFixed(2)} % / ${r.maxLoss} %`, ddPct >= r.maxLoss ? "bad" : ddPct >= r.maxLoss * 0.7 ? "warn" : "ok"],
+    ["Jours de trading min.", "minDays", "jours", `${nDays} / ${r.minDays}`, nDays >= r.minDays ? "ok" : "wait"],
+    ["Période de trading", "period", "jours (0 = illimitée)", r.period ? `${r.period} jours` : "Illimitée", "ok"],
+    ["Consistance des trades", "consistency", "% max par jour", cum > 0 ? `meilleur jour ${cons.toFixed(0)} % / ${r.consistency} %` : "—", cum > 0 && cons > r.consistency ? "bad" : "ok"],
+    ["Partage des gains", "split", "%", `${r.split} %`, "ok"],
+    ["Frais d'activation", "fee", "€", `${r.fee} €`, "ok"],
+  ];
+  const col = { ok: C.teal, wait: C.textMuted, warn: C.amber, bad: C.red };
+  const inp = { ...inputStyle, padding: "7px 9px", fontSize: 13.5, width: 90 };
+  return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{Object.entries(CH_PRESETS).map(([k, v]) => <button key={k} onClick={() => save({ ...CH_BASE, ...v })} style={{ ...btn.ghost, padding: "6px 10px", fontSize: 12.5, borderColor: r.size === v.size && r.firm === "ClickFunded" ? C.purpleBright : C.border }}>{k}</button>)}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ flex: 1, fontSize: 13.5 }}>Taille du compte</span><input type="number" value={r.size} onChange={(e) => set("size", Number(e.target.value))} style={{ ...inp, width: 120 }} /><span style={{ fontSize: 12, color: C.textMuted, width: 120 }}>$</span></div>
+    {rows.map(([lab, k, unit, live, stt]) => <div key={k} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 0", borderTop: `1px solid ${C.border}` }}>
+      <span style={{ flex: 1, minWidth: 150, fontSize: 13.5 }}>{lab}</span>
+      <input type="number" step="any" value={r[k]} onChange={(e) => set(k, Number(e.target.value))} style={inp} /><span style={{ fontSize: 12, color: C.textMuted, width: 120 }}>{unit}</span>
+      <span className="tnum" style={{ fontSize: 12.5, fontWeight: 700, color: col[stt], minWidth: 150, textAlign: "right" }}>{live}</span></div>)}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderTop: `1px solid ${C.border}` }}><span style={{ flex: 1, fontSize: 13.5 }}>Trading pendant les news</span>
+      {[[true, "Autorisé"], [false, "Interdit"]].map(([v, l]) => <button key={l} onClick={() => set("news", v)} style={{ ...btn.ghost, padding: "6px 10px", fontSize: 12.5, borderColor: r.news === v ? C.purpleBright : C.border, color: r.news === v ? C.purpleBright : C.textSecondary }}>{l}</button>)}</div>
+    <div style={{ fontSize: 11.5, color: C.textMuted }}>Suivi calculé sur les trades fermés du compte actif. Valeurs par défaut : grille ClickFunded (objectif 6 %, perte max 3 %, 2 jours min, consistance 50 %, partage 80 %).</div>
+  </div>;
+}
+
 function MtImport({ trades = [], onImport, accountId }) {
   const ref = useRef(null); const [msg, setMsg] = useState(null); const [prev, setPrev] = useState(null);
   const read = (f) => { const r = new FileReader(); r.onload = (e) => { try { const L = parseMtReport(String(e.target.result || ""), accountId); const have = new Set(trades.map((t) => t.id)); const fresh = L.filter((t) => !have.has(t.id)); setPrev({ all: L.length, fresh }); setMsg(null); } catch (err) { setPrev(null); setMsg({ c: C.red, t: err.message }); } }; r.readAsText(f); };
@@ -8159,6 +8293,14 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
 
         <AddAccountForm accounts={accounts} onSaveAccounts={onSaveAccounts} />
       </SettingsSection>
+
+      <SettingsSection title="Conditions du challenge" icon={Trophy}>
+        <ChallengeRules trades={trades} accountId={activeAccountId} />
+      </SettingsSection>
+
+      {onImport && <SettingsSection title="Importer depuis TradeLocker (capture)" icon={Upload}>
+        <TlShotImport trades={trades} onImport={onImport} accountId={activeAccountId || accounts?.[0]?.id || null} balance={(accounts || []).find((a) => a.id === activeAccountId)?.balance} />
+      </SettingsSection>}
 
       {onOpenBacktest && <SettingsSection title="Backtesting" icon={LineChart}>
         <button onClick={onOpenBacktest} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: "12px 15px", fontSize: 14, borderRadius: 10 }}><LineChart size={15} /> Ouvrir le backtesting</button>
