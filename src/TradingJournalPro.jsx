@@ -1666,10 +1666,21 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       }
     }
   }
+  /* trade réel rejoué : arrivé à l'heure où tu l'as vraiment fermé -> pause + message */
+  function realExitCheck() {
+    const bt = R.rows[R.ci][0];
+    for (const tr of R.trades) { if (!tr.real || tr.noBE || tr.exitNote || !tr.realExitT || bt + 900 <= tr.realExitT) continue;
+      tr.exitNote = true; setPlaying(false);
+      if (tr.realExit) R.draws.push({ type: "hray", color: "#9c27b0", pts: [{ t: tr.realExitT, p: tr.realExit }] });
+      const u = tr.realUsd; setTimeout(() => setMsg(`⏸ C'est ici que tu as fermé ton vrai trade${tr.realExit ? " à " + tr.realExit : ""}${u != null ? " (" + (u >= 0 ? "+" : "") + Math.round(u) + " $)" : ""}${tr.status === "open" ? ". Le replay continue avec ton SL et ton TP de départ : relance pour voir la suite." : "."}`), 0);
+      return true; }
+    return false;
+  }
   function step(n) {
     if (!R.rows) return; const end = Math.min(R.rows.length - 1, R.ci + n);
     while (R.ci < end) {
       R.ci++; fill(R.ci); yearCheck(R.rows[R.ci][0]); if (R.botOn) botTick();
+      if (realExitCheck()) { const k2 = tvBs(R.agg.start, R.ci); if (k2 !== R.k) { const pb = R.agg.bars[R.k]; R.series.update({ time: pb.time + R.off, open: pb.open, high: pb.high, low: pb.low, close: pb.close }); R.k = k2; } break; }
       const k = tvBs(R.agg.start, R.ci);
       if (k !== R.k) { const pb = R.agg.bars[R.k]; R.series.update({ time: pb.time + R.off, open: pb.open, high: pb.high, low: pb.low, close: pb.close }); R.k = k; }
     }
@@ -2068,6 +2079,11 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     /* positions longues / courtes façon TradingView */
     c.font = "12px " + TV_FONT;
     for (const tr of R.trades) {
+      /* trade réel rejoué : pointillé entrée -> ta vraie sortie (vert si gagné, rouge si perdu), visible dès que le replay y arrive */
+      if (tr.real && !tr.noBE && tr.exitNote && tr.realExit && tr.realExitT) { const xa = tToX(tr.openT), ya = pToY(tr.entry), xb = tToX(tr.realExitT), yb = pToY(tr.realExit);
+        if (xa != null && ya != null && xb != null && yb != null) { const col = (tr.realUsd ?? (tr.realExit - tr.entry) * tr.side) >= 0 ? "#089981" : "#f23645";
+          c.save(); c.setLineDash([5, 4]); c.strokeStyle = col; c.lineWidth = 2; c.beginPath(); c.moveTo(xa, ya); c.lineTo(xb, yb); c.stroke(); c.setLineDash([]);
+          c.fillStyle = col; c.beginPath(); c.arc(xb, yb, 4, 0, Math.PI * 2); c.fill(); c.font = "600 11px " + TV_FONT; c.fillText(tr.realUsd != null ? (tr.realUsd >= 0 ? "+" : "") + Math.round(tr.realUsd) + " $ (réel)" : "sortie réelle", xb + 7, yb - 6); c.restore(); } }
       if (tr.status === "closed" && (!R.cfg.showClosed || tr.hidden)) continue; /* TP / SL / BE : la boîte disparaît du graphique, le trade reste dans Replay Trading */
       const B = tradeBox(tr); if (!B || B.ye === null) continue; const { x1, x2, ye, ys, yt } = B;
       const closed = tr.status === "closed"; c.globalAlpha = closed ? 0.5 : 1;
@@ -2458,7 +2474,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           if (sl && tp && real.posOk !== false) {
             if (R.seq == null) R.seq = Math.max(0, ...R.trades.map((x) => x.no || 0)); R.seq += 1;
             const lots = real.lots || lotsFor(Math.abs(e0 - sl) / TV_PIP);
-            const tr = { id: Date.now() + Math.random(), no: R.seq, real: true, realId: real.id, pd: [], riskPct: R.cfg.risk, type: "mkt", side, entry: e0, sl, tp, sl0: sl, lots, status: "open", openT: bt, placedT: bt, anchorT: bt, tf: TV_TFLAB[R.agg ? R.agg.min : 15] };
+            const tr = { id: Date.now() + Math.random(), no: R.seq, real: true, realId: real.id, realExitT: real.exitT, realExit: real.exit, realUsd: real.usd, pd: [], riskPct: R.cfg.risk, type: "mkt", side, entry: e0, sl, tp, sl0: sl, lots, status: "open", openT: bt, placedT: bt, anchorT: bt, tf: TV_TFLAB[R.agg ? R.agg.min : 15] };
             tr.risk = (Math.abs(e0 - sl) / TV_PIP) * TV_PIPVAL * lots; tr.endT = bt + 25 * tfSec(); R.trades.push(tr);
           } else {
             R.draws.push({ type: "hray", color: "#2962ff", pts: [{ t: bt, p: e0 }] }); if (sl) R.draws.push({ type: "hray", color: "#f23645", pts: [{ t: bt, p: sl }] }); if (tp) R.draws.push({ type: "hray", color: "#089981", pts: [{ t: bt, p: tp }] });
@@ -5455,7 +5471,7 @@ function replayRealTrade(t) {
   if (!tvCanReplay(t)) return;
   const sym = tvSimSym(t.pair); if (sym && sym !== TV_PAIR) { tvSetSym(sym); setTimeout(() => window.dispatchEvent(new CustomEvent("tjp-bt-sym", { detail: sym })), 0); }
   const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const n = (v) => (v == null || v === "" || isNaN(Number(v)) ? null : Number(v));
-  const real = { id: t.id, sym: sym || TV_PAIR, side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(slOf(t)), tp: n(tpOf(t)), lots: n(t.positionSize), exit: n(t.exitPrice), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
+  const real = { id: t.id, sym: sym || TV_PAIR, side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(slOf(t)), tp: n(tpOf(t)), lots: n(t.positionSize), exit: n(t.exitPrice), usd: n(t.resultUsd), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
   const L = real.side > 0; const slWrong = real.sl && real.entry && (L ? real.sl >= real.entry : real.sl <= real.entry);
   real.posOk = !slWrong && !!(real.sl && real.tp && (L ? real.tp > real.entry : real.tp < real.entry));
   const ok = real.posOk;
