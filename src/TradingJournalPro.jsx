@@ -10,7 +10,7 @@ import {
   BookOpen, Newspaper, RefreshCw, MoreHorizontal, CalendarDays,
   Target, Zap, ThumbsUp, ThumbsDown, Share2, Star, AlertTriangle, Check, Clipboard, FolderOpen, LineChart, Timer, SlidersHorizontal, ArrowLeftRight, Lightbulb, Coins, CircleDot,
   Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward, StepBack, Scissors, SkipForward, Cpu, SeparatorVertical, Radio, Minimize2, Maximize2, Magnet, Copy, EyeOff, Eye, Bot, GraduationCap,
-} from "lucide-react";
+  Tag } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, Cell, ReferenceLine, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -133,11 +133,15 @@ const SILVER_BULLETS = [
 ];
 const inNyRange = (min, z) => min >= z.s && min < z.e;
 
+/* marché fermé : du vendredi 17 h au dimanche 18 h (heure de New York) -> aucune session */
+function nyWeekend(isoDate) { const { dow, min } = nyNow(new Date(isoDate)); return dow === 6 || (dow === 5 && min >= 17 * 60) || (dow === 0 && min < 18 * 60); }
 function killzoneAt(isoDate) {
+  if (nyWeekend(isoDate)) return null;
   const { min } = nyNow(new Date(isoDate));
   return KILLZONES.find((z) => inNyRange(min, z)) || null;
 }
 function silverBulletAt(isoDate) {
+  if (nyWeekend(isoDate)) return null;
   const { min } = nyNow(new Date(isoDate));
   return SILVER_BULLETS.find((z) => inNyRange(min, z)) || null;
 }
@@ -1642,7 +1646,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
       if (tr.status !== "open") continue;
       const lo = tr.side > 0 ? l : l + sp, hi = tr.side > 0 ? h : h + sp;
       /* BE automatique : quand le prix a fait 50 % du chemin vers le TP, le SL passe à l'entrée */
-      if (R.cfg.autoBE && !tr.beDone && tr.sl !== tr.entry) { const lvl = tr.entry + (tr.tp - tr.entry) * (R.cfg.autoBEpct || 50) / 100; if (tr.side > 0 ? hi >= lvl : lo <= lvl) { tr.sl = tr.entry; tr.beDone = true; tr.beAuto = true; continue; } }
+      if ((R.cfg.autoBE || tr.real) && !tr.noBE && !tr.beDone && tr.sl !== tr.entry) { const lvl = tr.entry + (tr.tp - tr.entry) * ((tr.real ? 50 : R.cfg.autoBEpct) || 50) / 100; if (tr.side > 0 ? hi >= lvl : lo <= lvl) { tr.sl = tr.entry; tr.beDone = true; tr.beAuto = true; continue; } }
       const slHit = tr.side > 0 ? lo <= tr.sl : hi >= tr.sl, tpHit = tr.side > 0 ? hi >= tr.tp : lo <= tr.tp;
       if (slHit || tpHit) closeTrade(tr, slHit ? tr.sl : tr.tp, slHit ? "SL" : "TP", t);
     }
@@ -1653,6 +1657,14 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     R.unseenAdd = (R.unseenAdd || 0) + 1;
     if (R.onSave && !R.demo && !tr.appId && !tr.bot && !(curSess() || {}).bot && !(curSess() || {}).noSave) { tr.appId = uid(); R.saveApp(tr); }
     if (R.prop && !tr.bot) propCheck(tr.closeT);
+    if (tr.real && tr.realId) { /* trade réel rejoué : résultat renvoyé au journal (BE 50 % ou sans BE) */
+      const be = why === "SL" && tr.beAuto; const out = be ? "BE" : why;
+      try { window.dispatchEvent(new CustomEvent("tjp-real-replay", { detail: { id: tr.realId, mode: tr.noBE ? "noBE" : "be", out, usd: Math.round(tr.pnl * 100) / 100, r: Math.round(tr.r * 100) / 100, closeT: tr.closeT } })); } catch (e) {}
+      if (be && !tr.noBE) { /* option : continuer le même trade sans BE, SL d'origine */
+        const c = { ...tr, id: Date.now() + Math.random(), no: (R.seq = (R.seq || 0) + 1), noBE: true, beDone: true, beAuto: false, sl: tr.sl0, status: "open", exit: null, closeT: null, reason: null, pips: 0, pnl: 0, r: 0, appId: null };
+        R.trades.push(c); setTimeout(() => setMsg("BE touché à 50 %. Le même trade continue sans BE (SL d'origine) : lance le replay pour voir la suite."), 0);
+      }
+    }
   }
   function step(n) {
     if (!R.rows) return; const end = Math.min(R.rows.length - 1, R.ci + n);
@@ -2446,7 +2458,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           if (sl && tp && real.posOk !== false) {
             if (R.seq == null) R.seq = Math.max(0, ...R.trades.map((x) => x.no || 0)); R.seq += 1;
             const lots = real.lots || lotsFor(Math.abs(e0 - sl) / TV_PIP);
-            const tr = { id: Date.now() + Math.random(), no: R.seq, real: true, pd: [], riskPct: R.cfg.risk, type: "mkt", side, entry: e0, sl, tp, sl0: sl, lots, status: "open", openT: bt, placedT: bt, anchorT: bt, tf: TV_TFLAB[R.agg ? R.agg.min : 15] };
+            const tr = { id: Date.now() + Math.random(), no: R.seq, real: true, realId: real.id, pd: [], riskPct: R.cfg.risk, type: "mkt", side, entry: e0, sl, tp, sl0: sl, lots, status: "open", openT: bt, placedT: bt, anchorT: bt, tf: TV_TFLAB[R.agg ? R.agg.min : 15] };
             tr.risk = (Math.abs(e0 - sl) / TV_PIP) * TV_PIPVAL * lots; tr.endT = bt + 25 * tfSec(); R.trades.push(tr);
           } else {
             R.draws.push({ type: "hray", color: "#2962ff", pts: [{ t: bt, p: e0 }] }); if (sl) R.draws.push({ type: "hray", color: "#f23645", pts: [{ t: bt, p: sl }] }); if (tp) R.draws.push({ type: "hray", color: "#089981", pts: [{ t: bt, p: tp }] });
@@ -4380,6 +4392,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
   const [pendingPair, setPendingPair] = useState("all");
   const [pendingSession, setPendingSession] = useState("all");
   const [pendingTags, setPendingTags] = useState([]);
+  const userTagsList = useUserTags();
   const [pendingResult, setPendingResult] = useState("all");
   const [pendingOte, setPendingOte] = useState("all");
   const [pendingDateFrom, setPendingDateFrom] = useState("");
@@ -4584,6 +4597,12 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
               </Field>
             </div>
           )}
+
+          {/* Tags perso : ne montrer que les trades avec ce tag */}
+          {userTagsList.length > 0 && <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, marginBottom: 18 }}>
+            <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Tags</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{userTagsList.map((g) => { const on = pendingTags.includes(g); return <button key={g} onClick={() => setPendingTags(on ? pendingTags.filter((x) => x !== g) : [...pendingTags, g])} style={{ border: `1.5px solid ${on ? C.purpleBright : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{g}</button>; })}</div>
+          </div>}
 
           {/* PD Arrays multi-sélection */}
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, marginBottom: 18 }}>
@@ -4866,7 +4885,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {tvSimSym(trade.pair) && <button onClick={() => { onClose(); replayRealTrade(trade); }} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ ...btn.ghost, justifyContent: "center" }}><Rewind size={13} /> Rejouer</button>}
+          {tvCanReplay(trade) && <button onClick={() => { onClose(); replayRealTrade(trade); }} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ ...btn.ghost, justifyContent: "center" }}><Rewind size={13} /> Rejouer</button>}
           {onOpenFull && <button onClick={() => { onClose(); onOpenFull(trade.id); }} style={{ ...btn.ghost, flex: 1, justifyContent: "center" }}>Détail complet</button>}
           <button onClick={save} style={{ ...btn.primary, flex: 2, justifyContent: "center", padding: "12px" }}>Enregistrer</button>
         </div>
@@ -4906,6 +4925,16 @@ function TradeRow({ t, onOpen }) {
   );
 }
 
+const rpFmt = (x) => x ? `${x.out} (${x.usd >= 0 ? "+" : "−"}${Math.abs(Math.round(x.usd))} $)` : null;
+const rpCol = (x) => (!x ? C.textMuted : x.usd > 0.5 ? C.teal : x.usd < -0.5 ? C.red : C.textSecondary);
+function ReplayLine({ rp }) {
+  if (!rp || (!rp.be && !rp.noBE)) return null;
+  return <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12.5, flexWrap: "wrap" }}>
+    <span style={{ color: C.textMuted, display: "inline-flex", alignItems: "center", gap: 4 }}><Rewind size={12} /> Trade rejoué :</span>
+    {rp.be && <b style={{ color: rpCol(rp.be) }}>{rpFmt(rp.be)}</b>}
+    {rp.noBE && <span style={{ color: C.textMuted }}>· sans BE : <b style={{ color: rpCol(rp.noBE) }}>{rpFmt(rp.noBE)}</b></span>}
+  </div>;
+}
 function BrokerTradeCard({ t, onOpen, isLast }) {
   const [open, setOpen] = useState(false);
   const [zoom, setZoom] = useState(null);
@@ -4929,12 +4958,13 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
           <div style={{ display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", overflow: "hidden" }}>
             <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>
             <span style={{ fontSize: 12.5, fontWeight: 800, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "▲ LONG" : "▼ SHORT"}</span>
-            <span className="tnum" style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}</span>
+            <span className="tnum" style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}{fmtDur(t.entryTime, t.exitTime) ? <span style={{ color: C.textMuted, fontWeight: 500, textTransform: "none" }}> · {fmtDur(t.entryTime, t.exitTime)}</span> : null}</span>
           </div>
           <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden" }}>
             {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span></span>}
             {(() => { const k = killzoneLabel(t.entryTime); const se = getSession(t.entryTime); const n = k !== "Hors killzone" ? k : se; return <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: C.textSecondary }}><SessionFlag name={n} size={15} />{String(n).replace(" Session", "")}</span>; })()}
           </div>
+          {t.rules?.replay && <ReplayLine rp={t.rules.replay} />}
           {setups.length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>{setups.slice(0, 4).map((x) => <span key={x} style={{ fontSize: 11, fontWeight: 600, color: C.purpleBright, background: C.purpleDim, padding: "2px 7px", borderRadius: 6 }}>{x}</span>)}</div>}
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -4969,7 +4999,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
             </div>))}
         </div>}
         {t.notes && <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, whiteSpace: "pre-wrap" }}>{t.notes}</div>}
-        <div style={{ display: "flex" }}>{tvSimSym(t.pair) && <button onClick={() => replayRealTrade(t)} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Rewind size={14} /> Rejouer</button>}        <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
+        <div style={{ display: "flex" }}>{tvCanReplay(t) && <button onClick={() => replayRealTrade(t)} title="Rejouer ce trade dans le replay (24 h avant l'entrée)" style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Rewind size={14} /> Rejouer</button>}        <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
       </div>}
     </div>
   );
@@ -5230,8 +5260,28 @@ function AmeliorerSection({ appSettings, trade, onPatch }) {
   );
 }
 
+/* ===== Tags perso : localStorage + Supabase (colonne settings.user_tags, envoi séparé pour ne jamais bloquer les autres réglages) ===== */
+const USER_TAGS_KEY = "tjp_user_tags";
+const userTagsGet = () => { try { const v = JSON.parse(localStorage.getItem(USER_TAGS_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+async function userTagsSave(list) { try { localStorage.setItem(USER_TAGS_KEY, JSON.stringify(list)); } catch (e) {} window.dispatchEvent(new Event("usertags"));
+  try { await sbWrite("settings", "/settings?on_conflict=id", "POST", { id: "main", user_tags: list }, "resolution=merge-duplicates,return=minimal"); return true; } catch (e) { console.error("Tags Supabase:", e); return false; } }
+function useUserTags() { const [l, setL] = useState(userTagsGet); useEffect(() => { const h = () => setL(userTagsGet()); window.addEventListener("usertags", h); return () => window.removeEventListener("usertags", h); }, []); return l; }
+function TagsSettings() {
+  const tags = useUserTags(); const [q, setQ] = useState(""); const [st, setSt] = useState("");
+  const save = async (n) => { setSt("…"); const ok = await userTagsSave(n); setSt(ok ? "Sauvegardé dans Supabase ✓" : "Gardé sur l'appareil — Supabase refuse : ajoute la colonne user_tags (voir message)"); setTimeout(() => setSt(""), 4000); };
+  const add = () => { const v = q.trim(); if (!v || tags.some((x) => x.toLowerCase() === v.toLowerCase())) return; save([...tags, v]); setQ(""); };
+  return <div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>{tags.length ? tags.map((g) => <span key={g} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999, border: `1px solid ${C.border}`, fontSize: 13, fontWeight: 700 }}>{g}<button onClick={() => save(tags.filter((x) => x !== g))} title="Supprimer" style={{ border: "none", background: "none", color: C.textMuted, cursor: "pointer", padding: 0, display: "flex" }}><X size={13} /></button></span>) : <span style={{ fontSize: 12.5, color: C.textMuted }}>Aucun tag pour l'instant.</span>}</div>
+    <div style={{ display: "flex", gap: 8 }}><input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Nouveau tag (ex. FOMO, Revenge, News…)" style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 13 }} />
+      <button onClick={add} style={btn.primary}><Plus size={14} /> Créer</button></div>
+    {st && <div style={{ fontSize: 12, color: st.startsWith("Sauv") ? C.teal : C.amber, marginTop: 8 }}>{st}</div>}
+  </div>;
+}
+
 /* ===== Simulation : et si j'avais laissé courir jusqu'au SL ou au TP ? (bougies M15 réelles) ===== */
 const tvSimSym = (p) => { const u = String(p || "").toUpperCase().replace(/\.PRO$/, ""); const m = { SPX500: "US500", SP500: "US500", SPX: "US500", ES: "US500", US100: "NAS100", NDX: "NAS100", USTEC: "NAS100", NQ: "NAS100", NAS: "NAS100", WTI: "USOIL", XTIUSD: "USOIL", CL: "USOIL", OIL: "USOIL", GOLD: "XAUUSD", "XAUUSD.PRO": "XAUUSD" }; const k = m[u] || u; return TV_SYMS[k] ? k : null; };
+/* seuls les trades fermés à la main se rejouent : SL, TP ou BE touchés = résultat déjà connu */
+const tvCanReplay = (t) => !!tvSimSym(t && t.pair) && !(t.closeType === "Stop Loss" || t.closeType === "Take Profit" || t.status === "breakeven" || t.result === "breakeven");
 const SIM_CACHE = {};
 async function tvSimRows(sym) {
   if (SIM_CACHE[sym]) return SIM_CACHE[sym];
@@ -5256,10 +5306,40 @@ function tvSimTrade(t, rows, be) {
   const last = rows[Math.min(i, rows.length) - 1]; if (!last || last[0] <= t0) return { st: "nodata" };
   return { st: "ok", out: "ouvert", R: ((last[4] - e) * (L ? 1 : -1)) / risk, exitT: last[0] };
 }
+/* trades réels rejoués (règle : BE à 50 % du TP). Un trade compte une seule fois, même rejoué 50 fois : on garde le dernier résultat. */
+function ReplayedCard({ trades }) {
+  const [mode, setMode] = useState("be");
+  const list = (trades || []).filter((t) => t.rules?.replay && t.rules.replay[mode]).sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
+  if (!(trades || []).some((t) => t.rules?.replay)) return null;
+  const col = (v) => (v > 0.5 ? C.teal : v < -0.5 ? C.red : C.textSecondary); const usd = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " $";
+  const tot = list.reduce((a, t) => { const b = Number(t.resultUsd) || 0, sm = t.rules.replay[mode].usd || 0; return [a[0] + b, a[1] + sm, a[2] + sm - b]; }, [0, 0, 0]);
+  const th = { textAlign: "left", padding: "8px 10px", color: C.textMuted, fontSize: 11.5, fontWeight: 700, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }, td = { padding: "8px 10px", fontSize: 13, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+  const chip = (on) => ({ border: `1.5px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" });
+  return <Card style={{ padding: 16, marginBottom: 14 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <div><div style={{ fontSize: 15, fontWeight: 800 }}>Trades rejoués</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Chaque trade compte une seule fois (dernier replay).</div></div>
+      <div style={{ display: "flex", gap: 6 }}><button style={chip(mode === "be")} onClick={() => setMode("be")}>Avec BE à 50 %</button><button style={chip(mode === "noBE")} onClick={() => setMode("noBE")}>Sans BE</button></div>
+    </div>
+    {list.length === 0 ? <div style={{ fontSize: 12.5, color: C.textMuted }}>Aucun trade rejoué {mode === "noBE" ? "jusqu'au bout sans BE" : ""} pour l'instant.</div> :
+    <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%" }}>
+      <thead><tr>{["Date", "Paire", "Résultat de base", "Résultat simulé", "Changement"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{list.map((t) => { const b = Number(t.resultUsd) || 0, x = t.rules.replay[mode], d = (x.usd || 0) - b; return <tr key={t.id}>
+        <td style={{ ...td, textTransform: "capitalize" }}>{fmtDateTime(t.entryTime)}</td>
+        <td style={td}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={16} /><b>{t.pair}</b></span></td>
+        <td className="tnum" style={{ ...td, color: col(b) }}>{usd(b)}</td>
+        <td className="tnum" style={{ ...td, color: col(x.usd) }}><b>{x.out}</b> · {usd(x.usd || 0)}</td>
+        <td className="tnum" style={{ ...td, color: col(d), fontWeight: 700 }}>{usd(d)}</td></tr>; })}</tbody>
+      <tfoot><tr><td style={{ ...td, fontWeight: 800, borderBottom: "none" }} colSpan={2}>Total · {list.length} trade{list.length > 1 ? "s" : ""}</td>
+        <td className="tnum" style={{ ...td, borderBottom: "none", fontWeight: 800, color: col(tot[0]) }}>{usd(tot[0])}</td>
+        <td className="tnum" style={{ ...td, borderBottom: "none", fontWeight: 800, color: col(tot[1]) }}>{usd(tot[1])}</td>
+        <td className="tnum" style={{ ...td, borderBottom: "none", fontWeight: 800, color: col(tot[2]) }}>{usd(tot[2])}</td></tr></tfoot>
+    </table></div>}
+  </Card>;
+}
 function SimCard({ trades }) {
   const [be, setBe] = useState(() => { try { return localStorage.getItem("tjp_sim_be") !== "0"; } catch (e) { return true; } });
   const [manual, setManual] = useState(true); const [res, setRes] = useState(null); const [busy, setBusy] = useState(false); const [open, setOpen] = useState(false);
-  const pool = (trades || []).filter((t) => t.status !== "open" && t.stopLoss && t.takeProfit && (!manual || !t.closeType || t.closeType === "Market"));
+  const pool = (trades || []).filter((t) => t.status !== "open" && t.stopLoss && t.takeProfit && tvCanReplay(t));
   const run = async (beV = be) => { setBusy(true); const out = []; const bySym = {};
     for (const t of pool) { const k = tvSimSym(t.pair); (bySym[k || "?"] = bySym[k || "?"] || []).push(t); }
     for (const [k, list] of Object.entries(bySym)) { const rows = k !== "?" ? await tvSimRows(k) : null;
@@ -5280,9 +5360,7 @@ function SimCard({ trades }) {
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
       <button style={chip(be)} onClick={() => { setBe(true); try { localStorage.setItem("tjp_sim_be", "1"); } catch (e) {} }}>Moitié du TP → BE auto</button>
       <button style={chip(!be)} onClick={() => { setBe(false); try { localStorage.setItem("tjp_sim_be", "0"); } catch (e) {} }}>Sans BE</button>
-      <span style={{ width: 1, background: C.border, margin: "0 4px" }} />
-      <button style={chip(manual)} onClick={() => setManual(true)}>Clôtures manuelles</button>
-      <button style={chip(!manual)} onClick={() => setManual(false)}>Tous les trades</button>
+      <span style={{ fontSize: 11.5, color: C.textMuted, alignSelf: "center", marginLeft: 4 }}>Clôtures manuelles seulement (SL, TP et BE exclus)</span>
     </div>
     {res && <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, marginTop: 14 }}>
@@ -5296,16 +5374,17 @@ function SimCard({ trades }) {
         <tbody>{ok.map((x) => <tr key={x.t.id}><td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><PairLogo pair={x.t.pair} size={16} /><b>{x.t.pair}</b></span></td>
           <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{fmtDateTime(x.t.entryTime)}</td><td className="tnum" style={{ padding: "6px 8px", color: col(x.t.resultR) }}>{(Number(x.t.resultR) || 0).toFixed(2)}R</td>
           <td className="tnum" style={{ padding: "6px 8px", color: col(x.R), fontWeight: 700 }}>{x.R.toFixed(2)}R</td><td style={{ padding: "6px 8px" }}>{x.out}</td><td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{fmtDur(x.t.entryTime, new Date(x.exitT * 1000 + 900e3).toISOString())}</td>
-          <td style={{ padding: "6px 8px" }}><button onClick={() => replayRealTrade(x.t)} style={{ ...btn.ghost, padding: "3px 8px", fontSize: 11.5 }}>Rejouer</button></td></tr>)}</tbody></table></div>}
+          <td style={{ padding: "6px 8px" }}>{tvCanReplay(x.t) && <button onClick={() => replayRealTrade(x.t)} style={{ ...btn.ghost, padding: "3px 8px", fontSize: 11.5 }}>Rejouer</button>}</td></tr>)}</tbody></table></div>}
     </>}
   </Card>;
 }
 
 /* rejouer un trade réel EURUSD dans le replay : contexte 24 h avant, entrée / SL / TP dessinés, session à part (pas comptée dans tes stats) */
 function replayRealTrade(t) {
+  if (!tvCanReplay(t)) return;
   const sym = tvSimSym(t.pair); if (sym && sym !== TV_PAIR) { tvSetSym(sym); setTimeout(() => window.dispatchEvent(new CustomEvent("tjp-bt-sym", { detail: sym })), 0); }
   const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const n = (v) => (v == null || v === "" || isNaN(Number(v)) ? null : Number(v));
-  const real = { sym: sym || TV_PAIR, side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(t.stopLoss), tp: n(t.takeProfit), lots: n(t.positionSize), exit: n(t.exitPrice), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
+  const real = { id: t.id, sym: sym || TV_PAIR, side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(t.stopLoss), tp: n(t.takeProfit), lots: n(t.positionSize), exit: n(t.exitPrice), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
   const L = real.side > 0; const slWrong = real.sl && real.entry && (L ? real.sl >= real.entry : real.sl <= real.entry);
   real.posOk = !slWrong && !!(real.sl && real.tp && (L ? real.tp > real.entry : real.tp < real.entry));
   const ok = real.posOk;
@@ -5376,7 +5455,7 @@ function TradeDetail({ trade, onBack, onEdit, onDelete, onVerdictChange, onRetro
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {tvSimSym(trade.pair) && trade.accountId !== BT_ACC && <button onClick={() => replayRealTrade(trade)} title="Rejoue ce trade dans le replay, 24 h avant l'entrée, avec ton entrée, ton SL et ton TP dessinés" style={btn.ghost}><Rewind size={13} /> Rejouer</button>}
+          {tvCanReplay(trade) && trade.accountId !== BT_ACC && <button onClick={() => replayRealTrade(trade)} title="Rejoue ce trade dans le replay, 24 h avant l'entrée, avec ton entrée, ton SL et ton TP dessinés" style={btn.ghost}><Rewind size={13} /> Rejouer</button>}
           <button onClick={() => onEdit(trade)} style={btn.ghost}><Edit3 size={13} /> Modifier</button>
           <button onClick={() => shareTradeCard(trade)} style={btn.ghost} aria-label="Partager"><Share2 size={15} /></button>
           {confirmDelete
@@ -5949,6 +6028,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const [shotBefore, setShotBefore] = useState(initial?.screenshotBefore || null);
   const [shotAfter, setShotAfter] = useState(initial?.screenshotAfter || null);
   const [grade, setGrade] = useState(initial?.rules?.grade || "");
+  const userTags = useUserTags(); const [uTags, setUTags] = useState(() => (initial?.tags || []).filter((g) => userTagsGet().includes(g)));
   const [status, setStatus] = useState(initial ? (initial.status === "closed" ? (Number(initial.resultR) >= 0 ? "win" : "loss") : initial.status) : "open");
   const [rIn, setRIn] = useState(initial?.resultR != null ? String(Math.abs(initial.resultR)) : "");
   const [notes, setNotes] = useState(initial?.notes || "");
@@ -5997,7 +6077,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
     const stTags = tfRows.flatMap((r) => r.setups);
     const sess = getSession(fromLocalInput(entryTime));
     const keep = (initial?.tags || []).filter((t) => !["M1","M5","M15","M30","H1","H4","D1","W1",...tfList].includes(t) && !setupNames.includes(t) && !["London Session", "New York Session", "Asia Session", "Hors session"].includes(t));
-    const tags = [...new Set([...keep, ...tfTags, ...stTags, ...(sess === "Hors session" ? [] : [sess])])];
+    const tags = [...new Set([...keep.filter((g) => !userTags.includes(g)), ...uTags, ...tfTags, ...stTags, ...(sess === "Hors session" ? [] : [sess])])];
     const finalR = rFinal == null ? null : Math.round(rFinal * 100) / 100;
     const finalStatus = status === "win" || status === "loss" ? "closed" : status;
     const { _draft, ...init0 } = initial || {};
@@ -6159,6 +6239,8 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
         <div style={card}>
           <div style={lab}>Note du setup</div>
           <div style={{ display: "flex", gap: 6 }}>{[["A+", C.teal], ["A", C.purpleBright], ["B", C.amber], ["C", C.red]].map(([g, col]) => <button key={g} type="button" onClick={() => setGrade(grade === g ? "" : g)} style={{ ...big(grade === g, col), fontSize: 15, fontWeight: 800, padding: "10px 4px" }}>{g}</button>)}</div>
+          {userTags.length > 0 && <><div style={{ ...lab, marginTop: 14 }}>Tags</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{userTags.map((g) => { const on = uTags.includes(g); return <button key={g} type="button" onClick={() => setUTags(on ? uTags.filter((x) => x !== g) : [...uTags, g])} style={{ ...big(on, C.purpleBright), flex: "0 0 auto", fontSize: 12.5, padding: "7px 12px" }}>{g}</button>; })}</div></>}
           <div style={{ ...lab, marginTop: 14 }}>Résultat</div>
           <div style={{ display: "flex", gap: 6 }}>
             {[["open", "En cours", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary]].map(([v, l, col]) =>
@@ -6438,6 +6520,7 @@ function SimpleStats({ trades }) {
   return (
     <div className="fade-in" style={{ maxWidth: 860, margin: "0 auto" }}>
       <PageHeader title="Statistiques" action={<Seg v={unit} set={setUnit} opts={[["usd", "$"], ["r", "R"]]} />} />
+      <ReplayedCard trades={trades} />
       <SimCard trades={trades} />
 
       <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14 }}>
@@ -8470,6 +8553,9 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
   
   
   const [toast, setToast] = useState("");
+  /* toutes les sections prennent la largeur du tableau ClickFunded */
+  const cfRef = useRef(null); const [cfW, setCfW] = useState(0);
+  useEffect(() => { const el = cfRef.current; if (!el || typeof ResizeObserver === "undefined") return; const ro = new ResizeObserver(() => { const w = el.firstChild ? el.firstChild.offsetWidth : 0; if (w > 300) setCfW((p) => (Math.abs(p - w) > 2 ? w : p)); }); ro.observe(el.firstChild || el); return () => ro.disconnect(); }, []);
 
   const update = (patch) => {
     setSettings((prev) => ({ ...prev, ...patch }));
@@ -8486,12 +8572,16 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
   
 
   return (
-    <div className="fade-in" style={{ maxWidth: 820 }}>
+    <div className="fade-in" style={{ maxWidth: cfW || 820 }}>
       <PageHeader title="Paramètres" />
 
 
-      <SettingsSection title="Conditions du challenge" icon={Trophy} fit>
+      <div ref={cfRef} style={{ width: "fit-content", maxWidth: "100%" }}><SettingsSection title="Conditions du challenge" icon={Trophy} fit>
         <ChallengeRules trades={trades} accountId={activeAccountId} accounts={accounts} onSaveAccounts={onSaveAccounts} onSwitchAccount={onSwitchAccount} />
+      </SettingsSection></div>
+
+      <SettingsSection title="Tags" icon={Tag}>
+        <TagsSettings />
       </SettingsSection>
 
       {onImport && <SettingsSection title="Importer depuis TradeLocker (capture)" icon={Upload}>
@@ -9088,7 +9178,7 @@ function tradeToDb(t) {
     account_id: t.accountId ?? null,
     mistakes: t.mistakes ?? [],
     positives: t.positives ?? [],
-    rules: t.rules ?? {},
+    rules: { ...(t.rules || {}), ...(t.exitTime ? { exitTime: t.exitTime } : {}), ...(t.closeType ? { closeType: t.closeType } : {}), ...(t.plannedRR != null ? { plannedRR: t.plannedRR } : {}) },
     max_r: t.maxR ?? null,
     ict_model: t.ictModel ?? null,
     htf_bias: t.htfBias ?? null,
@@ -9138,7 +9228,7 @@ function dbToTrade(r) {
     retroNote: r.retro_note ?? "",
     mistakes: r.mistakes ?? [],
     positives: r.positives ?? [],
-    rules: r.rules ?? {},
+    rules: r.rules ?? {}, exitTime: r.rules?.exitTime ?? null, closeType: r.rules?.closeType ?? null, plannedRR: r.rules?.plannedRR ?? null,
     maxR: r.max_r ?? null,
     ictModel: r.ict_model ?? "",
     htfBias: r.htf_bias ?? "",
@@ -10418,6 +10508,7 @@ export default function TradingJournalApp() {
           try { localStorage.setItem(RULES_KEY, JSON.stringify(r.trading_rules)); } catch {}
         }
 
+        if (Array.isArray(r.user_tags)) { try { localStorage.setItem(USER_TAGS_KEY, JSON.stringify(r.user_tags)); window.dispatchEvent(new Event("usertags")); } catch {} }
         // Logos des actifs
         if (r.pair_logos && typeof r.pair_logos === "object") {
           try { localStorage.setItem(PAIR_LOGO_KEY, JSON.stringify({ ...pairLogosGet(), ...r.pair_logos })); window.dispatchEvent(new Event("pairlogos")); } catch {}
@@ -10558,6 +10649,10 @@ export default function TradingJournalApp() {
   useEffect(() => { (trades || []).forEach((t) => { if (!String(t.id).startsWith("tl_") || t.resultUsd == null) return;
       const acc = (accounts || []).find((a) => a.id === t.accountId); const rk = Math.round((Number(acc?.balance) || initialBalance || 10000) * 0.01 * 100) / 100; const r = Math.round((t.resultUsd / rk) * 100) / 100;
       if (Math.abs((Number(t.resultR) || 0) - r) > 0.005 || Number(t.riskUsd) !== rk) patchTrade(t.id, { riskUsd: rk, resultR: r }); }); }, [trades.length, accounts]);
+  /* résultat d'un trade réel rejoué : gardé dans rules.replay (Supabase), un seul par trade et par mode */
+  useEffect(() => { const h = (e) => { const d = e.detail || {}; const t = tradesRef.current.find((x) => x.id === d.id); if (!t) return;
+      const rp = { ...((t.rules || {}).replay || {}), [d.mode]: { out: d.out, usd: d.usd, r: d.r }, at: Date.now() }; patchTrade(t.id, { rules: { ...(t.rules || {}), replay: rp } }); };
+    window.addEventListener("tjp-real-replay", h); return () => window.removeEventListener("tjp-real-replay", h); }, []);
   const importTrades = (list) => {
     const have = new Set(tradesRef.current.map((t) => t.id)); const now = Date.now();
     const fresh = list.filter((t) => !have.has(t.id)).map((t) => ({ ...t, accountId: t.accountId || effectiveAccountId, updatedAt: now }));
