@@ -7936,17 +7936,36 @@ function ChallengeRules({ trades = [], accountId, accounts = [], onSaveAccounts,
   const col = { ok: C.teal, wait: C.textMuted, warn: C.amber, bad: C.red };
   const inp = { ...inputStyle, padding: "7px 9px", fontSize: 13.5, width: 90 };
   return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-      <img src={CF_LOGO} alt="ClickFunded" style={{ height: 28, borderRadius: 6 }} />
-      <select value={`${two ? 2 : 1}-${r.size}`} onChange={(e) => { const [ty, sz] = e.target.value.split("-").map(Number); save({ ...r, ...CH_TYPES[ty].r, size: sz, phase: ty === Number(r.type) ? r.phase : 1 }); }} style={{ ...inputStyle, padding: "8px 10px", fontSize: 14, fontWeight: 700, flex: 1, minWidth: 180 }}>
-        {[1, 2].map((ty) => <optgroup key={ty} label={CH_TYPES[ty].n}>{CH_TYPES[ty].sizes.map((sz) => <option key={sz} value={`${ty}-${sz}`}>{CH_TYPES[ty].n} · {sz / 1000}k</option>)}</optgroup>)}
-      </select>
-      {two && <div style={{ display: "flex", gap: 3, padding: 3, borderRadius: 10, border: `1px solid ${C.border}` }}>{[1, 2].map((ph) => <button key={ph} onClick={() => set("phase", ph)} style={{ border: "none", borderRadius: 7, padding: "6px 10px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", background: Number(r.phase) === ph ? C.purpleDim : "transparent", color: Number(r.phase) === ph ? C.purpleBright : C.textMuted }}>Phase {ph}</button>)}</div>}
-      {onSaveAccounts && <button onClick={() => { const name = `ClickFunded ${two ? "2 phases" : "1 phase"} ${r.size / 1000}k`; const acc = { id: `acc_${Date.now()}`, name, type: "challenge", balance: r.size, broker: "ClickFunded",
-          challenge: { ...CH_DEFAULT, steps: two ? 2 : 1, target: r.target, target2: two ? r.target2 : 0, maxDaily: two ? r.dailyLoss : 0, maxDD: r.maxLoss, ddType: "static", minDays: r.minDays, phase: two && Number(r.phase) === 2 ? "Phase 2" : "Phase 1", phaseStart: new Date().toISOString().slice(0, 10) } };
-          onSaveAccounts([...(accounts || []), acc]); onSwitchAccount && onSwitchAccount(acc.id); setMade(name); }} style={{ ...btn.primary, padding: "9px 14px" }}><Plus size={15} />Créer ce challenge</button>}
-    </div>
+    {(() => { const ty = two ? 2 : 1; const sizes = [...CH_TYPES[ty].sizes].reverse(); const R0 = CH_TYPES[ty].r; const OR = "#f5a524";
+      const price = ty === 1 ? { 25000: "€49,99", 50000: "€79,99", 100000: "€149,99", 200000: "€259,99" } : {};
+      const rowsT = [["Profit Target", ty === 2 ? null : `${R0.target}%`], ...(ty === 2 ? [["Max. Daily Loss", `${R0.dailyLoss}%`]] : []), ["Max. Loss", `${R0.maxLoss}%`], ["Min. Trading Days", `${R0.minDays} Days`], ["Trading Period", "Unlimited"], ["News Trading", "Allowed"],
+        ...(ty === 1 ? [["Trade Consistency", `${R0.consistency}%`]] : []), ["Rewards Split", "badge:" + R0.split], ...(ty === 2 ? [["Refund", "badge:" + R0.refund]] : []), ["Activation Fee", "€199,99"]];
+      const cellH = 46;
+      return <div style={{ background: "#0a0a0a", borderRadius: 16, padding: "18px 14px", fontFamily: "Inter, system-ui, sans-serif", color: "#fff" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+          <img src={CF_LOGO} alt="ClickFunded" style={{ height: 28 }} />
+          <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 999, background: "#161616", border: "1px solid #262626" }}>{[1, 2].map((k) => <button key={k} onClick={() => save({ ...r, ...CH_TYPES[k].r, phase: 1, size: CH_TYPES[k].sizes.includes(r.size) ? r.size : CH_TYPES[k].sizes[1] })} style={{ border: "none", borderRadius: 999, padding: "8px 18px", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", background: ty === k ? `linear-gradient(180deg, #ffb84d, ${OR})` : "transparent", color: ty === k ? "#111" : "#bdbdbd", boxShadow: ty === k ? `0 0 18px ${OR}66` : "none" }}>{k} Phase{k > 1 ? "s" : ""}</button>)}</div>
+        </div>
+        <div style={{ overflowX: "auto", paddingBottom: 6 }}><div style={{ display: "grid", gridTemplateColumns: `112px repeat(${sizes.length}, minmax(118px,1fr))`, gap: 8, minWidth: 112 + sizes.length * 126 }}>
+          <div style={{ paddingTop: 72 }}>{rowsT.map(([l, v]) => <div key={l} style={{ height: l === "Profit Target" && ty === 2 ? cellH + 10 : cellH, display: "flex", alignItems: "center", fontSize: 13.5, color: "#d6d6d6" }}>{l}</div>)}{ty === 2 && <div style={{ height: 0 }} />}</div>
+          {sizes.map((sz) => { const on = r.size === sz; return <button key={sz} onClick={() => set("size", sz)} style={{ textAlign: "left", cursor: "pointer", fontFamily: "inherit", color: "#fff", padding: "14px 10px 16px", borderRadius: 14, border: `1px solid ${on ? OR : "#2a2a2a"}`, background: "linear-gradient(180deg, #1d1d1d, #121212)", boxShadow: on ? `0 0 24px ${OR}55, inset 0 0 0 1px ${OR}55` : "none" }}>
+            <div style={{ textAlign: "center", height: 58 }}><div style={{ fontSize: 12, color: "#bdbdbd" }}>Account</div><div style={{ fontSize: 19, fontWeight: 800, letterSpacing: -0.3, whiteSpace: "nowrap" }}>${sz.toLocaleString("en-US")}</div></div>
+            {rowsT.map(([l, v]) => <div key={l} style={{ height: l === "Profit Target" && ty === 2 ? cellH + 10 : cellH, display: "flex", alignItems: "center", borderTop: "1px solid #232323", fontSize: 14 }}>
+              {l === "Profit Target" && ty === 2 ? <div style={{ width: "100%", fontSize: 11, color: "#9a9a9a", lineHeight: 1.9 }}><div style={{ display: "flex", justifyContent: "space-between", whiteSpace: "nowrap" }}>PHASE 1<b style={{ color: "#fff", fontSize: 14 }}>{R0.target}%</b></div><div style={{ display: "flex", justifyContent: "space-between", whiteSpace: "nowrap" }}>PHASE 2<b style={{ color: "#fff", fontSize: 14 }}>{R0.target2}%</b></div></div>
+                : String(v).startsWith("badge:") ? <span style={{ whiteSpace: "nowrap" }}>Yes <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: "#34d399", border: "1px solid #34d39966", background: "#34d3991a", borderRadius: 999, padding: "2px 8px" }}>{v.slice(6)}%</span></span> : v}</div>)}
+            {price[sz] && <div style={{ textAlign: "center", fontSize: 22, fontWeight: 800, marginTop: 10 }}>{price[sz]}</div>}
+          </button>; })}
+        </div></div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+          {ty === 2 && <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 999, background: "#161616", border: "1px solid #262626" }}>{[1, 2].map((ph) => <button key={ph} onClick={() => set("phase", ph)} style={{ border: "none", borderRadius: 999, padding: "7px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", background: Number(r.phase) === ph ? "#2a2a2a" : "transparent", color: Number(r.phase) === ph ? "#fff" : "#8a8a8a" }}>Phase {ph}</button>)}</div>}
+          {onSaveAccounts && <button onClick={() => { const name = `ClickFunded ${two ? "2 phases" : "1 phase"} ${r.size / 1000}k`; const acc = { id: `acc_${Date.now()}`, name, type: "challenge", balance: r.size, broker: "ClickFunded",
+              challenge: { ...CH_DEFAULT, steps: two ? 2 : 1, target: r.target, target2: two ? r.target2 : 0, maxDaily: two ? r.dailyLoss : 0, maxDD: r.maxLoss, ddType: "static", minDays: r.minDays, phase: two && Number(r.phase) === 2 ? "Phase 2" : "Phase 1", phaseStart: new Date().toISOString().slice(0, 10) } };
+              onSaveAccounts([...(accounts || []), acc]); onSwitchAccount && onSwitchAccount(acc.id); setMade(name); }}
+            style={{ border: "none", borderRadius: 999, padding: "12px 28px", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit", color: "#111", background: `linear-gradient(180deg, #ffb84d, ${OR})`, boxShadow: `0 0 22px ${OR}88` }}>Créer ce challenge · ${(r.size / 1000)}k</button>}
+        </div>
+      </div>; })()}
     {made && <div style={{ fontSize: 12.5, color: C.teal }}>✓ Compte « {made} » créé et activé : tes prochains trades y seront enregistrés.</div>}
+    <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6 }}>Suivi du compte actif</div>
     {rows.map(([lab, k, unit, live, stt]) => <div key={k} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 0", borderTop: `1px solid ${C.border}` }}>
       <span style={{ flex: 1, minWidth: 150, fontSize: 13.5 }}>{lab}</span>
       <input type="number" step="any" value={r[k]} onChange={(e) => set(k, Number(e.target.value))} style={inp} /><span style={{ fontSize: 12, color: C.textMuted, width: 120 }}>{unit}</span>
@@ -8301,7 +8320,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
   
 
   return (
-    <div className="fade-in" style={{ maxWidth: 600 }}>
+    <div className="fade-in" style={{ maxWidth: 820 }}>
       <PageHeader title="Paramètres" />
 
       {/* Compte */}
