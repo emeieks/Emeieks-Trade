@@ -1659,8 +1659,8 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
     if (R.prop && !tr.bot) propCheck(tr.closeT);
     if (tr.real && tr.realId) { /* trade réel rejoué : résultat renvoyé au journal (BE 50 % ou sans BE) */
       const be = why === "SL" && tr.beAuto; const out = be ? "BE" : why;
-      try { window.dispatchEvent(new CustomEvent("tjp-real-replay", { detail: { id: tr.realId, mode: tr.noBE ? "noBE" : "be", out, usd: Math.round(tr.pnl * 100) / 100, r: Math.round(tr.r * 100) / 100, closeT: tr.closeT } })); } catch (e) {}
-      if (be && !tr.noBE) { /* option : continuer le même trade sans BE, SL d'origine */
+      try { window.dispatchEvent(new CustomEvent("tjp-real-replay", { detail: { id: tr.realId, mode: tr.opt ? "opt" : tr.noBE ? "noBE" : "be", sl: tr.sl0, tp: tr.tp, lots: tr.lots, out, usd: Math.round(tr.pnl * 100) / 100, r: Math.round(tr.r * 100) / 100, closeT: tr.closeT } })); } catch (e) {}
+      if (be && !tr.noBE && !tr.opt) { /* option : continuer le même trade sans BE, SL d'origine */
         const c = { ...tr, id: Date.now() + Math.random(), no: (R.seq = (R.seq || 0) + 1), noBE: true, beDone: true, beAuto: false, sl: tr.sl0, status: "open", exit: null, closeT: null, reason: null, pips: 0, pnl: 0, r: 0, appId: null };
         R.trades.push(c); setTimeout(() => setMsg("BE touché à 50 %. Le même trade continue sans BE (SL d'origine) : lance le replay pour voir la suite."), 0);
       }
@@ -1669,7 +1669,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   /* trade réel rejoué : arrivé à l'heure où tu l'as vraiment fermé -> pause + message */
   function realExitCheck() {
     const bt = R.rows[R.ci][0];
-    for (const tr of R.trades) { if (!tr.real || tr.noBE || tr.exitNote || !tr.realExitT || bt + 900 <= tr.realExitT) continue;
+    for (const tr of R.trades) { if (!tr.real || (tr.noBE && !tr.opt) || tr.exitNote || !tr.realExitT || bt + 900 <= tr.realExitT) continue;
       tr.exitNote = true; setPlaying(false);
       if (tr.realExit) R.draws.push({ type: "hray", color: "#9c27b0", pts: [{ t: tr.realExitT, p: tr.realExit }] });
       const u = tr.realUsd; setTimeout(() => setMsg(`⏸ C'est ici que tu as fermé ton vrai trade${tr.realExit ? " à " + tr.realExit : ""}${u != null ? " (" + (u >= 0 ? "+" : "") + Math.round(u) + " $)" : ""}${tr.status === "open" ? ". Le replay continue avec ton SL et ton TP de départ : relance pour voir la suite." : "."}`), 0);
@@ -2084,7 +2084,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         if (xa != null && ya != null && xb != null && yb != null) { const col = (tr.realUsd ?? (tr.realExit - tr.entry) * tr.side) >= 0 ? "#089981" : "#f23645";
           c.save(); c.setLineDash([5, 4]); c.strokeStyle = col; c.lineWidth = 2; c.beginPath(); c.moveTo(xa, ya); c.lineTo(xb, yb); c.stroke(); c.setLineDash([]);
           c.fillStyle = col; c.beginPath(); c.arc(xb, yb, 4, 0, Math.PI * 2); c.fill(); c.font = "600 11px " + TV_FONT; c.fillText(tr.realUsd != null ? (tr.realUsd >= 0 ? "+" : "") + Math.round(tr.realUsd) + " $ (réel)" : "sortie réelle", xb + 7, yb - 6); c.restore(); } }
-      if (tr.status === "closed" && (!R.cfg.showClosed || tr.hidden)) continue; /* TP / SL / BE : la boîte disparaît du graphique, le trade reste dans Replay Trading */
+      if (tr.status === "closed" && (!R.cfg.showClosed || tr.hidden) && R.selTr !== tr) continue; /* TP / SL / BE : la boîte disparaît du graphique, le trade reste dans Replay Trading */
       const B = tradeBox(tr); if (!B || B.ye === null) continue; const { x1, x2, ye, ys, yt } = B;
       const closed = tr.status === "closed"; c.globalAlpha = closed ? 0.5 : 1;
       c.fillStyle = "rgba(8,153,129,0.18)"; c.fillRect(x1, Math.min(ye, yt), x2 - x1, Math.abs(yt - ye));
@@ -2474,7 +2474,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           if (sl && tp && real.posOk !== false) {
             if (R.seq == null) R.seq = Math.max(0, ...R.trades.map((x) => x.no || 0)); R.seq += 1;
             const lots = real.lots || lotsFor(Math.abs(e0 - sl) / TV_PIP);
-            const tr = { id: Date.now() + Math.random(), no: R.seq, real: true, realId: real.id, realExitT: real.exitT, realExit: real.exit, realUsd: real.usd, pd: [], riskPct: R.cfg.risk, type: "mkt", side, entry: e0, sl, tp, sl0: sl, lots, status: "open", openT: bt, placedT: bt, anchorT: bt, tf: TV_TFLAB[R.agg ? R.agg.min : 15] };
+            const tr = { id: Date.now() + Math.random(), no: R.seq, real: true, realId: real.id, realExitT: real.exitT, realExit: real.exit, realUsd: real.usd, opt: !!real.opt, noBE: !!real.opt, pd: [], riskPct: R.cfg.risk, type: "mkt", side, entry: e0, sl, tp, sl0: sl, lots, status: "open", openT: bt, placedT: bt, anchorT: bt, tf: TV_TFLAB[R.agg ? R.agg.min : 15] };
             tr.risk = (Math.abs(e0 - sl) / TV_PIP) * TV_PIPVAL * lots; tr.endT = bt + 25 * tfSec(); R.trades.push(tr);
           } else {
             R.draws.push({ type: "hray", color: "#2962ff", pts: [{ t: bt, p: e0 }] }); if (sl) R.draws.push({ type: "hray", color: "#f23645", pts: [{ t: bt, p: sl }] }); if (tp) R.draws.push({ type: "hray", color: "#089981", pts: [{ t: bt, p: tp }] });
@@ -2876,7 +2876,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
                   const be = tvIsBE(t), win = !be && t.pnl > 0, col = be ? TV.muted : win ? TV.green : TV.red;
                   const chip = (txt, bg, fg) => <span style={{ background: bg, color: fg, borderRadius: 10, padding: "2px 8px", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>{txt}</span>;
                   return (
-                    <div key={t.id} onClick={(e) => { if (e.target.closest("button,select")) return; R.selTr = t; rerender(); }} style={{ display: "grid", gridTemplateColumns: "4px 44px 170px 72px 1fr auto auto 34px", alignItems: "center", gap: 10, padding: "8px 10px", border: `1px solid ${R.selTr === t ? TV.blue : TV.border}`, borderRadius: 8, background: "#fff", cursor: "pointer" }}>
+                    <div key={t.id} onClick={(e) => { if (e.target.closest("button,select")) return; R.selTr = t; try { const k = tvBs(R.agg.start, tvBsRows(R.rows, t.openT)), k2 = tvBs(R.agg.start, tvBsRows(R.rows, t.closeT || t.openT)); R.chart.timeScale().setVisibleLogicalRange({ from: k - 40, to: Math.max(k2, k) + 30 }); } catch (er) {} rerender(); }} title="Clique pour afficher ce trade sur le graphique" style={{ display: "grid", gridTemplateColumns: "4px 44px 170px 72px 1fr auto auto 34px", alignItems: "center", gap: 10, padding: "8px 10px", border: `1px solid ${R.selTr === t ? TV.blue : TV.border}`, borderRadius: 8, background: "#fff", cursor: "pointer" }}>
                       <span style={{ alignSelf: "stretch", borderRadius: 2, background: col }} />
                       <b style={{ fontSize: 14 }}>#{dispNo(t)}</b>
                       <span style={{ fontSize: 13 }}>{tvFmtTime(t.openT, R.tz, "full")}<br /><span style={{ color: TV.muted, fontSize: 12 }}>→ {tvFmtTime(t.closeT, R.tz, "full")}</span></span>
@@ -4983,12 +4983,31 @@ function ManualReplay({ t }) {
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span style={{ fontSize: 12.5, width: 110 }}>Sans BE</span>{b("noBE", "TP", C.teal)}{b("noBE", "SL", C.red)}</div>
   </div>;
 }
+/* trade optimisé : même entrée, SL / TP modifiés, lots recalculés pour garder le même risque $ */
+function OptimizeBox({ t, onDone }) {
+  const sl0 = Number(slOf(t)), tp0 = Number(tpOf(t)), e = Number(t.entryPrice), L = Number(t.positionSize) || 0;
+  const op = t.rules?.replay?.opt; const [sl, setSl] = useState(String(op?.sl ?? sl0 ?? "")); const [tp, setTp] = useState(String(op?.tp ?? tp0 ?? ""));
+  const s1 = Number(String(sl).replace(",", ".")), t1 = Number(String(tp).replace(",", ".")); const long = t.direction !== "short";
+  const ok = e && s1 && t1 && (long ? s1 < e && t1 > e : s1 > e && t1 < e);
+  const lots = ok && sl0 && Math.abs(e - sl0) > 0 ? Math.max(0.01, Math.floor(((L * Math.abs(e - sl0)) / Math.abs(e - s1)) * 100 + 1e-9) / 100) : L;
+  const inp = { width: 110, padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 13 };
+  const can = !!tvSimSym(t.pair);
+  return <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12.5 }}>
+    <span style={{ color: C.textMuted }}>SL</span><input value={sl} onChange={(e2) => setSl(e2.target.value)} style={inp} />
+    <span style={{ color: C.textMuted }}>TP</span><input value={tp} onChange={(e2) => setTp(e2.target.value)} style={inp} />
+    <span style={{ color: C.textMuted }}>→ {lots} lot (même risque)</span>
+    <button disabled={!ok || !can} onClick={() => { replayRealTrade(t, { sl: s1, tp: t1, lots }); onDone && onDone(); }} title={can ? "" : "Pas de bougies pour ce marché"} style={{ ...btn.primary, padding: "6px 12px", fontSize: 12.5, opacity: ok && can ? 1 : 0.5 }}><Rewind size={13} /> Rejouer optimisé</button>
+    {!ok && <span style={{ color: C.amber }}>SL et TP doivent être de chaque côté de l'entrée.</span>}
+  </div>;
+}
 function ReplayLine({ rp }) {
   if (rp && rp.noBE) rp = { ...rp, noBE: { ...rp.noBE, out: rp.noBE.out + " (NO BE)" } };
-  if (!rp || (!rp.be && !rp.noBE)) return null;
+  if (rp && rp.opt) rp = { ...rp, opt: { ...rp.opt, out: rp.opt.out + " (optimisé)" } };
+  if (!rp || (!rp.be && !rp.noBE && !rp.opt)) return null;
   return <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12.5, flexWrap: "wrap" }}>
     <span style={{ color: C.textMuted, display: "inline-flex", alignItems: "center", gap: 4 }}><Rewind size={12} /> Trade rejoué :</span>
     {rp.be && <b style={{ color: rpCol(rp.be) }}>{rpFmt(rp.be)}</b>}
+    {rp.opt && <span style={{ color: C.textMuted }}>· <b style={{ color: rpCol(rp.opt) }}>{rpFmt(rp.opt)}</b></span>}
     {rp.noBE && <span style={{ color: C.textMuted }}>· <b style={{ color: rpCol(rp.noBE) }}>{rpFmt(rp.noBE)}</b></span>}
   </div>;
 }
@@ -5067,6 +5086,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
         </div>
         {t.rules?.replay && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><ReplayLine rp={t.rules.replay} /></div>}
         {canManualReplay(t) && <ManualReplay t={t} />}
+        {tvSimSym(t.pair) && slOf(t) && tpOf(t) && t.status !== "open" && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>Optimiser (SL / TP modifiés)</div><OptimizeBox t={t} /></div>}
         <div style={{ display: "flex" }}>{tvSimSym(t.pair) && <button disabled={!tvCanReplay(t)} onClick={() => replayRealTrade(t)} title={tvCanReplay(t) ? "Rejouer ce trade au moment exact de l'entrée" : RP_OFF} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, ...rpOff(t) }}><Rewind size={14} /> Rejouer</button>}        <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
       </div>}
     </div>
@@ -5401,11 +5421,11 @@ function ReplayedCard({ trades }) {
   return <Card style={{ padding: 16, marginBottom: 14 }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
       <div><div style={{ fontSize: 15, fontWeight: 800 }}>Trades rejoués</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Chaque trade compte une seule fois (dernier replay). <button onClick={() => { (trades || []).filter((t) => t.rules?.replay).forEach(delRp); }} style={{ border: "none", background: "none", color: C.red, cursor: "pointer", fontSize: 12, padding: 0, fontFamily: "inherit", textDecoration: "underline" }}>Tout effacer</button></div></div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button style={chip(mode === "be")} onClick={() => setMode("be")}>Avec BE à 50 %</button><button style={chip(mode === "noBE")} onClick={() => setMode("noBE")}>Sans BE</button>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button style={chip(mode === "be")} onClick={() => setMode("be")}>Avec BE à 50 %</button><button style={chip(mode === "noBE")} onClick={() => setMode("noBE")}>Sans BE</button><button style={chip(mode === "opt")} onClick={() => setMode("opt")}>Optimisé</button>
         <span style={{ width: 1, background: C.border, margin: "0 2px" }} />{[["usd", "$"], ["pct", "%"], ["r", "R"]].map(([k, l]) => <button key={k} style={chip(unit === k)} onClick={() => setUnit(k)}>{l}</button>)}
         <span style={{ width: 1, background: C.border, margin: "0 2px" }} /><button style={chip(one)} onClick={() => setOne(!one)} title="Lots recalculés automatiquement pour risquer 1 % du compte sur chaque trade">Si 1 % par trade</button></div>
     </div>
-    {list.length === 0 ? <div style={{ fontSize: 12.5, color: C.textMuted }}>Aucun trade rejoué {mode === "noBE" ? "jusqu'au bout sans BE" : ""} pour l'instant.</div> :
+    {list.length === 0 ? <div style={{ fontSize: 12.5, color: C.textMuted }}>{mode === "opt" ? "Aucun trade optimisé : ouvre un trade dans Mes trades → « Optimiser », change le SL / TP et rejoue-le." : `Aucun trade rejoué ${mode === "noBE" ? "jusqu'au bout sans BE" : ""} pour l'instant.`}</div> :
     <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%" }}>
       <thead><tr>{["Date", "Paire", "Lots", "Résultat de base", "Résultat simulé", "Changement", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
       <tbody>{list.map((t) => { const x = t.rules.replay[mode], b = cv(t, Number(t.resultUsd) || 0), sv = cv(t, x.usd || 0), d = sv - b, rk = tradeRiskUsd(t), pc = tradeRiskPct(t); return <tr key={t.id}>
@@ -5413,7 +5433,7 @@ function ReplayedCard({ trades }) {
         <td style={td}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={16} /><b>{t.pair}</b></span></td>
         <td className="tnum" style={td}><b>{String(t.positionSize ?? "—").replace(".", ",")}</b> lot{one && lots1(t) != null ? <b style={{ color: C.purpleBright }}> → {lots1(t).toLocaleString("fr-FR")} lot</b> : null}{rk ? <span style={{ color: C.textMuted }}> · {Math.round(rk * k1(t)).toLocaleString("fr-FR")} $ risqués{pc != null ? ` (${(pc * k1(t)).toFixed(2).replace(".", ",")} %)` : ""}</span> : null}</td>
         <td className="tnum" style={{ ...td, color: col(b) }}>{usd(b)}</td>
-        <td className="tnum" style={{ ...td, color: col(sv) }}><b>{x.out}{mode === "noBE" ? " (NO BE)" : ""}</b> · {usd(sv)}</td>
+        <td className="tnum" style={{ ...td, color: col(sv) }}><b>{x.out}{mode === "noBE" ? " (NO BE)" : ""}</b> · {usd(sv)}{mode === "opt" && x.sl != null ? <div style={{ fontSize: 11, color: C.textMuted }}>SL {x.sl} · TP {x.tp}{x.lots ? " · " + x.lots + " lot" : ""}</div> : null}</td>
         <td className="tnum" style={{ ...td, color: col(d), fontWeight: 700 }}>{usd(d)}</td>
         <td style={td}><button onClick={() => delRp(t)} title="Supprimer ce replay (tu pourras le rejouer à nouveau)" style={{ border: "none", background: "none", color: C.textMuted, cursor: "pointer", padding: 2, display: "flex" }}><Trash2 size={14} /></button></td></tr>; })}</tbody>
       <tfoot><tr><td style={{ ...td, fontWeight: 800, borderBottom: "none" }} colSpan={3}>Total · {list.length} trade{list.length > 1 ? "s" : ""}</td>
@@ -5467,16 +5487,16 @@ function SimCard({ trades }) {
 }
 
 /* rejouer un trade réel EURUSD dans le replay : contexte 24 h avant, entrée / SL / TP dessinés, session à part (pas comptée dans tes stats) */
-function replayRealTrade(t) {
-  if (!tvCanReplay(t)) return;
+function replayRealTrade(t, over) {
+  if (!over && !tvCanReplay(t)) return;
   const sym = tvSimSym(t.pair); if (sym && sym !== TV_PAIR) { tvSetSym(sym); setTimeout(() => window.dispatchEvent(new CustomEvent("tjp-bt-sym", { detail: sym })), 0); }
   const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const n = (v) => (v == null || v === "" || isNaN(Number(v)) ? null : Number(v));
-  const real = { id: t.id, sym: sym || TV_PAIR, side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(slOf(t)), tp: n(tpOf(t)), lots: n(t.positionSize), exit: n(t.exitPrice), usd: n(t.resultUsd), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
+  const real = { id: t.id, sym: sym || TV_PAIR, side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(over?.sl ?? slOf(t)), tp: n(over?.tp ?? tpOf(t)), lots: n(over?.lots ?? t.positionSize), opt: !!over, exit: n(t.exitPrice), usd: n(t.resultUsd), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
   const L = real.side > 0; const slWrong = real.sl && real.entry && (L ? real.sl >= real.entry : real.sl <= real.entry);
   real.posOk = !slWrong && !!(real.sl && real.tp && (L ? real.tp > real.entry : real.tp < real.entry));
   const ok = real.posOk;
   window.TJP_PENDING_GOTO = { t: t0, real, session: "Rejouer · " + (sym || TV_PAIR), create: true, noSave: true,
-    msg: ok ? `Trade réel du ${fmtDateTime(t.entryTime)} posé aux prix exacts (entrée ${real.entry}, SL ${real.sl}, TP ${real.tp}). Lance le replay pour voir la suite.`
+    msg: ok && over ? `Trade optimisé du ${fmtDateTime(t.entryTime)} : SL ${real.sl}, TP ${real.tp}, ${real.lots} lot (même risque $). Lance le replay.` : ok ? `Trade réel du ${fmtDateTime(t.entryTime)} posé aux prix exacts (entrée ${real.entry}, SL ${real.sl}, TP ${real.tp}). Lance le replay pour voir la suite.`
       : slWrong ? `Trade réel du ${fmtDateTime(t.entryTime)} : SL ${real.sl} déjà remonté au-dessus${L ? "" : " (en dessous)"} de l'entrée (TradeLocker garde le SL final, pas celui de départ). Entrée en bleu, SL final en rouge${real.tp ? ", TP en vert" : ""}${real.exit ? ", sortie en violet" : ""}.`
       : `Trade réel du ${fmtDateTime(t.entryTime)} sans ${!real.sl && !real.tp ? "SL ni TP" : !real.sl ? "SL" : "TP"} (trade erreur) : entrée en bleu${real.exit ? ", sortie en violet" : ""}.` };
   window.dispatchEvent(new CustomEvent("tjp-goto", { detail: "backtest" }));
@@ -10787,7 +10807,7 @@ export default function TradingJournalApp() {
       if (Math.abs((Number(t.resultR) || 0) - r) > 0.005 || Number(t.riskUsd) !== rk) patchTrade(t.id, { riskUsd: rk, resultR: r }); }); }, [trades.length, accounts]);
   /* résultat d'un trade réel rejoué : gardé dans rules.replay (Supabase), un seul par trade et par mode */
   useEffect(() => { const h = (e) => { const d = e.detail || {}; const t = tradesRef.current.find((x) => x.id === d.id); if (!t) return;
-      const rp = { ...((t.rules || {}).replay || {}), [d.mode]: { out: d.out, usd: d.usd, r: d.r }, at: Date.now() }; patchTrade(t.id, { rules: { ...(t.rules || {}), replay: rp } }); };
+      const rp = { ...((t.rules || {}).replay || {}), [d.mode]: { out: d.out, usd: d.usd, r: d.r, ...(d.mode === "opt" ? { sl: d.sl, tp: d.tp, lots: d.lots } : {}) }, at: Date.now() }; patchTrade(t.id, { rules: { ...(t.rules || {}), replay: rp } }); };
     window.addEventListener("tjp-real-replay", h); return () => window.removeEventListener("tjp-real-replay", h); }, []);
   /* heure de sortie / type de clôture de tes trades TradeLocker (captures du 21 nov.), perdus avant la synchro : complétés une fois puis gardés dans Supabase */
   useEffect(() => { if (!trades.length) return; const P = (x) => { const m = x.match(/(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})/); return tlEetToIso(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]); };
