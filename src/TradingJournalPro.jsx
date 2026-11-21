@@ -518,7 +518,7 @@ function GlobalStyle() {
         z-index: 9999 !important;
       }
       @supports (padding: env(safe-area-inset-top)) {
-        .topbar-safe { padding-top: env(safe-area-inset-top) !important; }
+        .topbar-safe { padding-top: max(10px, env(safe-area-inset-top)) !important; }
       }
       :root { --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px); }
       img { max-width: 100%; }
@@ -6941,6 +6941,56 @@ function PrepPage({ balance }) {
 }
 
 /* accueil : mon plan de trading en points, à droite du dashboard */
+/* accueil : progression du compte challenge actif */
+function ChallengeHomeCard({ trades = [], account, onSettings, accounts = [], onSaveAccounts, onSwitchAccount }) {
+  const [sure, setSure] = useState(false);
+  if (!account) return null;
+  let ch = account.challenge; let rules;
+  try { rules = { ...CH_BASE, ...(JSON.parse(localStorage.getItem(CH_KEY)) || {}) }; } catch { rules = CH_BASE; }
+  const two = ch ? Number(ch.steps) === 2 : Number(rules.type) === 2;
+  const phase2 = ch ? ch.phase === "Phase 2" : Number(rules.phase) === 2;
+  const size = Number(account.balance) || Number(rules.size) || 0; if (!size) return null;
+  const tgtPct = ch ? (two && phase2 ? Number(ch.target2) : Number(ch.target)) : (two && phase2 ? rules.target2 : rules.target);
+  const dailyPct = ch ? Number(ch.maxDaily) || 0 : two ? rules.dailyLoss : 0; const maxPct = ch ? Number(ch.maxDD) : rules.maxLoss; const minDays = ch ? Number(ch.minDays) : rules.minDays;
+  const since = ch && ch.phaseStart ? new Date(ch.phaseStart + "T00:00:00") : null;
+  const upd = (patch) => onSaveAccounts && onSaveAccounts(accounts.map((a) => (a.id === account.id ? { ...a, ...patch } : a)));
+  const funded = account.type === "funded" || (ch && ch.phase === "Financé");
+  const T = trades.filter((t) => t.accountId === account.id && t.status !== "open" && t.resultUsd != null && (!since || new Date(t.entryTime) >= since)).sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
+  let cum = 0, low = 0; const days = {}; for (const t of T) { cum += Number(t.resultUsd) || 0; low = Math.min(low, cum); const d = String(t.exitTime || t.entryTime).slice(0, 10); days[d] = (days[d] || 0) + (Number(t.resultUsd) || 0); }
+  const today = new Date().toISOString().slice(0, 10); const todayPnl = days[today] || 0;
+  const tgt = (size * tgtPct) / 100, left = Math.max(0, tgt - cum), prog = Math.max(0, Math.min(1, cum / tgt));
+  const maxL = (size * maxPct) / 100, bufMax = maxL + Math.min(0, cum); const dailyL = (size * dailyPct) / 100, bufDay = dailyL + Math.min(0, todayPnl);
+  const nDays = Object.keys(days).length; const OR = "#f5a524";
+  const bar = (v, col) => <div style={{ height: 8, borderRadius: 99, background: C.inputBg || C.bg, overflow: "hidden" }}><div style={{ width: `${Math.max(0, Math.min(100, v * 100))}%`, height: "100%", background: col, borderRadius: 99 }} /></div>;
+  const line = (l, v, col) => <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", borderTop: `1px solid ${C.border}` }}><span style={{ color: C.textSecondary }}>{l}</span><b className="tnum" style={{ color: col || C.text }}>{v}</b></div>;
+  return <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><div><b style={{ fontSize: 15 }}>{account.name}</b><div style={{ fontSize: 12, color: C.textMuted }}>{two ? (phase2 ? "Phase 2" : "Phase 1") : "1 phase"} · {fmtUsd0(size)}</div></div><button onClick={onSettings} style={{ ...btn.ghost, height: 28, padding: "0 10px", fontSize: 12 }}>Règles</button></div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 700, color: C.textMuted }}>OBJECTIF {tgtPct} %</span><span className="tnum" style={{ fontSize: 13, fontWeight: 700 }}>{((cum / size) * 100).toFixed(2)} %</span></div>
+    {bar(prog, cum >= tgt ? C.teal : OR)}
+    <div className="tnum" style={{ fontSize: 22, fontWeight: 800, marginTop: 10, color: cum >= tgt ? C.teal : C.text }}>{funded ? `Profit ${fmtUsd0(cum)}` : cum >= tgt ? "Objectif atteint ✓" : `Il te manque ${fmtUsd0(left)}`}</div>
+    <div className="tnum" style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>{fmtUsd0(cum)} sur {fmtUsd0(tgt)}</div>
+    {line("Perte max. restante", `${fmtUsd0(bufMax)} / ${fmtUsd0(maxL)}`, bufMax < maxL * 0.3 ? C.red : bufMax < maxL * 0.6 ? C.amber : C.teal)}
+    {dailyPct > 0 && line("Perte possible aujourd'hui", `${fmtUsd0(bufDay)} / ${fmtUsd0(dailyL)}`, bufDay < dailyL * 0.3 ? C.red : bufDay < dailyL * 0.6 ? C.amber : C.teal)}
+    {line("Jours de trading", `${nDays} / ${minDays}`, nDays >= minDays ? C.teal : C.text)}
+    {line("Trades", String(T.length))}
+    {ch && onSaveAccounts && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, padding: "6px 0", borderTop: `1px solid ${C.border}` }}><span style={{ color: C.textSecondary }}>{phase2 ? "Début de la phase 2" : "Challenge créé le"}</span>
+      <input type="date" value={ch.phaseStart || ""} onChange={(e) => upd({ challenge: { ...ch, phaseStart: e.target.value, ...(phase2 ? {} : { createdAt: e.target.value }) } })} style={{ ...inputStyle, width: "auto", padding: "4px 8px", fontSize: 13 }} /></div>}
+    {!funded && onSaveAccounts && bufMax <= 0 && <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: C.redDim, border: `1px solid ${C.red}55` }}>
+      <div style={{ fontWeight: 800, color: C.red, marginBottom: 8 }}>Perte max. atteinte : challenge perdu</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        {!sure ? <button onClick={() => setSure(true)} style={{ ...btn.primary, background: C.red, flex: 1, justifyContent: "center" }}><Trash2 size={14} />Supprimer le compte</button>
+          : <button onClick={() => { const rest = accounts.filter((a) => a.id !== account.id); onSaveAccounts(rest); if (rest[0] && onSwitchAccount) onSwitchAccount(rest[0].id); }} style={{ ...btn.primary, background: C.red, flex: 1, justifyContent: "center" }}>Confirmer la suppression</button>}
+        <button onClick={() => upd({ type: "archived", name: account.name + " · perdu" })} style={{ ...btn.ghost, flex: 1, justifyContent: "center" }}>Garder en archive</button>
+      </div></div>}
+    {!funded && onSaveAccounts && bufMax > 0 && cum >= tgt && nDays >= minDays && <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: C.tealDim || "rgba(8,153,129,0.12)", border: `1px solid ${C.teal}55` }}>
+      <div style={{ fontWeight: 800, color: C.teal, marginBottom: 8 }}>{two && !phase2 ? "Phase 1 réussie !" : "Challenge réussi !"}</div>
+      {two && !phase2 ? <button onClick={() => upd({ challenge: { ...ch, phase: "Phase 2", phaseStart: new Date().toISOString().slice(0, 10) } })} style={{ ...btn.primary, width: "100%", justifyContent: "center" }}>Passer en phase 2</button>
+        : <button onClick={() => upd({ type: "funded", name: account.name.replace(/ · .*$/, "") + " · Financé", challenge: { ...ch, phase: "Financé", phaseStart: new Date().toISOString().slice(0, 10) } })} style={{ ...btn.primary, width: "100%", justifyContent: "center" }}><Trophy size={14} />Passer en compte financé</button>}
+    </div>}
+    {funded && <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 700, color: C.teal }}>Compte financé ✓</div>}
+  </div>;
+}
+
 function PlanBullets({ onEdit }) {
   const [txt, setTxt] = useState(() => { try { return localStorage.getItem("trading_plan_text") || ""; } catch { return ""; } });
   useEffect(() => { const f = () => { try { setTxt(localStorage.getItem("trading_plan_text") || ""); } catch {} }; window.addEventListener("focus", f); window.addEventListener("storage", f); return () => { window.removeEventListener("focus", f); window.removeEventListener("storage", f); }; }, []);
@@ -8323,16 +8373,6 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
     <div className="fade-in" style={{ maxWidth: 820 }}>
       <PageHeader title="Paramètres" />
 
-      {/* Compte */}
-      <SettingsSection title="Comptes de trading" icon={FolderOpen}>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 12 }}>Chaque compte est isolé — les trades et stats ne se mélangent pas.</div>
-
-        {(accounts || []).map((acc) => (
-          <AccountCard key={acc.id} acc={acc} accounts={accounts} activeAccountId={activeAccountId} onSwitchAccount={onSwitchAccount} onSaveAccounts={onSaveAccounts} />
-        ))}
-
-        <AddAccountForm accounts={accounts} onSaveAccounts={onSaveAccounts} />
-      </SettingsSection>
 
       <SettingsSection title="Conditions du challenge" icon={Trophy}>
         <ChallengeRules trades={trades} accountId={activeAccountId} accounts={accounts} onSaveAccounts={onSaveAccounts} onSwitchAccount={onSwitchAccount} />
@@ -8342,9 +8382,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
         <TlShotImport trades={trades} onImport={onImport} accountId={activeAccountId || accounts?.[0]?.id || null} balance={(accounts || []).find((a) => a.id === activeAccountId)?.balance} />
       </SettingsSection>}
 
-      {onOpenBacktest && <SettingsSection title="Backtesting" icon={LineChart}>
-        <button onClick={onOpenBacktest} style={{ ...btn.primary, width: "100%", justifyContent: "center", padding: "12px 15px", fontSize: 14, borderRadius: 10 }}><LineChart size={15} /> Ouvrir le backtesting</button>
-      </SettingsSection>}
+
 
 
       {/* Paires tradées */}
@@ -10521,7 +10559,7 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <div className="dash-split" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 16, alignItems: "start" }}><div style={{ minWidth: 0 }}><Dashboard extra={<><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} onDelete={(id) => { const rest = accounts.filter((a) => a.id !== id); saveAccounts(rest); if (rest[0]) switchAccount ? switchAccount(rest[0].id) : null; }} />}</>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} /></div><PlanBullets onEdit={() => setView("plan")} /></div>}
+              {view === "dashboard" && <div className="dash-split" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 16, alignItems: "start" }}><div style={{ minWidth: 0 }}><Dashboard extra={<><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} onDelete={(id) => { const rest = accounts.filter((a) => a.id !== id); saveAccounts(rest); if (rest[0]) switchAccount ? switchAccount(rest[0].id) : null; }} />}</>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} /></div><div style={{ display: "flex", flexDirection: "column", gap: 16 }}><PlanBullets onEdit={() => setView("plan")} /><ChallengeHomeCard trades={trades} account={(accounts || []).find((a) => a.id === activeAccountId)} accounts={accounts} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} onSettings={() => setView("settings")} /></div></div>}
               {view === "backtest" && <BacktestPage trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
