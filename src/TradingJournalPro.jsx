@@ -4928,7 +4928,11 @@ function TradeRow({ t, onOpen }) {
 /* % du compte risqué : distance réelle au SL × valeur du point × lots (marchés connus), sinon risque $ enregistré */
 function accBalanceOf(id) { try { const a = JSON.parse(localStorage.getItem("accounts") || "[]"); const x = a.find((q) => q.id === id) || a.find((q) => q.id === localStorage.getItem("activeAccountId")) || a[0]; return Number(x?.balance) || 0; } catch (e) { return 0; } }
 function tradeRiskUsd(t) { const k = tvSimSym(t.pair), S = k && TV_SYMS[k], e = Number(t.entryPrice), sl = Number(t.stopLoss), L = Number(t.positionSize);
-  if (S && e && sl && L && (t.direction === "long" ? sl < e : sl > e)) return (Math.abs(e - sl) / S.pip) * S.pv * L; return Number(t.riskUsd) || null; }
+  const okSide = e && sl && (t.direction === "long" ? sl < e : sl > e);
+  if (S && okSide && L) return (Math.abs(e - sl) / S.pip) * S.pv * L;
+  const x = Number(t.exitPrice), dir = t.direction === "short" ? -1 : 1; /* autre marché : $ par point tiré du vrai P&L */
+  if (okSide && x && x !== e && t.resultUsd != null) return Math.abs((Number(t.resultUsd) / ((x - e) * dir)) * (e - sl));
+  return null; }
 function tradeRiskPct(t) { const b = accBalanceOf(t.accountId), r = tradeRiskUsd(t); return b && r ? (r / b) * 100 : null; }
 const rpFmt = (x) => x ? `${x.out} (${x.usd >= 0 ? "+" : "−"}${Math.abs(Math.round(x.usd))} $)` : null;
 const rpCol = (x) => (!x ? C.textMuted : x.usd > 0.5 ? C.teal : x.usd < -0.5 ? C.red : C.textSecondary);
@@ -5008,7 +5012,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
           <div><div style={lab}>Take profit</div><div className="tnum" style={val}>{fp(t.takeProfit)}</div></div>
           <div><div style={lab}>Résultat</div><div className="tnum" style={{ ...val, color: col, fontWeight: 600 }}>{isOpenSt ? "—" : fmtR(r)}</div></div>
           <div><div style={lab}>Profit net</div><div className="tnum" style={{ ...val, color: col }}>{!isOpenSt && t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : "—"}</div></div>
-          <div><div style={lab}>Risque</div><div className="tnum" style={val}>{t.riskUsd ? fmtUsd(t.riskUsd) : "—"}</div></div>
+          <div><div style={lab}>Risque réel</div><div className="tnum" style={val}>{tradeRiskUsd(t) ? <>{fmtUsd(tradeRiskUsd(t))}{tradeRiskPct(t) != null && <span style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 500 }}> ({tradeRiskPct(t).toFixed(2).replace(".", ",")} %)</span>}</> : <span style={{ fontSize: 13, color: C.textMuted }}>inconnu (SL déplacé)</span>}</div></div>
           <div><div style={lab}>Session</div><div style={{ ...val, display: "flex", alignItems: "center", gap: 6 }}><SessionFlag name={getSession(t.entryTime)} size={15} />{getSession(t.entryTime).replace(" Session", "")}</div></div>
         </div>
         {setups.length > 0 && <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}>
