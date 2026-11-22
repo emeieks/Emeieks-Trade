@@ -4938,6 +4938,8 @@ function ReplayLine({ rp }) {
 function BrokerTradeCard({ t, onOpen, isLast }) {
   const [open, setOpen] = useState(false);
   const allUT = useUserTags(); const myTags = (t.tags || []).filter((g) => allUT.includes(g));
+  const [rpOpen, setRpOpen0] = useState(() => { try { return localStorage.getItem("tjp_rp_open") !== "0"; } catch (e) { return true; } });
+  const setRpOpen = (v) => { setRpOpen0(v); try { localStorage.setItem("tjp_rp_open", v ? "1" : "0"); } catch (e) {} };
   const toggleTag = (g) => { const has = (t.tags || []).includes(g); window.dispatchEvent(new CustomEvent("tjp-patch-trade", { detail: { id: t.id, patch: { tags: has ? (t.tags || []).filter((x) => x !== g) : [...(t.tags || []), g] } } })); };
   const [zoom, setZoom] = useState(null);
   const isOpenSt = t.status === "open", isBE = t.status === "breakeven";
@@ -4960,7 +4962,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
           <div style={{ display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", overflow: "hidden" }}>
             <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>
             <span style={{ fontSize: 12.5, fontWeight: 800, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "▲ LONG" : "▼ SHORT"}</span>
-            <span className="tnum" style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}{fmtDur(t.entryTime, t.exitTime) ? <span style={{ color: C.textMuted, fontWeight: 500, textTransform: "none" }}> · {fmtDur(t.entryTime, t.exitTime)}</span> : null}</span>
+            <span className="tnum" style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}{fmtDur(t.entryTime, t.exitTime) ? <span style={{ color: C.textMuted, fontWeight: 500, textTransform: "none" }}> · {fmtDur(t.entryTime, t.exitTime)}</span> : null}{t.retroRating ? (() => { const v = Number(t.retroRating), c2 = v <= 4 ? C.red : v <= 7 ? C.amber : C.teal; return <span title={`Note du trade : ${v}/10`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: 11, fontWeight: 800, marginLeft: 8, verticalAlign: "middle", textTransform: "none" }}>{v}</span>; })() : null}</span>
           </div>
           <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden" }}>
             {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span>{tradeRiskPct(t) != null ? <span style={{ color: C.text, fontWeight: 600 }}> ({tradeRiskPct(t).toFixed(2).replace(".", ",")} %)</span> : null}</span>}
@@ -5008,10 +5010,13 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
           {allUT.length ? allUT.map((g) => { const on = myTags.includes(g); return <button key={g} onClick={(e) => { e.stopPropagation(); toggleTag(g); }} style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? C.amber : C.border}`, background: on ? "rgba(245,158,11,0.14)" : "transparent", color: on ? C.amber : C.textSecondary }}>{on ? "✓ " : ""}{g}</button>; })
             : <span style={{ fontSize: 12, color: C.textMuted }}>Crée tes tags dans Réglages → Tags.</span>}
         </div>
-        {t.rules?.replay && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><ReplayLine rp={t.rules.replay} /></div>}
         {t.rules?.feedback && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, lineHeight: 1.5, whiteSpace: "pre-wrap" }}><span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginRight: 8 }}>Ressenti</span>{t.rules.feedback}</div>}
-        {canManualReplay(t) && <ManualReplay t={t} />}
-        {canManualReplay(t) && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>Optimiser (SL / TP modifiés)</div><OptimizeBox t={t} /></div>}
+        {(t.rules?.replay || canManualReplay(t)) && <div onClick={() => setRpOpen(!rpOpen)} title={rpOpen ? "Cacher le replay" : "Afficher le replay"} style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}`, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>{t.rules?.replay ? <ReplayLine rp={t.rules.replay} /> : <span style={{ fontSize: 12.5, color: C.textMuted, display: "inline-flex", alignItems: "center", gap: 4 }}><Rewind size={12} /> Trade rejoué : pas encore</span>}</div>
+          <ChevronDown size={16} color={C.textMuted} style={{ transform: rpOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+        </div>}
+        {rpOpen && canManualReplay(t) && <ManualReplay t={t} />}
+        {rpOpen && canManualReplay(t) && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>Optimiser (SL / TP modifiés)</div><OptimizeBox t={t} /></div>}
         <div style={{ display: "flex" }}>{tvSimSym(t.pair) && <button onClick={() => replayRealTrade(t, null, true)} title="Rejouer ce trade au moment exact de l'entrée" style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Rewind size={14} /> Rejouer</button>}        <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
       </div>}
     </div>
@@ -9279,7 +9284,7 @@ function PhotoZoom() {
     </div>);
 }
 
-async function shrinkImage(file, maxW = 1400, q = 0.75) {
+async function shrinkImage(file, maxW = 3200, q = 0.92) { /* photos nettes : jusqu'à 3200 px de large (résolution TradingView) */
   try {
     const url = URL.createObjectURL(file); const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = url; });
     const k = Math.min(1, maxW / img.naturalWidth); const cv = document.createElement("canvas"); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
@@ -10845,7 +10850,7 @@ export default function TradingJournalApp() {
   /* photo prise dans le replay : envoyée au stockage (Supabase), sinon gardée en JPEG compressé */
   useEffect(() => { const h = async (e) => { const d = e.detail || {}; if (!d.id || !d.blob) return; const key = d.slot === "before" ? "screenshotBefore" : "screenshotAfter";
       try { const url = await uploadToStorage(new File([d.blob], d.name || "replay.png", { type: "image/png" })); patchTrade(d.id, { [key]: url }); }
-      catch (er) { try { const img = await createImageBitmap(d.blob); const k = Math.min(1, 1600 / img.width); const cv = document.createElement("canvas"); cv.width = img.width * k; cv.height = img.height * k; cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); patchTrade(d.id, { [key]: cv.toDataURL("image/jpeg", 0.82) }); } catch (er2) {} } };
+      catch (er) { try { const img = await createImageBitmap(d.blob); const k = Math.min(1, 3200 / img.width); const cv = document.createElement("canvas"); cv.width = img.width * k; cv.height = img.height * k; cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); patchTrade(d.id, { [key]: cv.toDataURL("image/jpeg", 0.92) }); } catch (er2) {} } };
     window.addEventListener("tjp-trade-shot", h); return () => window.removeEventListener("tjp-trade-shot", h); }, []);
   const [rpEditId, setRpEditId] = useState(null);
   useEffect(() => { const h = (e) => setRpEditId(e.detail); window.addEventListener("tjp-edit-trade", h); return () => window.removeEventListener("tjp-edit-trade", h); }, []);
