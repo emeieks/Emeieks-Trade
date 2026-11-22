@@ -2706,6 +2706,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           <TvBtn title="Rester en mode dessin" active={stay} onClick={() => { R.stay = !stay; setStay(!stay); }} style={{ padding: 2 }}><TvIcon id="stay" /></TvBtn>
           <TvBtn title="Masquer tous les dessins (Ctrl+Alt+H)" active={R.hidden} onClick={() => { R.hidden = !R.hidden; R.sel = -1; rerender(); }} style={{ padding: 2 }}><TvIcon id={R.hidden ? "eyeoff" : "eye"} /></TvBtn>
           <TvBtn title={favOpen ? "Masquer la barre des favoris" : "Afficher la barre des favoris"} active={favOpen} onClick={() => setFavOpen(!favOpen)} style={{ padding: 2 }}><TvIcon id="star" /></TvBtn>
+          {(() => { const rt = [...R.trades].reverse().find((x) => x.real && x.realId); return rt ? <TvBtn title="Fiche du trade rejoué (tags, ressenti, photos…)" onClick={() => window.dispatchEvent(new CustomEvent("tjp-edit-trade", { detail: rt.realId }))} style={{ padding: 2 }}><svg width="26" height="26" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"><path d="M8 4.5h8.5L21 9v14.5H8z" /><path d="M16.5 4.5V9H21" /><path d="M11 13h7M11 16h7M11 19h5" strokeLinecap="round" /></svg></TvBtn> : null; })()}
           <div style={{ flex: 1 }} />
           <TvBtn title={fs ? "Quitter le plein écran (Maj+F ou Échap)" : "Plein écran (Maj+F)"} onClick={() => setFs((v) => !v)} style={{ padding: 6 }}>{fs ? <Minimize2 size={19} /> : <Maximize2 size={19} />}</TvBtn>
           <div style={{ position: "relative" }}><TvBtn title="Supprimer" active={trashM === "left"} onClick={() => setTrashM(trashM === "left" ? null : "left")} style={{ padding: 2, marginBottom: 8 }}><TvIcon id="trash" /></TvBtn>{trashM === "left" && (() => { const dr = R.draws.filter((d) => trLock || !d.locked); const ind = indList.filter(([, on]) => on);
@@ -5476,13 +5477,18 @@ function SimCard({ trades }) {
 function replayRealTrade(t, over, view) {
   if (!over && !view && !tvCanReplay(t)) return;
   const sym = tvSimSym(t.pair); if (sym && sym !== TV_PAIR) { tvSetSym(sym); setTimeout(() => window.dispatchEvent(new CustomEvent("tjp-bt-sym", { detail: sym })), 0); }
-  const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const n = (v) => (v == null || v === "" || isNaN(Number(v)) ? null : Number(v));
+  const t0 = Math.floor(new Date(t.entryTime).getTime() / 1000); const n = (v) => { if (v == null || v === "") return null; const x = Number(String(v).replace(/\s/g, "").replace(",", ".")); return isNaN(x) ? null : x; };
   const real = { id: t.id, sym: sym || TV_PAIR, side: t.direction === "short" ? -1 : 1, entry: n(t.entryPrice), sl: n(over?.sl ?? slOf(t)), tp: n(over?.tp ?? tpOf(t)), lots: n(over?.lots ?? t.positionSize), opt: !!over, exit: n(t.exitPrice), usd: n(t.resultUsd), exitT: t.exitTime ? Math.floor(new Date(t.exitTime).getTime() / 1000) : null };
   const L = real.side > 0; const slWrong = real.sl && real.entry && (L ? real.sl >= real.entry : real.sl <= real.entry);
-  real.posOk = !slWrong && !!(real.sl && real.tp && (L ? real.tp > real.entry : real.tp < real.entry));
+  /* pas de vrai SL de départ (SL posé en profit ou absent) : SL estimé à 1 % du compte avec tes lots, pour voir quand même la position */
+  let est = ""; if ((slWrong || !real.sl) && real.entry) { const S = TV_SYMS[sym || TV_PAIR] || { pv: 10, pip: 0.0001, dig: 5 }; if (!real.lots) real.lots = 1; const bal = accBalanceOf(t.accountId) || 50000; const d = ((bal * 0.01) / (real.lots * S.pv)) * S.pip;
+    real.finalSL = real.sl; real.sl = Math.round((real.entry - real.side * d) / S.pip) * S.pip; est = `SL estimé à 1 % (${real.sl.toFixed(S.dig || 2)})`; }
+  if (real.sl && !real.tp && real.entry) { real.tp = real.entry + real.side * 2 * Math.abs(real.entry - real.sl); est += (est ? " · " : "") + "TP estimé à 2 R"; }
+  const slWrong2 = slWrong && !est;
+  real.posOk = !slWrong2 && !!(real.sl && real.tp && (L ? real.tp > real.entry && real.sl < real.entry : real.tp < real.entry && real.sl > real.entry));
   const ok = real.posOk;
   window.TJP_PENDING_GOTO = { t: t0, real, session: "Rejouer · " + (sym || TV_PAIR), create: true, noSave: true,
-    msg: ok && over ? `Trade optimisé du ${fmtDateTime(t.entryTime)} : SL ${real.sl}, TP ${real.tp}, ${real.lots} lot (même risque $). Lance le replay.` : ok ? `Trade réel du ${fmtDateTime(t.entryTime)} posé aux prix exacts (entrée ${real.entry}, SL ${real.sl}, TP ${real.tp}). Lance le replay pour voir la suite.`
+    msg: ok && over ? `Trade optimisé du ${fmtDateTime(t.entryTime)} : SL ${real.sl}, TP ${real.tp}, ${real.lots} lot (même risque $). Lance le replay.` : ok ? `Trade réel du ${fmtDateTime(t.entryTime)} posé aux prix exacts (entrée ${real.entry}, SL ${real.sl}, TP ${real.tp}).${est ? " ⚠ " + est + (real.finalSL ? `, ton vrai SL ${real.finalSL} avait été posé en profit` : ", pas de SL dans TradeLocker") + "." : ""} Lance le replay pour voir la suite.`
       : slWrong ? `Trade réel du ${fmtDateTime(t.entryTime)} : SL ${real.sl} déjà remonté au-dessus${L ? "" : " (en dessous)"} de l'entrée (TradeLocker garde le SL final, pas celui de départ). Entrée en bleu, SL final en rouge${real.tp ? ", TP en vert" : ""}${real.exit ? ", sortie en violet" : ""}.`
       : `Trade réel du ${fmtDateTime(t.entryTime)} sans ${!real.sl && !real.tp ? "SL ni TP" : !real.sl ? "SL" : "TP"} (trade erreur) : entrée en bleu${real.exit ? ", sortie en violet" : ""}.` };
   window.dispatchEvent(new CustomEvent("tjp-goto", { detail: "backtest" }));
@@ -10841,6 +10847,8 @@ export default function TradingJournalApp() {
       try { const url = await uploadToStorage(new File([d.blob], d.name || "replay.png", { type: "image/png" })); patchTrade(d.id, { [key]: url }); }
       catch (er) { try { const img = await createImageBitmap(d.blob); const k = Math.min(1, 1600 / img.width); const cv = document.createElement("canvas"); cv.width = img.width * k; cv.height = img.height * k; cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); patchTrade(d.id, { [key]: cv.toDataURL("image/jpeg", 0.82) }); } catch (er2) {} } };
     window.addEventListener("tjp-trade-shot", h); return () => window.removeEventListener("tjp-trade-shot", h); }, []);
+  const [rpEditId, setRpEditId] = useState(null);
+  useEffect(() => { const h = (e) => setRpEditId(e.detail); window.addEventListener("tjp-edit-trade", h); return () => window.removeEventListener("tjp-edit-trade", h); }, []);
   useEffect(() => { const h = (e) => { const d = e.detail || {}; if (d.id && d.patch) patchTrade(d.id, d.patch); }; window.addEventListener("tjp-patch-trade", h); return () => window.removeEventListener("tjp-patch-trade", h); }, []);
   const importTrades = (list) => {
     const have = new Set(tradesRef.current.map((t) => t.id)); const now = Date.now();
@@ -10974,6 +10982,7 @@ export default function TradingJournalApp() {
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
               {view === "dashboard" && <div className="dash-split" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 16, alignItems: "start" }}><div style={{ minWidth: 0 }}><Dashboard extra={<><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} onDelete={(id) => { const rest = accounts.filter((a) => a.id !== id); saveAccounts(rest); if (rest[0]) switchAccount ? switchAccount(rest[0].id) : null; }} />}</>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} /></div><div style={{ display: "flex", flexDirection: "column", gap: 16 }}><PlanBullets onEdit={() => setView("plan")} /><ChallengeHomeCard trades={trades} account={(accounts || []).find((a) => a.id === activeAccountId)} accounts={accounts} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} onSettings={() => setView("settings")} /></div></div>}
               {view === "backtest" && <BacktestPage trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
+              {rpEditId && (() => { const t = trades.find((x) => x.id === rpEditId); return t ? <QuickTradeModal key={t.id} trade={t} appSettings={appSettings} onClose={() => setRpEditId(null)} onPatch={patchTrade} onOpenFull={(x) => { setRpEditId(null); openTradeDetail(x); }} /> : null; })()}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
               {view === "tradeDetail" && (
                 <TradeDetail trade={trades.find((t) => t.id === activeTradeId)} onBack={() => setView("trades")} onEdit={openEditTrade} onDelete={deleteTrade} onVerdictChange={updateVerdict} appSettings={appSettings} onRetroSave={(id, data) => patchTrade(id, data, 800)} onPatch={(id, data) => patchTrade(id, data)} />
