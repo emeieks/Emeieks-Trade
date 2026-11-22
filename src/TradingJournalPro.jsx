@@ -3428,16 +3428,16 @@ const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid, g: "" },
   { id: "trades", label: "Trades", short: "Trades", icon: NotebookPen, g: "" },
   { id: "calculator", label: "Calculatrice", short: "Calcul", icon: Calculator, g: "" },
-  { id: "stats", label: "Stats", short: "Stats", icon: BarChart3, g: "", also: ["erreurs", "calendar"] },
   { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon, g: "" },
   { id: "plan", label: "Préparation", short: "Prépa", icon: BookOpen, g: "", also: ["previsions", "playbooks", "ressources"] },
+  { id: "stats", label: "Stats", short: "Stats", icon: BarChart3, g: "", also: ["erreurs", "calendar"] },
   { id: "settings", label: "Réglages", short: "Réglages", icon: Settings, g: "" },
 ];
 /* sections regroupées en onglets */
 const NAV_TABS = { stats: [["stats", "Stats"], ["erreurs", "Erreurs"]], plan: [["plan", "Plan"], ["previsions", "Prévisions"], ["playbooks", "Playbooks"], ["ressources", "ICT"]] };
 function GroupTabs({ view, setView }) {
   const g = Object.values(NAV_TABS).find((l) => l.some(([k]) => k === view)); if (!g) return null;
-  return <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14, overflowX: "auto" }}>{g.map(([k, l]) => <button key={k} onClick={() => setView(k)} style={{ flex: 1, border: "none", borderRadius: 9, padding: "8px 12px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: view === k ? C.purpleDim : "transparent", color: view === k ? C.purpleBright : C.textSecondary, fontFamily: "inherit" }}>{l}</button>)}</div>;
+  return <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14, overflowX: "auto", maxWidth: g === NAV_TABS.stats ? 860 : undefined, marginLeft: "auto", marginRight: "auto" }}>{g.map(([k, l]) => <button key={k} onClick={() => setView(k)} style={{ flex: 1, border: "none", borderRadius: 9, padding: "8px 12px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: view === k ? C.purpleDim : "transparent", color: view === k ? C.purpleBright : C.textSecondary, fontFamily: "inherit" }}>{l}</button>)}</div>;
 }
 
 /* ============================================================================
@@ -4426,7 +4426,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [filterSetup, setFilterSetup] = useState("all");
-  const [filterKz, setFilterKz] = useState("all");
+  const [filterKz, setFilterKz] = useState("all"); const [sessSel, setSessSel] = useState([]); const riskU = useRiskUnit();
   const [qIct, setQIct] = useState("");
 
   // États pending (synchrones avec les appliqués — filtre en temps réel)
@@ -4480,16 +4480,6 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
   const togglePendingTag = (name) => setPendingTags(prev => prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]);
 
   // Grouper les trades par mois
-  const byMonth = useMemo(() => {
-    const map = {};
-    trades.forEach((t) => {
-      const d = new Date(t.entryTime);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      if (!map[key]) map[key] = [];
-      map[key].push(t);
-    });
-    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [trades]);
 
   const filtered = useMemo(() => {
     return trades.filter((t) => {
@@ -4497,6 +4487,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
       if (filterSetup !== "all" && t.setup !== filterSetup) return false;
       if (filterSession !== "all" && getSession(t.entryTime) !== filterSession) return false;
       if (filterKz !== "all" && kzLbl(t) !== filterKz) return false;
+      if (sessSel.length && !sessSel.includes(getSession(t.entryTime))) return false;
       if (filterTags.length > 0 && !filterTags.every(ft => (t.tags || []).includes(ft))) return false;
       if (hideShort && tradeMin(t) != null && tradeMin(t) <= 15) return false;
       if (filterResult === "win" && !(t.resultR > 0)) return false;
@@ -4520,7 +4511,17 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
       if (qIct && t.ictModel !== qIct) return false;
       return true;
     });
-  }, [filterKz, hideShort, trades, filterPair, filterSetup, filterSession, filterTags, filterResult, filterOte, dateFrom, dateTo, search, filterExcludeTags, filterPositive, filterNegative, qIct]);
+  }, [sessSel, filterKz, hideShort, trades, filterPair, filterSetup, filterSession, filterTags, filterResult, filterOte, dateFrom, dateTo, search, filterExcludeTags, filterPositive, filterNegative, qIct]);
+  const byMonth = useMemo(() => {
+    const map = {};
+    filtered.forEach((t) => {
+      const d = new Date(t.entryTime);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(t);
+    });
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [filtered]);
 
   const activeFilterCount = [filterKz !== "all", hideShort, filterPair !== "all", filterSetup !== "all", filterSession !== "all", filterTags.length > 0, filterResult !== "all", filterOte !== "all", dateFrom, dateTo, filterPositive, filterNegative].filter(Boolean).length;
 
@@ -4549,7 +4550,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
         <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
           <Search size={14} color={C.textMuted} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
           <input
-            placeholder="Rechercher paire ou note…"
+            placeholder="Rechercher paire"
             value={pendingSearch}
             onChange={(e) => setPendingSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && applyFilters()}
@@ -4561,7 +4562,6 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
                 <PairLogo pair={p} size={20} /><span style={{ flex: 1 }}>{p}</span><span className="tnum" style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 600 }}>{n} trade{n > 1 ? "s" : ""}</span></button>)}
             </div>; })()}
         </div>
-        {(() => { const n = trades.filter(needsAfter).length; return n > 0 && <button onClick={() => window.dispatchEvent(new Event("tjp-review"))} title="Revue express des trades pas encore revus" style={{ ...btn.ghost, flexShrink: 0, color: C.amber, borderColor: C.amber + "66" }}><NotebookPen size={15} /> <span className="hide-sm">À revoir</span> {n}</button>; })()}
         <button
           onClick={() => setShowFilters((v) => !v)}
           style={{ ...btn.ghost, flexShrink: 0, color: activeFilterCount ? C.purpleBright : C.textSecondary, borderColor: activeFilterCount ? "rgba(139,124,246,0.35)" : C.border, background: activeFilterCount ? C.purpleDim : (C.inputBg || C.card) }}>
@@ -4571,6 +4571,12 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
 
       {/* Panneau filtres refait */}
 
+      {/* sessions (plusieurs possibles) + bouton $ / % */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+        {[["London Session", "London"], ["New York Session", "New York"], ["Asia Session", "Asia"], ["Hors session", "Hors session"]].map(([k, l]) => { const on = sessSel.includes(k); const n = trades.filter((t) => getSession(t.entryTime) === k).length;
+          return <button key={k} onClick={() => setSessSel(on ? sessSel.filter((x) => x !== k) : [...sessSel, k])} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? C.purpleBright : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.text }}>{k !== "Hors session" && <SessionFlag name={k} size={14} />}{l} <span style={{ color: C.textMuted, fontWeight: 600 }}>({n})</span></button>; })}
+        <button onClick={() => setRiskUnit(riskU === "usd" ? "pct" : "usd")} title={riskU === "usd" ? "Afficher le risque en % du compte" : "Afficher le risque en $"} style={{ marginLeft: "auto", width: 34, height: 34, borderRadius: "50%", border: `1.5px solid ${riskU === "usd" ? C.teal : C.border}`, background: riskU === "usd" ? C.tealDim : "transparent", color: riskU === "usd" ? C.teal : C.textSecondary, fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>{riskU === "usd" ? "$" : "%"}</button>
+      </div>
       {showFilters && (() => {
         /* filtres simples : uniquement ce qui existe dans tes trades, avec le nombre entre parenthèses, appliqués tout de suite */
         const cnt = (f) => { const m = {}; trades.forEach((t) => { const k = f(t); if (k != null) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((x, y) => y[1] - x[1]); };
@@ -4601,7 +4607,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
       ) : (
         <>
           {/* Blocs mois accordéon */}
-          {!hasActiveFilters && byMonth.map(([monthKey, monthTrades]) => {
+          {byMonth.map(([monthKey, monthTrades]) => {
             const isOpen = openMonths.has(monthKey);
             const [year, month] = monthKey.split("-");
             const monthLabel = new Date(Number(year), Number(month) - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
@@ -4648,7 +4654,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
           })}
 
           {/* Vue plate filtres actifs */}
-          {hasActiveFilters && (
+          {false && (
           <>
           <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, background: C.card }} className="never">
             <div className="table-scroll">
@@ -4935,10 +4941,14 @@ function ReplayLine({ rp }) {
     {rp.noBE && <span style={{ color: C.textMuted }}>· <b style={{ color: rpCol(rp.noBE) }}>{rpFmt(rp.noBE)}</b></span>}
   </div>;
 }
+/* risque affiché après les lots : % du compte ou $ (bouton $ dans Mes trades) */
+function useRiskUnit() { const g = () => { try { return localStorage.getItem("tjp_risk_unit") || "pct"; } catch (e) { return "pct"; } }; const [u, setU] = useState(g);
+  useEffect(() => { const h = () => setU(g()); window.addEventListener("tjp-risk-unit", h); return () => window.removeEventListener("tjp-risk-unit", h); }, []); return u; }
+const setRiskUnit = (u) => { try { localStorage.setItem("tjp_risk_unit", u); } catch (e) {} window.dispatchEvent(new Event("tjp-risk-unit")); };
 function BrokerTradeCard({ t, onOpen, isLast }) {
   const [open, setOpen] = useState(false);
-  const allUT = useUserTags(); const myTags = (t.tags || []).filter((g) => allUT.includes(g));
-  const [rpOpen, setRpOpen0] = useState(() => { try { return localStorage.getItem("tjp_rp_open") !== "0"; } catch (e) { return true; } });
+  const allUT = useUserTags(); const myTags = (t.tags || []).filter((g) => allUT.includes(g)); const riskU = useRiskUnit();
+  const [rpOpen, setRpOpen0] = useState(() => { if (canManualReplay(t)) return false; /* paire sans bougies : toujours fermé au départ */ try { return localStorage.getItem("tjp_rp_open") !== "0"; } catch (e) { return true; } });
   const setRpOpen = (v) => { setRpOpen0(v); try { localStorage.setItem("tjp_rp_open", v ? "1" : "0"); } catch (e) {} };
   const toggleTag = (g) => { const has = (t.tags || []).includes(g); window.dispatchEvent(new CustomEvent("tjp-patch-trade", { detail: { id: t.id, patch: { tags: has ? (t.tags || []).filter((x) => x !== g) : [...(t.tags || []), g] } } })); };
   const [zoom, setZoom] = useState(null);
@@ -4960,12 +4970,12 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* ligne 1 : EURUSD ▲ LONG · date   ligne 2 : lots · drapeau + session   ligne 3 : setups */}
           <div style={{ display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", overflow: "hidden" }}>
-            <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "▲ LONG" : "▼ SHORT"}</span>
-            <span className="tnum" style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}{fmtDur(t.entryTime, t.exitTime) ? <span style={{ color: C.textMuted, fontWeight: 500, textTransform: "none" }}> · {fmtDur(t.entryTime, t.exitTime)}</span> : null}{t.retroRating ? (() => { const v = Number(t.retroRating), c2 = v <= 4 ? C.red : v <= 7 ? C.amber : C.teal; return <span title={`Note du trade : ${v}/10`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: 11, fontWeight: 800, marginLeft: 8, verticalAlign: "middle", textTransform: "none" }}>{v}</span>; })() : null}</span>
+            <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>
+            <span style={{ fontSize: 15, fontWeight: 800, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "▲ LONG" : "▼ SHORT"}</span>
+            <span className="tnum" style={{ fontSize: 15, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}{fmtDur(t.entryTime, t.exitTime) ? <span style={{ color: C.textSecondary, fontWeight: 600, textTransform: "none" }}> · {fmtDur(t.entryTime, t.exitTime)}</span> : null}{t.retroRating ? (() => { const v = Number(t.retroRating), c2 = v <= 4 ? C.red : v <= 7 ? C.amber : C.teal; return <span title={`Note du trade : ${v}/10`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: 13, fontWeight: 800, marginLeft: 8, verticalAlign: "middle", textTransform: "none" }}>{v}</span>; })() : null}</span>
           </div>
           <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden" }}>
-            {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span>{tradeRiskPct(t) != null ? <span style={{ color: C.text, fontWeight: 600 }}> ({tradeRiskPct(t).toFixed(2).replace(".", ",")} %)</span> : null}</span>}
+            {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span>{tradeRiskPct(t) != null ? <span style={{ color: C.text, fontWeight: 600 }}> ({riskU === "usd" ? Math.round(tradeRiskUsd(t)).toLocaleString("fr-FR") + " $" : tradeRiskPct(t).toFixed(2).replace(".", ",") + " %"})</span> : null}</span>}
             {(() => { const k = killzoneLabel(t.entryTime); const se = getSession(t.entryTime); const n = k !== "Hors killzone" ? k : se; return <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: C.textSecondary }}><SessionFlag name={n} size={15} />{String(n).replace(" Session", "")}</span>; })()}
             {myTags.map((x) => <span key={"t" + x} style={{ fontSize: 11, fontWeight: 700, color: C.amber, background: "rgba(245,158,11,0.12)", border: `1px solid rgba(245,158,11,0.35)`, padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4 }}><Tag size={10} />{x}</span>)}
           </div>
@@ -4974,7 +4984,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <span className="tnum" style={{ display: "inline-block", padding: "3px 9px", borderRadius: 7, fontSize: 15, fontWeight: 600, color: col, background: isOpenSt || isBE ? "rgba(255,255,255,0.06)" : `${col}22` }}>{isOpenSt ? "En cours" : fmtR(r)}</span>
-          <div className="tnum" style={{ fontSize: 13, color: C.textSecondary, marginTop: 5 }}>{!isOpenSt && t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : statusTxt}</div>
+          <div className="tnum" style={{ fontSize: 13.5, color: C.text, fontWeight: 600, marginTop: 5 }}>{!isOpenSt && t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : statusTxt}</div>
         </div>
         <ChevronDown size={18} color={C.textMuted} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", flexShrink: 0 }} />
       </div>
@@ -5105,11 +5115,14 @@ function shareTradeCard(trade) {
 }
 
 function LightBox({ src, label, onClose }) {
+  const [z, setZ] = useState(false);
   if (!src) return null;
+  /* plein écran net : image à sa vraie résolution (clic = taille réelle, défilable) */
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.92)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>{label} · Tap pour fermer</div>
-      <img src={src} alt={label} onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: 10, objectFit: "contain", boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }} />
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.94)", display: "flex", flexDirection: "column", alignItems: z ? "flex-start" : "center", justifyContent: z ? "flex-start" : "center", padding: z ? 0 : 12, overflow: "auto" }}>
+      {!z && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>{label} · clic sur la photo = taille réelle · clic à côté = fermer</div>}
+      <img src={src} alt={label} decoding="sync" onClick={(e) => { e.stopPropagation(); setZ(!z); }} style={z ? { maxWidth: "none", width: "auto", display: "block", cursor: "zoom-out" } : { maxWidth: "98vw", maxHeight: "88vh", width: "auto", height: "auto", borderRadius: 8, objectFit: "contain", cursor: "zoom-in", imageRendering: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }} />
+      <button onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Fermer" style={{ position: "fixed", top: 14, right: 14, width: 40, height: 40, borderRadius: 20, border: "none", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 18, cursor: "pointer" }}>✕</button>
     </div>
   );
 }
@@ -5343,7 +5356,7 @@ function ErrorReview({ trades, onPatch }) {
   const tagRows = allUT.map((g) => { const ts = closed.filter((t) => (t.tags || []).includes(g)); return { k: g, n: ts.length, w: ts.filter((t) => t.resultUsd > 0).length, u: ts.reduce((a, t) => a + (Number(t.resultUsd) || 0), 0) }; }).filter((r) => r.n);
   const col = (v) => (v > 0.5 ? C.teal : v < -0.5 ? C.red : C.textSecondary);
   const chip = (on, c2) => ({ border: `1.5px solid ${on ? (c2 || C.purpleBright) : C.border}`, background: on ? (c2 ? c2 + "22" : C.purpleDim) : "transparent", color: on ? (c2 || C.purpleBright) : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" });
-  return <div className="fade-in">
+  return <div className="fade-in" style={{ maxWidth: 860, margin: "0 auto" }}>
     <PageHeader title="Mes erreurs" />
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 14 }}>
       {[["Trades annotés erreur", `${errs.length} / ${closed.length}`, C.text], ["Résultat des erreurs", fmtUsdSigned(cost), col(cost)], ["Sans ces erreurs", fmtUsdSigned(closed.reduce((a, t) => a + (Number(t.resultUsd) || 0), 0) - cost), C.teal]].map(([l, v, c2]) => <Card key={l} style={{ padding: 14 }}><div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 700 }}>{l}</div><div className="tnum" style={{ fontSize: 20, fontWeight: 800, color: c2, marginTop: 4 }}>{v}</div></Card>)}
@@ -5417,18 +5430,19 @@ function ReplayedCard({ trades }) {
     </div>}
     {list.length === 0 ? <div style={{ fontSize: 12.5, color: C.textMuted }}>Aucun trade avec ces filtres.</div> :
     <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%" }}>
-      <thead><tr>{["Date", "Paire", "Lots", "Résultat de base", "Résultat simulé", "Changement", "Verdict", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
+      <thead><tr>{["Date", "Paire", "Note", "Lots", "Résultat de base", "Résultat simulé", "Changement", "Verdict", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
       <tbody>{list.map((t) => { const x = resOf(t), vd = verdict(t, x), b = cv(t, Number(t.resultUsd) || 0), sv = cv(t, x.usd || 0), d = sv - b, rk = tradeRiskUsd(t), pc = tradeRiskPct(t); return <tr key={t.id} style={{ opacity: x.none ? 0.6 : 1 }}>
         <td style={{ ...td, textTransform: "capitalize" }}>{fmtDateTime(t.entryTime)}</td>
         <td style={td}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={16} /><b>{t.pair}</b>{t.rules?.feedback && <button onClick={() => setInfo(info === t.id ? null : t.id)} title={t.rules.feedback} style={{ border: `1px solid ${info === t.id ? C.purpleBright : C.border}`, background: info === t.id ? C.purpleDim : "transparent", color: C.purpleBright, borderRadius: 999, width: 18, height: 18, fontSize: 11, fontWeight: 800, fontStyle: "italic", fontFamily: "Georgia, serif", cursor: "pointer", padding: 0, lineHeight: "16px" }}>i</button>}</span>
           {info === t.id && <div style={{ whiteSpace: "pre-wrap", minWidth: 240, maxWidth: 340, marginTop: 6, fontSize: 12.5, color: C.textSecondary, lineHeight: 1.45, background: C.purpleDim, borderRadius: 8, padding: "6px 9px" }}>{t.rules.feedback}</div>}</td>
+        <td style={td}>{t.retroRating ? (() => { const v = Number(t.retroRating), c2 = v <= 4 ? C.red : v <= 7 ? C.amber : C.teal; return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: 12, fontWeight: 800 }}>{v}</span>; })() : <span style={{ color: C.textMuted }}>—</span>}</td>
         <td className="tnum" style={td}><b>{String(t.positionSize ?? "—").replace(".", ",")}</b> lot{one && lots1(t) != null ? <b style={{ color: C.purpleBright }}> → {lots1(t).toLocaleString("fr-FR")} lot</b> : null}{rk ? <span style={{ color: C.textMuted }}> · {Math.round(rk * k1(t)).toLocaleString("fr-FR")} $ risqués{pc != null ? ` (${(pc * k1(t)).toFixed(2).replace(".", ",")} %)` : ""}</span> : <span style={{ color: C.amber }} title="Pas de SL de départ valable (SL posé en profit ou aucun SL) : impossible de recalculer les lots, compté comme 1 %"> · risque inconnu</span>}</td>
         <td className="tnum" style={{ ...td, color: col(b) }}>{usd(b)}</td>
         <td className="tnum" style={{ ...td, color: x.none ? C.textMuted : col(sv) }}>{x.none ? <span>Pas rejoué</span> : <><b>{x.out}{x.done ? " (réel)" : mode === "noBE" ? " (NO BE)" : ""}</b> · {usd(sv)}</>}{mode === "opt" && x.sl != null ? <div style={{ fontSize: 11, color: C.textMuted }}>SL {x.sl} · TP {x.tp}{x.lots ? " · " + x.lots + " lot" : ""}</div> : null}</td>
         <td className="tnum" style={{ ...td, color: col(d), fontWeight: 700 }}>{x.none ? "—" : usd(d)}</td>
         <td style={td}>{vd ? <button onClick={() => addTag(t, vd)} title="Clique pour ajouter ce verdict en tag sur le trade" style={{ border: `1.5px solid ${(t.tags || []).includes(vd) ? C.amber : C.border}`, background: (t.tags || []).includes(vd) ? "rgba(245,158,11,0.14)" : "transparent", color: vd === "Bonne sortie" ? C.teal : C.red, borderRadius: 999, padding: "3px 9px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{(t.tags || []).includes(vd) ? "✓ " : "+ "}{vd}</button> : <span style={{ color: C.textMuted }}>—</span>}</td>
         <td style={td}>{x.done || x.none ? null : <button onClick={() => delRp(t)} title="Supprimer ce replay (tu pourras le rejouer à nouveau)" style={{ border: "none", background: "none", color: C.textMuted, cursor: "pointer", padding: 2, display: "flex" }}><Trash2 size={14} /></button>}</td></tr>; })}</tbody>
-      <tfoot><tr><td style={{ ...td, fontWeight: 800, borderBottom: "none" }} colSpan={3}>Total · {list.length} trade{list.length > 1 ? "s" : ""}</td>
+      <tfoot><tr><td style={{ ...td, fontWeight: 800, borderBottom: "none" }} colSpan={4}>Total · {list.length} trade{list.length > 1 ? "s" : ""}</td>
         <td className="tnum" style={{ ...td, borderBottom: "none", fontWeight: 800, color: col(tot[0]) }}>{usd(tot[0])}</td>
         <td className="tnum" style={{ ...td, borderBottom: "none", fontWeight: 800, color: col(tot[1]) }}>{usd(tot[1])}</td>
         <td className="tnum" style={{ ...td, borderBottom: "none", fontWeight: 800, color: col(tot[2]) }}>{usd(tot[2])}</td><td style={{ ...td, borderBottom: "none" }} /><td style={{ ...td, borderBottom: "none" }} /></tr></tfoot>
@@ -8891,11 +8905,17 @@ function CalcPicker({ pair, setPair, inp }) {
   </div>;
 }
 
+/* SL d'exemple réaliste par actif (intraday ICT), en pips et en écart de prix */
+const SL_EX = { EURUSD: 12, GBPUSD: 15, AUDUSD: 12, NZDUSD: 12, USDCAD: 15, USDCHF: 15, USDJPY: 18, EURJPY: 20, GBPJPY: 25, XAUUSD: 50, XAGUSD: 20, NAS100: 60, US100: 60, US30: 80, SPX500: 15, US500: 15, GER40: 30, FRA40: 20, BTCUSD: 800, ETHUSD: 40, USOIL: 30, UKOIL: 30 };
+const slEx = (p) => { const s = specOf(p); const pips = SL_EX[p] || (p.includes("JPY") ? 20 : 15); const d = pips * s.pip; return { pips, dist: (+d.toFixed(5)).toString().replace(".", ",") }; };
 function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   const fx = useFxRates();
   const saved = (() => { try { return JSON.parse(localStorage.getItem(CALC_KEY) || "{}"); } catch { return {}; } })();
   const [pair, setPair] = useState(saved.pair || "EURUSD");
   const [acc, setAcc] = useState(saved.acc || String(Math.round(Number(balance) || 10000)));
+  /* taille du compte en direct (solde du compte actif, P&L inclus) : ✓ vert quand c'est le vrai solde */
+  const live = Math.round((Number(balance) || 0) * 100) / 100; const [accLive, setAccLive] = useState(saved.accLive !== false);
+  const [slD, setSlD] = useState(""); const [tpD, setTpD] = useState("");
   const [riskMode, setRiskMode] = useState(saved.riskMode || "pct");
   const [risk, setRisk] = useState(saved.risk || "1");
   const [mode, setMode] = useState(saved.mode || "pips");
@@ -8913,7 +8933,7 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   const spread = pvMap[pvKey] && pvMap[pvKey].sp != null ? String(pvMap[pvKey].sp) : (((CALC_BROKERS[broker] || {}).spec || {})[pair] || {}).sp != null ? String(CALC_BROKERS[broker].spec[pair].sp) : "";
   const [tvOff, setTvOff] = useState({ tv: "", br: "" });
   const [q, setQ] = useState("");
-  useEffect(() => { try { localStorage.setItem(CALC_KEY, JSON.stringify({ pair, acc, riskMode, risk, mode, sl, tp, com, step, broker })); } catch {} }, [pair, acc, riskMode, risk, mode, sl, tp, com, step, broker]);
+  useEffect(() => { try { localStorage.setItem(CALC_KEY, JSON.stringify({ pair, acc, accLive, riskMode, risk, mode, sl, tp, com, step, broker })); } catch {} }, [pair, acc, accLive, riskMode, risk, mode, sl, tp, com, step, broker]);
 
   const bSpec = (CALC_BROKERS[broker] || CALC_BROKERS.standard).spec[pair]; const sp0 = specOf(pair); const sp = bSpec ? { ...sp0, c: bSpec.c } : sp0;
   const isVer = (pr) => { const e2 = pvMap[broker + ":" + pr]; const b2 = (CALC_BROKERS[broker] || CALC_BROKERS.standard).spec[pr]; if (e2 && e2.v) return !!e2.cf; return !!((b2 && b2.cf) || !CALC_SPECIAL[pr] || pr === "XAUUSD"); };
@@ -8925,11 +8945,12 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   const pvAuto = sp.c * sp.pip * usdPer(sp.q);          // valeur d'1 pip pour 1 lot, en $
   const pv = Number(pvOver) > 0 ? Number(pvOver) : pvAuto;
   const n = (v) => { const x = parseFloat(String(v).replace(",", ".")); return isNaN(x) ? null : x; };
-  const A = n(acc) || 0;
+  const A = accLive && live ? live : n(acc) || 0;
   const plan = (() => { try { return loadRules(); } catch { return {}; } })();
 
   const r = useMemo(() => {
     let slPips = n(sl), tpPips = n(tp), dir = null;
+    if (mode === "dist") { const d = n(slD), d2 = n(tpD); slPips = d ? d / sp.pip : null; tpPips = d2 ? d2 / sp.pip : null; }
     if (mode === "prix") { const e = n(entry), s = n(slP), t = n(tpP); if (e != null && s != null) { slPips = Math.abs(e - s) / sp.pip; dir = s < e ? "long" : "short"; } else slPips = null; tpPips = e != null && t != null ? Math.abs(t - e) / sp.pip : null; }
     const riskUsd = riskMode === "pct" ? (A * (n(risk) || 0)) / 100 : n(risk) || 0;
     if (!slPips || !riskUsd || !pv) return null;
@@ -8940,7 +8961,7 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
     const realRisk = lots * (slEff * pv + c);
     const gain = tpPips ? lots * (tpPips * pv - c) : null;
     return { spr, slEff, slPips, tpPips, dir, riskUsd, raw, lots, realRisk, gain, rr: tpPips ? tpPips / slPips : null, pipLot: lots * pv, units: lots * sp.c, pct: A ? (realRisk / A) * 100 : null, bePips: lots && c ? c / pv : 0 };
-  }, [sl, tp, mode, entry, slP, tpP, riskMode, risk, A, pv, com, step, sp, spread]);
+  }, [sl, tp, slD, tpD, mode, entry, slP, tpP, riskMode, risk, A, pv, com, step, sp, spread]);
 
   const dec = Math.max(0, Math.round(-Math.log10(sp.pip)) + 1);
   const lvl = (k) => { const e = n(entry); if (e == null || !r || !r.dir) return null; const d = r.slPips * sp.pip * k; return (r.dir === "long" ? e + d : e - d).toFixed(dec); };
@@ -8971,14 +8992,20 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
           <span style={{ fontSize: 14, color: C.textSecondary }}>Actif</span>
           <CalcPicker pair={pair} setPair={setPair} inp={inp} />
           <span style={{ fontSize: 14, color: C.textSecondary }}>Taille du compte ($)</span>
-          <input type="number" inputMode="decimal" value={acc} onChange={(e) => setAcc(e.target.value)} style={inp} />
+          <div style={{ position: "relative" }}><input type="number" inputMode="decimal" value={accLive && live ? String(live) : acc} onChange={(e) => { setAccLive(false); setAcc(e.target.value); }} style={{ ...inp, paddingRight: 42 }} />
+            <button onClick={() => { setAccLive(true); setAcc(String(live)); }} title={accLive ? "Solde en direct de ton compte ✓" : "Revenir au solde en direct du compte"} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 26, height: 26, borderRadius: "50%", border: `2px solid ${accLive ? C.teal : C.border}`, background: accLive ? C.teal : "transparent", color: accLive ? "#fff" : C.textMuted, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}><Check size={14} strokeWidth={3} /></button></div>
           <span style={{ fontSize: 14, color: C.textSecondary, display: "flex", alignItems: "center", gap: 8 }}>Risque {seg(riskMode, setRiskMode, [["pct", "%"], ["usd", "$"]])}</span>
           <input type="number" inputMode="decimal" step="0.1" value={risk} onChange={(e) => setRisk(e.target.value)} style={inp} />
-          <span style={{ fontSize: 14, color: C.textSecondary, display: "flex", alignItems: "center", gap: 8 }}>Stop-loss {seg(mode, setMode, [["pips", unit], ["prix", "prix"]])}</span>
-          {mode === "pips" ? <input type="text" inputMode="decimal" value={sl} onChange={(e) => { const v = e.target.value.replace(",", "."); if (/^\d*\.?\d{0,2}$/.test(v)) setSl(v); }} placeholder={isPt ? "ex. 100.25" : "ex. 12.35"} style={inp} />
+          <span style={{ fontSize: 14, color: C.textSecondary, display: "flex", alignItems: "center", gap: 8 }}>Stop-loss {seg(mode, setMode, [["pips", unit], ["dist", "écart"], ["prix", "prix"]])}</span>
+          {mode === "pips" ? <input type="text" inputMode="decimal" value={sl} onChange={(e) => { const v = e.target.value.replace(",", "."); if (/^\d*\.?\d{0,2}$/.test(v)) setSl(v); }} placeholder={"ex. " + slEx(pair).pips} style={inp} />
+            : mode === "dist" ? <input type="text" inputMode="decimal" value={slD} onChange={(e) => setSlD(e.target.value.replace(",", "."))} placeholder={"ex. " + slEx(pair).dist + " (écart de prix)"} style={inp} />
             : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}><input type="number" inputMode="decimal" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="Entrée" style={inp} /><input type="number" inputMode="decimal" value={slP} onChange={(e) => setSlP(e.target.value)} placeholder="Stop" style={inp} /></div>}
         </div>
-        <div style={{ marginTop: 18, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>
+          {pair} : <b style={{ color: C.textSecondary }}>1 pip = {sp.pip} de prix</b>{mode === "pips" ? <> · un SL réaliste : <b style={{ color: C.textSecondary }}>{slEx(pair).pips} pips</b> (= {slEx(pair).dist} de prix)</> : mode === "dist" ? <> · écart = ce que TradingView affiche dans « Stop » (ex. BTC 2883,74){r ? <> → <b style={{ color: C.textSecondary }}>{(+r.slPips.toFixed(2)).toString().replace(".", ",")} pips</b></> : null}</> : null}
+          {accLive && live ? <span style={{ color: C.teal }}> · solde en direct ✓</span> : null}
+        </div>
+        <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
           {[["Montant risqué", r ? fmtUsd(r.realRisk) : "—", C.red], [isPt ? "Distance" : "Stop", r ? (+r.slPips.toFixed(2)).toString().replace(".", ",") + " " + unit : "—"], ["Lots", r ? lotsTxt + " lots" : "—", C.purpleBright, true]].map(([l, v, c, big]) => <div key={l} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: big ? "14px 16px" : "11px 16px", borderTop: l === "Montant risqué" ? "none" : `1px solid ${C.border}`, background: big ? C.purpleDim : "transparent" }}><span style={{ fontSize: 14, color: C.textSecondary }}>{l}</span><span className="tnum" style={{ fontSize: big ? 26 : 16, fontWeight: 700, color: c || C.text }}>{v}</span></div>)}
         </div>
         {r && r.lots === 0 && (() => { const st = n(step) || 0.01; const minRisk = st * (r.slEff * pv + (n(com) || 0)); const maxSl = (r.riskUsd / st - (n(com) || 0)) / pv - (r.spr || 0);
