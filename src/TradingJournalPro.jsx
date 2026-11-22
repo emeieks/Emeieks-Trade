@@ -4969,10 +4969,10 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
       <div onClick={() => setOpen((v) => !v)} style={{ padding: "13px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* ligne 1 : EURUSD ▲ LONG · date   ligne 2 : lots · drapeau + session   ligne 3 : setups */}
-          <div style={{ display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", overflow: "hidden" }}>
-            <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>
-            <span style={{ fontSize: 15, fontWeight: 800, color: t.direction === "long" ? C.teal : C.red }}>{t.direction === "long" ? "▲ LONG" : "▼ SHORT"}</span>
-            <span className="tnum" style={{ fontSize: 15, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}{fmtDur(t.entryTime, t.exitTime) ? <span style={{ color: C.textSecondary, fontWeight: 600, textTransform: "none" }}> · {fmtDur(t.entryTime, t.exitTime)}</span> : null}{t.retroRating ? (() => { const v = Number(t.retroRating), c2 = v <= 4 ? C.red : v <= 7 ? C.amber : C.teal; return <span title={`Note du trade : ${v}/10`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: 13, fontWeight: 800, marginLeft: 8, verticalAlign: "middle", textTransform: "none" }}>{v}</span>; })() : null}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", overflow: "hidden", height: 24, lineHeight: 1 }}>
+            <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2, lineHeight: 1 }}>{t.pair}</span>
+            <span style={{ fontSize: 15, fontWeight: 800, lineHeight: 1, display: "inline-flex", alignItems: "center", gap: 3, color: t.direction === "long" ? C.teal : C.red }}><span style={{ fontSize: 10 }}>{t.direction === "long" ? "▲" : "▼"}</span>{t.direction === "long" ? "LONG" : "SHORT"}</span>
+            <span className="tnum" style={{ fontSize: 12.5, lineHeight: 1, display: "inline-flex", alignItems: "center", color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}{fmtDur(t.entryTime, t.exitTime) ? <span style={{ color: C.textMuted, fontWeight: 500, textTransform: "none", marginLeft: 4 }}>· {fmtDur(t.entryTime, t.exitTime)}</span> : null}{t.retroRating ? (() => { const v = Number(t.retroRating), c2 = v <= 4 ? C.red : v <= 7 ? C.amber : C.teal; return <span title={`Note du trade : ${v}/10`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: 11, fontWeight: 800, marginLeft: 8, lineHeight: 1, textTransform: "none", flexShrink: 0 }}>{v}</span>; })() : null}</span>
           </div>
           <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden" }}>
             {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span>{tradeRiskPct(t) != null ? <span style={{ color: C.text, fontWeight: 600 }}> ({riskU === "usd" ? Math.round(tradeRiskUsd(t)).toLocaleString("fr-FR") + " $" : tradeRiskPct(t).toFixed(2).replace(".", ",") + " %"})</span> : null}</span>}
@@ -8908,6 +8908,11 @@ function CalcPicker({ pair, setPair, inp }) {
 /* SL d'exemple réaliste par actif (intraday ICT), en pips et en écart de prix */
 const SL_EX = { EURUSD: 12, GBPUSD: 15, AUDUSD: 12, NZDUSD: 12, USDCAD: 15, USDCHF: 15, USDJPY: 18, EURJPY: 20, GBPJPY: 25, XAUUSD: 50, XAGUSD: 20, NAS100: 60, US100: 60, US30: 80, SPX500: 15, US500: 15, GER40: 30, FRA40: 20, BTCUSD: 800, ETHUSD: 40, USOIL: 30, UKOIL: 30 };
 const slEx = (p) => { const s = specOf(p); const pips = SL_EX[p] || (p.includes("JPY") ? 20 : 15); const d = pips * s.pip; return { pips, dist: (+d.toFixed(5)).toString().replace(".", ",") }; };
+function calcNum(v) { let t = String(v ?? "").trim().replace(/[\s\u00a0\u202f'$%]/g, ""); if (!t) return null;
+  const c = t.lastIndexOf(","), d = t.lastIndexOf(".");
+  if (c >= 0 && d >= 0) t = c > d ? t.replace(/\./g, "").replace(",", ".") : t.replace(/,/g, ""); /* le dernier séparateur = décimales */
+  else if (c >= 0) t = (t.match(/,/g) || []).length > 1 ? t.replace(/,/g, "") : t.replace(",", ".");
+  const x = parseFloat(t); return isNaN(x) ? null : x; }
 function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   const fx = useFxRates();
   const saved = (() => { try { return JSON.parse(localStorage.getItem(CALC_KEY) || "{}"); } catch { return {}; } })();
@@ -8916,7 +8921,7 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   /* taille du compte en direct (solde du compte actif, P&L inclus) : ✓ vert quand c'est le vrai solde */
   const live = Math.round((Number(balance) || 0) * 100) / 100; const [accLive, setAccLive] = useState(saved.accLive !== false);
   const [slD, setSlD] = useState(""); const [tpD, setTpD] = useState("");
-  const [riskMode, setRiskMode] = useState(saved.riskMode || "pct");
+  const riskMode = "pct"; const setRiskMode = () => {}; /* risque toujours en % du compte */
   const [risk, setRisk] = useState(saved.risk || "1");
   const [mode, setMode] = useState(saved.mode || "pips");
   const [sl, setSl] = useState(saved.sl || "");
@@ -8944,7 +8949,8 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
   const usdPer = (ccy) => (ccy === "USD" ? 1 : 1 / (Number(fx.rates[ccy]) || FX_FALLBACK[ccy] || 1));
   const pvAuto = sp.c * sp.pip * usdPer(sp.q);          // valeur d'1 pip pour 1 lot, en $
   const pv = Number(pvOver) > 0 ? Number(pvOver) : pvAuto;
-  const n = (v) => { const x = parseFloat(String(v).replace(",", ".")); return isNaN(x) ? null : x; };
+  /* nombres : virgule ou point, espaces et séparateurs de milliers acceptés (2 883,74 · 2,883.74 · 2883.74 · 0,00564) */
+  const n = (v) => calcNum(v);
   const A = accLive && live ? live : n(acc) || 0;
   const plan = (() => { try { return loadRules(); } catch { return {}; } })();
 
@@ -8992,14 +8998,14 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
           <span style={{ fontSize: 14, color: C.textSecondary }}>Actif</span>
           <CalcPicker pair={pair} setPair={setPair} inp={inp} />
           <span style={{ fontSize: 14, color: C.textSecondary }}>Taille du compte ($)</span>
-          <div style={{ position: "relative" }}><input type="number" inputMode="decimal" value={accLive && live ? String(live) : acc} onChange={(e) => { setAccLive(false); setAcc(e.target.value); }} style={{ ...inp, paddingRight: 42 }} />
+          <div style={{ position: "relative" }}><input type="text" inputMode="decimal" value={accLive && live ? String(live) : acc} onChange={(e) => { setAccLive(false); setAcc(e.target.value); }} style={{ ...inp, paddingRight: 42 }} />
             <button onClick={() => { setAccLive(true); setAcc(String(live)); }} title={accLive ? "Solde en direct de ton compte ✓" : "Revenir au solde en direct du compte"} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 26, height: 26, borderRadius: "50%", border: `2px solid ${accLive ? C.teal : C.border}`, background: accLive ? C.teal : "transparent", color: accLive ? "#fff" : C.textMuted, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}><Check size={14} strokeWidth={3} /></button></div>
-          <span style={{ fontSize: 14, color: C.textSecondary, display: "flex", alignItems: "center", gap: 8 }}>Risque {seg(riskMode, setRiskMode, [["pct", "%"], ["usd", "$"]])}</span>
-          <input type="number" inputMode="decimal" step="0.1" value={risk} onChange={(e) => setRisk(e.target.value)} style={inp} />
+          <span style={{ fontSize: 14, color: C.textSecondary, display: "flex", alignItems: "center", gap: 8 }}>Risque (% du compte)</span>
+          <input type="text" inputMode="decimal" step="0.1" value={risk} onChange={(e) => setRisk(e.target.value)} style={inp} />
           <span style={{ fontSize: 14, color: C.textSecondary, display: "flex", alignItems: "center", gap: 8 }}>Stop-loss {seg(mode, setMode, [["pips", unit], ["dist", "écart"], ["prix", "prix"]])}</span>
-          {mode === "pips" ? <input type="text" inputMode="decimal" value={sl} onChange={(e) => { const v = e.target.value.replace(",", "."); if (/^\d*\.?\d{0,2}$/.test(v)) setSl(v); }} placeholder={"ex. " + slEx(pair).pips} style={inp} />
-            : mode === "dist" ? <input type="text" inputMode="decimal" value={slD} onChange={(e) => setSlD(e.target.value.replace(",", "."))} placeholder={"ex. " + slEx(pair).dist + " (écart de prix)"} style={inp} />
-            : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}><input type="number" inputMode="decimal" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="Entrée" style={inp} /><input type="number" inputMode="decimal" value={slP} onChange={(e) => setSlP(e.target.value)} placeholder="Stop" style={inp} /></div>}
+          {mode === "pips" ? <input type="text" inputMode="decimal" value={sl} onChange={(e) => { if (/^[\d\s.,]*$/.test(e.target.value)) setSl(e.target.value); }} placeholder={"ex. " + slEx(pair).pips} style={inp} />
+            : mode === "dist" ? <input type="text" inputMode="decimal" value={slD} onChange={(e) => { if (/^[\d\s.,]*$/.test(e.target.value)) setSlD(e.target.value); }} placeholder={"ex. " + slEx(pair).dist + " (écart de prix)"} style={inp} />
+            : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}><input type="text" inputMode="decimal" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="Entrée" style={inp} /><input type="text" inputMode="decimal" value={slP} onChange={(e) => setSlP(e.target.value)} placeholder="Stop" style={inp} /></div>}
         </div>
         <div style={{ fontSize: 12, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>
           {pair} : <b style={{ color: C.textSecondary }}>1 pip = {sp.pip} de prix</b>{mode === "pips" ? <> · un SL réaliste : <b style={{ color: C.textSecondary }}>{slEx(pair).pips} pips</b> (= {slEx(pair).dist} de prix)</> : mode === "dist" ? <> · écart = ce que TradingView affiche dans « Stop » (ex. BTC 2883,74){r ? <> → <b style={{ color: C.textSecondary }}>{(+r.slPips.toFixed(2)).toString().replace(".", ",")} pips</b></> : null}</> : null}
@@ -9086,8 +9092,8 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
       {/* Compte et risque */}
       <div style={card}>
         <div className="form-grid-2" style={{ gap: 10 }}>
-          <label><span style={lab}>Solde du compte ($)</span><input type="number" inputMode="decimal" value={acc} onChange={(e) => setAcc(e.target.value)} style={inp} /></label>
-          <label><span style={{ ...lab, display: "flex", justifyContent: "space-between", alignItems: "center" }}>Risque {seg(riskMode, setRiskMode, [["pct", "%"], ["usd", "$"]])}</span><input type="number" inputMode="decimal" step="0.1" value={risk} onChange={(e) => setRisk(e.target.value)} style={inp} /></label>
+          <label><span style={lab}>Solde du compte ($)</span><input type="text" inputMode="decimal" value={acc} onChange={(e) => setAcc(e.target.value)} style={inp} /></label>
+          <label><span style={{ ...lab, display: "flex", justifyContent: "space-between", alignItems: "center" }}>Risque (% du compte)</span><input type="text" inputMode="decimal" step="0.1" value={risk} onChange={(e) => setRisk(e.target.value)} style={inp} /></label>
         </div>
         {riskMode === "pct" && <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>{["0.25", "0.5", "1", "1.5", "2"].map((v) => <button key={v} onClick={() => setRisk(v)} style={chip(risk === v)}>{v.replace(".", ",")} %</button>)}{Number(balance) > 0 && Math.round(Number(balance)) !== Number(acc) && <button onClick={() => setAcc(String(Math.round(Number(balance))))} style={{ ...chip(false), marginLeft: "auto" }}>Solde actuel {fmtUsd(balance)}</button>}</div>}
       </div>
@@ -9097,17 +9103,17 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><span style={{ ...lab, marginBottom: 0 }}>Stop et objectif</span>{seg(mode, setMode, [["prix", "Par prix"], ["pips", "En " + unit]])}</div>
         {mode === "pips" ? (
           <div className="form-grid-2" style={{ gap: 10 }}>
-            <label><span style={lab}>Stop loss ({unit})</span><input type="number" inputMode="decimal" step="0.01" value={sl} onChange={(e) => setSl(e.target.value)} placeholder="20" style={inp} /></label>
-            <label><span style={lab}>Take profit ({unit})</span><input type="number" inputMode="decimal" value={tp} onChange={(e) => setTp(e.target.value)} placeholder="optionnel" style={inp} /></label>
+            <label><span style={lab}>Stop loss ({unit})</span><input type="text" inputMode="decimal" step="0.01" value={sl} onChange={(e) => setSl(e.target.value)} placeholder="20" style={inp} /></label>
+            <label><span style={lab}>Take profit ({unit})</span><input type="text" inputMode="decimal" value={tp} onChange={(e) => setTp(e.target.value)} placeholder="optionnel" style={inp} /></label>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8 }}>
-            <label><span style={lab}>Entrée</span><input type="number" inputMode="decimal" value={entry} onChange={(e) => setEntry(e.target.value)} style={inp} /></label>
-            <label><span style={{ ...lab, color: C.red }}>Stop</span><input type="number" inputMode="decimal" value={slP} onChange={(e) => setSlP(e.target.value)} style={inp} /></label>
-            <label><span style={{ ...lab, color: C.teal }}>TP</span><input type="number" inputMode="decimal" value={tpP} onChange={(e) => setTpP(e.target.value)} placeholder="opt." style={inp} /></label>
+            <label><span style={lab}>Entrée</span><input type="text" inputMode="decimal" value={entry} onChange={(e) => setEntry(e.target.value)} style={inp} /></label>
+            <label><span style={{ ...lab, color: C.red }}>Stop</span><input type="text" inputMode="decimal" value={slP} onChange={(e) => setSlP(e.target.value)} style={inp} /></label>
+            <label><span style={{ ...lab, color: C.teal }}>TP</span><input type="text" inputMode="decimal" value={tpP} onChange={(e) => setTpP(e.target.value)} placeholder="opt." style={inp} /></label>
           </div>
         )}
-        <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}><span style={{ ...lab, marginBottom: 0, flex: 1 }}>Spread moyen ({unit}) · ajouté au stop pour ne jamais dépasser ton risque</span><input type="number" inputMode="decimal" value={spread} onChange={(e) => setPv(pair, { sp: e.target.value === "" ? null : Number(e.target.value) })} placeholder="0" style={{ ...inp, width: 90 }} /></label>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}><span style={{ ...lab, marginBottom: 0, flex: 1 }}>Spread moyen ({unit}) · ajouté au stop pour ne jamais dépasser ton risque</span><input type="text" inputMode="decimal" value={spread} onChange={(e) => setPv(pair, { sp: e.target.value === "" ? null : Number(e.target.value) })} placeholder="0" style={{ ...inp, width: 90 }} /></label>
         {mode === "pips" && n(sl) > 0 && <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.textMuted, alignSelf: "center" }}>TP à</span>{[1.5, 2, 3, 4].map((k) => <button key={k} onClick={() => setTp(String(Math.round(n(sl) * k * 10) / 10))} style={chip(n(tp) === Math.round(n(sl) * k * 10) / 10)}>{String(k).replace(".", ",")}R</button>)}</div>}
       </div>
 
@@ -9118,8 +9124,8 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
         {calM === "tick" ? <>
           <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10, lineHeight: 1.5 }}>Dans TradeLocker : clique sur {pair} → <b>Infos / Spécifications</b>. Recopie <b>Tick size</b> et <b>Tick value</b> (valeur d'un tick pour 1 lot).</div>
           <div className="form-grid-2" style={{ gap: 10 }}>
-            <label><span style={lab}>Tick size</span><input type="number" inputMode="decimal" value={cal.ts} onChange={(e) => setCal({ ...cal, ts: e.target.value })} placeholder={String(sp.pip)} style={inp} /></label>
-            <label><span style={lab}>Tick value ($ / lot)</span><input type="number" inputMode="decimal" value={cal.tv} onChange={(e) => setCal({ ...cal, tv: e.target.value })} style={inp} /></label>
+            <label><span style={lab}>Tick size</span><input type="text" inputMode="decimal" value={cal.ts} onChange={(e) => setCal({ ...cal, ts: e.target.value })} placeholder={String(sp.pip)} style={inp} /></label>
+            <label><span style={lab}>Tick value ($ / lot)</span><input type="text" inputMode="decimal" value={cal.tv} onChange={(e) => setCal({ ...cal, tv: e.target.value })} style={inp} /></label>
           </div>
           {(() => { const ts = n(cal.ts), tv = n(cal.tv); if (!ts || !tv) return null; const v = (tv * sp.pip) / ts;
             return <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span className="tnum" style={{ fontSize: 13 }}><b>1 lot = ${v.toFixed(4)} / {isPt ? "point" : "pip"}</b> ({sp.pip} de prix)</span>
@@ -9127,10 +9133,10 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
         </> : <>
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>Ouvre une position chez ton broker et recopie ce qu'il affiche. La calculatrice déduit la vraie valeur du {isPt ? "point" : "pip"} et la garde.</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8 }}>
-          <label><span style={lab}>Lots</span><input type="number" inputMode="decimal" value={cal.lots} onChange={(e) => setCal({ ...cal, lots: e.target.value })} placeholder="0.03" style={inp} /></label>
-          <label><span style={lab}>Entrée</span><input type="number" inputMode="decimal" value={cal.e} onChange={(e) => setCal({ ...cal, e: e.target.value })} style={inp} /></label>
-          <label><span style={lab}>Stop</span><input type="number" inputMode="decimal" value={cal.s} onChange={(e) => setCal({ ...cal, s: e.target.value })} style={inp} /></label>
-          <label><span style={lab}>Perte au SL $</span><input type="number" inputMode="decimal" value={cal.loss} onChange={(e) => setCal({ ...cal, loss: e.target.value })} placeholder="1460" style={inp} /></label>
+          <label><span style={lab}>Lots</span><input type="text" inputMode="decimal" value={cal.lots} onChange={(e) => setCal({ ...cal, lots: e.target.value })} placeholder="0.03" style={inp} /></label>
+          <label><span style={lab}>Entrée</span><input type="text" inputMode="decimal" value={cal.e} onChange={(e) => setCal({ ...cal, e: e.target.value })} style={inp} /></label>
+          <label><span style={lab}>Stop</span><input type="text" inputMode="decimal" value={cal.s} onChange={(e) => setCal({ ...cal, s: e.target.value })} style={inp} /></label>
+          <label><span style={lab}>Perte au SL $</span><input type="text" inputMode="decimal" value={cal.loss} onChange={(e) => setCal({ ...cal, loss: e.target.value })} placeholder="1460" style={inp} /></label>
         </div>
         {(() => { const L = n(cal.lots), d = n(cal.e) != null && n(cal.s) != null ? Math.abs(n(cal.e) - n(cal.s)) / sp.pip : null, lo = Math.abs(n(cal.loss) || 0); if (!L || !d || !lo) return null; const v = lo / (L * d);
           return <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span className="tnum" style={{ fontSize: 13 }}>{d.toFixed(1)} {unit} · <b>1 lot = ${v.toFixed(2)} / {isPt ? "point" : "pip"}</b></span>
@@ -9143,8 +9149,8 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
         <span style={lab}>Analyse sur TradingView, trade chez le broker ?</span>
         <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>Ex. NQ1! (future) n'est pas au même prix que NAS100 (cash). Entre le même instant sur les deux pour décaler tes niveaux.</div>
         <div className="form-grid-2" style={{ gap: 10 }}>
-          <label><span style={lab}>Prix sur TradingView</span><input type="number" inputMode="decimal" value={tvOff.tv} onChange={(e) => setTvOff({ ...tvOff, tv: e.target.value })} placeholder="27703.75" style={inp} /></label>
-          <label><span style={lab}>Prix chez le broker</span><input type="number" inputMode="decimal" value={tvOff.br} onChange={(e) => setTvOff({ ...tvOff, br: e.target.value })} placeholder="27585.5" style={inp} /></label>
+          <label><span style={lab}>Prix sur TradingView</span><input type="text" inputMode="decimal" value={tvOff.tv} onChange={(e) => setTvOff({ ...tvOff, tv: e.target.value })} placeholder="27703.75" style={inp} /></label>
+          <label><span style={lab}>Prix chez le broker</span><input type="text" inputMode="decimal" value={tvOff.br} onChange={(e) => setTvOff({ ...tvOff, br: e.target.value })} placeholder="27585.5" style={inp} /></label>
         </div>
         {(() => { const a = n(tvOff.tv), b = n(tvOff.br); if (a == null || b == null) return null; const off = b - a; const conv = (v) => (n(v) == null ? "—" : (n(v) + off).toFixed(dec));
           return <div className="tnum" style={{ marginTop: 10, fontSize: 13, lineHeight: 1.7 }}>Écart : <b>{off > 0 ? "+" : ""}{off.toFixed(dec)}</b>{mode === "prix" && n(entry) != null && <><br />À mettre chez le broker : entrée <b>{conv(entry)}</b> · SL <b style={{ color: C.red }}>{conv(slP)}</b> · TP <b style={{ color: C.teal }}>{conv(tpP)}</b></>}</div>; })()}
@@ -9154,9 +9160,9 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
       <details style={{ ...card, padding: "12px 16px" }}>
         <summary style={{ fontSize: 13, fontWeight: 700, color: C.textSecondary, cursor: "pointer" }}>Réglages broker (commission, pas de lot, valeur du pip)</summary>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginTop: 12 }}>
-          <label><span style={lab}>Commission $/lot</span><input type="number" inputMode="decimal" value={com} onChange={(e) => setCom(e.target.value)} placeholder="ex. 7" style={inp} /></label>
+          <label><span style={lab}>Commission $/lot</span><input type="text" inputMode="decimal" value={com} onChange={(e) => setCom(e.target.value)} placeholder="ex. 7" style={inp} /></label>
           <label><span style={lab}>Pas de lot</span><select value={step} onChange={(e) => setStep(e.target.value)} style={inp}>{["0.01", "0.1", "1"].map((v) => <option key={v} value={v}>{v}</option>)}</select></label>
-          <label><span style={lab}>{isPt ? "Point" : "Pip"} / lot ($)</span><input type="number" inputMode="decimal" value={pvOver} onChange={(e) => setPvOver(e.target.value)} placeholder={pvAuto.toFixed(2)} style={inp} /></label>
+          <label><span style={lab}>{isPt ? "Point" : "Pip"} / lot ($)</span><input type="text" inputMode="decimal" value={pvOver} onChange={(e) => setPvOver(e.target.value)} placeholder={pvAuto.toFixed(2)} style={inp} /></label>
         </div>
         <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>
           1 lot {pair} = {sp.c.toLocaleString("fr-FR")} unités · 1 pip = {sp.pip}. {fx.live ? `Taux de change en direct (${new Date(fx.at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}).` : "Taux de change approximatifs (hors ligne)."} {CALC_SPECIAL[pair] && !/USD$/.test(pair) ? "" : ""}{CALC_SPECIAL[pair] && ["US30", "NAS100", "SPX500", "GER40", "UK100", "BTCUSD", "ETHUSD", "USOIL"].includes(pair) ? " Pour les indices, la crypto et le pétrole, la taille du contrat change selon le broker : vérifie la valeur du pip et corrige-la ici." : ""}
