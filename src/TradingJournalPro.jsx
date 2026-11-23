@@ -162,7 +162,7 @@ function killzoneLabel(isoDate) {
 function KillzoneBanner({ part = "all" }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30000);
+    const t = setInterval(() => setNow(new Date()), 15000);
     return () => clearInterval(t);
   }, []);
 
@@ -215,40 +215,20 @@ function KillzoneBanner({ part = "all" }) {
         </div>
       )}
 
-      {/* Ticker killzone : dans la barre du haut, sur la même ligne que le logo */}
-      {part !== "news" && <div style={{
-        flex: 1, minWidth: 0,
-        padding: "0 12px",
-        height: 28,
-        display: "flex", alignItems: "center", gap: 0, justifyContent: "center",
-        overflow: "hidden", whiteSpace: "nowrap",
-      }}>
-        <div style={{ position: "relative", width: 18, height: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 8 }}>
-          {active && <div style={{ position: "absolute", width: 12, height: 12, borderRadius: "50%", background: active.color, opacity: 0.2 }} />}
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: active ? active.color : C.textMuted, flexShrink: 0 }} />
-        </div>
-
-        {active ? (
-          <>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: active.color, letterSpacing: 0.2, marginRight: 6 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><SessionFlag name={active.name} size={15} />{active.name.toUpperCase()}</span></span>
-            <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 10 }}>jusqu'à {active.end}</span>
-            <span style={{ fontSize: 10, color: active.color, background: `${active.color}20`, padding: "1px 6px", borderRadius: 3, fontWeight: 700, letterSpacing: 0.5, marginRight: 12 }}>LIVE</span>
-            <span className="tnum" style={{ fontSize: 10.5, color: C.sidebarTextDim }}>encore {fmt(minsLeft)}</span>
-            {sb && <span style={{ fontSize: 10, color: "#E5E7EB", background: "rgba(255,255,255,0.1)", padding: "1px 6px", borderRadius: 3, fontWeight: 700, marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 3 }}><Zap size={10} /> {sb.name}</span>}
-          </>
-        ) : next ? (
-          <>
-            <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 6 }}>Hors killzone</span>
-            <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 6 }}>·</span>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: C.sidebarText, marginRight: 5 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><SessionFlag name={next.name} size={15} />{next.name}</span></span>
-            <span style={{ fontSize: 11, color: C.sidebarTextDim, marginRight: 5 }}>à {next.start}</span>
-            <span className="tnum" style={{ fontSize: 10.5, color: C.sidebarTextDim, background: "rgba(255,255,255,0.06)", padding: "1px 7px", borderRadius: 3 }}>dans {fmt(minsUntil(next))}</span>
-          </>
-        ) : isWeekend ? (
-          <span style={{ fontSize: 11, color: C.sidebarTextDim }}>Marché fermé — Weekend</span>
-        ) : null}
-
-      </div>}
+      {/* 3 sessions en direct dans le header */}
+      {part !== "news" && (() => { const Z = [{ n: "Asia", s: 20 * 60, e: 24 * 60, col: "#F59E0B" }, { n: "London", s: 2 * 60, e: 5 * 60, col: "#3B82F6" }, { n: "New York", s: 8 * 60 + 30, e: 11 * 60, col: "#EF4444", pm: [13 * 60 + 30, 16 * 60] }];
+        const st = (z) => { if (isWeekend) return { k: "off" }; const rng = [[z.s, z.e], ...(z.pm ? [z.pm] : [])]; const on = rng.find(([a2, b2]) => ny.min >= a2 && ny.min < b2); if (on) return { k: "live", left: on[1] - ny.min, p: (ny.min - on[0]) / (on[1] - on[0]) }; const nx = rng.map(([a2]) => (a2 - ny.min + 1440) % 1440).sort((x, y) => x - y)[0]; return { k: "next", in: nx }; };
+        return <div className="kz-head" style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, overflow: "hidden", padding: "0 10px" }}>
+          <span className="tnum kz-clock" style={{ fontSize: 15, fontWeight: 700, color: C.text, marginRight: 4, letterSpacing: 0.3 }}>{String(now.getHours()).padStart(2, "0")}:{String(now.getMinutes()).padStart(2, "0")}</span>
+          {Z.map((z) => { const S = st(z); const live = S.k === "live";
+            return <div key={z.n} className="kz-pill" style={{ position: "relative", overflow: "hidden", display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 12, border: `1px solid ${live ? z.col + "88" : C.border}`, background: live ? z.col + "1f" : "rgba(255,255,255,0.025)", whiteSpace: "nowrap" }}>
+              {live && <span style={{ position: "absolute", left: 0, bottom: 0, height: 2, width: `${S.p * 100}%`, background: z.col }} />}
+              <span style={{ width: 8, height: 8, borderRadius: 99, background: live ? z.col : C.textMuted, boxShadow: live ? `0 0 0 4px ${z.col}33` : "none", animation: live ? "kzPulse 1.6s ease-in-out infinite" : "none" }} />
+              <span style={{ fontSize: 14, fontWeight: 800, color: live ? C.text : C.textSecondary, letterSpacing: 0.2 }}>{z.n}</span>
+              <span className="tnum kz-sub" style={{ fontSize: 12, color: live ? z.col : C.textMuted, fontWeight: 700 }}>{S.k === "off" ? "fermé" : live ? `LIVE · ${fmt(S.left)}` : `${th(z.s)} · dans ${fmt(S.in)}`}</span>
+            </div>; })}
+          {sb && <span style={{ fontSize: 12, color: "#fff", background: "rgba(255,255,255,0.1)", padding: "5px 9px", borderRadius: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}><Zap size={12} /> {sb.name}</span>}
+        </div>; })()}
     </>
   );
 }
@@ -452,32 +432,32 @@ Règles :
 
 const THEMES = {
   light: {
-    bg: "#F4F6FA", sidebar: "#1A2138",
-    sidebarText: "#E8EAF4", sidebarTextDim: "#8891B0",
-    sidebarBorder: "rgba(255,255,255,0.08)", sidebarHover: "rgba(255,255,255,0.06)",
-    card: "#FFFFFF", cardHover: "#F8F9FC",
-    border: "#DDE1EA", borderLight: "#C8CEDC",
+    bg: "#F6F7F9", sidebar: "#FFFFFF",
+    sidebarText: "#0E1116", sidebarTextDim: "#6B7280",
+    sidebarBorder: "#E7E9EE", sidebarHover: "#F1F3F6",
+    card: "#FFFFFF", cardHover: "#FAFBFC",
+    border: "#E7E9EE", borderLight: "#D5D9E0",
     inputBg: "#FFFFFF",
-    focusBorder: "#6B5CE7", focusShadow: "0 0 0 3px rgba(107,92,231,0.12)",
-    text: "#111318", textSecondary: "#4A5068", textMuted: "#8A91A8",
-    teal: "#0EA882", tealDim: "rgba(14,168,130,0.10)",
-    red: "#D94040", redDim: "rgba(217,64,64,0.10)",
-    purple: "#6B5CE7", purpleDim: "rgba(107,92,231,0.10)", purpleBright: "#5B4CD8",
-    amber: "#D97706", amberDim: "rgba(217,119,6,0.10)",
+    focusBorder: "#2F6BFF", focusShadow: "0 0 0 3px rgba(47,107,255,0.14)",
+    text: "#0E1116", textSecondary: "#454B57", textMuted: "#8A909C",
+    teal: "#0C9F6E", tealDim: "rgba(12,159,110,0.09)",
+    red: "#E0464E", redDim: "rgba(224,70,78,0.09)",
+    purple: "#2F6BFF", purpleDim: "rgba(47,107,255,0.09)", purpleBright: "#2459DB",
+    amber: "#D18A00", amberDim: "rgba(209,138,0,0.10)",
   },
   dark: {
-    bg: "#07080C", sidebar: "#0B0D13",
-    sidebarText: "#F4F5F8", sidebarTextDim: "#7D8293",
-    sidebarBorder: "rgba(255,255,255,0.06)", sidebarHover: "rgba(255,255,255,0.05)",
-    card: "#0F1118", cardHover: "#151824",
-    border: "#1D2030", borderLight: "#2B2F42",
-    inputBg: "#0B0D14",
-    focusBorder: "#7C6CFF", focusShadow: "0 0 0 3px rgba(124,108,255,0.18)",
-    text: "#F4F5F8", textSecondary: "#B6BACA", textMuted: "#7A8095",
-    teal: "#34D399", tealDim: "rgba(52,211,153,0.13)",
-    red: "#F87171", redDim: "rgba(248,113,113,0.13)",
-    purple: "#7C6CFF", purpleDim: "rgba(124,108,255,0.15)", purpleBright: "#A59BFF",
-    amber: "#FBBF24", amberDim: "rgba(251,191,36,0.12)",
+    bg: "#0A0B0D", sidebar: "#0A0B0D",
+    sidebarText: "#ECEDEF", sidebarTextDim: "#7C818B",
+    sidebarBorder: "#1A1C21", sidebarHover: "#14161A",
+    card: "#111215", cardHover: "#16181C",
+    border: "#1E2025", borderLight: "#2A2D33",
+    inputBg: "#0D0E11",
+    focusBorder: "#4D84FF", focusShadow: "0 0 0 3px rgba(77,132,255,0.18)",
+    text: "#ECEDEF", textSecondary: "#A9ADB6", textMuted: "#6E737D",
+    teal: "#2BD18F", tealDim: "rgba(43,209,143,0.10)",
+    red: "#FF5A5F", redDim: "rgba(255,90,95,0.10)",
+    purple: "#4D84FF", purpleDim: "rgba(77,132,255,0.12)", purpleBright: "#8AAEFF",
+    amber: "#F5B83D", amberDim: "rgba(245,184,61,0.10)",
   },
 };
 
@@ -496,7 +476,7 @@ function applyTheme(isDark) {
 
 
 const FONT = {
-  base: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif",
+  base: "'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
 };
 
 function GlobalStyle() {
@@ -509,14 +489,15 @@ function GlobalStyle() {
   }, []);
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap');
       * { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; max-width: 100%; overflow-x: hidden; }
       #root { min-height: 100vh; }
       body { color: ${C.text}; background: ${C.bg}; -webkit-font-smoothing: antialiased; }
-      body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(90% 50% at 50% -10%, ${C.purpleDim}, transparent 70%); }
+      body { font-family: ${FONT.base}; font-feature-settings: "ss01", "cv11"; }
+      .tnum { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
       #root > div { position: relative; z-index: 1; }
-      h1 { letter-spacing: -0.6px !important; }
+      h1 { letter-spacing: -0.03em !important; font-weight: 700 !important; }
       /* Nav mobile : position fixed collée en bas */
       nav.mobile-nav-fixed {
         position: fixed !important;
@@ -581,12 +562,16 @@ function GlobalStyle() {
       @keyframes spinSlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       .spin-slow { animation: spinSlow 1.6s linear infinite; }
       .fade-in { animation: fadeIn .18s ease-out; }
+      @keyframes drawerIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+      @keyframes kzPulse { 0%,100% { box-shadow: 0 0 0 3px rgba(255,255,255,0.08); } 50% { box-shadow: 0 0 0 6px rgba(255,255,255,0); } }
+      @media (max-width: 900px) { .kz-sub { display: none; } }
+      @media (max-width: 600px) { .kz-pill { padding: 5px 8px !important; } .kz-clock { display: none; } }
       .fade-in > * { animation: riseIn .38s cubic-bezier(.2,.7,.2,1) both; }
       .fade-in > *:nth-child(2) { animation-delay: .04s } .fade-in > *:nth-child(3) { animation-delay: .08s } .fade-in > *:nth-child(4) { animation-delay: .12s } .fade-in > *:nth-child(5) { animation-delay: .16s } .fade-in > *:nth-child(n+6) { animation-delay: .2s }
       @keyframes riseIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
       .tjp-card { transition: border-color .2s ease, box-shadow .25s ease, transform .25s ease; }
-      @media (hover: hover) { .tjp-card:hover { border-color: rgba(139,92,246,0.28) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 18px 40px -20px rgba(124,58,237,0.35) !important; }
-        .tc-row:hover, .dash-tiles > div:hover { transform: translateY(-2px); border-color: rgba(139,92,246,0.35) !important; } }
+      @media (hover: hover) { .tjp-card:hover { border-color: ${C.borderLight} !important; }
+        .tc-row:hover { background-color: ${C.cardHover} !important; border-color: ${C.borderLight} !important; } .dash-tiles > div:hover { border-color: ${C.borderLight} !important; } }
       .dash-tiles > div { transition: transform .2s ease, border-color .2s ease; }
       button { transition: transform .12s ease, background-color .18s ease, border-color .18s ease, color .18s ease, opacity .18s; }
       button:active:not(:disabled) { transform: scale(0.97); }
@@ -711,7 +696,7 @@ function GlobalStyle() {
 
 function Card({ children, style, hover, ...rest }) {
   return (
-    <div className={"tjp-card" + (hover ? " card-int" : "")} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 30px -18px rgba(0,0,0,0.6)", ...style }} {...rest}>
+    <div className={"tjp-card" + (hover ? " card-int" : "")} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "none", ...style }} {...rest}>
       {children}
     </div>
   );
@@ -721,7 +706,7 @@ function CardLabel({ children, info }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.text, fontWeight: 700, letterSpacing: -0.1 }}>
       {children}
-      {info && <Info size={12} color={C.textMuted} />}
+
     </div>
   );
 }
@@ -3439,6 +3424,7 @@ function TvPdPicker({ tr, addPd, delPd }) {
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid, g: "" },
   { id: "trades", label: "Trades", short: "Trades", icon: NotebookPen, g: "" },
+  { id: "tags", label: "Tags", short: "Tags", icon: Tag, g: "" },
   { id: "calculator", label: "Calculatrice", short: "Calcul", icon: Calculator, g: "" },
   { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3, g: "", also: ["erreurs", "calendar", "rejoues"] },
   { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon, g: "" },
@@ -3618,7 +3604,7 @@ function Progression({ all, live, balance = 10000 }) {
           <div key={l} style={{ padding: "10px 12px", borderRadius: 14, background: C.card, border: `1px solid ${C.border}`, minWidth: 0 }}><div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, marginTop: 2, color: l === "Série" && train.streak >= 3 ? C.teal : C.text }}>{v}</div><div style={{ fontSize: 10.5, color: C.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div></div>)}
       </div>}
       {/* parcours */}
-      <div style={{ ...card, background: `radial-gradient(120% 90% at 0% 0%, ${C.purpleDim}, transparent 60%), ${C.card}` }}>
+      <div style={{ ...card, background: C.card }}>
         <H sub="Le chemin des traders qui durent : prouver un edge, l'exécuter comme en backtest, puis seulement augmenter le risque.">Ton parcours</H>
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
           {L.steps.map((s, i) => { const st = s.done ? "done" : i === L.cur ? "cur" : "next"; return (
@@ -3875,7 +3861,7 @@ function ErrorsPage({ trades, appSettings, balance = 10000, onOpenTrade }) {
         <button onClick={() => window.dispatchEvent(new Event("tjp-review"))} style={{ ...btn.primary, padding: "9px 14px", fontSize: 13, whiteSpace: "nowrap" }}>Revue express</button>
       </div>}
       {closed.length === 0 && <div style={{ ...card, padding: "26px 18px", textAlign: "center", color: C.textMuted, fontSize: 13.5 }}>Aucun trade.</div>}
-      {closed.length > 0 && <div style={{ ...card, background: `radial-gradient(120% 90% at 0% 0%, ${A.s < 0 ? C.redDim : C.tealDim}, transparent 60%), ${C.card}` }}>
+      {closed.length > 0 && <div style={{ ...card, background: C.card }}>
         <div style={{ padding: "18px 18px 6px" }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Coût des erreurs</div>
           <div className="tnum" style={{ fontSize: 34, fontWeight: 700, letterSpacing: -1, color: A.s < 0 ? C.red : C.teal, marginTop: 4 }}>{fmtR(A.s)}{A.u ? <span style={{ fontSize: 16, color: C.textSecondary, fontWeight: 600 }}> · {fmtUsdSigned(A.u)}</span> : null}</div>
@@ -4320,14 +4306,14 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
       } />
 
       {/* Résumé — un seul bloc clair */}
-      <Card style={{ padding: "18px 18px 14px", marginBottom: 14, background: `radial-gradient(120% 90% at 0% 0%, ${totalR >= 0 ? C.tealDim : C.redDim}, transparent 60%), ${C.card}` }}>
+      <Card style={{ padding: "18px 18px 14px", marginBottom: 14, background: C.card }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Résultat · {period === "tout" ? "tout" : period}</div>
         <div className="tnum" style={{ fontSize: 38, fontWeight: 600, letterSpacing: -0.5, color: totalR >= 0 ? C.teal : C.red, lineHeight: 1.05, marginTop: 4 }}>{fmtR(totalR)}</div>
         <div className="tnum" style={{ fontSize: 14, color: C.textSecondary, fontWeight: 600, marginTop: 2 }}><b style={{ color: stats.totalPnl >= 0 ? C.teal : C.red }}>{fmtUsdSigned(stats.totalPnl)}</b> · Capital {fmtUsd(stats.currentBalance)}</div>
         <div className="dash-tiles" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 14 }}>
           {[["Profit factor", pfTxt, `${fmtPct(stats.winRate)} gagnés · ${stats.closed.length} trades`, pfV >= 1 ? C.teal : C.red],
-            ["R moyen", fmtR(stats.avgRR), "par trade", stats.avgRR >= 0 ? C.teal : C.red],
-            ["Série en cours", streak.n ? `${streak.n} ${streak.w ? "gagnant" : "perdant"}${streak.n > 1 ? "s" : ""}` : "—", streak.n ? (streak.w ? "continue comme ça" : "réduis le risque, reste au plan") : "aucun trade", streak.w ? C.teal : streak.n ? C.red : C.text]].map(([l, v, sub, col]) => (
+            ["R moyen", fmtR(stats.avgRR), "", stats.avgRR >= 0 ? C.teal : C.red],
+            ["Série en cours", streak.n ? `${streak.n} ${streak.w ? "gagnant" : "perdant"}${streak.n > 1 ? "s" : ""}` : "—", "", streak.w ? C.teal : streak.n ? C.red : C.text]].map(([l, v, sub, col]) => (
             <div key={l} style={{ padding: "10px 11px 9px", borderRadius: 13, background: "rgba(255,255,255,0.025)", border: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600 }}>{l}</div>
               <div className="tnum" style={{ fontSize: 18, fontWeight: 600, color: col, marginTop: 2 }}>{v}</div>
@@ -4778,7 +4764,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Ressenti / retour sur le trade</div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Retour sur le trade</div>
           <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} style={{ width: "100%", boxSizing: "border-box", padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 13, resize: "vertical" }} />
         </div>
         <div>
@@ -4961,99 +4947,147 @@ function pdColor(name) { const u = String(name || "").toUpperCase().replace(/[\s
   if (u.includes("ORDERBLOCK") || u === "OB" || u.endsWith("OB") || u.startsWith("OB")) return PD_COL.OB; if (u.includes("FVG")) return "#0ea5e9"; return "#8b5cf6"; }
 const PdChip = ({ tf, name, size = 11 }) => { const c = pdColor(name); return <span style={{ fontSize: size, fontWeight: 700, color: c, background: c + "1f", border: `1px solid ${c}55`, padding: "1px 7px", borderRadius: 6, whiteSpace: "nowrap" }}>{tf ? tf + " " : ""}{name}</span>; };
 const NoteDot = ({ v, size = 20 }) => { if (!v) return null; const n = Number(v), c2 = n <= 4 ? C.red : n <= 7 ? C.amber : C.teal; return <span title={`Note : ${n}/10`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: size * 0.55, fontWeight: 800, lineHeight: 1, flexShrink: 0 }}>{n}</span>; };
-function BrokerTradeCard({ t, onOpen, isLast }) {
-  const [open, setOpen] = useState(false);
-  const allUT = useUserTags(); const myTags = (t.tags || []).filter((g) => allUT.includes(g)); const riskU = useRiskUnit();
-  const [rpOpen, setRpOpen0] = useState(() => { if (canManualReplay(t)) return false; try { return localStorage.getItem("tjp_rp_open") !== "0"; } catch (e) { return true; } });
-  const setRpOpen = (v) => { setRpOpen0(v); try { localStorage.setItem("tjp_rp_open", v ? "1" : "0"); } catch (e) {} };
-  const toggleTag = (g) => { const has = (t.tags || []).includes(g); window.dispatchEvent(new CustomEvent("tjp-patch-trade", { detail: { id: t.id, patch: { tags: has ? (t.tags || []).filter((x) => x !== g) : [...(t.tags || []), g] } } })); };
-  const [zoom, setZoom] = useState(null);
-  const isOpenSt = t.status === "open", isBE = t.status === "breakeven";
-  const r = Number(t.resultR) || 0;
-  const col = isOpenSt ? C.textSecondary : isBE ? C.textSecondary : r > 0 ? C.teal : r < 0 ? C.red : C.textSecondary;
-  const fp = (v) => v == null || v === "" ? "—" : String(v).replace(".", ",");
+function tradeView(t) {
+  const isOpenSt = t.status === "open", isBE = t.status === "breakeven"; const r = Number(t.resultR) || 0;
+  const col = isOpenSt || isBE ? C.textSecondary : r > 0 ? C.teal : r < 0 ? C.red : C.textSecondary;
   const exit = t.exitPrice ?? (t.status === "closed" ? (r > 0 ? t.takeProfit : r < 0 ? t.stopLoss : t.entryPrice) : null);
   const statusTxt = isOpenSt ? "En cours" : isBE ? "Breakeven" : r > 0 ? "Gagné" : r < 0 ? "Perdu" : "Fermé";
   const ts = t.rules?.tfSetups;
   const pds = Array.isArray(ts) && ts.length ? ts.flatMap((x) => (x.setups || []).map((n) => ({ tf: x.tf, name: n }))) : (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")).map((n) => ({ tf: "", name: n }));
-  const lab = { fontSize: 10.5, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase" };
-  const val = { fontSize: 15, fontWeight: 600, color: C.text, marginTop: 2 };
-  const dt = (iso) => { if (!iso) return ""; const d = new Date(iso); const p2 = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
   const kz = (() => { const k = killzoneLabel(t.entryTime); const se = getSession(t.entryTime); return k !== "Hors killzone" ? k : se; })();
-  const dur = fmtDur(t.entryTime, t.exitTime);
-  const kv = (k, v, c2) => <span style={{ whiteSpace: "nowrap" }}><span style={{ color: C.textMuted, fontWeight: 700, fontSize: 11 }}>{k}</span> <b style={{ color: c2 || C.text }}>{fp(v)}</b></span>;
+  return { isOpenSt, isBE, r, col, exit, statusTxt, pds, kz: String(kz).replace(" Session", "") };
+}
+const fpx = (v) => v == null || v === "" ? "—" : String(v).replace(".", ",");
+function BrokerTradeCard({ t, onOpen, isLast }) {
+  const [open, setOpen] = useState(false); const riskU = useRiskUnit();
+  const V = tradeView(t);
+  const d = new Date(t.entryTime);
   return (
-    <div style={{ marginBottom: isLast ? 0 : 8, background: `linear-gradient(90deg, ${col}12, transparent 35%), ${C.card}`, borderRadius: 16, border: `1px solid ${C.border}`, borderLeft: `3px solid ${col}`, overflow: "hidden" }}>
-      <style>{`.tc-exp{display:grid;grid-template-columns:minmax(0,1fr)}@media(min-width:1000px){.tc-exp{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}.tc-exp>.tc-r{border-left:1px solid ${C.border}}}`}</style>
-      {zoom && <LightBox src={zoom.src} label={zoom.label} onClose={() => setZoom(null)} />}
-      <div onClick={() => setOpen((v) => !v)} style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* ligne 1 : logo · paire · note · sens · date · killzone */}
-          <div style={{ display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", overflow: "hidden", height: 24, lineHeight: 1 }}>
-            <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>
-            <NoteDot v={t.retroRating} />
-            <span style={{ fontSize: 13, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 3, color: t.direction === "long" ? C.teal : C.red }}><span style={{ fontSize: 9 }}>{t.direction === "long" ? "▲" : "▼"}</span>{t.direction === "long" ? "LONG" : "SHORT"}</span>
-            <span className="tnum" style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: C.textSecondary, fontSize: 12.5, fontWeight: 600 }}>· {kz !== "Hors session" && <SessionFlag name={kz} size={14} />}{String(kz).replace(" Session", "")}</span>
-          </div>
-          {/* ligne 2 : lots · EN · EX · TP · SL · PD arrays · tags */}
-          <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 7, fontSize: 12.5, flexWrap: "wrap", rowGap: 5 }}>
-            {t.positionSize != null && <span style={{ whiteSpace: "nowrap" }}><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span>{riskU !== "none" && tradeRiskPct(t) != null ? <b> ({riskU === "usd" ? Math.round(tradeRiskUsd(t)).toLocaleString("fr-FR") + " $" : tradeRiskPct(t).toFixed(2).replace(".", ",") + " %"})</b> : null}</span>}
-            {kv("EN", t.entryPrice)}{exit != null && kv("EX", exit)}{t.takeProfit != null && kv("TP", t.takeProfit, C.teal)}{t.stopLoss != null && kv("SL", t.stopLoss, C.red)}
-            {pds.slice(0, 4).map((x, i) => <PdChip key={i} tf={x.tf} name={x.name} />)}
-            {myTags.map((x) => <span key={"t" + x} style={{ fontSize: 11, fontWeight: 700, color: C.amber, background: "rgba(245,158,11,0.12)", border: `1px solid rgba(245,158,11,0.35)`, padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}><Tag size={10} />{x}</span>)}
-          </div>
+    <>
+    <div className="tc-row" onClick={() => setOpen(true)} style={{ marginBottom: isLast ? 0 : 8, background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: "12px 16px 12px 12px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", position: "relative", overflow: "hidden" }}>
+      <span style={{ position: "absolute", left: 0, top: 10, bottom: 10, width: 3, borderRadius: 9, background: V.col }} />
+      <div style={{ flexShrink: 0, marginLeft: 4 }}><PairLogo pair={t.pair} size={40} /></div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap", overflow: "hidden" }}>
+          <span style={{ fontSize: 16.5, fontWeight: 800, letterSpacing: -0.3 }}>{t.pair}</span>
+          <span style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: 0.4, padding: "3px 8px", borderRadius: 7, color: t.direction === "long" ? C.teal : C.red, background: (t.direction === "long" ? C.teal : C.red) + "1c" }}>{t.direction === "long" ? "LONG" : "SHORT"}</span>
+          <NoteDot v={t.retroRating} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: C.textSecondary }}>{V.kz}</span>
         </div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <span className="tnum" style={{ display: "inline-block", padding: "3px 9px", borderRadius: 7, fontSize: 15, fontWeight: 600, color: col, background: isOpenSt || isBE ? "rgba(255,255,255,0.06)" : `${col}22` }}>{isOpenSt ? "En cours" : fmtR(r)}</span>
-          <div className="tnum" style={{ fontSize: 13.5, color: C.text, fontWeight: 600, marginTop: 5 }}>{!isOpenSt && t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : statusTxt}</div>
+        <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, fontSize: 12.5, color: C.textMuted, flexWrap: "wrap", rowGap: 4 }}>
+          <span style={{ textTransform: "capitalize", fontWeight: 600 }}>{d.toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} · {d.toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}</span>
+          {t.positionSize != null && <span>· <b style={{ color: C.textSecondary }}>{fpx(t.positionSize)}</b> lot{Number(t.positionSize) > 1 ? "s" : ""}{riskU !== "none" && tradeRiskPct(t) != null ? <b style={{ color: C.textSecondary }}> ({riskU === "usd" ? Math.round(tradeRiskUsd(t)).toLocaleString("fr-FR") + " $" : tradeRiskPct(t).toFixed(2).replace(".", ",") + " %"})</b> : null}</span>}
+          {V.pds.slice(0, 3).map((x, i) => <PdChip key={i} tf={x.tf} name={x.name} />)}
         </div>
-        <ChevronDown size={18} color={C.textMuted} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", flexShrink: 0 }} />
       </div>
-      {open && <div style={{ borderTop: `1px solid ${C.border}` }}>
-        <div className="tc-exp">
-          <div className="tc-l">
-            <div style={{ display: "flex", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ flex: 1 }}><div style={lab}>Prix d'entrée</div><div className="tnum" style={val}>{fp(t.entryPrice)}</div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{dt(t.entryTime)}</div></div>
-              <ArrowRightIcon />
-              <div style={{ flex: 1, textAlign: "right" }}><div style={lab}>Prix de sortie</div><div className="tnum" style={val}>{fp(exit)}</div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{statusTxt}{dur ? ` (${dur})` : ""}</div></div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px 14px", padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}>
-              <div><div style={lab}>Stop loss</div><div className="tnum" style={{ ...val, color: C.red }}>{fp(t.stopLoss)}</div></div>
-              <div><div style={lab}>Take profit</div><div className="tnum" style={{ ...val, color: C.teal }}>{fp(t.takeProfit)}</div></div>
-              <div><div style={lab}>Résultat</div><div className="tnum" style={{ ...val, color: col }}>{isOpenSt ? "—" : fmtR(r)} <span style={{ fontSize: 13 }}>{!isOpenSt && t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : ""}</span></div></div>
-              {t.rules?.initialSL != null && <div><div style={lab}>SL de départ</div><div className="tnum" style={val}>{fp(t.rules.initialSL)}</div></div>}
-              <div><div style={lab}>Risque réel</div><div className="tnum" style={val}>{tradeRiskUsd(t) ? <>{fmtUsd(tradeRiskUsd(t))}{tradeRiskPct(t) != null && <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 500 }}> ({tradeRiskPct(t).toFixed(2).replace(".", ",")} %)</span>}</> : <span style={{ fontSize: 13, color: C.textMuted }}>inconnu</span>}</div></div>
-              {t.rules?.mfe != null && <div><div style={lab}>MAE / MFE</div><div className="tnum" style={{ ...val, fontSize: 13.5 }}><span style={{ color: C.red }}>−{t.rules.mae.toFixed(2)}</span> / <span style={{ color: C.teal }}>+{t.rules.mfe.toFixed(2)} R</span></div></div>}
-            </div>
-            {pds.length > 0 && <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span style={{ ...lab, marginRight: 4 }}>Setup</span>{pds.map((x, i) => <PdChip key={i} tf={x.tf} name={x.name} size={12} />)}</div>}
-            {t.rules?.feedback && <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, lineHeight: 1.5, whiteSpace: "pre-wrap" }}><span style={{ ...lab, marginRight: 8 }}>Ressenti</span>{t.rules.feedback}</div>}
-            {t.notes && <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, whiteSpace: "pre-wrap" }}>{t.notes}</div>}
-            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ ...lab, marginRight: 4 }}>Tags</span>
-              {allUT.length ? allUT.map((g) => { const on = myTags.includes(g); return <button key={g} onClick={(e) => { e.stopPropagation(); toggleTag(g); }} style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? C.amber : C.border}`, background: on ? "rgba(245,158,11,0.14)" : "transparent", color: on ? C.amber : C.textSecondary }}>{on ? "✓ " : ""}{g}</button>; })
-                : <span style={{ fontSize: 12, color: C.textMuted }}>Crée tes tags dans Réglages → Tags.</span>}
-            </div>
-          </div>
-          <div className="tc-r" style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, alignContent: "start" }}>
-            {[["Avant", t.screenshotBefore], ["Après", t.screenshotAfter]].map(([l, src]) => (
-              <div key={l}><div style={{ ...lab, marginBottom: 6 }}>{l}</div>
-                {src ? <img src={src} alt={l} decoding="async" onClick={() => setZoom({ src, label: l })} style={{ width: "100%", height: 170, objectFit: "contain", background: "#fff", borderRadius: 8, cursor: "zoom-in", border: `1px solid ${C.border}` }} />
-                  : <div style={{ height: 170, borderRadius: 8, border: `1px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, color: C.textMuted }}>Pas de photo</div>}
-              </div>))}
-          </div>
-        </div>
-        {(t.rules?.replay || canManualReplay(t)) && <div onClick={() => setRpOpen(!rpOpen)} title={rpOpen ? "Cacher le replay" : "Afficher le replay"} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>{t.rules?.replay ? <ReplayLine rp={t.rules.replay} /> : <span style={{ fontSize: 12.5, color: C.textMuted, display: "inline-flex", alignItems: "center", gap: 4 }}><Rewind size={12} /> Trade rejoué : pas encore</span>}</div>
-          <ChevronDown size={16} color={C.textMuted} style={{ transform: rpOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
-        </div>}
-        {rpOpen && canManualReplay(t) && <ManualReplay t={t} />}
-        {rpOpen && canManualReplay(t) && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><div style={{ ...lab, marginBottom: 6 }}>Optimiser (SL / TP modifiés)</div><OptimizeBox t={t} /></div>}
-        <div style={{ display: "flex", borderTop: `1px solid ${C.border}` }}>{tvSimSym(t.pair) && <button onClick={() => replayRealTrade(t, null, true)} title="Rejouer ce trade au moment exact de l'entrée" style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Rewind size={14} /> Rejouer</button>}
-          <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
-      </div>}
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <div className="tnum" style={{ fontSize: 18, fontWeight: 800, color: V.col, letterSpacing: -0.3 }}>{V.isOpenSt ? "En cours" : t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : V.statusTxt}</div>
+        <div className="tnum" style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 700, marginTop: 2 }}>{V.isOpenSt ? "" : fmtR(V.r)}</div>
+      </div>
     </div>
+    {open && createPortal(<TradeDrawer t={t} onClose={() => setOpen(false)} onEdit={() => { setOpen(false); onOpen(t.id); }} />, document.body)}
+    </>
   );
+}
+/* ===== Tags : une catégorie par tag, on y range ses trades (un trade peut être dans plusieurs tags) ===== */
+function TagsPage({ trades }) {
+  const tags = useUserTags(); const [cur, setCur] = useState(() => tags[0] || null); const [pick, setPick] = useState(false); const [nw, setNw] = useState(""); const [q, setQ] = useState("");
+  useEffect(() => { if (!cur && tags.length) setCur(tags[0]); if (cur && !tags.includes(cur)) setCur(tags[0] || null); }, [tags.join("|")]);
+  const closed = (l) => l.filter((t) => t.status !== "open");
+  const statOf = (g) => { const l = closed(trades.filter((t) => (t.tags || []).includes(g))); const w = l.filter((t) => (t.resultUsd || 0) > 0).length, lo = l.filter((t) => (t.resultUsd || 0) < 0).length; return { n: trades.filter((t) => (t.tags || []).includes(g)).length, w, lo, usd: l.reduce((a, t) => a + (t.resultUsd || 0), 0), r: l.reduce((a, t) => a + (Number(t.resultR) || 0), 0) }; };
+  const add = () => { const n = nw.trim(); if (!n || tags.includes(n)) return; userTagsSave([...tags, n]); setCur(n); setNw(""); setPick(true); };
+  const toggle = (t) => { const has = (t.tags || []).includes(cur); window.dispatchEvent(new CustomEvent("tjp-patch-trade", { detail: { id: t.id, patch: { tags: has ? t.tags.filter((x) => x !== cur) : [...(t.tags || []), cur] } } })); };
+  const S = cur ? statOf(cur) : null; const inTag = cur ? trades.filter((t) => (t.tags || []).includes(cur)).sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime)) : [];
+  const all = [...trades].sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime)).filter((t) => !q || (t.pair || "").toLowerCase().includes(q.toLowerCase()));
+  const edit = (id) => window.dispatchEvent(new CustomEvent("tjp-edit-trade", { detail: id }));
+  const pos = S && S.usd >= 0;
+  return <div className="fade-in" style={{ maxWidth: 1000, margin: "0 auto" }}>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
+      {tags.map((g) => { const st = statOf(g); const on = g === cur; return <button key={g} onClick={() => { setCur(g); setPick(false); }} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 800, border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : C.card, color: on ? C.text : C.textSecondary }}>{g}<span className="tnum" style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, background: "rgba(255,255,255,0.06)", padding: "1px 7px", borderRadius: 99 }}>{st.n}</span></button>; })}
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 4px 4px 12px", borderRadius: 12, border: `1px dashed ${C.border}` }}>
+        <input value={nw} onChange={(e) => setNw(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Nouveau tag" aria-label="Nouveau tag" style={{ background: "transparent", border: "none", outline: "none", color: C.text, fontSize: 14, width: 120, fontFamily: "inherit" }} />
+        <button onClick={add} aria-label="Créer le tag" style={{ ...btn.primary, padding: "7px 10px" }}><Plus size={15} /></button>
+      </div>
+    </div>
+    {!cur ? <Card style={{ padding: 40, textAlign: "center", color: C.textMuted }}>Crée ton premier tag.</Card> : <>
+      <div className="tjp-card" style={{ borderRadius: 22, border: `1px solid ${C.border}`, padding: "26px 28px", marginBottom: 16, background: C.card, display: "flex", alignItems: "flex-end", gap: 24, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.4, color: C.textMuted, textTransform: "uppercase" }}>Tag</div>
+          <div style={{ fontSize: 44, fontWeight: 900, letterSpacing: -1.2, lineHeight: 1.05, marginTop: 4 }}>{cur}</div>
+          <div className="tnum" style={{ fontSize: 15, color: C.textSecondary, fontWeight: 700, marginTop: 8 }}><span style={{ color: C.teal }}>{S.w}</span> – <span style={{ color: C.red }}>{S.lo}</span> · {S.n} trade{S.n > 1 ? "s" : ""}{S.w + S.lo ? ` · ${Math.round(S.w / (S.w + S.lo) * 100)} % gagnés` : ""}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div className="tnum" style={{ fontSize: 44, fontWeight: 900, letterSpacing: -1.2, lineHeight: 1, color: pos ? C.teal : C.red }}>{fmtUsdSigned(S.usd)}</div>
+          <div className="tnum" style={{ fontSize: 16, fontWeight: 700, color: C.textMuted, marginTop: 6 }}>{fmtR(S.r)}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+        <button onClick={() => setPick(!pick)} style={{ ...(pick ? btn.primary : btn.ghost), padding: "9px 14px" }}>{pick ? <><Check size={15} /> Terminé</> : <><Plus size={15} /> Ajouter des trades</>}</button>
+        {pick && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Paire…" aria-label="Filtrer par paire" style={{ ...inputStyle, maxWidth: 180, padding: "8px 12px" }} />}
+        <span style={{ flex: 1 }} />
+        <button onClick={() => { if (window.confirm(`Supprimer le tag « ${cur} » ? Les trades restent, seul le tag est retiré de la liste.`)) userTagsSave(tags.filter((x) => x !== cur)); }} style={{ ...btn.ghost, padding: "9px 12px", color: C.textMuted }} aria-label="Supprimer le tag"><Trash2 size={15} /></button>
+      </div>
+      {pick ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{all.map((t) => { const on = (t.tags || []).includes(cur); const V = tradeView(t); return <div key={t.id} onClick={() => toggle(t)} className="tc-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 14, cursor: "pointer", border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : C.card }}>
+          <span style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${on ? C.purple : C.border}`, background: on ? C.purple : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <Check size={14} color="#fff" />}</span>
+          <PairLogo pair={t.pair} size={26} /><b style={{ fontSize: 14.5 }}>{t.pair}</b><span style={{ fontSize: 12.5, color: C.textMuted, textTransform: "capitalize" }}>{new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} · {V.kz}</span>
+          <span style={{ flex: 1 }} /><b className="tnum" style={{ color: V.col }}>{t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : ""}</b></div>; })}</div>
+        : inTag.length ? <div>{inTag.map((t, i) => <BrokerTradeCard key={t.id} t={t} onOpen={edit} isLast={i === inTag.length - 1} />)}</div>
+        : <Card style={{ padding: 34, textAlign: "center", color: C.textMuted }}>Aucun trade dans ce tag.</Card>}
+    </>}
+  </div>;
+}
+function TradeDrawer({ t, onClose, onEdit }) {
+  const V = tradeView(t); const [zoom, setZoom] = useState(null);
+  const [rpOpen, setRpOpen] = useState(false);
+  useEffect(() => { const k = (e) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, []);
+  const dur = fmtDur(t.entryTime, t.exitTime);
+  const dt = (iso) => iso ? new Date(iso).toLocaleString("fr-FR", { timeZone: APP_TZ, day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const cell = (l, v, sub, extra = {}) => <div style={{ padding: "14px 16px", ...extra }}><div style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, color: C.text, marginTop: 4 }}>{v}</div>{sub && <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 4 }}>{sub}</div>}</div>;
+  const bd = `1px solid ${C.border}`;
+  const H = ({ children }) => <div style={{ fontSize: 14.5, fontWeight: 800, color: C.text, margin: "22px 0 10px", letterSpacing: -0.1 }}>{children}</div>;
+  const rk = tradeRiskUsd(t);
+  return <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, fontFamily: FONT.base, color: C.text, background: "rgba(5,6,12,0.55)", backdropFilter: "blur(3px)", animation: "fadeIn .15s ease-out" }}>
+    {zoom && <LightBox src={zoom.src} label={zoom.label} onClose={() => setZoom(null)} />}
+    <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "min(520px, 100vw)", background: C.bg, borderLeft: bd, boxShadow: "-30px 0 60px -20px rgba(0,0,0,0.6)", display: "flex", flexDirection: "column", animation: "drawerIn .26s cubic-bezier(.2,.8,.2,1)" }}>
+      <div style={{ padding: "22px 24px 18px", borderBottom: bd, background: C.bg }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <PairLogo pair={t.pair} size={30} />
+          <span style={{ fontSize: 21, fontWeight: 800, letterSpacing: -0.4 }}>{t.pair}</span>
+          <span style={{ fontSize: 12, fontWeight: 800, padding: "4px 9px", borderRadius: 8, color: t.direction === "long" ? C.teal : C.red, background: (t.direction === "long" ? C.teal : C.red) + "1f" }}>{t.direction === "long" ? "↗ Long" : "↘ Short"}</span>
+          <span style={{ flex: 1 }} />
+          <button onClick={onClose} aria-label="Fermer" style={{ background: "transparent", border: "none", color: C.textMuted, cursor: "pointer", padding: 6, display: "flex" }}><X size={20} /></button>
+        </div>
+        <div style={{ fontSize: 13.5, color: C.textSecondary, marginTop: 8, fontWeight: 600, textTransform: "capitalize" }}>{dt(t.entryTime)} · {V.kz}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 12 }}>
+          <span className="tnum" style={{ fontSize: 34, fontWeight: 800, color: V.col, letterSpacing: -0.8, lineHeight: 1 }}>{V.isOpenSt ? "En cours" : t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : V.statusTxt}</span>
+          {!V.isOpenSt && <span className="tnum" style={{ fontSize: 16, fontWeight: 700, color: C.textMuted }}>{fmtR(V.r)}</span>}
+          <NoteDot v={t.retroRating} />
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "4px 24px 24px" }}>
+        <H>Aperçu du trade</H>
+        <div style={{ border: bd, borderRadius: 16, overflow: "hidden", background: C.card }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: bd }}>{cell("Entrée", fpx(t.entryPrice), dt(t.entryTime))}{cell("Sortie", fpx(V.exit), V.statusTxt + (dur ? ` · ${dur}` : ""), { borderLeft: bd })}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: bd }}>{cell("Stop loss", fpx(t.rules?.initialSL ?? t.stopLoss), t.rules?.initialSL != null && t.rules.initialSL !== t.stopLoss ? "final " + fpx(t.stopLoss) : null)}{cell("Take profit", fpx(t.rules?.initialTP ?? t.takeProfit), null, { borderLeft: bd })}{cell("Risque", rk ? fmtUsd(rk) : "—", tradeRiskPct(t) != null ? tradeRiskPct(t).toFixed(2).replace(".", ",") + " %" : null, { borderLeft: bd })}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr" }}>{cell("Volume", t.positionSize != null ? fpx(t.positionSize) + " lot" : "—")}{cell("Durée", dur || "—", null, { borderLeft: bd })}{cell("MAE / MFE", t.rules?.mfe != null ? `−${t.rules.mae.toFixed(1)} / +${t.rules.mfe.toFixed(1)}` : "—", t.rules?.mfe != null ? "en R" : null, { borderLeft: bd })}</div>
+        </div>
+        {V.pds.length > 0 && <><H>Setup</H><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{V.pds.map((x, i) => <PdChip key={i} tf={x.tf} name={x.name} size={13} />)}</div></>}
+        <H>Retour sur le trade</H>
+        <div style={{ border: bd, borderRadius: 14, background: C.card, padding: "14px 16px", fontSize: 14, color: t.rules?.feedback ? C.text : C.textMuted, lineHeight: 1.6, whiteSpace: "pre-wrap", minHeight: 22 }}>{t.rules?.feedback || "—"}</div>
+        {(t.screenshotBefore || t.screenshotAfter) && <><H>Captures</H><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{[["Avant", t.screenshotBefore], ["Après", t.screenshotAfter]].filter(([, x]) => x).map(([l, src]) => <img key={l} src={src} alt={l} decoding="async" onClick={() => setZoom({ src, label: l })} style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: 12, cursor: "zoom-in", border: bd }} />)}</div></>}
+        {t.notes && <><H>Notes</H><div style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{t.notes}</div></>}
+        {(t.rules?.replay || canManualReplay(t)) && <><H>Mode rejoué</H>
+          <div style={{ border: bd, borderRadius: 14, background: C.card, overflow: "hidden" }}>
+            <div onClick={() => canManualReplay(t) && setRpOpen(!rpOpen)} style={{ padding: "12px 16px", cursor: canManualReplay(t) ? "pointer" : "default", display: "flex", alignItems: "center", gap: 8 }}><div style={{ flex: 1 }}>{t.rules?.replay ? <ReplayLine rp={t.rules.replay} /> : <span style={{ fontSize: 13, color: C.textMuted }}>Pas encore rejoué</span>}</div>{canManualReplay(t) && <ChevronDown size={16} color={C.textMuted} style={{ transform: rpOpen ? "rotate(180deg)" : "none" }} />}</div>
+            {rpOpen && <ManualReplay t={t} />}{rpOpen && <div style={{ padding: "10px 16px", borderTop: bd }}><OptimizeBox t={t} /></div>}
+          </div></>}
+      </div>
+      <div style={{ display: "flex", gap: 10, padding: "14px 24px 18px", borderTop: bd, background: C.bg }}>
+        {tvSimSym(t.pair) && <button onClick={() => { onClose(); replayRealTrade(t, null, true); }} style={{ flex: 1, padding: "13px", borderRadius: 12, border: bd, background: C.card, color: C.text, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}><CandlestickChart size={16} /> Graphique</button>}
+        <button onClick={onEdit} style={{ flex: 1, padding: "13px", borderRadius: 12, border: "none", background: C.purple, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}><Edit3 size={15} /> Éditer</button>
+      </div>
+    </div>
+  </div>;
 }
 function ArrowRightIcon() { return <span style={{ color: C.textMuted, padding: "0 10px", fontSize: 18 }}>→</span>; }
 function MobileTradeCard(props) { return <BrokerTradeCard {...props} />; }
@@ -6738,13 +6772,13 @@ function SimpleStats({ trades }) {
         {["tout", "7j", "30j", "90j"].map((p) => <button key={p} onClick={() => setPeriod(p)} style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: period === p ? C.purpleDim : "transparent", color: period === p ? C.purpleBright : C.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{p === "tout" ? "Tout" : p}</button>)}
       </div>
 
-      {T.n === 0 && <div style={{ ...card, padding: "28px 20px", textAlign: "center", background: `radial-gradient(100% 100% at 50% 0%, ${C.purpleDim}, transparent 70%), ${C.card}` }}>
+      {T.n === 0 && <div style={{ ...card, padding: "28px 20px", textAlign: "center", background: C.card }}>
         <div style={{ width: 52, height: 52, borderRadius: 16, background: C.purpleDim, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}><BarChart3 size={24} color={C.purpleBright} /></div>
         <div style={{ fontSize: 17, fontWeight: 700 }}>{period === "tout" ? "Tes stats arrivent ici" : "Aucun trade sur cette période"}</div>
         <div style={{ fontSize: 13, color: C.textMuted, marginTop: 6, lineHeight: 1.5 }}>{period === "tout" ? "Clôture ton premier trade : courbe, winrate, calendrier et analyses se remplissent tout seuls." : "Choisis « Tout » ou une période plus longue."}</div>
       </div>}
       {/* Héros : résultat + courbe */}
-      <div style={{ ...card, background: `radial-gradient(120% 90% at 0% 0%, ${C.purpleDim}, transparent 60%), ${C.card}` }}>
+      <div style={{ ...card, background: C.card }}>
         <div style={{ padding: "18px 18px 4px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Résultat net</div>
@@ -6775,7 +6809,7 @@ function SimpleStats({ trades }) {
 
       {/* KPI */}
       {T.n > 0 && <><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-        {[["Profit factor", T.pf != null ? T.pf.toFixed(2) : "—", T.pf == null ? "pas encore de perte" : T.pf >= 1.5 ? "solide" : T.pf >= 1 ? "positif mais fragile" : "négatif", T.pf == null ? C.teal : T.pf >= 1.5 ? C.teal : T.pf >= 1 ? C.amber : C.red],
+        {[["Profit factor", T.pf != null ? T.pf.toFixed(2) : "—", "", T.pf == null ? C.teal : T.pf >= 1.5 ? C.teal : T.pf >= 1 ? C.amber : C.red],
           ["Espérance / trade", fmtR(T.avg), fmtUsdSigned(T.usd / T.n), col(T.avg)]].map(([l, v, sub, c]) => (
           <div key={l} style={{ padding: "14px 15px", borderRadius: 16, background: `linear-gradient(160deg, ${c}1F, transparent 70%), ${C.card}`, border: `1px solid ${c}40` }}>
             <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}>{l}</div>
@@ -6786,8 +6820,8 @@ function SimpleStats({ trades }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8, marginBottom: 14 }}>
         <Kpi l="Gain moyen" v={X.avgW ? fmtR(X.avgW) : "—"} sub={X.avgWu ? fmtUsdSigned(X.avgWu) : `${T.w} gagnants`} c={C.teal} />
         <Kpi l="Perte moyenne" v={X.avgL ? fmtR(X.avgL) : "—"} sub={X.avgLu ? fmtUsdSigned(X.avgLu) : `${T.l} perdants`} c={C.red} />
-        <Kpi l="Drawdown max" v={useUsd ? (X.ddU ? "−" + fmtUsd(X.ddU) : "—") : (X.dd ? "−" + X.dd.toFixed(2) + "R" : "—")} sub="du plus haut au plus bas" c={X.dd ? C.red : null} />
-        <Kpi l="Séries" v={<><span style={{ color: C.teal }}>{X.bw}W</span> <span style={{ color: C.textMuted }}>/</span> <span style={{ color: C.red }}>{X.bl}L</span></>} sub="plus longues d'affilée" />
+        <Kpi l="Drawdown max" v={useUsd ? (X.ddU ? "−" + fmtUsd(X.ddU) : "—") : (X.dd ? "−" + X.dd.toFixed(2) + "R" : "—")} c={X.dd ? C.red : null} />
+        <Kpi l="Séries" v={<><span style={{ color: C.teal }}>{X.bw}W</span> <span style={{ color: C.textMuted }}>/</span> <span style={{ color: C.red }}>{X.bl}L</span></>} />
         <Kpi l="Meilleur trade" v={X.bestT ? fmtR(X.bestT.resultR) : "—"} sub={X.bestT ? `${X.bestT.pair} · ${new Date(X.bestT.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}` : ""} c={C.teal} />
         <Kpi l="Pire trade" v={X.worstT ? fmtR(X.worstT.resultR) : "—"} sub={X.worstT ? `${X.worstT.pair} · ${new Date(X.worstT.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}` : ""} c={C.red} />
       </div></>}
@@ -7364,7 +7398,7 @@ function PlanBullets({ onEdit }) {
   return <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, position: "sticky", top: 12 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><b style={{ fontSize: 15 }}>Mon plan de trading</b><button onClick={onEdit} style={{ ...btn.ghost, height: 28, padding: "0 10px", fontSize: 12 }}>Modifier</button></div>
     {lines.length ? <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 7 }}>{lines.map((l, i) => <li key={i} style={{ fontSize: 13.5, lineHeight: 1.45, color: C.text }}>{l}</li>)}</ul>
-      : <div style={{ fontSize: 13, color: C.textMuted }}>Écris ton plan dans Préparation (une règle par ligne) : il s'affiche ici.</div>}
+      : <div style={{ fontSize: 13, color: C.textMuted }}>—</div>}
   </div>;
 }
 
@@ -11027,6 +11061,7 @@ export default function TradingJournalApp() {
               <GroupTabs view={view} setView={setView} />
               {view === "stats" && <SimpleStats trades={accountTrades} />}
               {view === "rejoues" && <div className="fade-in" style={{ maxWidth: 1000, margin: "0 auto" }}><PageHeader title="Trades rejoués" /><ReplayedCard trades={accountTrades} /></div>}
+              {view === "tags" && <TagsPage trades={accountTrades} />}
               {view === "erreurs" && <ErrorReview trades={accountTrades} onPatch={patchTrade} />}
               {view === "playbooks" && <Playbooks trades={accountTrades} />}
               {view === "calculator" && <ForexCalculator balance={currentBalance} pairs={appSettings?.pairs || []} onCreateTrade={openDraftTrade} />}
