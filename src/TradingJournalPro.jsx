@@ -13,7 +13,7 @@ import {
   Tag, ImageIcon } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, Cell, ReferenceLine, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  BarChart, Bar, Cell, ReferenceLine, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart as RLineChart, Line,
 } from "recharts";
 import { createChart } from "lightweight-charts";
 
@@ -3428,16 +3428,16 @@ const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid, g: "" },
   { id: "trades", label: "Trades", short: "Trades", icon: NotebookPen, g: "" },
   { id: "calculator", label: "Calculatrice", short: "Calcul", icon: Calculator, g: "" },
+  { id: "stats", label: "Revue", short: "Revue", icon: BarChart3, g: "", also: ["erreurs", "calendar", "rejoues", "discipline"] },
   { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon, g: "" },
   { id: "plan", label: "Préparation", short: "Prépa", icon: BookOpen, g: "", also: ["previsions", "playbooks", "ressources"] },
-  { id: "stats", label: "Stats", short: "Stats", icon: BarChart3, g: "", also: ["erreurs", "calendar"] },
   { id: "settings", label: "Réglages", short: "Réglages", icon: Settings, g: "" },
 ];
 /* sections regroupées en onglets */
-const NAV_TABS = { stats: [["stats", "Stats"], ["erreurs", "Erreurs"]], plan: [["plan", "Plan"], ["previsions", "Prévisions"], ["playbooks", "Playbooks"], ["ressources", "ICT"]] };
+const NAV_TABS = { stats: [["stats", "Stats"], ["erreurs", "Erreurs"], ["rejoues", "Rejoués"], ["discipline", "Discipline"]], plan: [["plan", "Plan"], ["previsions", "Prévisions"], ["playbooks", "Playbooks"], ["ressources", "ICT"]] };
 function GroupTabs({ view, setView }) {
   const g = Object.values(NAV_TABS).find((l) => l.some(([k]) => k === view)); if (!g) return null;
-  return <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14, overflowX: "auto", maxWidth: g === NAV_TABS.stats ? 860 : undefined, marginLeft: "auto", marginRight: "auto" }}>{g.map(([k, l]) => <button key={k} onClick={() => setView(k)} style={{ flex: 1, border: "none", borderRadius: 9, padding: "8px 12px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: view === k ? C.purpleDim : "transparent", color: view === k ? C.purpleBright : C.textSecondary, fontFamily: "inherit" }}>{l}</button>)}</div>;
+  return <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14, overflowX: "auto", maxWidth: g === NAV_TABS.stats ? (view === "rejoues" ? 1000 : 860) : undefined, marginLeft: "auto", marginRight: "auto" }}>{g.map(([k, l]) => <button key={k} onClick={() => setView(k)} style={{ flex: 1, border: "none", borderRadius: 9, padding: "8px 12px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: view === k ? C.purpleDim : "transparent", color: view === k ? C.purpleBright : C.textSecondary, fontFamily: "inherit" }}>{l}</button>)}</div>;
 }
 
 /* ============================================================================
@@ -4211,6 +4211,25 @@ function computeStats(trades, initialBalance = 10000) {
 
 
 
+/* Home : l'essentiel du jour — risque du prochain trade, trades du jour, erreurs qui coûtent le plus ce mois */
+function TodayCard({ trades, initialBalance, setView }) {
+  const all = trades || []; const bal = (Number(initialBalance) || 0) + all.filter((t) => t.status !== "open").reduce((a, t) => a + (Number(t.resultUsd) || 0), 0);
+  const day = new Date().toLocaleDateString("fr-CA", { timeZone: APP_TZ }); const today = all.filter((t) => new Date(t.entryTime).toLocaleDateString("fr-CA", { timeZone: APP_TZ }) === day);
+  const todayPnl = today.reduce((a, t) => a + (Number(t.resultUsd) || 0), 0); const ym = day.slice(0, 7);
+  const month = all.filter((t) => t.status !== "open" && new Date(t.entryTime).toLocaleDateString("fr-CA", { timeZone: APP_TZ }).slice(0, 7) === ym);
+  const cost = {}; month.forEach((t) => { const ks = [...new Set([...(t.tags || []).filter((g) => ERR_TAGS.includes(g)), ...(t.rules?.error?.is ? ["Marqué erreur"] : [])])]; ks.forEach((k) => { cost[k] = cost[k] || { u: 0, n: 0 }; cost[k].u += Number(t.resultUsd) || 0; cost[k].n++; }); });
+  const top = Object.entries(cost).filter(([, v]) => v.u < 0).sort((x, y) => x[1].u - y[1].u).slice(0, 3);
+  const maxT = 3; const over = today.length >= maxT;
+  return <Card style={{ padding: 16, marginBottom: 14 }}>
+    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted, marginBottom: 10 }}>Aujourd'hui</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+      <div onClick={() => setView && setView("calculator")} style={{ padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, cursor: "pointer" }}><div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 700 }}>Prochain trade · 1 %</div><div className="tnum" style={{ fontSize: 22, fontWeight: 800, marginTop: 4 }}>{fmtUsd(bal * 0.01)}</div><div style={{ fontSize: 12, color: C.purpleBright, marginTop: 2 }}>Calculer les lots →</div></div>
+      <div style={{ padding: 12, borderRadius: 12, border: `1px solid ${over ? C.amber : C.border}` }}><div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 700 }}>Trades du jour</div><div className="tnum" style={{ fontSize: 22, fontWeight: 800, marginTop: 4, color: over ? C.amber : C.text }}>{today.length} / {maxT}</div><div className="tnum" style={{ fontSize: 12, color: todayPnl > 0 ? C.teal : todayPnl < 0 ? C.red : C.textMuted, marginTop: 2 }}>{today.length ? fmtUsdSigned(todayPnl) : "aucun trade"}{over ? " · stop pour aujourd'hui" : ""}</div></div>
+      <div onClick={() => setView && setView("erreurs")} style={{ padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, cursor: "pointer" }}><div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 700 }}>Erreurs qui coûtent ce mois</div>
+        {top.length ? top.map(([k, v]) => <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 4 }}><b style={{ color: C.amber }}>{k}</b><span className="tnum" style={{ color: C.red, fontWeight: 700 }}>{fmtUsdSigned(v.u)}</span></div>) : <div style={{ fontSize: 13, color: C.teal, marginTop: 6 }}>Aucune erreur taguée ce mois ✓</div>}</div>
+    </div>
+  </Card>;
+}
 function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalance = 10000, extra = null }) {
   const [period, setPeriod] = useState("tout");
   const [eqMode, setEqMode] = useState("cum");
@@ -4284,6 +4303,7 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
       </Card>
 
       {extra}
+      <TodayCard trades={trades} initialBalance={initialBalance} setView={setView} />
       {/* Ligne 2 — courbe d'équité large */}
       <Card style={{ padding: "18px 20px 8px", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -5000,6 +5020,7 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
           <div><div style={lab}>Résultat</div><div className="tnum" style={{ ...val, color: col, fontWeight: 600 }}>{isOpenSt ? "—" : fmtR(r)}</div></div>
           <div><div style={lab}>Profit net</div><div className="tnum" style={{ ...val, color: col }}>{!isOpenSt && t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : "—"}</div></div>
           {t.rules?.initialSL != null && <div><div style={lab}>SL de départ</div><div className="tnum" style={val}>{fp(t.rules.initialSL)}</div></div>}
+          {t.rules?.mfe != null && <div><div style={lab}>MAE / MFE</div><div className="tnum" style={val}><span style={{ color: C.red }}>−{t.rules.mae.toFixed(2)} R</span> / <span style={{ color: C.teal }}>+{t.rules.mfe.toFixed(2)} R</span></div></div>}
           <div><div style={lab}>Risque réel</div><div className="tnum" style={val}>{tradeRiskUsd(t) ? <>{fmtUsd(tradeRiskUsd(t))}{tradeRiskPct(t) != null && <span style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 500 }}> ({tradeRiskPct(t).toFixed(2).replace(".", ",")} %)</span>}</> : <span style={{ fontSize: 13, color: C.textMuted }}>inconnu (SL déplacé)</span>}</div></div>
           <div><div style={lab}>Session</div><div style={{ ...val, display: "flex", alignItems: "center", gap: 6 }}><SessionFlag name={getSession(t.entryTime)} size={15} />{getSession(t.entryTime).replace(" Session", "")}</div></div>
         </div>
@@ -5344,6 +5365,73 @@ function tvSimTrade(t, rows, be) {
   return { st: "ok", out: "ouvert", R: ((last[4] - e) * (L ? 1 : -1)) / risk, exitT: last[0] };
 }
 /* trades réels rejoués (règle : BE à 50 % du TP). Un trade compte une seule fois, même rejoué 50 fois : on garde le dernier résultat. */
+/* ===== Discipline : règles respectées vs cassées + MAE / MFE ===== */
+const ERR_TAGS = ["Erreur stake", "Erreur Stake", "Doublon", "FOMO", "Revenge", "Hors plan", "Sans SL", "SL déplacé", "Sortie par peur", "Mauvaise sortie", "Sortie trop tôt", "Erreur Futur"];
+const isBroken = (t) => !!t.rules?.error?.is || (t.tags || []).some((g) => ERR_TAGS.includes(g));
+/* MAE = pire recul contre toi, MFE = meilleur gain atteint, entre ton entrée et ta sortie, en R (risque = distance au SL de départ). Bougies M15. */
+function maeMfe(t, rows) {
+  const e = Number(t.entryPrice), sl = Number(slOf(t)), L = t.direction !== "short"; if (!e || !sl || !rows?.length || !t.exitTime) return null;
+  const risk = Math.abs(e - sl); if (!risk || (L ? sl >= e : sl <= e)) return null;
+  const t0 = new Date(t.entryTime).getTime() / 1000, t1 = new Date(t.exitTime).getTime() / 1000; let hi = -Infinity, lo = Infinity, n = 0;
+  for (const r of rows) { if (r[0] + 900 <= t0) continue; if (r[0] > t1) break; hi = Math.max(hi, r[2]); lo = Math.min(lo, r[3]); n++; }
+  if (!n) return null; const mfe = (L ? hi - e : e - lo) / risk, mae = (L ? e - lo : hi - e) / risk;
+  return { mae: Math.round(Math.max(0, mae) * 100) / 100, mfe: Math.round(Math.max(0, mfe) * 100) / 100 };
+}
+function DisciplinePage({ trades, onPatch }) {
+  const closed = (trades || []).filter((t) => t.status !== "open" && t.resultUsd != null).sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
+  const ok = closed.filter((t) => !isBroken(t)), bad = closed.filter(isBroken);
+  let a = 0, b = 0; const curve = closed.map((t, i) => { if (isBroken(t)) b += Number(t.resultUsd) || 0; else a += Number(t.resultUsd) || 0; return { i: i + 1, d: new Date(t.entryTime).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }), ok: Math.round(a), bad: Math.round(b) }; });
+  const sum = (l) => l.reduce((x, t) => x + (Number(t.resultUsd) || 0), 0), wr = (l) => (l.length ? Math.round((l.filter((t) => t.resultUsd > 0).length / l.length) * 100) : 0);
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState("");
+  const calc = async () => { setBusy(true); let n = 0, miss = 0; const by = {};
+    for (const t of closed) { const k = tvSimSym(t.pair); if (!k) { miss++; continue; } (by[k] = by[k] || []).push(t); }
+    for (const [k, l] of Object.entries(by)) { const rows = await tvSimRows(k); for (const t of l) { const r = maeMfe(t, rows); if (r) { onPatch(t.id, { rules: { ...(t.rules || {}), mae: r.mae, mfe: r.mfe } }); n++; } else miss++; } }
+    setMsg(`${n} trades calculés${miss ? ` · ${miss} sans bougies ou sans SL de départ` : ""} ✓`); setBusy(false); };
+  const mm = closed.filter((t) => t.rules?.mfe != null); const rOf = (t) => { const e = Number(t.entryPrice), sl = Number(slOf(t)), x = Number(t.exitPrice); return e && sl && x ? ((x - e) * (t.direction === "short" ? -1 : 1)) / Math.abs(e - sl) : null; };
+  const win = mm.filter((t) => t.resultUsd > 0), los = mm.filter((t) => t.resultUsd < 0); const avg = (l, f) => (l.length ? l.reduce((x, t) => x + (f(t) || 0), 0) / l.length : 0);
+  const left = avg(win, (t) => Math.max(0, t.rules.mfe - (rOf(t) || 0))); const wasUp = los.filter((t) => t.rules.mfe >= 1).length; const tight = win.filter((t) => t.rules.mae >= 0.7).length;
+  const col = (v) => (v > 0.5 ? C.teal : v < -0.5 ? C.red : C.textSecondary); const f2 = (v) => (v == null ? "—" : v.toFixed(2).replace(".", ","));
+  const box = (l, v, c2, sub) => <Card style={{ padding: 14 }}><div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 700 }}>{l}</div><div className="tnum" style={{ fontSize: 20, fontWeight: 800, color: c2, marginTop: 4 }}>{v}</div>{sub && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{sub}</div>}</Card>;
+  return <div className="fade-in" style={{ maxWidth: 860, margin: "0 auto" }}>
+    <PageHeader title="Discipline" />
+    <Card style={{ padding: 16, marginBottom: 14 }}>
+      <div style={{ fontSize: 15, fontWeight: 800 }}>Règles respectées vs cassées</div>
+      <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>« Cassée » = trade marqué erreur (Revue → Erreurs) ou avec un tag d'erreur (FOMO, Doublon, Erreur stake, SL déplacé…).</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, margin: "12px 0" }}>
+        {box("Règles respectées", fmtUsdSigned(sum(ok)), col(sum(ok)), `${ok.length} trades · ${wr(ok)} % gagnés`)}
+        {box("Règles cassées", fmtUsdSigned(sum(bad)), col(sum(bad)), `${bad.length} trades · ${wr(bad)} % gagnés`)}
+      </div>
+      {closed.length > 1 && <div style={{ height: 220 }}><ResponsiveContainer width="100%" height="100%"><RLineChart data={curve} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} /><XAxis dataKey="d" tick={{ fill: C.textMuted, fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} /><YAxis tick={{ fill: C.textMuted, fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={(v) => v + " $"} />
+        <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }} formatter={(v, k) => [fmtUsdSigned(v), k === "ok" ? "Règles respectées" : "Règles cassées"]} /><ReferenceLine y={0} stroke={C.border} />
+        <Line type="monotone" dataKey="ok" stroke={C.teal} strokeWidth={2.5} dot={false} isAnimationActive={false} /><Line type="monotone" dataKey="bad" stroke={C.red} strokeWidth={2.5} dot={false} isAnimationActive={false} /></RLineChart></ResponsiveContainer></div>}
+    </Card>
+    <Card style={{ padding: 16, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div><div style={{ fontSize: 15, fontWeight: 800 }}>MAE / MFE</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 2, maxWidth: 560, lineHeight: 1.5 }}><b>MAE</b> = le pire recul contre toi pendant le trade. <b>MFE</b> = le meilleur gain atteint. En R (1 R = ton risque au SL de départ), calculés sur les vraies bougies M15.</div></div>
+        <button onClick={calc} disabled={busy} style={{ ...btn.primary, opacity: busy ? 0.6 : 1 }}>{busy ? "Calcul…" : mm.length ? "Recalculer" : "Calculer"}</button>
+      </div>
+      {msg && <div style={{ fontSize: 12.5, color: C.teal, marginTop: 8 }}>{msg}</div>}
+      {mm.length > 0 && <>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, margin: "12px 0" }}>
+          {box("Gagnants : R laissés", "+" + f2(left) + " R", C.amber, `en moyenne : le prix est allé à ${f2(avg(win, (t) => t.rules.mfe))} R, tu as pris ${f2(avg(win, rOf))} R`)}
+          {box("Perdants qui étaient à +1 R", `${wasUp} / ${los.length}`, wasUp ? C.red : C.teal, "un BE à +1 R les aurait sauvés")}
+          {box("Gagnants passés près du SL", `${tight} / ${win.length}`, tight ? C.amber : C.teal, "recul de 0,7 R ou plus : SL juste assez large")}
+        </div>
+        <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+          <thead><tr>{["Date", "Paire", "Résultat", "MAE", "MFE", "Capturé"].map((h) => <th key={h} style={{ textAlign: "left", padding: "7px 9px", color: C.textMuted, fontSize: 11.5, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+          <tbody>{mm.slice().reverse().map((t) => { const r = rOf(t); const cap = r != null && t.rules.mfe > 0 ? Math.min(100, Math.round((Math.max(0, r) / t.rules.mfe) * 100)) : null; return <tr key={t.id}>
+            <td style={{ padding: "7px 9px", whiteSpace: "nowrap", textTransform: "capitalize" }}>{fmtDateTime(t.entryTime)}</td>
+            <td style={{ padding: "7px 9px", whiteSpace: "nowrap" }}><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><PairLogo pair={t.pair} size={16} /><b>{t.pair}</b></span></td>
+            <td className="tnum" style={{ padding: "7px 9px", color: col(t.resultUsd), fontWeight: 700 }}>{r != null ? (r >= 0 ? "+" : "") + f2(r) + " R" : fmtUsdSigned(t.resultUsd)}</td>
+            <td className="tnum" style={{ padding: "7px 9px", color: C.red }}>−{f2(t.rules.mae)} R</td>
+            <td className="tnum" style={{ padding: "7px 9px", color: C.teal }}>+{f2(t.rules.mfe)} R</td>
+            <td className="tnum" style={{ padding: "7px 9px", color: cap == null ? C.textMuted : cap >= 70 ? C.teal : cap >= 40 ? C.amber : C.red }}>{cap == null ? "—" : cap + " %"}</td></tr>; })}</tbody></table></div>
+      </>}
+    </Card>
+  </div>;
+}
+
 /* ===== Erreurs : tous tes trades, tu marques ceux qui sont des erreurs et pourquoi (rules.error), + stats par tag ===== */
 function ErrorReview({ trades, onPatch }) {
   const allUT = useUserTags(); const [open, setOpen] = useState(null); const [show, setShow] = useState("all"); const [draft, setDraft] = useState("");
@@ -6817,8 +6905,6 @@ function SimpleStats({ trades }) {
           </ResponsiveContainer>
         </div>
       </div>}
-      <ReplayedCard trades={trades} />
-      <SimCard trades={trades} />
     </div>
   );
 }
@@ -8290,6 +8376,67 @@ function parseTlOrders(text) {
     out[k] = { sl: sls[0]?.px ?? null, slFinal: sls.length > 1 ? sls[sls.length - 1].px : null, tp: tps[0]?.px ?? null, n: ev.length }; }
   return out;
 }
+/* ===== Synchro TradeLocker par l'API officielle (bêta) : SL / TP de départ et heures de sortie, sans copier-coller =====
+   Le mot de passe n'est jamais gardé : seuls les jetons (valables quelques heures) restent sur l'appareil. */
+const TL_API_KEY = "tjp_tl_api";
+const tlApiGet = () => { try { return JSON.parse(localStorage.getItem(TL_API_KEY) || "{}"); } catch (e) { return {}; } };
+const tlApiSet = (o) => { try { localStorage.setItem(TL_API_KEY, JSON.stringify(o)); } catch (e) {} };
+async function tlFetch(path, opt = {}) { const c = tlApiGet(); const base = `https://${c.env === "demo" ? "demo" : "live"}.tradelocker.com/backend-api`;
+  const r = await fetch(base + path, { ...opt, headers: { "Content-Type": "application/json", ...(c.token ? { Authorization: "Bearer " + c.token } : {}), ...(c.accNum ? { accNum: String(c.accNum) } : {}), ...(opt.headers || {}) } });
+  if (r.status === 401 && c.refresh && !opt._retry) { const rr = await fetch(base + "/auth/jwt/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refreshToken: c.refresh }) });
+    if (rr.ok) { const j = await rr.json(); tlApiSet({ ...c, token: j.accessToken, refresh: j.refreshToken || c.refresh }); return tlFetch(path, { ...opt, _retry: true }); } }
+  if (!r.ok) throw new Error(`TradeLocker ${r.status} : ${(await r.text()).slice(0, 160)}`); return r.json(); }
+/* lignes d'ordres -> par position : 1er SL / TP placés (crochets de l'ordre d'ouverture ou ordres stop / limit), dernier SL, heure de sortie */
+function tlOrdersToMap(cols, rows) {
+  const ix = (k) => cols.findIndex((c) => String(c).toLowerCase() === k.toLowerCase()); const g = (r, k) => { if (!Array.isArray(r)) return r[k]; const i = ix(k); return i >= 0 ? r[i] : undefined; };
+  const num = (v) => (v == null || v === "" || Number(v) === 0 ? null : Number(v)); const out = {};
+  const L = rows.map((r) => ({ pos: String(g(r, "positionId") ?? ""), type: String(g(r, "type") || "").toLowerCase(), status: String(g(r, "status") || "").toLowerCase(), side: String(g(r, "side") || "").toLowerCase(),
+    price: num(g(r, "price")), stop: num(g(r, "stopPrice")), avg: num(g(r, "avgPrice")), sl: num(g(r, "stopLoss")), tp: num(g(r, "takeProfit")), t: Number(g(r, "createdDate")) || 0, tm: Number(g(r, "lastModified")) || Number(g(r, "createdDate")) || 0 }))
+    .filter((o) => o.pos && o.pos !== "0" && o.pos !== "undefined").sort((a, b) => a.t - b.t);
+  for (const o of L) { const m = (out[o.pos] = out[o.pos] || { sls: [], tps: [], fills: [] });
+    if (o.sl) m.sls.push(o.sl); if (o.tp) m.tps.push(o.tp);
+    if (o.type === "stop" && (o.stop || o.price)) m.sls.push(o.stop || o.price); if (o.type === "limit" && o.price && m.fills.length) m.tps.push(o.price);
+    if (o.status === "filled") m.fills.push(o); }
+  const res = {}; for (const [k, m] of Object.entries(out)) { const last = m.fills[m.fills.length - 1];
+    res[k] = { sl: m.sls[0] ?? null, slFinal: m.sls.length > 1 ? m.sls[m.sls.length - 1] : null, tp: m.tps[0] ?? null, exitT: m.fills.length > 1 && last ? last.tm : null }; }
+  return res;
+}
+function TlApiSync({ trades }) {
+  const c0 = tlApiGet(); const [env, setEnv] = useState(c0.env || "live"); const [email, setEmail] = useState(c0.email || ""); const [pw, setPw] = useState(""); const [server, setServer] = useState(c0.server || "");
+  const [accs, setAccs] = useState(c0.accs || null); const [acc, setAcc] = useState(c0.accId || ""); const [st, setSt] = useState(""); const [busy, setBusy] = useState(false);
+  const fail = (e) => setSt(e instanceof TypeError ? "Connexion bloquée par TradeLocker depuis le navigateur (sécurité CORS). Il faudra un petit relais serveur : dis-le-moi et je le prépare." : "Erreur : " + e.message);
+  const login = async () => { setBusy(true); setSt(""); try { tlApiSet({ env, email, server }); const base = `https://${env === "demo" ? "demo" : "live"}.tradelocker.com/backend-api`;
+      const r = await fetch(base + "/auth/jwt/token", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password: pw, server }) }); if (!r.ok) throw new Error(`${r.status} — identifiants ou serveur incorrects`);
+      const j = await r.json(); tlApiSet({ env, email, server, token: j.accessToken, refresh: j.refreshToken }); setPw("");
+      const a = await tlFetch("/auth/jwt/all-accounts"); const list = (a.accounts || []).map((x) => ({ id: x.id, accNum: x.accNum, name: x.name || x.id, bal: x.accountBalance, cur: x.currency }));
+      setAccs(list); tlApiSet({ ...tlApiGet(), accs: list }); setSt(`Connecté ✓ — ${list.length} compte(s)`); } catch (e) { fail(e); } setBusy(false); };
+  const sync = async () => { const a = (accs || []).find((x) => String(x.id) === String(acc)); if (!a) return; setBusy(true); setSt("Lecture de l'historique…");
+    try { tlApiSet({ ...tlApiGet(), accId: a.id, accNum: a.accNum }); const cfg = await tlFetch("/trade/config"); const cols = (cfg.d?.ordersHistoryConfig?.columns || []).map((x) => x.id ?? x);
+      const h = await tlFetch(`/trade/accounts/${a.id}/ordersHistory`); const rows = h.d?.ordersHistory || h.ordersHistory || [];
+      const m = tlOrdersToMap(cols, rows); let ex = 0;
+      for (const [k, v] of Object.entries(m)) { const t = (trades || []).find((x) => x.id === "tl_" + k); if (t && v.exitT && !t.exitTime) { window.dispatchEvent(new CustomEvent("tjp-patch-trade", { detail: { id: t.id, patch: { exitTime: new Date(v.exitT).toISOString() } } })); ex++; } }
+      window.dispatchEvent(new CustomEvent("tjp-initial-sl", { detail: m }));
+      setSt(`${rows.length} ordres lus · ${Object.keys(m).length} positions · SL/TP de départ mis à jour${ex ? ` · ${ex} heures de sortie ajoutées` : ""} ✓`); } catch (e) { fail(e); } setBusy(false); };
+  const inp = { padding: "8px 10px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 13, minWidth: 0 };
+  return <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+    <div style={{ fontSize: 12.5, fontWeight: 700 }}>Synchro automatique TradeLocker <span style={{ fontSize: 11, color: C.amber, fontWeight: 700 }}>BÊTA</span></div>
+    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>Connexion à l'API officielle TradeLocker : récupère tes SL / TP de départ et heures de sortie tout seul. Ton mot de passe sert une fois et n'est pas enregistré.</div>
+    {!accs ? <>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email TradeLocker" style={inp} />
+        <input value={pw} onChange={(e) => setPw(e.target.value)} type="password" placeholder="Mot de passe" style={inp} />
+        <input value={server} onChange={(e) => setServer(e.target.value)} placeholder="Serveur (ex. ClickFunded)" style={inp} />
+        <select value={env} onChange={(e) => setEnv(e.target.value)} style={inp}><option value="live">Live</option><option value="demo">Démo</option></select>
+      </div>
+      <button disabled={busy || !email || !pw || !server} onClick={login} style={{ ...btn.primary, justifyContent: "center", opacity: busy || !email || !pw || !server ? 0.5 : 1 }}>{busy ? "Connexion…" : "Se connecter"}</button>
+    </> : <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <select value={acc} onChange={(e) => setAcc(e.target.value)} style={{ ...inp, flex: 1 }}><option value="">Choisis le compte…</option>{accs.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.bal != null ? Math.round(a.bal).toLocaleString("fr-FR") + " " + (a.cur || "$") : "#" + a.accNum}</option>)}</select>
+      <button disabled={busy || !acc} onClick={sync} style={{ ...btn.primary, opacity: busy || !acc ? 0.5 : 1 }}><RefreshCw size={14} /> Synchroniser</button>
+      <button onClick={() => { tlApiSet({ env, email, server }); setAccs(null); setSt(""); }} style={btn.ghost}>Déconnecter</button>
+    </div>}
+    {st && <div style={{ fontSize: 12.5, color: st.includes("✓") ? C.teal : st.startsWith("Lecture") ? C.textMuted : C.amber }}>{st}</div>}
+  </div>;
+}
 function TlOrdersImport({ trades }) {
   const [txt, setTxt] = useState(""); const [msg, setMsg] = useState("");
   useEffect(() => { const h = (e) => setMsg(`${e.detail} trade${e.detail > 1 ? "s" : ""} mis à jour avec leur SL de départ ✓ (risque réel et R recalculés)`); window.addEventListener("tjp-initial-sl-done", h); return () => window.removeEventListener("tjp-initial-sl-done", h); }, []);
@@ -8777,6 +8924,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
       {onImport && <SettingsSection title="Importer depuis TradeLocker (capture)" icon={Upload}>
         <TlShotImport trades={trades} onImport={onImport} accountId={activeAccountId || accounts?.[0]?.id || null} balance={(accounts || []).find((a) => a.id === activeAccountId)?.balance} />
         <TlOrdersImport trades={trades} />
+        <TlApiSync trades={trades} />
       </SettingsSection>}
 
 
@@ -11030,6 +11178,8 @@ export default function TradingJournalApp() {
               )}
               <GroupTabs view={view} setView={setView} />
               {view === "stats" && <SimpleStats trades={accountTrades} />}
+              {view === "rejoues" && <div className="fade-in" style={{ maxWidth: 1000, margin: "0 auto" }}><PageHeader title="Trades rejoués" /><ReplayedCard trades={accountTrades} /><SimCard trades={accountTrades} /></div>}
+              {view === "discipline" && <DisciplinePage trades={accountTrades} onPatch={patchTrade} />}
               {view === "erreurs" && <ErrorReview trades={accountTrades} onPatch={patchTrade} />}
               {view === "playbooks" && <Playbooks trades={accountTrades} />}
               {view === "calculator" && <ForexCalculator balance={currentBalance} pairs={appSettings?.pairs || []} onCreateTrade={openDraftTrade} />}
