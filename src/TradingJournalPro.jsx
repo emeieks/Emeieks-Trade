@@ -581,6 +581,16 @@ function GlobalStyle() {
       @keyframes spinSlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       .spin-slow { animation: spinSlow 1.6s linear infinite; }
       .fade-in { animation: fadeIn .18s ease-out; }
+      .fade-in > * { animation: riseIn .38s cubic-bezier(.2,.7,.2,1) both; }
+      .fade-in > *:nth-child(2) { animation-delay: .04s } .fade-in > *:nth-child(3) { animation-delay: .08s } .fade-in > *:nth-child(4) { animation-delay: .12s } .fade-in > *:nth-child(5) { animation-delay: .16s } .fade-in > *:nth-child(n+6) { animation-delay: .2s }
+      @keyframes riseIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+      .tjp-card { transition: border-color .2s ease, box-shadow .25s ease, transform .25s ease; }
+      @media (hover: hover) { .tjp-card:hover { border-color: rgba(139,92,246,0.28) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 18px 40px -20px rgba(124,58,237,0.35) !important; }
+        .tc-row:hover, .dash-tiles > div:hover { transform: translateY(-2px); border-color: rgba(139,92,246,0.35) !important; } }
+      .dash-tiles > div { transition: transform .2s ease, border-color .2s ease; }
+      button { transition: transform .12s ease, background-color .18s ease, border-color .18s ease, color .18s ease, opacity .18s; }
+      button:active:not(:disabled) { transform: scale(0.97); }
+      @media (prefers-reduced-motion: reduce) { .fade-in > *, .tjp-card, button { animation: none !important; transition: none !important; } }
       .row-hover { transition: background .12s ease; }
       .row-hover:hover { background: ${C.cardHover}; }
       .card-int { transition: border-color .15s ease, box-shadow .15s ease; }
@@ -664,7 +674,7 @@ function GlobalStyle() {
       }
 
       /* ---- Grilles inline dashboard (4 colonnes égales) ---- */
-      @media (max-width: 760px) {
+      @media (max-width: 760px) { .score-grid { grid-template-columns: 1fr !important; }
         .dashboard-grid4 { grid-template-columns: 1fr 1fr !important; }
       }
       @media (max-width: 600px) {
@@ -701,7 +711,7 @@ function GlobalStyle() {
 
 function Card({ children, style, hover, ...rest }) {
   return (
-    <div className={hover ? "card-int" : ""} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 30px -18px rgba(0,0,0,0.6)", ...style }} {...rest}>
+    <div className={"tjp-card" + (hover ? " card-int" : "")} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 30px -18px rgba(0,0,0,0.6)", ...style }} {...rest}>
       {children}
     </div>
   );
@@ -1098,7 +1108,7 @@ function RessourcesICT() {
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
       <PageHeader title="Ressources ICT" />
-      <div style={{ fontSize: 14, color: C.textSecondary, marginBottom: 14, fontWeight: 600 }}>3 questions avant chaque trade : où va le prix (la liquidité), quand (l'heure), depuis où (la zone).</div>
+      
 
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, marginBottom: 16, position: "sticky", top: 0, zIndex: 5, background: C.bg }}>
         {[{ id: "checklist", title: "Checklist A+" }, ...ICT_SECTIONS].map((s) => (
@@ -1120,7 +1130,7 @@ function RessourcesICT() {
           <span style={{ fontSize: 13, fontWeight: 700, padding: "6px 12px", borderRadius: 99, color: verdict.c, background: verdict.bg }}>{score}/7 · {verdict.t}</span>
           <button onClick={() => setChecks(ICT_CHECKLIST.map(() => false))} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textSecondary, borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>Réinitialiser</button>
         </div>
-        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>6 – 7 = A+, taille normale · 5 = B, demi-taille · 4 ou moins = rien.</div>
+        
       </Card>
 
       {ICT_SECTIONS.map((s) => (
@@ -1144,7 +1154,7 @@ function RessourcesICT() {
           </div>
         </Card>
       ))}
-      <div style={{ fontSize: 11.5, color: C.textMuted, margin: "4px 0 20px", lineHeight: 1.5 }}>Sources : LuxAlgo (Silver Bullet, Model 2022, Unicorn, Macros, SMT, NWOG), The Right Trader (rejection, mitigation, propulsion), TradingFinder (weekly profiles), Backtrex (IPDA). Aucune ne publie de taux de réussite vérifié : le tien viendra de ton journal.</div>
+      
     </div>
   );
 }
@@ -3659,7 +3669,7 @@ function Progression({ all, live, balance = 10000 }) {
             <Kpi l="Challenge +8 % avant −10 %" v={pct(mc.pPass)} c={mc.pPass >= 0.6 ? C.teal : mc.pPass >= 0.4 ? C.amber : C.red} sub={`échec : ${pct(mc.pBust)}`} />
             <Kpi l="Positif après 100 trades" v={pct(mc.pPos)} sub="probabilité" />
           </div>}
-          <div style={{ padding: "0 16px 14px", fontSize: 12, color: C.textMuted, lineHeight: 1.45 }}>2 000 simulations qui tirent au hasard dans tes vrais résultats. Plus l'échantillon est grand, plus c'est fiable.</div>
+          
         </>}
       </div>
       {/* optimiseur de sortie */}
@@ -4223,6 +4233,35 @@ function TodayCard({ trades, initialBalance, setView }) {
     </div>
   </Card>;
 }
+/* Score de performance (méthode type Zella : 6 critères notés sur 100, pondérés) */
+function scoreOf(closed) {
+  const L = [...closed].filter((t) => t.entryTime).sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime)); if (L.length < 3) return null;
+  const w = L.filter((t) => t.resultUsd > 0), l = L.filter((t) => t.resultUsd < 0); const gW = w.reduce((a, t) => a + t.resultUsd, 0), gL = Math.abs(l.reduce((a, t) => a + t.resultUsd, 0));
+  const scl = (x) => x >= 2.6 ? 100 : x >= 2.4 ? 90 + (x - 2.4) / 0.2 * 9 : x >= 2.2 ? 80 + (x - 2.2) / 0.2 * 9 : x >= 2 ? 70 + (x - 2) / 0.2 * 9 : x >= 1.9 ? 60 + (x - 1.9) * 90 : x >= 1.8 ? 50 + (x - 1.8) * 90 : 20 * Math.min(1, x / 1.8);
+  const pf = gL ? gW / gL : gW ? 9 : 0; const awl = (w.length ? gW / w.length : 0) / (l.length ? gL / l.length : 1) || 0; const wr = w.length / L.length * 100;
+  let cum = 0, peak = 0, dd = 0, base = 0; for (const t of L) { cum += t.resultUsd || 0; if (cum > peak) peak = cum; dd = Math.max(dd, peak - cum); }
+  const cap = Number(accBalanceOf()) || 50000; const ddPct = dd / (cap + peak) * 100; const net = cum; const rf = dd ? net / dd : net > 0 ? 9 : 0;
+  const days = {}; L.forEach((t) => { const k = new Date(t.entryTime).toDateString(); days[k] = (days[k] || 0) + (t.resultUsd || 0); }); const dv = Object.values(days); const avg = dv.reduce((a, x) => a + x, 0) / dv.length; const sd = Math.sqrt(dv.reduce((a, x) => a + (x - avg) ** 2, 0) / dv.length);
+  const cons = avg <= 0 ? 0 : Math.max(0, Math.min(100, 100 - sd / Math.max(1, net) * 100));
+  const rfS = rf >= 3.5 ? 100 : rf >= 3 ? 70 + (rf - 3) * 38 : rf >= 2.5 ? 60 + (rf - 2.5) * 18 : rf >= 2 ? 50 + (rf - 2) * 18 : rf >= 1.5 ? 30 + (rf - 1.5) * 38 : rf >= 1 ? 1 + (rf - 1) * 56 : 0;
+  const m = [["Profit factor", scl(pf), 25, pf.toFixed(2)], ["Drawdown max", Math.max(0, 100 - ddPct * 10), 20, ddPct.toFixed(1) + " %"], ["Gain / perte moyen", scl(awl), 20, awl.toFixed(2)], ["% gagnants", Math.min(100, wr / 60 * 100), 15, Math.round(wr) + " %"], ["Récupération", rfS, 10, rf.toFixed(2)], ["Régularité", cons, 10, Math.round(cons) + ""]];
+  return { score: Math.round(m.reduce((a, x) => a + x[1] * x[2], 0) / 100), m };
+}
+function ScoreCard({ closed }) {
+  const S = useMemo(() => scoreOf(closed), [closed]); if (!S) return null;
+  const col = S.score >= 70 ? C.teal : S.score >= 45 ? C.amber : C.red;
+  return <Card style={{ padding: "16px 18px", marginBottom: 14 }}>
+    <div className="score-grid" style={{ display: "grid", gridTemplateColumns: "minmax(200px, 1fr) 1.4fr", gap: 16, alignItems: "center" }}>
+      <div style={{ height: 210 }}><ResponsiveContainer width="100%" height="100%"><RadarChart data={S.m.map(([n, v]) => ({ n, v: Math.round(v) }))} outerRadius="72%"><PolarGrid stroke={C.border} /><PolarAngleAxis dataKey="n" tick={{ fill: C.textMuted, fontSize: 10 }} /><PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} /><Radar dataKey="v" stroke={C.purpleBright} fill={C.purple} fillOpacity={0.35} /></RadarChart></ResponsiveContainer></div>
+      <div>
+        <CardLabel>Score de performance</CardLabel>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "4px 0 10px" }}><span className="tnum" style={{ fontSize: 40, fontWeight: 700, color: col, lineHeight: 1 }}>{S.score}</span><span style={{ color: C.textMuted, fontWeight: 600 }}>/ 100</span></div>
+        <div style={{ height: 8, borderRadius: 99, background: `linear-gradient(90deg, ${C.red}, ${C.amber}, ${C.teal})`, position: "relative", marginBottom: 14 }}><span style={{ position: "absolute", left: `calc(${S.score}% - 6px)`, top: -3, width: 12, height: 14, borderRadius: 4, background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.4)" }} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "6px 14px" }}>{S.m.map(([n, v, w, raw]) => <div key={n} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}><span style={{ color: C.textMuted }}>{n}</span><span className="tnum" style={{ fontWeight: 700 }}>{raw} <span style={{ color: v >= 70 ? C.teal : v >= 45 ? C.amber : C.red, fontWeight: 600 }}>· {Math.round(v)}</span></span></div>)}</div>
+      </div>
+    </div>
+  </Card>;
+}
 function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalance = 10000, extra = null }) {
   const [period, setPeriod] = useState("tout");
   const [eqMode, setEqMode] = useState("cum");
@@ -4298,6 +4337,7 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
         </div>
       </Card>
 
+      <ScoreCard closed={stats.closed} />
       {extra}
       {/* Ligne 2 — courbe d'équité large */}
       <Card style={{ padding: "18px 20px 8px", marginBottom: 14 }}>
@@ -4869,7 +4909,7 @@ function ManualReplay({ t }) {
     <div style={{ fontSize: 12, color: C.textMuted }}>{tvSimSym(t.pair) ? `Si les bougies ${t.pair} ne sont pas encore sur le site, indique ici ce que le prix a touché en premier (sinon utilise Rejouer).` : `Pas de bougies ${t.pair} sur le site : regarde la suite sur TradingView puis indique ce que le prix a touché en premier.`}</div>
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span style={{ fontSize: 12.5, width: 110 }}>Avec BE à 50 %</span>{b("be", "TP", C.teal)}{b("be", "SL", C.red)}{b("be", "BE", C.textSecondary)}</div>
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span style={{ fontSize: 12.5, width: 110 }}>Sans BE</span>{b("noBE", "TP", C.teal)}{b("noBE", "SL", C.red)}</div>
-    <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>Ou automatiquement : sur TradingView, ⋯ → <b>Exporter les données du graphique</b> (M15 ou M5 autour du trade), puis colle le texte ou choisis le fichier.</div>
+    
     <div style={{ display: "flex", gap: 6, alignItems: "flex-start", flexWrap: "wrap" }}>
       <textarea value={txt} onChange={(e) => setTxt(e.target.value)} rows={2} placeholder="time,open,high,low,close…" style={{ flex: 1, minWidth: 200, padding: 8, borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "monospace", fontSize: 11.5 }} />
       <button disabled={!txt.trim()} onClick={() => runTv(txt)} style={{ ...btn.primary, padding: "7px 12px", fontSize: 12.5, opacity: txt.trim() ? 1 : 0.5 }}>Calculer</button>
@@ -5358,7 +5398,7 @@ function DisciplinePage({ trades, onPatch }) {
     <PageHeader title="Discipline" />
     <Card style={{ padding: 16, marginBottom: 14 }}>
       <div style={{ fontSize: 15, fontWeight: 800 }}>Règles respectées vs cassées</div>
-      <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>« Cassée » = trade marqué erreur (Revue → Erreurs) ou avec un tag d'erreur (FOMO, Doublon, Erreur stake, SL déplacé…).</div>
+      
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, margin: "12px 0" }}>
         {box("Règles respectées", fmtUsdSigned(sum(ok)), col(sum(ok)), `${ok.length} trades · ${wr(ok)} % gagnés`)}
         {box("Règles cassées", fmtUsdSigned(sum(bad)), col(sum(bad)), `${bad.length} trades · ${wr(bad)} % gagnés`)}
@@ -5467,7 +5507,7 @@ function ReplayedCard({ trades }) {
   const chip = (on) => ({ border: `1.5px solid ${on ? C.purple : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" });
   return <Card style={{ padding: 16, marginBottom: 14 }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-      <div><div style={{ fontSize: 15, fontWeight: 800 }}>Trades rejoués</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Tous tes trades fermés : réel vs rejoué ({mode === "be" ? "BE à 50 %" : mode === "noBE" ? "sans BE" : "optimisé"}).</div></div>
+      <div><div style={{ fontSize: 15, fontWeight: 800 }}>Trades rejoués</div></div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{[["usd", "$"], ["pct", "%"], ["r", "R"]].map(([k, l]) => <button key={k} style={chip(unit === k)} onClick={() => setUnit(k)}>{l}</button>)}
         <span style={{ width: 1, background: C.border, margin: "0 2px" }} /><button style={chip(one)} onClick={() => setOne(!one)} title="Lots recalculés automatiquement pour risquer 1 % du compte sur chaque trade">Si 1 % par trade</button>
         <span style={{ width: 1, background: C.border, margin: "0 2px" }} /><button style={chip(showF || nF > 0)} onClick={() => setShowF(!showF)}><Filter size={13} style={{ verticalAlign: "-2px" }} /> Filtres{nF ? ` (${nF})` : ""}</button></div>
@@ -5517,13 +5557,13 @@ function SimCard({ trades }) {
   const col = (v) => (v > 0 ? C.teal : v < 0 ? C.red : C.textSecondary);
   return <Card style={{ padding: 16, marginBottom: 14 }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-      <div><div style={{ fontSize: 15, fontWeight: 800 }}>Simulation : laisser courir jusqu'au SL / TP</div><div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Rejoue tes trades sur les vraies bougies M15 et montre ce qu'ils auraient donné.</div></div>
+      <div><div style={{ fontSize: 15, fontWeight: 800 }}>Simulation : laisser courir jusqu'au SL / TP</div></div>
       <button onClick={() => run()} disabled={busy || !pool.length} style={{ ...btn.primary, opacity: busy || !pool.length ? 0.6 : 1 }}>{busy ? "Simulation…" : res ? "Relancer" : `Simuler ${pool.length} trade${pool.length > 1 ? "s" : ""}`}</button>
     </div>
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
       <button style={chip(be)} onClick={() => { setBe(true); try { localStorage.setItem("tjp_sim_be", "1"); } catch (e) {} }}>Moitié du TP → BE auto</button>
       <button style={chip(!be)} onClick={() => { setBe(false); try { localStorage.setItem("tjp_sim_be", "0"); } catch (e) {} }}>Sans BE</button>
-      <span style={{ fontSize: 11.5, color: C.textMuted, alignSelf: "center", marginLeft: 4 }}>Clôtures manuelles seulement (SL, TP et BE exclus)</span>
+      
     </div>
     {res && <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, marginTop: 14 }}>
@@ -6415,7 +6455,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
             {checkItems.map((x) => { const on = checks.includes(x); return <button key={x} type="button" onClick={() => setChecks((c) => (on ? c.filter((y) => y !== x) : [...c, x]))} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 11, border: `1px solid ${on ? C.teal + "66" : C.border}`, background: on ? C.tealDim : "transparent", color: C.text, fontSize: 13.5, textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
               <span style={{ width: 19, height: 19, borderRadius: 6, border: `2px solid ${on ? C.teal : C.borderLight || C.border}`, background: on ? C.teal : "transparent", color: "#fff", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{on ? "✓" : ""}</span>{x}</button>; })}
           </div>
-          <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>Les stats comparent tes trades avec et sans check-list complète.</div>
+          
         </div>}
 
         {/* 6. Confiance + résultat */}
@@ -6965,11 +7005,8 @@ function TradingCalendar({ trades, onSelectDay }) {
               ))}
             </div>
           </Card>
-        ) : (
-          <div style={{ flex: "1 1 260px", minWidth: 240, display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 12 }}>
-            Clique sur un jour pour voir le détail
-          </div>
-        )}
+        ) : null
+        }
       </div>
     </div>
   );
@@ -7082,9 +7119,7 @@ function PerformanceReview({ trades }) {
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 10 }}>
-            Si tes trades à haute confiance (8-10) ont un meilleur avg R → ta lecture du marché est fiable.
-          </div>
+          
         </Card>
       )}
 
@@ -7242,7 +7277,7 @@ function PrepPage({ balance }) {
           <div style={{ flexBasis: "100%" }}><b style={{ fontSize: 13 }}>Bonus</b><div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{PREP_BONUS.map((x) => <button key={x.id} onClick={() => setChk({ ...chk, [x.id]: !chk[x.id] })} style={{ border: `1px solid ${chk[x.id] ? C.teal : C.border}`, background: chk[x.id] ? C.tealDim || "rgba(8,153,129,0.12)" : "transparent", color: chk[x.id] ? C.teal : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{x.n} +{x.p}</button>)}</div></div>
           <div style={{ flexBasis: "100%" }}><b style={{ fontSize: 13, color: C.red }}>Bloquants : pas de trade</b><div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{PREP_STOP.map((x) => <button key={x.id} onClick={() => setChk({ ...chk, [x.id]: !chk[x.id] })} style={{ border: `1px solid ${chk[x.id] ? C.red : C.border}`, background: chk[x.id] ? C.redDim : "transparent", color: chk[x.id] ? C.red : C.textSecondary, borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{x.n}</button>)}</div></div>
         </div>
-        <div style={{ fontSize: 11.5, color: C.textMuted }}>★ doit être à 2 pour A+ · un ★ à 0 = pas de trade · A+ 14+ · A 11-13 · B 8-10 · C ≤ 7</div>
+        
       </div>
       <div>
         <div style={{ ...card, borderColor: G.col, textAlign: "center" }}>
@@ -7647,7 +7682,7 @@ function AiCoach({ trades }) {
           <Brain size={16} color={C.purpleBright} />
           <span style={{ fontSize: 14.5, fontWeight: 700 }}>Observations du coach</span>
         </div>
-        <div style={{ fontSize: 11.5, color: C.textMuted, marginBottom: 16 }}>Analyse générée à partir de tes trades, tags et auto-évaluations</div>
+        
 
         {error && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.red, fontSize: 12.5, padding: "10px 12px", background: C.redDim, borderRadius: 7, marginBottom: 12 }}>
@@ -8024,7 +8059,7 @@ function PlanRules({ trades = [], balance }) {
       {/* tes règles : utilisées par « Tu peux trader ? », le respect du plan et « Mes erreurs » */}
       <div style={cardS}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-          <div><div style={{ fontSize: 15, fontWeight: 700 }}>Mes règles</div><div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>Le Dashboard te dit si tu peux encore trader aujourd'hui avec ces limites.</div></div>
+          <div><div style={{ fontSize: 15, fontWeight: 700 }}>Mes règles</div></div>
           {stopNow ? <span style={{ fontSize: 12.5, fontWeight: 700, color: C.red, background: C.redDim, padding: "5px 10px", borderRadius: 999 }}>Stop pour aujourd'hui</span> : <span style={{ fontSize: 12.5, fontWeight: 700, color: C.teal, background: C.tealDim, padding: "5px 10px", borderRadius: 999 }}>{rep.today.n} trade{rep.today.n > 1 ? "s" : ""} aujourd'hui</span>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
@@ -8044,7 +8079,7 @@ function PlanRules({ trades = [], balance }) {
       {/* check-list : cochée dans chaque nouveau trade */}
       <div style={cardS}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <div><div style={{ fontSize: 15, fontWeight: 700 }}>Ma check-list avant d'entrer</div><div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 2 }}>Elle apparaît dans chaque nouveau trade. « Mes erreurs » peut y ajouter une règle en un clic.</div></div>
+          <div><div style={{ fontSize: 15, fontWeight: 700 }}>Ma check-list avant d'entrer</div></div>
           <button onClick={() => set({ checklistOn: rules.checklistOn === false })} style={chipBtn(rules.checklistOn !== false, C.teal)}>{rules.checklistOn === false ? "Désactivée" : "Activée"}</button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, opacity: rules.checklistOn === false ? 0.5 : 1 }}>
@@ -8327,7 +8362,9 @@ function TlApiSync({ trades }) {
       setAccs(list); tlApiSet({ ...tlApiGet(), accs: list }); setSt(`Connecté ✓ — ${list.length} compte(s)`); } catch (e) { fail(e); } setBusy(false); };
   const sync = async () => { const a = (accs || []).find((x) => String(x.id) === String(acc)); if (!a) return; setBusy(true); setSt("Lecture de l'historique…");
     try { tlApiSet({ ...tlApiGet(), accId: a.id, accNum: a.accNum }); const cfg = await tlFetch("/trade/config"); const cols = (cfg.d?.ordersHistoryConfig?.columns || []).map((x) => x.id ?? x);
-      const h = await tlFetch(`/trade/accounts/${a.id}/ordersHistory`); const rows = h.d?.ordersHistory || h.ordersHistory || [];
+      /* l'API limite le nombre de lignes par requête : lecture par tranches de 15 jours (6 mois) */
+      const rows = []; const now = Date.now(); for (let i = 0; i < 12; i++) { const to = now - i * 15 * 864e5, from = to - 15 * 864e5; setSt(`Lecture de l'historique… ${i + 1}/12`);
+        const h = await tlFetch(`/trade/accounts/${a.id}/ordersHistory?from=${from}&to=${to}`); rows.push(...(h.d?.ordersHistory || h.ordersHistory || [])); await new Promise((r) => setTimeout(r, 600)); }
       const m = tlOrdersToMap(cols, rows); let ex = 0;
       for (const [k, v] of Object.entries(m)) { const t = (trades || []).find((x) => x.id === "tl_" + k); if (t && v.exitT && !t.exitTime) { window.dispatchEvent(new CustomEvent("tjp-patch-trade", { detail: { id: t.id, patch: { exitTime: new Date(v.exitT).toISOString() } } })); ex++; } }
       window.dispatchEvent(new CustomEvent("tjp-initial-sl", { detail: m }));
@@ -8335,7 +8372,7 @@ function TlApiSync({ trades }) {
   const inp = { padding: "8px 10px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 13, minWidth: 0 };
   return <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
     <div style={{ fontSize: 12.5, fontWeight: 700 }}>Synchro automatique TradeLocker <span style={{ fontSize: 11, color: C.amber, fontWeight: 700 }}>BÊTA</span></div>
-    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>Connexion à l'API officielle TradeLocker : récupère tes SL / TP de départ et heures de sortie tout seul. Ton mot de passe sert une fois et n'est pas enregistré.</div>
+    
     {!accs ? <>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
         <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email TradeLocker" style={inp} />
@@ -8360,7 +8397,7 @@ function TlOrdersImport({ trades }) {
     window.dispatchEvent(new CustomEvent("tjp-initial-sl", { detail: m })); setTxt(""); };
   return <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
     <div style={{ fontSize: 12.5, fontWeight: 700 }}>SL de départ (historique des ordres)</div>
-    <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.5 }}>TradeLocker garde seulement le SL final. Dans l'onglet <b>Historique des ordres</b>, sélectionne le tableau, copie-le (Ctrl+C) et colle-le ici : l'app retrouve le 1er SL placé de chaque trade et recalcule ton vrai risque et tes R.</div>
+    
     <textarea value={txt} onChange={(e) => setTxt(e.target.value)} placeholder="Colle ici l'historique des ordres…" rows={4} style={{ padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 12.5, resize: "vertical" }} />
     <button disabled={!txt.trim()} onClick={go} style={{ ...btn.primary, justifyContent: "center", opacity: txt.trim() ? 1 : 0.5 }}><Check size={14} /> Lire les SL de départ</button>
     {msg && <div style={{ fontSize: 12.5, color: msg.includes("✓") ? C.teal : C.amber }}>{msg}</div>}
@@ -8472,7 +8509,7 @@ function ChallengeRules({ trades = [], accountId, accounts = [], onSaveAccounts,
       <span className="tnum" style={{ fontSize: 12.5, fontWeight: 700, color: col[stt], minWidth: 150, textAlign: "right" }}>{live}</span></div>)}
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderTop: `1px solid ${C.border}` }}><span style={{ flex: 1, fontSize: 13.5 }}>Trading pendant les news</span>
       {[[true, "Autorisé"], [false, "Interdit"]].map(([v, l]) => <button key={l} onClick={() => set("news", v)} style={{ ...btn.ghost, padding: "6px 10px", fontSize: 12.5, borderColor: r.news === v ? C.purpleBright : C.border, color: r.news === v ? C.purpleBright : C.textSecondary }}>{l}</button>)}</div>
-    <div style={{ fontSize: 11.5, color: C.textMuted }}>Suivi calculé sur les trades fermés du compte actif. {two ? "Grille ClickFunded 2 phases : 6 % puis 5 %, perte jour 3 %, perte max 8 %, 3 jours min, partage 90 %, frais remboursés 100 %." : "Grille ClickFunded 1 phase : 6 %, perte max 3 %, 2 jours min, consistance 50 %, partage 80 %."}</div>
+    
     </>}
   </div>;
 }
@@ -8851,7 +8888,7 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
       </SettingsSection>
 
       <SettingsSection title="Fuseau horaire" icon={Timer}>
-        <div style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>Heure utilisée pour afficher et saisir tes trades (TradeLocker est converti automatiquement).</div>
+        
         <div style={{ display: "flex", gap: 8 }}>{[["Asia/Bangkok", "Thaïlande (UTC+7)"], ["America/Toronto", "Québec (UTC-5/-4)"]].map(([z, l]) => <button key={z} onClick={() => { try { localStorage.setItem("tjp_tz", z); } catch (e) {} location.reload(); }} style={{ ...btn.ghost, flex: 1, justifyContent: "center", border: `1.5px solid ${APP_TZ === z ? C.teal : C.border}`, color: APP_TZ === z ? C.teal : C.text, fontWeight: APP_TZ === z ? 700 : 500 }}>{l}</button>)}</div>
       </SettingsSection>
       <SettingsSection title="Logos des actifs" icon={Coins}>
@@ -9131,7 +9168,7 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
               <g fill={C.text} fontSize="12.5" fontWeight="700"><text x="6" y="38">Écart prix</text><text x="436" y="38">Pips</text><text x="436" y="104">$ risqués</text><text x="424" y="210">Unités (≠ lots)</text></g>
               <g fill={C.textMuted} fontSize="11"><text x="6" y="54">→ mode « écart »</text><text x="436" y="54">→ mode « pips »</text><text x="436" y="120">0,641 % du compte</text><text x="424" y="226">29 069 = 0,29 lot</text></g>
             </svg>
-            <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 4, lineHeight: 1.5 }}>Le 1er nombre après « Stop » est l'écart de prix, le dernier les pips. « Qté » est en unités : divise par 100 000 pour les lots (forex).</div>
+            
           </div>
         </div>
       </details>
@@ -9976,9 +10013,7 @@ function BacktestBot() {
             <text x="22" y="122" fontSize="10" fill={C.textMuted}>SL derrière la zone + marge</text>
             <text x="22" y="16" fontSize="10" fill={C.textMuted}>TP = risque × R choisi</text>
           </svg>
-          <div style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.55, flex: 1, minWidth: 240 }}>
-            Le bot repère chaque zone choisie, attend que le prix y revienne <b>pour la première fois</b>, entre au bord (ou au milieu), place son <b>SL derrière la zone</b> et son TP au ratio choisi. Il achète dans les zones haussières (BISI, OB et breaker haussiers) et vend dans les zones baissières (SIBI, OB et breaker baissiers).
-          </div>
+          
         </div>
 
         <div style={lab}>1 · Quelles zones ?</div>
@@ -9993,7 +10028,7 @@ function BacktestBot() {
         <div style={{ display: "grid", gap: 10 }}>
           <div>
             {ck("trend", "Suivre la tendance")}
-            <div style={{ fontSize: 12.5, color: C.textMuted, margin: "0 0 4px 24px" }}>Achète seulement si la tendance est haussière (dernière cassure vers le haut), vend seulement si elle est baissière. Tendance lue sur :</div>
+            
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: 24, opacity: cfg.trend ? 1 : 0.4 }}>{tfChips("trendTf", false)}</div>
           </div>
           <div>
@@ -10005,7 +10040,7 @@ function BacktestBot() {
           </div>
           <div>
             {ck("nest", "La zone doit être dans un FVG plus grand")}
-            <div style={{ fontSize: 12.5, color: C.textMuted, margin: "0 0 4px 24px" }}>Ex. un BISI H1 pris seulement s'il est à l'intérieur d'un BISI encore valide du timeframe :</div>
+            
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: 24, opacity: cfg.nest ? 1 : 0.4 }}>{tfChips("nestTf", false)}</div>
           </div>
           <div>{ck("kz", "Entrer seulement pendant les killzones")}<div style={{ fontSize: 12.5, color: C.textMuted, marginLeft: 24 }}>London 2h-5h et New York 7h-10h (heure de New York).</div></div>
@@ -10032,7 +10067,7 @@ function BacktestBot() {
           <button disabled={!rows} onClick={() => window.dispatchEvent(new CustomEvent("tjp-bot-live"))} style={{ padding: "11px 18px", borderRadius: 12, border: `1px solid ${C.purple}`, background: "transparent", color: C.purpleBright, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>▶ Regarder le bot en replay</button>
           <span style={{ fontSize: 12.5, color: C.textMuted }}>{rows ? rows.length.toLocaleString("fr-CA") + " bougies réelles EURUSD M15" : "Aucune donnée réelle : ouvre l'onglet Graphique pour les charger"}{res ? ` · dernier calcul : ${res.trades.length} trades` : ""}</span>
         </div>
-        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>Pour que les résultats soient honnêtes : seuls les gaps forts comptent (bougie du milieu = displacement), une zone n'existe qu'une fois sa bougie fermée, et si le SL et le TP sont touchés dans la même bougie de 15 min, le bot compte le SL. Spread non compté.</div>
+        
       </div>
 
       {res && <>
@@ -10127,7 +10162,7 @@ function TargetLab({ res }) {
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 14 }}>
       <div style={{ fontSize: 15, fontWeight: 700 }}><Target size={15} style={{ verticalAlign: "-2px", marginRight: 4 }} />Et si je visais plus loin ?</div>
-      <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 3 }}>Même entrée, même SL. Seul l'objectif change. Rejoué sur les vraies bougies ({res.length} trades).</div>
+      
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
         <span style={{ fontSize: 13, fontWeight: 600 }}>Objectif</span>
         <input type="range" min={1} max={5} step={0.25} value={X} onChange={(e) => setX(+e.target.value)} style={{ flex: "1 1 200px", accentColor: C.purple }} />
