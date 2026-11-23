@@ -8,7 +8,7 @@ import {
   Sparkles, CheckCircle2, AlertCircle, Brain, Calculator,
   Settings,
   BookOpen, Newspaper, RefreshCw, MoreHorizontal, CalendarDays,
-  Target, Zap, ThumbsUp, ThumbsDown, Share2, Star, AlertTriangle, Check, Clipboard, FolderOpen, LineChart, Timer, SlidersHorizontal, ArrowLeftRight, Lightbulb, Coins, CircleDot,
+  Target, Zap, ThumbsUp, ThumbsDown, Share2, Star, AlertTriangle, Check, Clipboard, Camera, FolderOpen, LineChart, Timer, SlidersHorizontal, ArrowLeftRight, Lightbulb, Coins, CircleDot,
   Crosshair, Slash, Square, Ruler, MoveHorizontal, Baseline, ArrowUpToLine, ArrowDownToLine, Rewind, Undo2, Redo2, Database, CandlestickChart, Play, Pause, StepForward, StepBack, Scissors, SkipForward, Cpu, SeparatorVertical, Radio, Minimize2, Maximize2, Magnet, Copy, EyeOff, Eye, Bot, GraduationCap,
   Tag, ImageIcon } from "lucide-react";
 import {
@@ -1474,7 +1474,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const setTz = (v) => { setTzS(v); R.tz = v; try { localStorage.setItem("tjp_tv_tz", v); } catch (e) {} };
   if (R.tz === undefined) R.tz = tz;
   const setLegend = (b) => { R.legBar = b; if (R.setLeg) R.setLeg(b); }; /* légende OHLC : petit composant à part, le graphique ne se re-rend plus quand la souris bouge */
-  const [fs, setFsS] = useState(false); const [zen, setZenS] = useState(() => !!window.__tvZen); const setZen = (v) => setZenS((o) => { const n = typeof v === "function" ? v(o) : v; window.__tvZen = n; return n; }); const [zenTr, setZenTr] = useState(false);
+  const [fs, setFsS] = useState(false); const [zen, setZenS] = useState(() => !!window.__tvZen); const setZen = (v) => setZenS((o) => { const n = typeof v === "function" ? v(o) : v; window.__tvZen = n; return n; }); const [zenTr, setZenTr] = useState(false); const [ordT, setOrdT] = useState("mkt"); const [lmtP, setLmtP] = useState("");
   const setFs = (v) => { setZen(false); setFsS(v); };
   const [live, setLive] = useState(false);
   const [magnet, setMagnetS] = useState(false);
@@ -1487,7 +1487,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
   const [drawSet, setDrawSet] = useState(-1); const [symMenu, setSymMenu] = useState(false); const [repSlot, setRepSlot] = useState(null);
   useEffect(() => { if (!symMenu) return; const f = () => setSymMenu(false); document.addEventListener("mousedown", f); return () => document.removeEventListener("mousedown", f); }, [symMenu]); R.openSet = setDrawSet;
   const [favOpen, setFavOpen] = useState(() => !cfg.favTop);
-  const [favPos, setFavPos] = useState({ x: 10, y: 110 });
+  const [favPos, setFavPos] = useState({ x: 260, y: 40 });
   const [stay, setStay] = useState(false);
   const [sess, setSessS] = useState(tvLoadSess);
   const [showSet, setShowSet] = useState(false);
@@ -2606,6 +2606,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         {sep}</span>
         {TV_TFS.filter(([n]) => ["15m", "1h", "4h", "D", "W", "M"].includes(n)).map(([n, m]) => <TvBtn key={n} active={tf === m} onClick={() => setTf(m)}>{n}</TvBtn>)}
         {cfg.favTop && !live && <span style={{ display: "flex", alignItems: "center", minWidth: 0, flexShrink: 1, overflowX: "auto", scrollbarWidth: "none" }}><span style={{ width: 1, height: 22, background: TV.border, margin: "0 4px", flexShrink: 0 }} />{fav.filter((id) => TV_TOOLS[id]).map((id) => <TvBtn key={"f" + id} title={TV_TOOLS[id].n + ((() => { const km = cfg.keys || tvDefKeys(fav); const l = Object.keys(km).find((k) => km[k] === id); return l ? " (" + l.toUpperCase() + ")" : ""; })())} active={tool === id} onClick={() => pickTool(id)} style={{ padding: 2, color: tool === id ? TV.blue : TV.text }}><span style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1 }}><TvIcon id={id} /><span style={{ fontSize: 9, fontWeight: 700, color: TV.muted, marginTop: -2 }}>{((() => { const km = cfg.keys || tvDefKeys(fav); return (Object.keys(km).find((k) => km[k] === id) || "").toUpperCase(); })())}</span></span></TvBtn>)}<TvBtn title="Remettre la barre de favoris flottante sur le graphique" onClick={() => setCfg({ ...R.cfg, favTop: false })} style={{ padding: "2px 3px", color: TV.muted }}><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 12h10M7 2v7M4 6l3 3 3-3" /></svg></TvBtn></span>}
+        {!live && <TvBtn active={favOpen || cfg.favTop} title="Barre de favoris (flottante / en haut)" onClick={() => { if (cfg.favTop) setCfg({ ...R.cfg, favTop: false }); else setFavOpen((v) => !v); }}><Star size={16} fill={favOpen || cfg.favTop ? "currentColor" : "none"} /></TvBtn>}
         <div style={{ position: "relative" }}>
           {(() => { const extra = TV_TFS.find((x) => x[1] === tf && !["15m", "1h", "4h", "D", "W", "M"].includes(x[0])); return <TvBtn active={!!extra || tfMenu} title="Autres timeframes" onClick={() => setTfMenu((v) => !v)}>{extra ? extra[0] : ""}<ChevronDown size={15} /></TvBtn>; })()}
           {tfMenu && <div style={{ position: "absolute", left: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 6, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: "6px 0", minWidth: 150 }}>
@@ -2624,9 +2625,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
         </select>
         {(curSess() || {}).blind && <TvBtn active title="Mode à l'aveugle : dates cachées. Clique pour révéler la date." onClick={() => { const v = snapSess(sess); v.list = v.list.map((x) => (x.id === v.cur ? { ...x, blind: false } : x)); setSessS(v); tvSaveSess(v); }} style={{ fontSize: 13 }}><EyeOff size={15} />Aveugle</TvBtn>}
         </span>
+        {!live && <select value={sessM || ""} onChange={(e) => { const k = e.target.value || null; setSessM(k); if (k) goSession(k, true); e.target.blur(); }} title="Session seulement : saute directement à la session choisie" style={{ border: `1px solid ${sessM ? TV.blue : TV.border}`, borderRadius: 6, padding: "4px 6px", fontSize: 13, fontWeight: 600, color: sessM ? TV.blue : TV.text, background: "#fff", marginLeft: 4, fontFamily: TV_FONT }}><option value="">Toutes sessions</option>{Object.entries(TV_SESS_MODE).map(([k, [n]]) => <option key={k} value={k}>{n} seulement</option>)}</select>}
         <div style={{ flex: 1 }} />
           {cfg.repTop && !live && <span ref={(el) => { if (el && el !== repSlot) setRepSlot(el); }} style={{ display: "flex", alignItems: "center", marginRight: 6 }} />}
-          <TvBtn active={favOpen} title="Barre de favoris flottante (déplaçable)" onClick={() => setFavOpen((v) => !v)}><Star size={16} fill={favOpen ? "currentColor" : "none"} /></TvBtn>
         <div style={{ position: "relative" }}>
           <TvBtn active={modeMenu || !!sessM || !!exam || !!cfg.miss} title="Modes d'entraînement" onClick={() => setModeMenu((v) => !v)} style={{ fontSize: 14 }}><GraduationCap size={18} /></TvBtn>
           {modeMenu && <><div onClick={() => setModeMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 59 }} /><div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", padding: 8, width: 300, fontSize: 14 }}>
@@ -2635,7 +2636,6 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             {sessM && <div onClick={() => { goSession(sessM, true); setModeMenu(false); }} style={{ padding: "8px", cursor: "pointer", borderRadius: 6 }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><SkipForward size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Jour suivant</div>}
             <div style={{ borderTop: `1px solid ${TV.hover}`, margin: "4px 0" }} />
             <div onClick={() => { exam ? (setExam(null), (R.exam = null)) : examStart(); setModeMenu(false); }} style={{ padding: "8px", cursor: "pointer", borderRadius: 6, display: "flex", justifyContent: "space-between" }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><span><GraduationCap size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Examen : reconnais tes trades</span><b style={{ color: exam ? TV.blue : TV.muted }}>{exam ? "ON" : "OFF"}</b></div>
-            <div onClick={() => setCfg({ ...R.cfg, miss: !R.cfg.miss })} style={{ padding: "8px", cursor: "pointer", borderRadius: 6, display: "flex", justifyContent: "space-between" }} onMouseEnter={(e) => (e.currentTarget.style.background = TV.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "")}><span><Bot size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Trades manqués (IA)</span><b style={{ color: cfg.miss ? TV.blue : TV.muted }}>{cfg.miss ? "ON" : "OFF"}</b></div>
           </div></>}
         </div>
         <div style={{ position: "relative" }}>
@@ -2673,13 +2673,14 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
               <div style={{ borderTop: `1px solid ${TV.hover}`, margin: "6px 0" }} />
               <div onClick={() => { const v = !trLock; setTrLock(v); try { localStorage.setItem("tjp_tv_trlock", v ? "1" : "0"); } catch (e) {} }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "8px 16px", fontSize: 14, cursor: "pointer" }}>Toujours supprimer les dessins verrouillés<span style={{ width: 36, height: 20, borderRadius: 10, background: trLock ? "#131722" : "#c3c6ce", position: "relative", flexShrink: 0 }}><span style={{ position: "absolute", top: 2, left: trLock ? 18 : 2, width: 16, height: 16, borderRadius: 8, background: "#fff" }} /></span></div>
             </div></>; })()}</div>}
+        {fs && !zen && <TvBtn title="Quitter le plein écran (Maj+F ou Échap)" onClick={() => setFs(false)}><Minimize2 size={17} /></TvBtn>}
         {zen && <TvBtn title="Quitter le plein écran (Échap)" onClick={() => { setFsS(false); setZen(false); }}><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M6 2v4H2M12 2v4h4M6 16v-4H2M12 16v-4h4" /></svg></TvBtn>}
         <input ref={fileRef} type="file" accept=".csv,.txt" multiple hidden onChange={(e) => onFiles([...e.target.files])} />
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         {/* barre d'outils de gauche (groupes avec menu, comme TradingView) */}
-        <div style={{ width: 52, borderRight: `4px solid ${TV.hover}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, paddingTop: 4, flexShrink: 0, position: "relative", zIndex: 30 }}>
+        <div style={{ width: 52, borderRight: `4px solid ${TV.hover}`, display: fs || zen ? "none" : "flex", flexDirection: "column", alignItems: "center", gap: 2, paddingTop: 4, flexShrink: 0, position: "relative", zIndex: 30 }}>
           {TV_GROUPS.map((g) => {
             const cur = g.items.includes(tool) ? tool : groupLast[g.id] || g.items[0];
             return (
@@ -2702,10 +2703,9 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             );
           })}
           <span style={{ width: 28, height: 1, background: TV.border, margin: "4px 0" }} />
-          <TvBtn title="Mode aimant : colle au plus haut, plus bas, ouverture ou clôture (Ctrl = temporaire)" active={magnet} onClick={() => setMagnet(!magnet)} style={{ padding: 2 }}><TvIcon id="magnet" /></TvBtn>
-          <TvBtn title="Rester en mode dessin" active={stay} onClick={() => { R.stay = !stay; setStay(!stay); }} style={{ padding: 2 }}><TvIcon id="stay" /></TvBtn>
+          <TvBtn title="Annuler (Ctrl+Z)" onClick={() => { const d = R.draws.pop(); if (d) R.redo.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }} style={{ padding: 6 }}><Undo2 size={18} /></TvBtn>
+          <TvBtn title="Rétablir" onClick={() => { const d = R.redo.pop(); if (d) R.draws.push(d); rerender(); if (R.minis) R.minis.forEach((m) => m.redraw()); }} style={{ padding: 6 }}><Redo2 size={18} /></TvBtn>
           <TvBtn title="Masquer tous les dessins (Ctrl+Alt+H)" active={R.hidden} onClick={() => { R.hidden = !R.hidden; R.sel = -1; rerender(); }} style={{ padding: 2 }}><TvIcon id={R.hidden ? "eyeoff" : "eye"} /></TvBtn>
-          <TvBtn title={favOpen ? "Masquer la barre des favoris" : "Afficher la barre des favoris"} active={favOpen} onClick={() => setFavOpen(!favOpen)} style={{ padding: 2 }}><TvIcon id="star" /></TvBtn>
           {(() => { const rt = [...R.trades].reverse().find((x) => x.real && x.realId); return rt ? <TvBtn title="Fiche du trade rejoué (tags, ressenti, photos…)" onClick={() => window.dispatchEvent(new CustomEvent("tjp-edit-trade", { detail: rt.realId }))} style={{ padding: 2 }}><svg width="26" height="26" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"><path d="M8 4.5h8.5L21 9v14.5H8z" /><path d="M16.5 4.5V9H21" /><path d="M11 13h7M11 16h7M11 19h5" strokeLinecap="round" /></svg></TvBtn> : null; })()}
           <div style={{ flex: 1 }} />
           <TvBtn title={fs ? "Quitter le plein écran (Maj+F ou Échap)" : "Plein écran (Maj+F)"} onClick={() => setFs((v) => !v)} style={{ padding: 6 }}>{fs ? <Minimize2 size={19} /> : <Maximize2 size={19} />}</TvBtn>
@@ -2748,7 +2748,7 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             {exam.phase === "done" && <><div style={{ marginTop: 6 }}>{exam.txt}</div><button onClick={examNext} style={{ marginTop: 8, border: "none", background: "#131722", color: "#fff", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontFamily: TV_FONT }}>Trade suivant →</button></>}
             {exam.phase === "end" && <div style={{ marginTop: 6 }}><b>{exam.score}/{exam.q.length}</b> bonnes décisions. {exam.score >= exam.q.length * 0.8 ? "Excellent, tu reconnais tes setups." : exam.score >= exam.q.length * 0.5 ? "Correct, revois les ratés." : "Tes décisions changent d'une fois à l'autre : clarifie tes règles."}</div>}
           </div>}
-          {cfg.miss && missL.length > 0 && <div style={{ position: "absolute", left: propS && !zen ? 270 : 10, bottom: 44, zIndex: 6, background: "#fff", border: "1px solid #ffcc80", borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12, maxHeight: 260, overflow: "auto" }}>
+          {false && cfg.miss && missL.length > 0 && <div style={{ position: "absolute", left: propS && !zen ? 270 : 10, bottom: 44, zIndex: 6, background: "#fff", border: "1px solid #ffcc80", borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.10)", padding: "8px 12px", width: 250, fontSize: 12, maxHeight: 260, overflow: "auto" }}>
             <b style={{ fontSize: 13, color: "#e65100" }}><Bot size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />IA · Trades gagnants manqués (14 j)</b>
             <div style={{ color: TV.muted, margin: "3px 0 5px" }}>{missL.length} setups laissés passer · {(() => { const d = missL.filter((m) => m.tOut <= R.rows[R.ci][0]).reduce((a, m) => a + m.r, 0); return (d >= 0 ? "+" : "") + d.toFixed(1).replace(".", ",") + " R"; })()} sur la table</div>
             {missL.slice(0, 12).map((m, j) => <div key={j} onClick={() => { const k = tvBs(R.agg.start, tvBsRows(R.rows, m.t)); R.chart.timeScale().setVisibleLogicalRange({ from: k - 60, to: k + 25 }); }} title="Afficher sur le graphique" style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "3px 0", borderTop: `1px solid ${TV.hover}`, cursor: "pointer" }}>
@@ -2806,11 +2806,13 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
             {indList.filter(([n]) => indFav.includes(n)).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, pointerEvents: "auto" }}>
               {indList.filter(([n]) => indFav.includes(n)).map(([n, on, fn]) => <span key={n} onClick={() => fn(!on)} title={on ? "Masquer" : "Afficher"} style={{ cursor: "pointer", fontSize: 12, padding: "1px 7px", borderRadius: 4, border: `1px solid ${TV.border}`, background: "#fff", color: on ? TV.text : TV.muted, textDecoration: on ? "none" : "line-through", userSelect: "none" }}>{on ? <Eye size={12} style={{ verticalAlign: "-1px" }} /> : <EyeOff size={12} style={{ verticalAlign: "-1px" }} />} {n}</span>)}
             </div>}
-            {cfg.showBS && <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, pointerEvents: "auto" }}>
-              {priceBox(-1)}
+            {cfg.showBS !== false && <div onMouseDown={(e) => e.stopPropagation()} style={{ marginTop: 8, pointerEvents: "auto", width: 236, background: "rgba(255,255,255,0.97)", border: "1px solid #e6e8ee", borderRadius: 12, boxShadow: "0 6px 20px rgba(19,23,34,0.10)", padding: 8, fontFamily: TV_FONT }}>
+              <div style={{ display: "flex", background: "#f2f3f6", borderRadius: 8, padding: 2, marginBottom: 6 }}>{[["mkt", "Marché"], ["lmt", "Limite"]].map(([k, l]) => <button key={k} onClick={() => { setOrdT(k); if (k === "lmt" && !lmtP && R.rows) setLmtP(bid().toFixed(TV_DIG)); }} style={{ flex: 1, border: "none", borderRadius: 6, padding: "5px 0", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: TV_FONT, background: ordT === k ? "#fff" : "transparent", color: ordT === k ? TV.text : TV.muted, boxShadow: ordT === k ? "0 1px 3px rgba(0,0,0,0.10)" : "none" }}>{l}</button>)}</div>
+              {ordT === "lmt" && <input value={lmtP} onChange={(e) => setLmtP(e.target.value)} inputMode="decimal" aria-label="Prix limite" placeholder="Prix" style={{ width: "100%", boxSizing: "border-box", border: "1px solid #e6e8ee", borderRadius: 8, padding: "6px 8px", fontSize: 13.5, fontWeight: 600, marginBottom: 6, fontFamily: TV_FONT, textAlign: "center" }} />}
+              <div style={{ display: "flex", gap: 6 }}>{[-1, 1].map((sd) => <button key={sd} onClick={() => { const v = Number(String(lmtP).replace(",", ".")); order(sd, ordT === "lmt" && v > 0 ? { entry: v } : {}); }} style={{ flex: 1, border: "none", borderRadius: 8, padding: "6px 4px", cursor: "pointer", color: "#fff", background: sd > 0 ? "#2962ff" : "#f23645", lineHeight: 1.15, fontFamily: TV_FONT }}><div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, opacity: 0.9 }}>{sd > 0 ? "ACHAT" : "VENTE"}</div><div style={{ fontSize: 14, fontWeight: 700 }}>{ordT === "lmt" && lmtP ? String(lmtP) : R.rows ? (sd > 0 ? ask() : bid()).toFixed(TV_DIG) : "—"}</div></button>)}</div>
               <TvTick ms={400} render={() => { const d = autoDist(); const L = tvLots(balance(), R.cfg.risk, d), rk = L * (d + TV_SPREAD) * TV_PIPVAL;
-                return <div title={`Calcul automatique : ${String(R.cfg.risk).replace(".", ",")} % de ${Math.round(balance())} $ · SL ${d.toFixed(1)} pips (+${TV_SPREAD} spread) · 1 lot = ${TV_PIPVAL} $/pip`} style={{ textAlign: "center", fontSize: 11, color: TV.muted, minWidth: 54, lineHeight: 1.25, background: "rgba(255,255,255,0.92)", borderRadius: 4, padding: "1px 3px" }}><b style={{ color: TV.text }}>{String(R.cfg.risk).replace(".", ",")} %</b><br /><b style={{ color: TV.blue }}>{L.toFixed(2)} lot</b><br />{Math.round(rk)} $</div>; }} />
-              {priceBox(1)}
+                return <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: TV.muted, marginTop: 6, padding: "0 2px" }}><span>Risque <b style={{ color: TV.text }}>{String(R.cfg.risk).replace(".", ",")} %</b></span><span><b style={{ color: TV.blue }}>{L.toFixed(2)} lot</b> · {Math.round(rk)} $</span></div>; }} />
+              <div style={{ fontSize: 10.5, color: TV.muted, marginTop: 4, padding: "0 2px" }}>Glisse les zones verte / rouge pour régler TP et SL.</div>
             </div>}
           </div>
           {/* barre de replay compacte et déplaçable */}
@@ -2818,13 +2820,13 @@ function BacktestLab({ onSave, onDelete, appTrades = [], getApp }) {
           <div style={{ ...(cfg.repTop ? { position: "relative", boxShadow: "none" } : { position: "absolute", ...(barPos ? { left: barPos.x, top: barPos.y } : { left: "50%", bottom: 42, transform: "translateX(-50%)" }) }), zIndex: 5, background: "#fff", border: `1px solid ${TV.border}`, borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.12)", display: "flex", alignItems: "center", gap: 0, padding: "2px 4px", whiteSpace: "nowrap" }}>
             {!cfg.repTop && <div title="Déplacer la barre" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); const host = e.currentTarget.parentElement.parentElement.getBoundingClientRect(), me = e.currentTarget.parentElement.getBoundingClientRect(); const ox = e.clientX - me.left, oy = e.clientY - me.top; const mv = (ev) => setBarPos({ x: Math.max(0, Math.min(host.width - me.width, ev.clientX - host.left - ox)), y: Math.max(0, Math.min(host.height - me.height, ev.clientY - host.top - oy)) }); const upf = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", upf); }; window.addEventListener("mousemove", mv); window.addEventListener("mouseup", upf); }}
               style={{ cursor: "grab", padding: "0 3px", color: TV.muted, fontSize: 13, letterSpacing: -2, userSelect: "none" }}>⋮⋮</div>}
+            <TvBtn title={cfg.repTop ? "Remettre la barre de replay sur le graphique" : "Mettre la barre de replay en haut, à côté des outils"} active={!!cfg.repTop} onClick={() => setCfg({ ...R.cfg, repTop: !R.cfg.repTop })} style={{ padding: "5px 5px", color: cfg.repTop ? "#f5a623" : TV.muted }}><Star size={14} fill={cfg.repTop ? "currentColor" : "none"} /></TvBtn>
             <TvBtn title="Sélectionner la date (Alt+G)" onClick={openDate} style={{ padding: "5px 6px" }}>{TvIco.cal}</TvBtn>
             <input ref={dateRef} className="tv-hidden-date" type="date" onChange={(e) => jumpTo(e.target.value)} style={{ position: "absolute", opacity: 0, width: 1, height: 1, left: 20, bottom: 0, pointerEvents: "none" }} aria-label="Date de départ" />
             <TvBtn title="Sélectionner la barre : clique sur une bougie pour reprendre le replay à partir de là" active={selBar} onClick={() => { setPlaying(false); R.selBar = !selBar; setSelBar(!selBar); }} style={{ padding: "5px 6px" }}>{TvIco.cut}</TvBtn>
             <TvBtn title="Lecture / pause (Espace) · → avancer · ← reculer" onClick={() => setPlaying((p) => !p)} style={{ padding: "5px 6px" }}>{playing ? TvIco.pause : TvIco.play}</TvBtn>
             {sessM && <TvBtn title="Jour suivant : saute à la prochaine session" onClick={() => goSession(sessM, true)} style={{ padding: "5px 6px", fontWeight: 700 }}><SkipForward size={16} /></TvBtn>}
             <TvBtn title="Bougie suivante : affiche une seule nouvelle bougie, complète" onClick={() => { if (!R.agg) return; const A = R.agg; const endK = (k) => (k + 1 < A.start.length ? A.start[k + 1] - 1 : R.rows.length - 1); let tgt = endK(R.k); if (tgt <= R.ci) tgt = endK(R.k + 1); step(Math.max(1, tgt - R.ci)); }} style={{ padding: "5px 5px" }}>{TvIco.candle}</TvBtn>
-            {botOn && <TvBtn title="Le bot place ses trades pendant le replay · clique pour l'arrêter" onClick={stopBot} style={{ padding: "4px 8px", fontSize: 12, fontWeight: 700, color: "#9c27b0" }}><Cpu size={15} />Bot</TvBtn>}
             <select value={spd} onChange={(e) => { setSpd(+e.target.value); e.target.blur(); }} title="Vitesse" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_SPEEDS.map(([v]) => <option key={v} value={v}>{String(v).replace(".", ",")}x</option>)}</select>
             <select value={stepTf} onChange={(e) => { setStepTf(+e.target.value); e.target.blur(); }} title="Pas de lecture" style={{ border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: TV.text, cursor: "pointer" }}>{TV_TFS.slice(0, 10).map(([n, m]) => <option key={n} value={m}>{n}</option>)}</select>
           </div>
@@ -3068,7 +3070,7 @@ function TvSettings({ cfg, onClose, onApply, onCloseAll, onReset, years = [], on
           {tvChk(!!d.favTop, (v) => set((n) => { n.favTop = v; }), "Barre de favoris en haut (sinon barre flottante que tu peux déplacer)")}
           {tvChk(d.logo !== false, (v) => set((n) => { n.logo = v; }), "Logo devant le nom de la paire (EURUSD)")}
           {tvChk(!!d.repTop, (v) => set((n) => { n.repTop = v; }), "Barre de simulation (date, lecture, bougie suivante, vitesse) dans la barre du haut, à côté des favoris")}
-          {tvChk(!!d.showBS, (v) => set((n) => { n.showBS = v; }), "Boutons SELL / BUY sur les graphiques (sinon : outils Position longue / courte, ou Maj+B / Maj+S)")}
+          {tvChk(d.showBS !== false, (v) => set((n) => { n.showBS = v; }), "Boutons SELL / BUY sur les graphiques (sinon : outils Position longue / courte, ou Maj+B / Maj+S)")}
           {tvChk(d.bsUndo !== false, (v) => set((n) => { n.bsUndo = v; }), "Touche Retour arrière (⌫) : efface le dernier dessin posé, puis le précédent…")}
           <div style={{ height: 10 }} />
           <div style={{ fontSize: 12, color: TV.muted, letterSpacing: 0.6, marginBottom: 6 }}>BOUGIES</div>
@@ -3428,13 +3430,13 @@ const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", short: "Home", icon: LayoutGrid, g: "" },
   { id: "trades", label: "Trades", short: "Trades", icon: NotebookPen, g: "" },
   { id: "calculator", label: "Calculatrice", short: "Calcul", icon: Calculator, g: "" },
-  { id: "stats", label: "Revue", short: "Revue", icon: BarChart3, g: "", also: ["erreurs", "calendar", "rejoues", "discipline"] },
+  { id: "stats", label: "Statistiques", short: "Stats", icon: BarChart3, g: "", also: ["erreurs", "calendar", "rejoues"] },
   { id: "backtest", label: "Backtest", short: "Backtest", icon: TvLogoIcon, g: "" },
   { id: "plan", label: "Préparation", short: "Prépa", icon: BookOpen, g: "", also: ["previsions", "playbooks", "ressources"] },
   { id: "settings", label: "Réglages", short: "Réglages", icon: Settings, g: "" },
 ];
 /* sections regroupées en onglets */
-const NAV_TABS = { stats: [["stats", "Stats"], ["erreurs", "Erreurs"], ["rejoues", "Rejoués"], ["discipline", "Discipline"]], plan: [["plan", "Plan"], ["previsions", "Prévisions"], ["playbooks", "Playbooks"], ["ressources", "ICT"]] };
+const NAV_TABS = { stats: [["stats", "Stats"], ["erreurs", "Erreurs"], ["rejoues", "Rejoués"]], plan: [["plan", "Plan"], ["previsions", "Prévisions"], ["playbooks", "Playbooks"], ["ressources", "ICT"]] };
 function GroupTabs({ view, setView }) {
   const g = Object.values(NAV_TABS).find((l) => l.some(([k]) => k === view)); if (!g) return null;
   return <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, marginBottom: 14, overflowX: "auto", maxWidth: g === NAV_TABS.stats ? (view === "rejoues" ? 1000 : 860) : undefined, marginLeft: "auto", marginRight: "auto" }}>{g.map(([k, l]) => <button key={k} onClick={() => setView(k)} style={{ flex: 1, border: "none", borderRadius: 9, padding: "8px 12px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", background: view === k ? C.purpleDim : "transparent", color: view === k ? C.purpleBright : C.textSecondary, fontFamily: "inherit" }}>{l}</button>)}</div>;
@@ -3938,7 +3940,6 @@ function MobileNav({ view, setView, onNewTrade }) {
     { id: "calculator", label: "Calculatrice", icon: Calculator },
     { id: "backtest", label: "Backtest", icon: TvLogoIcon },
     { id: "plan", label: "Préparation", icon: BookOpen },
-    { id: "coach", label: "IA Coach", icon: Brain },
     { id: "settings", label: "Réglages", icon: Settings },
   ];
   const extraActive = EXTRA.some(x => x.id === view) || ["previsions", "playbooks", "ressources"].includes(view);
@@ -3985,14 +3986,6 @@ function Sidebar({ view, setView, onNewTrade, totalPnl = 0, totalR = 0 }) {
   return (
     <>
       <aside className="desktop-only sidebar-full" style={getS().aside}>
-        <div style={getS().brand}>
-          <EmeieksLogo size={38} />
-          <div className="brand-text">
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.sidebarText, letterSpacing: -0.3, lineHeight: 1.1 }}>Emeieks</div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: C.sidebarTextDim, letterSpacing: 0.3 }}>Trade</div>
-          </div>
-        </div>
-
         <button onClick={onNewTrade} className="new-trade-btn" style={getS().newTradeBtn} title="Nouveau trade">
           <Plus size={15} strokeWidth={2.4} /> <span className="new-trade-label">Nouveau trade</span>
         </button>
@@ -4253,6 +4246,10 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
     return Object.keys(m).sort().map((k) => ({ label: fmtDate(k + "T12:00:00"), pnl: Math.round(m[k] * 100) / 100 }));
   }, [stats.closed]);
   const recentTrades = [...filteredTrades].sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime)).slice(0, 5);
+  /* profit factor = gains ÷ pertes ; série = nombre de trades gagnants (ou perdants) d'affilée depuis le dernier */
+  const gW = stats.closed.filter((t) => t.resultUsd > 0).reduce((a, t) => a + t.resultUsd, 0), gL = Math.abs(stats.closed.filter((t) => t.resultUsd < 0).reduce((a, t) => a + t.resultUsd, 0));
+  const pfV = gL ? gW / gL : gW ? Infinity : 0; const pfTxt = pfV === Infinity ? "∞" : pfV.toFixed(2).replace(".", ",");
+  const streak = (() => { const l = [...stats.closed].filter((t) => Math.abs(t.resultUsd || 0) >= 1).sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime)); if (!l.length) return { n: 0 }; const w = l[0].resultUsd > 0; let n = 0; for (const t of l) { if ((t.resultUsd > 0) === w) n++; else break; } return { n, w }; })();
   const PERIODS = ["tout", "7j", "30j", "90j"];
   const totalR = stats.closed.reduce((s, t) => s + (Number(t.resultR) || 0), 0);
   const [goal, setGoal] = useState(() => { try { return JSON.parse(localStorage.getItem("emeieks_goals") || "null") || { monthR: 10, maxTrades: 2, stopR: 2 }; } catch (e) { return { monthR: 10, maxTrades: 2, stopR: 2 }; } });
@@ -4279,7 +4276,6 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
               }}>{p === "tout" ? "Tout" : p}</button>
             ))}
           </div>
-          <button onClick={() => setView("coach")} title="IA Coach" aria-label="IA Coach" style={{ ...btn.ghost, padding: "7px 9px" }}><Brain size={15} /></button>
           <button onClick={() => exportToCsv(filteredTrades)} title="Exporter CSV" aria-label="Exporter CSV" style={{ ...btn.ghost, padding: "7px 9px" }}><Download size={15} /></button>
         </div>
       } />
@@ -4289,10 +4285,10 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Résultat · {period === "tout" ? "tout" : period}</div>
         <div className="tnum" style={{ fontSize: 38, fontWeight: 600, letterSpacing: -0.5, color: totalR >= 0 ? C.teal : C.red, lineHeight: 1.05, marginTop: 4 }}>{fmtR(totalR)}</div>
         <div className="tnum" style={{ fontSize: 14, color: C.textSecondary, fontWeight: 600, marginTop: 2 }}><b style={{ color: stats.totalPnl >= 0 ? C.teal : C.red }}>{fmtUsdSigned(stats.totalPnl)}</b> · Capital {fmtUsd(stats.currentBalance)}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 14 }}>
-          {[["Winrate", fmtPct(stats.winRate), `${stats.wins.length}G · ${stats.losses.length}P`, C.text],
+        <div className="dash-tiles" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 14 }}>
+          {[["Profit factor", pfTxt, `${fmtPct(stats.winRate)} gagnés · ${stats.closed.length} trades`, pfV >= 1 ? C.teal : C.red],
             ["R moyen", fmtR(stats.avgRR), "par trade", stats.avgRR >= 0 ? C.teal : C.red],
-            ["Trades", String(stats.closed.length), `DD -${stats.maxDD.toFixed(1)}%`, C.text]].map(([l, v, sub, col]) => (
+            ["Série en cours", streak.n ? `${streak.n} ${streak.w ? "gagnant" : "perdant"}${streak.n > 1 ? "s" : ""}` : "—", streak.n ? (streak.w ? "continue comme ça" : "réduis le risque, reste au plan") : "aucun trade", streak.w ? C.teal : streak.n ? C.red : C.text]].map(([l, v, sub, col]) => (
             <div key={l} style={{ padding: "10px 11px 9px", borderRadius: 13, background: "rgba(255,255,255,0.025)", border: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600 }}>{l}</div>
               <div className="tnum" style={{ fontSize: 18, fontWeight: 600, color: col, marginTop: 2 }}>{v}</div>
@@ -4303,7 +4299,6 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
       </Card>
 
       {extra}
-      <TodayCard trades={trades} initialBalance={initialBalance} setView={setView} />
       {/* Ligne 2 — courbe d'équité large */}
       <Card style={{ padding: "18px 20px 8px", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -4351,44 +4346,9 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
       </Card>
 
 
-      {/* Ligne 4 — Trades récents */}
-      <Card style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>Trades récents</span>
-          <button onClick={() => setView("trades")} style={{ background: "none", border: "none", color: C.purpleBright, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Voir tout →</button>
-        </div>
-
-        <div className="desktop-only table-scroll">
-          <div style={{ display: "grid", gridTemplateColumns: "84px 128px 72px minmax(90px,140px) 110px 90px 1fr", padding: "8px 18px", fontSize: 10.5, color: C.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, borderBottom: `1px solid ${C.border}`, minWidth: 640 }}>
-            <div>Date</div><div>Paire</div><div>Dir.</div><div>Setup</div><div>Résultat</div><div>Statut</div><div>Tags</div>
-          </div>
-          {recentTrades.map((t) => (
-            <div key={t.id} className="row-hover" onClick={() => onOpenTrade(t.id)} style={{ display: "grid", gridTemplateColumns: "84px 128px 72px minmax(90px,140px) 110px 90px 1fr", padding: "11px 18px", borderBottom: `1px solid ${C.border}`, alignItems: "center", cursor: "pointer", fontSize: 12.5, minWidth: 640 }}>
-              <div style={{ color: C.textSecondary }}>{fmtDate(t.entryTime)}</div>
-              <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}><PairLogo pair={t.pair} size={20} />{t.pair}</div>
-              <div><DirBadge direction={t.direction} /></div>
-              <div style={{ color: C.textSecondary, fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(() => { const ts = t.rules?.tfSetups; const l = Array.isArray(ts) && ts.length ? ts.flatMap((r) => (r.setups || []).map((x) => x + (r.tf ? " " + r.tf : ""))) : [t.setup].filter(Boolean); return l.join(" · ") || "—"; })()}</div>
-              <div className="tnum" style={{ fontWeight: 700, color: t.resultUsd >= 0 ? C.teal : C.red }}>{fmtUsdSigned(t.resultUsd)}</div>
-              <div><ResultBadge resultR={t.resultR} status={t.status} size="sm" onStatusChange={(newStatus, newR) => onStatusChange(t.id, newStatus, newR)} /></div>
-              <div style={{ display: "flex", gap: 4, overflow: "hidden" }}>
-                {(t.tags || []).slice(0, 2).map((tag) => <TagBadge key={tag} name={tag} size="sm" />)}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mobile-only">
-          {recentTrades.map((t) => (
-            <div key={t.id} className="row-hover" onClick={() => onOpenTrade(t.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 16px", borderBottom: `1px solid ${C.border}`, cursor: "pointer" }}>
-              <span style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: t.status !== "closed" ? C.textMuted : (t.resultR || 0) >= 0 ? C.teal : C.red }} />
-              <PairLogo pair={t.pair} size={20} /><span style={{ fontWeight: 700, fontSize: 13.5 }}>{t.pair}</span>
-              <DirBadge direction={t.direction} />
-              <span style={{ fontSize: 11.5, color: C.textMuted, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fmtDate(t.entryTime)}{t.ictModel ? " · " + t.ictModel : ""}</span>
-              <span className="tnum" style={{ fontWeight: 600, fontSize: 14, color: t.status !== "closed" ? C.textMuted : (t.resultR || 0) >= 0 ? C.teal : C.red }}>{t.status !== "closed" ? "En cours" : fmtR(t.resultR)}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
+      {/* Trades récents : même affichage que Mes trades */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 2px 10px" }}><CardLabel>Trades récents</CardLabel><button onClick={() => setView("trades")} style={{ background: "none", border: "none", color: C.purpleBright, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Voir tout →</button></div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{recentTrades.length ? recentTrades.map((t, i) => <BrokerTradeCard key={t.id} t={t} onOpen={(id) => window.dispatchEvent(new CustomEvent("tjp-edit-trade", { detail: id }))} isLast={i === recentTrades.length - 1} />) : <Card style={{ padding: 18, fontSize: 13, color: C.textMuted }}>Aucun trade pour cette période.</Card>}</div>
     </div>
   );
 }
@@ -4571,11 +4531,12 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
           <Search size={14} color={C.textMuted} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
           <input
             placeholder="Rechercher paire"
-            value={pendingSearch}
-            onChange={(e) => setPendingSearch(e.target.value)}
+            value={pendingSearch || (filterPair !== "all" ? filterPair : "")}
+            onChange={(e) => { setPendingSearch(e.target.value); setSearch(e.target.value); if (filterPair !== "all") { setFilterPair("all"); setPendingPair("all"); } }}
             onKeyDown={(e) => e.key === "Enter" && applyFilters()}
-            style={{ ...inputStyle, paddingLeft: 36 }}
+            style={{ ...inputStyle, paddingLeft: 36, paddingRight: 38 }}
           />
+          {(pendingSearch || search || filterPair !== "all") && <button onClick={() => { setPendingSearch(""); setSearch(""); setFilterPair("all"); setPendingPair("all"); }} aria-label="Effacer la recherche" title="Effacer" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 24, height: 24, borderRadius: "50%", border: "none", background: C.border, color: C.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><X size={13} /></button>}
           {(() => { const q = pendingSearch.trim().toUpperCase(); if (q.length < 2) return null; const cnt = {}; trades.forEach((t) => { if (t.pair && t.pair.toUpperCase().includes(q)) cnt[t.pair] = (cnt[t.pair] || 0) + 1; }); const L = Object.entries(cnt).sort((a, b) => b[1] - a[1]); if (!L.length) return null;
             return <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 6px)", zIndex: 30, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 18px 40px -16px rgba(0,0,0,.45)", overflow: "hidden" }}>
               {L.map(([p, n]) => <button key={p} onClick={() => { setPendingPair(p); setFilterPair(p); setPendingSearch(""); setSearch(""); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, textAlign: "left" }}>
@@ -4595,7 +4556,6 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
       <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         {[["London Session", "London"], ["New York Session", "New York"], ["Asia Session", "Asia"], ["Hors session", "Hors session"]].map(([k, l]) => { const on = sessSel.includes(k); const n = trades.filter((t) => getSession(t.entryTime) === k).length;
           return <button key={k} onClick={() => setSessSel(on ? sessSel.filter((x) => x !== k) : [...sessSel, k])} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? C.purpleBright : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.text }}>{k !== "Hors session" && <SessionFlag name={k} size={14} />}{l} <span style={{ color: C.textMuted, fontWeight: 600 }}>({n})</span></button>; })}
-        <button onClick={() => setRiskUnit(riskU === "usd" ? "pct" : "usd")} title={riskU === "usd" ? "Afficher le risque en % du compte" : "Afficher le risque en $"} style={{ marginLeft: "auto", width: 34, height: 34, borderRadius: "50%", border: `1.5px solid ${riskU === "usd" ? C.teal : C.border}`, background: riskU === "usd" ? C.tealDim : "transparent", color: riskU === "usd" ? C.teal : C.textSecondary, fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>{riskU === "usd" ? "$" : "%"}</button>
       </div>
       {showFilters && (() => {
         /* filtres simples : uniquement ce qui existe dans tes trades, avec le nombre entre parenthèses, appliqués tout de suite */
@@ -4612,6 +4572,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
           {res.length > 0 && <><H2>Résultat</H2><div style={row}>{res.map(([k, l, v, col]) => <button key={k} onClick={() => setFilterResult(filterResult === k ? "all" : k)} style={ch(filterResult === k, col)}>{l} {n(v)}</button>)}</div></>}
           {otes.length > 0 && <><H2>Zone OTE</H2><div style={row}>{otes.map(([k, v]) => <button key={k} onClick={() => setFilterOte(filterOte === k ? "all" : k)} style={ch(filterOte === k)}>{k} {n(v)}</button>)}</div></>}
           {userTagsList.length > 0 && <><H2>Tags</H2><div style={row}>{userTagsList.map((g) => { const on = filterTags.includes(g); const v = trades.filter((t) => (t.tags || []).includes(g)).length; return <button key={g} onClick={() => setFilterTags(on ? filterTags.filter((x) => x !== g) : [...filterTags, g])} style={ch(on, C.amber)}>{g} {n(v)}</button>; })}</div></>}
+          <H2>Risque affiché après les lots</H2><div style={row}>{[["none", "Rien"], ["pct", "% du compte"], ["usd", "$"]].map(([k, l]) => <button key={k} onClick={() => setRiskUnit(k)} style={ch(riskU === k)}>{l}</button>)}</div>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginTop: 14, cursor: "pointer" }}><input type="checkbox" checked={hideShort} onChange={(e) => { setHideShort(e.target.checked); try { localStorage.setItem("tjp_hide15", e.target.checked ? "1" : "0"); } catch (er) {} }} /> Masquer les trades de 15 min et moins</label>
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
             <button onClick={() => setShowFilters(false)} style={{ ...btn.primary, flex: 1, justifyContent: "center", padding: "11px" }}>Voir {filtered.length} trade{filtered.length > 1 ? "s" : ""}</button>
@@ -4778,24 +4739,11 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
         </div>
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Ressenti / retour sur le trade</div>
-          <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} placeholder="Ex. : lecture bonne, mais SL trop court sous la mèche. Sorti par peur avant la news…" style={{ width: "100%", boxSizing: "border-box", padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 13, resize: "vertical" }} />
+          <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} style={{ width: "100%", boxSizing: "border-box", padding: 10, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontFamily: "inherit", fontSize: 13, resize: "vertical" }} />
         </div>
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: C.textSecondary, marginBottom: 6 }}>Setup</div>
-          {rows.map((row, i) => { const qq = (rq[i] || "").trim().toLowerCase(); const hits = qq ? setupNames.filter((n) => n.toLowerCase().includes(qq) && !row.setups.includes(n)).slice(0, 6) : [];
-            const upd = (fn) => setRows((rs) => rs.map((r, j) => j === i ? fn(r) : r));
-            return (<div key={i} style={{ marginBottom: 8 }}>
-              <div style={{ display: "flex", gap: 6 }}>
-                <select value={row.tf} onChange={(e) => upd((r) => ({ ...r, tf: e.target.value }))} aria-label="Timeframe" style={{ ...inp, width: 76, flexShrink: 0, fontWeight: 600 }}>{[...new Set([...tfList, row.tf].filter(Boolean))].map((t) => <option key={t} value={t}>{t}</option>)}</select>
-                <input value={rq[i] || ""} onChange={(e) => setRq((m) => ({ ...m, [i]: e.target.value }))} placeholder="Ajouter un PD array…" style={{ ...inp, flex: 1, minWidth: 0 }}
-                  onKeyDown={(e) => { if (e.key === "Enter" && hits[0]) { upd((r) => ({ ...r, setups: [...r.setups, hits[0]] })); setRq((m) => ({ ...m, [i]: "" })); } }} />
-                {rows.length > 1 && <button onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} aria-label="Retirer" style={{ ...btn.ghost, padding: "6px 9px" }}><X size={13} /></button>}
-              </div>
-              {hits.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{hits.map((h) => <Chip key={h} onClick={() => { upd((r) => ({ ...r, setups: [...r.setups, h] })); setRq((m) => ({ ...m, [i]: "" })); }}>+ {h}</Chip>)}</div>}
-              {row.setups.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>{row.setups.map((st) => <span key={st} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: C.purpleDim, color: C.purpleBright, fontSize: 12, fontWeight: 700 }}><b style={{ color: C.text }}>{row.tf}</b> {st}
-                <button onClick={() => upd((r) => ({ ...r, setups: r.setups.filter((x) => x !== st) }))} aria-label={"Retirer " + st} style={{ background: "none", border: "none", color: C.purpleBright, cursor: "pointer", padding: 0, display: "flex" }}><X size={12} /></button></span>)}</div>}
-            </div>); })}
-          <button onClick={() => setRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 12.5, cursor: "pointer", padding: 0 }}>+ Autre timeframe</button>
+          <SetupPicker rows={rows.filter((r) => r.setups.length)} setRows={setRows} tfList={tfList} setupNames={setupNames} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <ImageUploadBox label="Avant" value={before} onChange={setBefore} />
@@ -4834,7 +4782,7 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {tvSimSym(trade.pair) && <button onClick={() => { onClose(); replayRealTrade(trade, null, true); }} title="Rejouer ce trade au moment exact de l'entrée" style={{ ...btn.ghost, justifyContent: "center" }}><Rewind size={13} /> Rejouer</button>}
-          {onOpenFull && <button onClick={() => { onClose(); onOpenFull(trade.id); }} style={{ ...btn.ghost, flex: 1, justifyContent: "center" }}>Détail complet</button>}
+
           <button onClick={save} style={{ ...btn.primary, flex: 2, justifyContent: "center", padding: "12px" }}>Enregistrer</button>
         </div>
       </div>
@@ -4962,13 +4910,21 @@ function ReplayLine({ rp }) {
   </div>;
 }
 /* risque affiché après les lots : % du compte ou $ (bouton $ dans Mes trades) */
-function useRiskUnit() { const g = () => { try { return localStorage.getItem("tjp_risk_unit") || "pct"; } catch (e) { return "pct"; } }; const [u, setU] = useState(g);
+function useRiskUnit() { const g = () => { try { return localStorage.getItem("tjp_risk_unit") || "none"; } catch (e) { return "none"; } }; const [u, setU] = useState(g);
   useEffect(() => { const h = () => setU(g()); window.addEventListener("tjp-risk-unit", h); return () => window.removeEventListener("tjp-risk-unit", h); }, []); return u; }
 const setRiskUnit = (u) => { try { localStorage.setItem("tjp_risk_unit", u); } catch (e) {} window.dispatchEvent(new Event("tjp-risk-unit")); };
+/* couleurs des PD arrays = celles du backtest (BISI vert, SIBI rouge, OB bleu, BB violet, iFVG jaune, BSL / SSL) */
+const PD_COL = { BISI: "#089981", SIBI: "#f23645", OB: "#2962ff", BB: "#9c27b0", IFVG: "#f5b700", BSL: "#8b0000", SSL: "#089981" };
+function pdColor(name) { const u = String(name || "").toUpperCase().replace(/[\s_-]/g, "");
+  if (u.includes("IFVG") || u.includes("INVERS")) return PD_COL.IFVG; if (u.includes("BISI") || u.includes("BULLISHFVG")) return PD_COL.BISI; if (u.includes("SIBI") || u.includes("BEARISHFVG")) return PD_COL.SIBI;
+  if (u.includes("BSL") || u.includes("BUYSIDE")) return PD_COL.BSL; if (u.includes("SSL") || u.includes("SELLSIDE")) return PD_COL.SSL; if (u.includes("BREAKER") || u === "BB" || u.startsWith("BB")) return PD_COL.BB;
+  if (u.includes("ORDERBLOCK") || u === "OB" || u.endsWith("OB") || u.startsWith("OB")) return PD_COL.OB; if (u.includes("FVG")) return "#0ea5e9"; return "#8b5cf6"; }
+const PdChip = ({ tf, name, size = 11 }) => { const c = pdColor(name); return <span style={{ fontSize: size, fontWeight: 700, color: c, background: c + "1f", border: `1px solid ${c}55`, padding: "1px 7px", borderRadius: 6, whiteSpace: "nowrap" }}>{tf ? tf + " " : ""}{name}</span>; };
+const NoteDot = ({ v, size = 20 }) => { if (!v) return null; const n = Number(v), c2 = n <= 4 ? C.red : n <= 7 ? C.amber : C.teal; return <span title={`Note : ${n}/10`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: size * 0.55, fontWeight: 800, lineHeight: 1, flexShrink: 0 }}>{n}</span>; };
 function BrokerTradeCard({ t, onOpen, isLast }) {
   const [open, setOpen] = useState(false);
   const allUT = useUserTags(); const myTags = (t.tags || []).filter((g) => allUT.includes(g)); const riskU = useRiskUnit();
-  const [rpOpen, setRpOpen0] = useState(() => { if (canManualReplay(t)) return false; /* paire sans bougies : toujours fermé au départ */ try { return localStorage.getItem("tjp_rp_open") !== "0"; } catch (e) { return true; } });
+  const [rpOpen, setRpOpen0] = useState(() => { if (canManualReplay(t)) return false; try { return localStorage.getItem("tjp_rp_open") !== "0"; } catch (e) { return true; } });
   const setRpOpen = (v) => { setRpOpen0(v); try { localStorage.setItem("tjp_rp_open", v ? "1" : "0"); } catch (e) {} };
   const toggleTag = (g) => { const has = (t.tags || []).includes(g); window.dispatchEvent(new CustomEvent("tjp-patch-trade", { detail: { id: t.id, patch: { tags: has ? (t.tags || []).filter((x) => x !== g) : [...(t.tags || []), g] } } })); };
   const [zoom, setZoom] = useState(null);
@@ -4979,28 +4935,34 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
   const exit = t.exitPrice ?? (t.status === "closed" ? (r > 0 ? t.takeProfit : r < 0 ? t.stopLoss : t.entryPrice) : null);
   const statusTxt = isOpenSt ? "En cours" : isBE ? "Breakeven" : r > 0 ? "Gagné" : r < 0 ? "Perdu" : "Fermé";
   const ts = t.rules?.tfSetups;
-  const setups = Array.isArray(ts) && ts.length ? ts.flatMap((x) => (x.setups || []).map((n) => n + (x.tf ? " " + x.tf : ""))) : (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup"));
+  const pds = Array.isArray(ts) && ts.length ? ts.flatMap((x) => (x.setups || []).map((n) => ({ tf: x.tf, name: n }))) : (t.tags || []).filter((g) => TAG_CATALOG.find((c) => c.name === g && c.category === "setup")).map((n) => ({ tf: "", name: n }));
   const lab = { fontSize: 10.5, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase" };
   const val = { fontSize: 15, fontWeight: 600, color: C.text, marginTop: 2 };
   const dt = (iso) => { if (!iso) return ""; const d = new Date(iso); const p2 = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+  const kz = (() => { const k = killzoneLabel(t.entryTime); const se = getSession(t.entryTime); return k !== "Hors killzone" ? k : se; })();
+  const dur = fmtDur(t.entryTime, t.exitTime);
+  const kv = (k, v, c2) => <span style={{ whiteSpace: "nowrap" }}><span style={{ color: C.textMuted, fontWeight: 700, fontSize: 11 }}>{k}</span> <b style={{ color: c2 || C.text }}>{fp(v)}</b></span>;
   return (
     <div style={{ marginBottom: isLast ? 0 : 8, background: `linear-gradient(90deg, ${col}12, transparent 35%), ${C.card}`, borderRadius: 16, border: `1px solid ${C.border}`, borderLeft: `3px solid ${col}`, overflow: "hidden" }}>
+      <style>{`.tc-exp{display:grid;grid-template-columns:minmax(0,1fr)}@media(min-width:1000px){.tc-exp{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}.tc-exp>.tc-r{border-left:1px solid ${C.border}}}`}</style>
       {zoom && <LightBox src={zoom.src} label={zoom.label} onClose={() => setZoom(null)} />}
-      <div onClick={() => setOpen((v) => !v)} style={{ padding: "13px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+      <div onClick={() => setOpen((v) => !v)} style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* ligne 1 : EURUSD ▲ LONG · date   ligne 2 : lots · drapeau + session   ligne 3 : setups */}
+          {/* ligne 1 : logo · paire · note · sens · date · killzone */}
           <div style={{ display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", overflow: "hidden", height: 24, lineHeight: 1 }}>
-            <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2, lineHeight: 1 }}>{t.pair}</span>
-            <span style={{ fontSize: 15, fontWeight: 800, lineHeight: 1, display: "inline-flex", alignItems: "center", gap: 3, color: t.direction === "long" ? C.teal : C.red }}><span style={{ fontSize: 10 }}>{t.direction === "long" ? "▲" : "▼"}</span>{t.direction === "long" ? "LONG" : "SHORT"}</span>
-            <span className="tnum" style={{ fontSize: 12.5, lineHeight: 1, display: "inline-flex", alignItems: "center", color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}{fmtDur(t.entryTime, t.exitTime) ? <span style={{ color: C.textMuted, fontWeight: 500, textTransform: "none", marginLeft: 4 }}>· {fmtDur(t.entryTime, t.exitTime)}</span> : null}{t.retroRating ? (() => { const v = Number(t.retroRating), c2 = v <= 4 ? C.red : v <= 7 ? C.amber : C.teal; return <span title={`Note du trade : ${v}/10`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: 11, fontWeight: 800, marginLeft: 8, lineHeight: 1, textTransform: "none", flexShrink: 0 }}>{v}</span>; })() : null}</span>
+            <PairLogo pair={t.pair} size={22} /><span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{t.pair}</span>
+            <NoteDot v={t.retroRating} />
+            <span style={{ fontSize: 13, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 3, color: t.direction === "long" ? C.teal : C.red }}><span style={{ fontSize: 9 }}>{t.direction === "long" ? "▲" : "▼"}</span>{t.direction === "long" ? "LONG" : "SHORT"}</span>
+            <span className="tnum" style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600, textTransform: "capitalize" }}>· {new Date(t.entryTime).toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "2-digit", month: "short" })} {new Date(t.entryTime).toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit" })}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: C.textSecondary, fontSize: 12.5, fontWeight: 600 }}>· {kz !== "Hors session" && <SessionFlag name={kz} size={14} />}{String(kz).replace(" Session", "")}</span>
           </div>
-          <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden" }}>
-            {t.positionSize != null && <span><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span>{tradeRiskPct(t) != null ? <span style={{ color: C.text, fontWeight: 600 }}> ({riskU === "usd" ? Math.round(tradeRiskUsd(t)).toLocaleString("fr-FR") + " $" : tradeRiskPct(t).toFixed(2).replace(".", ",") + " %"})</span> : null}</span>}
-            {(() => { const k = killzoneLabel(t.entryTime); const se = getSession(t.entryTime); const n = k !== "Hors killzone" ? k : se; return <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: C.textSecondary }}><SessionFlag name={n} size={15} />{String(n).replace(" Session", "")}</span>; })()}
-            {myTags.map((x) => <span key={"t" + x} style={{ fontSize: 11, fontWeight: 700, color: C.amber, background: "rgba(245,158,11,0.12)", border: `1px solid rgba(245,158,11,0.35)`, padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4 }}><Tag size={10} />{x}</span>)}
+          {/* ligne 2 : lots · EN · EX · TP · SL · PD arrays · tags */}
+          <div className="tnum" style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 7, fontSize: 12.5, flexWrap: "wrap", rowGap: 5 }}>
+            {t.positionSize != null && <span style={{ whiteSpace: "nowrap" }}><b>{fp(t.positionSize)}</b> <span style={{ color: C.textMuted }}>lot{Number(t.positionSize) > 1 ? "s" : ""}</span>{riskU !== "none" && tradeRiskPct(t) != null ? <b> ({riskU === "usd" ? Math.round(tradeRiskUsd(t)).toLocaleString("fr-FR") + " $" : tradeRiskPct(t).toFixed(2).replace(".", ",") + " %"})</b> : null}</span>}
+            {kv("EN", t.entryPrice)}{exit != null && kv("EX", exit)}{t.takeProfit != null && kv("TP", t.takeProfit, C.teal)}{t.stopLoss != null && kv("SL", t.stopLoss, C.red)}
+            {pds.slice(0, 4).map((x, i) => <PdChip key={i} tf={x.tf} name={x.name} />)}
+            {myTags.map((x) => <span key={"t" + x} style={{ fontSize: 11, fontWeight: 700, color: C.amber, background: "rgba(245,158,11,0.12)", border: `1px solid rgba(245,158,11,0.35)`, padding: "1px 7px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}><Tag size={10} />{x}</span>)}
           </div>
-          {setups.length > 0 && <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
-            {setups.slice(0, 4).map((x) => <span key={x} style={{ fontSize: 11, fontWeight: 600, color: C.purpleBright, background: C.purpleDim, padding: "2px 7px", borderRadius: 6 }}>{x}</span>)}</div>}
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <span className="tnum" style={{ display: "inline-block", padding: "3px 9px", borderRadius: 7, fontSize: 15, fontWeight: 600, color: col, background: isOpenSt || isBE ? "rgba(255,255,255,0.06)" : `${col}22` }}>{isOpenSt ? "En cours" : fmtR(r)}</span>
@@ -5009,46 +4971,46 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
         <ChevronDown size={18} color={C.textMuted} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", flexShrink: 0 }} />
       </div>
       {open && <div style={{ borderTop: `1px solid ${C.border}` }}>
-        <div style={{ display: "flex", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ flex: 1 }}><div style={lab}>Prix d'entrée</div><div className="tnum" style={val}>{fp(t.entryPrice)}</div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{dt(t.entryTime)}</div></div>
-          <ArrowRightIcon />
-          <div style={{ flex: 1, textAlign: "right" }}><div style={lab}>Prix de sortie</div><div className="tnum" style={val}>{fp(exit)}</div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{statusTxt}</div></div>
+        <div className="tc-exp">
+          <div className="tc-l">
+            <div style={{ display: "flex", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ flex: 1 }}><div style={lab}>Prix d'entrée</div><div className="tnum" style={val}>{fp(t.entryPrice)}</div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{dt(t.entryTime)}</div></div>
+              <ArrowRightIcon />
+              <div style={{ flex: 1, textAlign: "right" }}><div style={lab}>Prix de sortie</div><div className="tnum" style={val}>{fp(exit)}</div><div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{statusTxt}{dur ? ` (${dur})` : ""}</div></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px 14px", padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}>
+              <div><div style={lab}>Stop loss</div><div className="tnum" style={{ ...val, color: C.red }}>{fp(t.stopLoss)}</div></div>
+              <div><div style={lab}>Take profit</div><div className="tnum" style={{ ...val, color: C.teal }}>{fp(t.takeProfit)}</div></div>
+              <div><div style={lab}>Résultat</div><div className="tnum" style={{ ...val, color: col }}>{isOpenSt ? "—" : fmtR(r)} <span style={{ fontSize: 13 }}>{!isOpenSt && t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : ""}</span></div></div>
+              {t.rules?.initialSL != null && <div><div style={lab}>SL de départ</div><div className="tnum" style={val}>{fp(t.rules.initialSL)}</div></div>}
+              <div><div style={lab}>Risque réel</div><div className="tnum" style={val}>{tradeRiskUsd(t) ? <>{fmtUsd(tradeRiskUsd(t))}{tradeRiskPct(t) != null && <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 500 }}> ({tradeRiskPct(t).toFixed(2).replace(".", ",")} %)</span>}</> : <span style={{ fontSize: 13, color: C.textMuted }}>inconnu</span>}</div></div>
+              {t.rules?.mfe != null && <div><div style={lab}>MAE / MFE</div><div className="tnum" style={{ ...val, fontSize: 13.5 }}><span style={{ color: C.red }}>−{t.rules.mae.toFixed(2)}</span> / <span style={{ color: C.teal }}>+{t.rules.mfe.toFixed(2)} R</span></div></div>}
+            </div>
+            {pds.length > 0 && <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span style={{ ...lab, marginRight: 4 }}>Setup</span>{pds.map((x, i) => <PdChip key={i} tf={x.tf} name={x.name} size={12} />)}</div>}
+            {t.rules?.feedback && <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, lineHeight: 1.5, whiteSpace: "pre-wrap" }}><span style={{ ...lab, marginRight: 8 }}>Ressenti</span>{t.rules.feedback}</div>}
+            {t.notes && <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, whiteSpace: "pre-wrap" }}>{t.notes}</div>}
+            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ ...lab, marginRight: 4 }}>Tags</span>
+              {allUT.length ? allUT.map((g) => { const on = myTags.includes(g); return <button key={g} onClick={(e) => { e.stopPropagation(); toggleTag(g); }} style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? C.amber : C.border}`, background: on ? "rgba(245,158,11,0.14)" : "transparent", color: on ? C.amber : C.textSecondary }}>{on ? "✓ " : ""}{g}</button>; })
+                : <span style={{ fontSize: 12, color: C.textMuted }}>Crée tes tags dans Réglages → Tags.</span>}
+            </div>
+          </div>
+          <div className="tc-r" style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, alignContent: "start" }}>
+            {[["Avant", t.screenshotBefore], ["Après", t.screenshotAfter]].map(([l, src]) => (
+              <div key={l}><div style={{ ...lab, marginBottom: 6 }}>{l}</div>
+                {src ? <img src={src} alt={l} decoding="async" onClick={() => setZoom({ src, label: l })} style={{ width: "100%", height: 170, objectFit: "contain", background: "#fff", borderRadius: 8, cursor: "zoom-in", border: `1px solid ${C.border}` }} />
+                  : <div style={{ height: 170, borderRadius: 8, border: `1px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, color: C.textMuted }}>Pas de photo</div>}
+              </div>))}
+          </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px", padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}>
-          <div><div style={lab}>Stop loss</div><div className="tnum" style={val}>{fp(t.stopLoss)}</div></div>
-          <div><div style={lab}>Take profit</div><div className="tnum" style={val}>{fp(t.takeProfit)}</div></div>
-          <div><div style={lab}>Résultat</div><div className="tnum" style={{ ...val, color: col, fontWeight: 600 }}>{isOpenSt ? "—" : fmtR(r)}</div></div>
-          <div><div style={lab}>Profit net</div><div className="tnum" style={{ ...val, color: col }}>{!isOpenSt && t.resultUsd != null ? fmtUsdSigned(t.resultUsd) : "—"}</div></div>
-          {t.rules?.initialSL != null && <div><div style={lab}>SL de départ</div><div className="tnum" style={val}>{fp(t.rules.initialSL)}</div></div>}
-          {t.rules?.mfe != null && <div><div style={lab}>MAE / MFE</div><div className="tnum" style={val}><span style={{ color: C.red }}>−{t.rules.mae.toFixed(2)} R</span> / <span style={{ color: C.teal }}>+{t.rules.mfe.toFixed(2)} R</span></div></div>}
-          <div><div style={lab}>Risque réel</div><div className="tnum" style={val}>{tradeRiskUsd(t) ? <>{fmtUsd(tradeRiskUsd(t))}{tradeRiskPct(t) != null && <span style={{ fontSize: 12.5, color: C.textMuted, fontWeight: 500 }}> ({tradeRiskPct(t).toFixed(2).replace(".", ",")} %)</span>}</> : <span style={{ fontSize: 13, color: C.textMuted }}>inconnu (SL déplacé)</span>}</div></div>
-          <div><div style={lab}>Session</div><div style={{ ...val, display: "flex", alignItems: "center", gap: 6 }}><SessionFlag name={getSession(t.entryTime)} size={15} />{getSession(t.entryTime).replace(" Session", "")}</div></div>
-        </div>
-        {setups.length > 0 && <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}>
-          <div style={lab}>Setup</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>{setups.map((x) => <span key={x} style={{ fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: C.purpleDim, color: C.purpleBright }}>{x}</span>)}</div>
-        </div>}
-        {(t.screenshotBefore || t.screenshotAfter) && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}>
-          {[["Avant", t.screenshotBefore], ["Après", t.screenshotAfter]].map(([l, src]) => (
-            <div key={l}><div style={{ ...lab, marginBottom: 6 }}>{l}</div>
-              {src ? <img src={src} alt={l} onClick={() => setZoom({ src, label: l })} style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8, cursor: "zoom-in", border: `1px solid ${C.border}` }} />
-                : <div style={{ height: 90, borderRadius: 8, border: `1px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, color: C.textMuted }}>Pas de photo</div>}
-            </div>))}
-        </div>}
-        {t.notes && <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, whiteSpace: "pre-wrap" }}>{t.notes}</div>}
-        <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginRight: 4 }}>Tags</span>
-          {allUT.length ? allUT.map((g) => { const on = myTags.includes(g); return <button key={g} onClick={(e) => { e.stopPropagation(); toggleTag(g); }} style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? C.amber : C.border}`, background: on ? "rgba(245,158,11,0.14)" : "transparent", color: on ? C.amber : C.textSecondary }}>{on ? "✓ " : ""}{g}</button>; })
-            : <span style={{ fontSize: 12, color: C.textMuted }}>Crée tes tags dans Réglages → Tags.</span>}
-        </div>
-        {t.rules?.feedback && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}`, fontSize: 13, color: C.textSecondary, lineHeight: 1.5, whiteSpace: "pre-wrap" }}><span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginRight: 8 }}>Ressenti</span>{t.rules.feedback}</div>}
-        {(t.rules?.replay || canManualReplay(t)) && <div onClick={() => setRpOpen(!rpOpen)} title={rpOpen ? "Cacher le replay" : "Afficher le replay"} style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}`, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+        {(t.rules?.replay || canManualReplay(t)) && <div onClick={() => setRpOpen(!rpOpen)} title={rpOpen ? "Cacher le replay" : "Afficher le replay"} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>{t.rules?.replay ? <ReplayLine rp={t.rules.replay} /> : <span style={{ fontSize: 12.5, color: C.textMuted, display: "inline-flex", alignItems: "center", gap: 4 }}><Rewind size={12} /> Trade rejoué : pas encore</span>}</div>
           <ChevronDown size={16} color={C.textMuted} style={{ transform: rpOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
         </div>}
         {rpOpen && canManualReplay(t) && <ManualReplay t={t} />}
-        {rpOpen && canManualReplay(t) && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>Optimiser (SL / TP modifiés)</div><OptimizeBox t={t} /></div>}
-        <div style={{ display: "flex" }}>{tvSimSym(t.pair) && <button onClick={() => replayRealTrade(t, null, true)} title="Rejouer ce trade au moment exact de l'entrée" style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Rewind size={14} /> Rejouer</button>}        <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
+        {rpOpen && canManualReplay(t) && <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><div style={{ ...lab, marginBottom: 6 }}>Optimiser (SL / TP modifiés)</div><OptimizeBox t={t} /></div>}
+        <div style={{ display: "flex", borderTop: `1px solid ${C.border}` }}>{tvSimSym(t.pair) && <button onClick={() => replayRealTrade(t, null, true)} title="Rejouer ce trade au moment exact de l'entrée" style={{ flex: 1, padding: "13px", background: "transparent", border: "none", borderRight: `1px solid ${C.border}`, color: C.textSecondary, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Rewind size={14} /> Rejouer</button>}
+          <button onClick={() => onOpen(t.id)} style={{ flex: 1, padding: "13px", background: "transparent", border: "none", color: C.purpleBright, fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={14} /> Modifier</button></div>
       </div>}
     </div>
   );
@@ -5520,7 +5482,7 @@ function ReplayedCard({ trades }) {
     <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%" }}>
       <thead><tr>{["Date", "Paire", "Note", "Lots", "Résultat de base", "Résultat simulé", "Changement", "Verdict", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
       <tbody>{list.map((t) => { const x = resOf(t), vd = verdict(t, x), b = cv(t, Number(t.resultUsd) || 0), sv = cv(t, x.usd || 0), d = sv - b, rk = tradeRiskUsd(t), pc = tradeRiskPct(t); return <tr key={t.id} style={{ opacity: x.none ? 0.6 : 1 }}>
-        <td style={{ ...td, textTransform: "capitalize" }}>{fmtDateTime(t.entryTime)}</td>
+        <td className="tnum" style={{ ...td, whiteSpace: "nowrap" }}>{toLocalInput(t.entryTime).slice(0, 10)}</td>
         <td style={td}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><PairLogo pair={t.pair} size={16} /><b>{t.pair}</b>{t.rules?.feedback && <button onClick={() => setInfo(info === t.id ? null : t.id)} title={t.rules.feedback} style={{ border: `1px solid ${info === t.id ? C.purpleBright : C.border}`, background: info === t.id ? C.purpleDim : "transparent", color: C.purpleBright, borderRadius: 999, width: 18, height: 18, fontSize: 11, fontWeight: 800, fontStyle: "italic", fontFamily: "Georgia, serif", cursor: "pointer", padding: 0, lineHeight: "16px" }}>i</button>}</span>
           {info === t.id && <div style={{ whiteSpace: "pre-wrap", minWidth: 240, maxWidth: 340, marginTop: 6, fontSize: 12.5, color: C.textSecondary, lineHeight: 1.45, background: C.purpleDim, borderRadius: 8, padding: "6px 9px" }}>{t.rules.feedback}</div>}</td>
         <td style={td}>{t.retroRating ? (() => { const v = Number(t.retroRating), c2 = v <= 4 ? C.red : v <= 7 ? C.amber : C.teal; return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", border: `2px solid ${c2}`, color: c2, fontSize: 12, fontWeight: 800 }}>{v}</span>; })() : <span style={{ color: C.textMuted }}>—</span>}</td>
@@ -6228,7 +6190,7 @@ function TradeAutoFill({ onPick, onShot, balance, tv }) {
     <input ref={fTl} type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) read(await fileToUrl(f)); e.target.value = ""; }} />
     {mode === "tv" && <div style={{ marginTop: 10 }}>{tv}</div>}
     {mode === "tl" && <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", gap: 6 }}><button style={b2(false)} onClick={() => fTl.current?.click()}>📷 Photo</button><button style={b2(false)} onClick={pasteImg}>📋 Coller la photo</button></div>
+      <div style={{ display: "flex", gap: 6 }}><button style={b2(false)} onClick={() => fTl.current?.click()}><Camera size={15} /> Photo</button><button style={b2(false)} onClick={pasteImg}><Clipboard size={15} /> Coller</button></div>
       <textarea value={txt} onChange={(e) => setTxt(e.target.value)} onPaste={(e) => { const f = [...(e.clipboardData?.files || [])].find((x) => x.type.startsWith("image/")); if (f) { e.preventDefault(); fileToUrl(f).then((u) => read(u)); } }} rows={2} placeholder="…ou colle ici le texte de la ligne TradeLocker (Positions fermées)" style={{ padding: 9, borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg || C.card, color: C.text, fontFamily: "inherit", fontSize: 12.5 }} />
       {txt.trim() && <button onClick={() => read(txt, true)} style={{ ...btn.primary, justifyContent: "center" }}>Lire le texte</button>}
     </div>}
@@ -6249,8 +6211,9 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const [stopLoss, setStopLoss] = useState(initial?.stopLoss ?? "");
   const [takeProfit, setTakeProfit] = useState(initial?.takeProfit ?? "");
   const lastRisk = (trades || []).find((t) => Number(t.riskUsd) > 0)?.riskUsd;
-  const [riskMode, setRiskMode] = useState(initial?.positionSize != null && initial?.riskUsd == null ? "lots" : "usd");
-  const [riskVal, setRiskVal] = useState(String(initial ? (initial.riskUsd ?? initial.positionSize ?? "") : (lastRisk ?? 100)));
+  const balF = Number((appSettings?.accounts || []).find((a) => a.id === appSettings?.activeAccountId)?.balance) || accBalanceOf() || 50000;
+  const [riskMode, setRiskMode] = useState(initial?.positionSize != null ? "lots" : "pct");
+  const [riskVal, setRiskVal] = useState(String(initial ? (initial.positionSize ?? (initial.riskUsd ? Math.round(initial.riskUsd / balF * 10000) / 100 : "")) : (() => { try { return JSON.parse(localStorage.getItem(CALC_KEY) || "{}").risk || "1"; } catch (e) { return "1"; } })()));
   const tfList = (appSettings?.timeframes && appSettings.timeframes.length ? [...new Set(appSettings.timeframes.map(tfFix))] : DEFAULT_TFS);
   const initTf = (() => {
     const r = initial?.rules?.tfSetups; if (Array.isArray(r) && r.length) return r;
@@ -6263,7 +6226,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const [moreOpen, setMoreOpen] = useState(!!(initial && (initial.notes || (initial.mistakes || []).length || (initial.positives || []).length || initial.verdict)));
   const [shotBefore, setShotBefore] = useState(initial?.screenshotBefore || null); const [fx, setFx] = useState({});
   const [shotAfter, setShotAfter] = useState(initial?.screenshotAfter || null);
-  const [grade, setGrade] = useState(initial?.rules?.grade || "");
+  const [grade, setGrade] = useState(initial?.rules?.grade || ""); const [conf, setConf] = useState(initial?.rules?.conf ?? null);
   const userTags = useUserTags(); const [uTags, setUTags] = useState(() => (initial?.tags || []).filter((g) => userTagsGet().includes(g)));
   const [status, setStatus] = useState(initial ? (initial.status === "closed" ? (Number(initial.resultR) >= 0 ? "win" : "loss") : initial.status) : "open");
   const [rIn, setRIn] = useState(initial?.resultR != null ? String(Math.abs(initial.resultR)) : "");
@@ -6279,7 +6242,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const posChoices = useMemo(() => byFreq(posNames(appSettings), trades, "positives"), []);
   const setupFreq = useMemo(() => { const c = {}; (trades || []).forEach((t) => { const ts = t.rules?.tfSetups; (Array.isArray(ts) ? ts.flatMap((r) => r.setups || []) : (t.tags || [])).forEach((x) => { c[x] = (c[x] || 0) + 1; }); }); return c; }, []);
   const lastT = !initial ? (trades || [])[0] : null;
-  const copyLast = () => { if (!lastT) return; setPair(lastT.pair || ""); setQ(""); setDirection(lastT.direction || "long"); const ts = lastT.rules?.tfSetups; if (Array.isArray(ts) && ts.length) setTfRows(ts.map((r) => ({ tf: r.tf, setups: [...(r.setups || [])] }))); if (Number(lastT.riskUsd) > 0) { setRiskMode("usd"); setRiskVal(String(lastT.riskUsd)); } };
+  const copyLast = () => { if (!lastT) return; setPair(lastT.pair || ""); setQ(""); setDirection(lastT.direction || "long"); const ts = lastT.rules?.tfSetups; if (Array.isArray(ts) && ts.length) setTfRows(ts.map((r) => ({ tf: r.tf, setups: [...(r.setups || [])] }))); if (lastT.positionSize != null) { setRiskMode("lots"); setRiskVal(String(lastT.positionSize)); } };
 
   const hidden = appSettings?.hiddenTags || [];
   const setupNames = [...new Set([...TAG_CATALOG.filter((t) => t.category === "setup").map((t) => t.name), ...(appSettings?.customTags || [])])]; /* les 15 PD arrays du site, toujours tous proposés */
@@ -6291,9 +6254,9 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
   const { dec, val } = pipInfo(pair || "EURUSD", entryPrice);
   const en = entryPrice === "" ? null : Number(entryPrice), sl = stopLoss === "" ? null : Number(stopLoss), tp = takeProfit === "" ? null : Number(takeProfit);
   const slPips = en != null && sl != null ? Math.abs(en - sl) / dec : null;
-  const rv = riskVal === "" ? null : Number(riskVal);
-  const riskUsd = riskMode === "usd" ? rv : (rv != null && slPips ? Math.round(slPips * val * rv * 100) / 100 : null);
-  const lots = riskMode === "lots" ? rv : (rv != null && slPips ? Math.round(rv / (slPips * val) * 100) / 100 : null);
+  const rv = calcNum(riskVal); const pvF = pair ? calcPvOf(pair) : val; const slPipsC = en != null && sl != null && pair ? Math.abs(en - sl) / specOf(pair).pip : slPips;
+  const lots = riskMode === "lots" ? rv : (rv != null && slPipsC && pvF ? Math.floor((balF * rv / 100) / (slPipsC * pvF) / 0.01 + 1e-9) * 0.01 : null);
+  const riskUsd = lots != null && slPipsC && pvF ? Math.round(lots * slPipsC * pvF * 100) / 100 : (riskMode === "pct" && rv != null ? Math.round(balF * rv) / 100 : (initial?.riskUsd ?? null));
   const rr = en != null && sl != null && tp != null && en !== sl ? Math.abs(tp - en) / Math.abs(en - sl) : null;
   const rFinal = status === "breakeven" ? 0 : status === "win" ? (rIn !== "" ? Math.abs(Number(rIn)) : rr) : status === "loss" ? -(rIn !== "" ? Math.abs(Number(rIn)) : 1) : null;
   const timeOk = !!entryTime && !isNaN(new Date(entryTime).getTime());
@@ -6330,9 +6293,9 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
       status: finalStatus, notes, tags,
       ...fx,
       screenshotBefore: shotBefore, screenshotAfter: shotAfter,
-      confidenceLevel: gradeToLevel(grade) || initial?.confidenceLevel || 0,
+      confidenceLevel: conf || gradeToLevel(grade) || initial?.confidenceLevel || 0,
       mistakes: mist, positives: pos, verdict: verd,
-      rules: { ...(initial?.rules || {}), tfSetups: tfRows.filter((r) => r.tf || r.setups.length), grade,
+      rules: { ...(initial?.rules || {}), tfSetups: tfRows.filter((r) => r.setups.length), grade, conf,
         ...(checkItems.length ? { checks, checkAll: checkItems.every((x) => checks.includes(x)) } : {}),
         clean: clean && !mist.length, reviewed: !!(mist.length || pos.length || (clean && !mist.length) || verd) || !!initial?.rules?.reviewed },
     });
@@ -6362,9 +6325,12 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
         {/* 0. Remplir depuis un screenshot TradingView */}
 
         {/* 1. Date */}
-        <div style={{ ...card, display: "flex", alignItems: "center", gap: 10, padding: "8px 12px" }}>
-          <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={{ ...inp, border: "none", background: "transparent", padding: "6px 0", flex: 1, minWidth: 0 }} aria-label="Date et heure" />
+        <div style={card}>
+          <div style={lab}>Date et heure</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input type="datetime-local" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} style={{ ...inp, flex: 1, minWidth: 0 }} aria-label="Date et heure" />
           {kz && <span style={{ color: kz === "Hors killzone" ? C.amber : C.teal, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" }}><SessionFlag name={kz} size={15} />{kz}</span>}
+          </div>
         </div>
 
         {/* 2. Paire */}
@@ -6420,17 +6386,17 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
           </div>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginTop: 12 }}>
             <div style={{ flex: 1 }}>
-              <div style={lab}>Risque</div>
-              <input type="number" inputMode="decimal" step="any" value={riskVal} onChange={(e) => setRiskVal(e.target.value)} style={inp} aria-label="Risque" />
+              <div style={lab}>{riskMode === "pct" ? "Risque (% du compte)" : "Lots"}</div>
+              <input type="text" inputMode="decimal" value={riskVal} onChange={(e) => setRiskVal(e.target.value)} style={inp} aria-label="Risque" />
             </div>
             <div style={{ display: "flex", gap: 3, padding: 3, borderRadius: 11, border: `1px solid ${C.border}`, height: 44, boxSizing: "border-box" }}>
-              {[["usd", "$"], ["lots", "Lots"]].map(([k, l]) => <button key={k} onClick={() => setRiskMode(k)} style={{ minWidth: 48, borderRadius: 8, border: "none", background: riskMode === k ? C.purpleDim : "transparent", color: riskMode === k ? C.purpleBright : C.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{l}</button>)}
+              {[["pct", "%"], ["lots", "Lots"]].map(([k, l]) => <button key={k} onClick={() => { if (k === riskMode) return; if (k === "lots" && lots != null) setRiskVal((+lots.toFixed(2)).toString()); if (k === "pct" && riskUsd != null) setRiskVal((Math.round(riskUsd / balF * 10000) / 100).toString()); setRiskMode(k); }} style={{ minWidth: 48, borderRadius: 8, border: "none", background: riskMode === k ? C.purpleDim : "transparent", color: riskMode === k ? C.purpleBright : C.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{l}</button>)}
             </div>
           </div>
           <div className="tnum" style={{ fontSize: 12, color: C.textMuted, marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
             {slPips != null && <span>SL {slPips.toFixed(1)} pips</span>}
-            {riskMode === "usd" && lots != null && <span>≈ {lots} lots</span>}
-            {riskMode === "lots" && riskUsd != null && <span>≈ {fmtUsd(riskUsd)} de risque</span>}
+            {riskMode === "pct" && lots != null && <span style={{ color: C.text, fontWeight: 700 }}>{lots.toFixed(2)} lots</span>}
+            {riskMode === "lots" && riskUsd != null && <span>≈ {(riskUsd / balF * 100).toFixed(2)} % du compte</span>}
             {rr != null && <span style={{ color: C.text, fontWeight: 700 }}>R:R 1:{rr.toFixed(2)}</span>}
           </div>
           {sideErr && <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 700, color: C.red, display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} /> {sideErr}</div>}
@@ -6439,26 +6405,7 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
         {/* 4. Setup : timeframe en 1 clic + PD arrays en 1 clic (les plus utilisés d'abord) */}
         <div style={card}>
           <div style={lab}>Setup</div>
-          {tfRows.map((row, i) => {
-            const rq = (rowQ[i] || "").trim().toLowerCase();
-            const upd = (fn) => setTfRows((rs) => rs.map((r, j) => j === i ? fn(r) : r));
-            const fav = setupNames.slice().sort((x, y) => (setupFreq[y] || 0) - (setupFreq[x] || 0));
-            const shown = rq ? setupNames.filter((n) => n.toLowerCase().includes(rq)) : [...new Set([...row.setups, ...(allSt ? fav : fav.slice(0, 8))])];
-            const pill = (on) => ({ padding: "8px 12px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? C.purpleBright : C.border}`, background: on ? C.purpleDim : "transparent", color: on ? C.purpleBright : C.text });
-            return (
-              <div key={i} style={{ padding: i ? "12px 0 0" : 0, marginTop: i ? 12 : 0, borderTop: i ? `1px solid ${C.border}` : "none" }}>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                  {[...new Set([...tfList, row.tf].filter(Boolean))].map((t) => <button key={t} type="button" onClick={() => upd((r) => ({ ...r, tf: t }))} style={{ ...pill(row.tf === t), padding: "6px 11px", fontSize: 12.5 }}>{t}</button>)}
-                  {tfRows.length > 1 && <button onClick={() => setTfRows((rs) => rs.filter((_, j) => j !== i))} aria-label="Retirer cette timeframe" style={{ ...btn.ghost, padding: "5px 9px", marginLeft: "auto" }}>✕</button>}
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-                  {shown.map((h) => { const on = row.setups.includes(h); return <button key={h} type="button" onClick={() => upd((r) => ({ ...r, setups: on ? r.setups.filter((x) => x !== h) : [...r.setups, h] }))} style={pill(on)}>{on ? "✓ " : ""}{h}</button>; })}
-                  {!rq && fav.length > 8 && <button type="button" onClick={() => setAllSt(!allSt)} style={{ ...pill(false), borderStyle: "dashed", color: C.textMuted }}>{allSt ? "Moins" : `+ ${fav.length - 8}`}</button>}
-                </div>
-                <input value={rowQ[i] || ""} onChange={(e) => setRowQ((m) => ({ ...m, [i]: e.target.value }))} placeholder="Chercher un setup…" aria-label="Rechercher un setup" style={{ ...inp, marginTop: 8, padding: "8px 12px", fontSize: 13 }} />
-              </div>);
-          })}
-          <button onClick={() => setTfRows((rs) => [...rs, { tf: tfList.find((t) => !rs.some((r) => r.tf === t)) || tfList[0], setups: [] }])} style={{ background: "none", border: "none", color: C.purpleBright, fontWeight: 700, fontSize: 13, cursor: "pointer", padding: "10px 0 0", fontFamily: "inherit" }}>+ Autre timeframe</button>
+          <SetupPicker rows={tfRows.filter((r) => r.setups.length)} setRows={setTfRows} tfList={tfList} setupNames={setupNames} freq={setupFreq} />
         </div>
 
         {/* 4 bis. Check-list avant d'entrer (tes règles, modifiables dans Plan) */}
@@ -6473,8 +6420,8 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
 
         {/* 6. Confiance + résultat */}
         <div style={card}>
-          <div style={lab}>Note du setup</div>
-          <div style={{ display: "flex", gap: 6 }}>{[["A+", C.teal], ["A", C.purpleBright], ["B", C.amber], ["C", C.red]].map(([g, col]) => <button key={g} type="button" onClick={() => setGrade(grade === g ? "" : g)} style={{ ...big(grade === g, col), fontSize: 15, fontWeight: 800, padding: "10px 4px" }}>{g}</button>)}</div>
+          <div style={lab}>Confiance {conf ? <b style={{ color: C.text }}>· {conf}/10</b> : "/10"}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4 }}>{Array.from({ length: 10 }, (_, i) => i + 1).map((n) => <button key={n} type="button" onClick={() => setConf(conf === n ? null : n)} style={{ height: 38, borderRadius: 9, border: `1px solid ${conf === n ? C.purple : C.border}`, background: conf != null && n <= conf ? C.purpleDim : "transparent", color: conf != null && n <= conf ? C.purpleBright : C.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", padding: 0 }}>{n}</button>)}</div>
           <div style={{ ...lab, marginTop: 14 }}>Résultat</div>
           <div style={{ display: "flex", gap: 6 }}>
             {[["open", "En cours", C.purpleBright], ["win", "Gagné", C.teal], ["loss", "Perdu", C.red], ["breakeven", "BE", C.textSecondary]].map(([v, l, col]) =>
@@ -6501,18 +6448,9 @@ function TradeFormV2({ initial, appSettings, onCancel, onSave, trades }) {
         </div>
 
         {/* 7. Notes + revue : repliées, optionnelles */}
-        <button type="button" onClick={() => setMoreOpen(!moreOpen)} style={{ ...btn.ghost, justifyContent: "space-between", width: "100%", padding: "12px 14px" }}><span>Notes et revue <span style={{ color: C.textMuted, fontWeight: 500 }}>(optionnel)</span>{(notes || mist.length || pos.length || verd) ? <span style={{ color: C.teal }}> · rempli</span> : null}</span><ChevronDown size={16} style={{ transform: moreOpen ? "rotate(180deg)" : "none" }} /></button>
+        <button type="button" onClick={() => setMoreOpen(!moreOpen)} style={{ ...btn.ghost, justifyContent: "space-between", width: "100%", padding: "12px 14px" }}><span>Notes <span style={{ color: C.textMuted, fontWeight: 500 }}>(optionnel)</span>{notes ? <span style={{ color: C.teal }}> · rempli</span> : null}</span><ChevronDown size={16} style={{ transform: moreOpen ? "rotate(180deg)" : "none" }} /></button>
         {moreOpen && <div style={card}>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes : contexte, état d'esprit, pourquoi ce trade" rows={3} style={{ ...inp, marginBottom: 12, resize: "vertical", fontFamily: "inherit" }} />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", ...lab }}><span>Revue</span>{(mist.length > 0 || clean) && <span style={{ color: mist.length ? C.red : C.teal }}>{mist.length ? mist.length + " erreur" + (mist.length > 1 ? "s" : "") : "✓ propre"}</span>}</div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            {[["good", <><ThumbsUp size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Bon trade</>, C.teal], ["bad", <><ThumbsDown size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Mauvais trade</>, C.red]].map(([k, l, c]) => <button key={k} type="button" onClick={() => setVerd(verd === k ? null : k)} style={{ ...big(verd === k, c), fontSize: 13.5, padding: "10px 6px" }}>{l}</button>)}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary }}>Erreurs</span>
-            <button type="button" onClick={() => { setClean(!clean); if (!clean) setMist([]); }} style={{ padding: "6px 11px", borderRadius: 999, border: `1.5px solid ${clean && !mist.length ? C.teal : C.border}`, background: clean && !mist.length ? C.tealDim : "transparent", color: clean && !mist.length ? C.teal : C.textSecondary, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✓ Aucune erreur</button></div>
-          <TagPick items={errChoices} value={mist} onToggle={(x) => { setClean(false); setMist((l) => (l.includes(x) ? l.filter((y) => y !== x) : [...l, x])); }} col={C.red} max={6} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.textSecondary, margin: "12px 0 6px" }}>Bien fait</div>
-          <TagPick items={posChoices} value={pos} onToggle={(x) => setPos((l) => (l.includes(x) ? l.filter((y) => y !== x) : [...l, x]))} col={C.teal} max={5} />
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} style={{ ...inp, resize: "vertical", fontFamily: "inherit" }} />
         </div>}
       </div>
 
@@ -6833,53 +6771,20 @@ function SimpleStats({ trades }) {
           <button onClick={() => setCalM((v) => Math.min(0, v + 1))} disabled={calM >= 0} style={{ ...btn.icon, padding: 5, opacity: calM >= 0 ? 0.4 : 1 }} aria-label="Mois suivant"><ChevronRight size={14} /></button>
         </div>}>Calendrier</H>
         <div style={{ padding: "0 12px 14px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>{["L", "M", "M", "J", "V", "S", "D"].map((d, i) => <div key={i} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 700, color: C.textMuted }}>{d}</div>)}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-            {cal.cells.map((d, i) => { const o = d && cal.per[d]; const v = o ? (useUsd ? o.u : o.r) : 0; const a = o ? 0.18 + 0.6 * Math.min(1, Math.abs(v) / cal.mx) : 0; const cc = v >= 0 ? C.teal : C.red;
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr) 1.15fr", gap: 4, marginBottom: 4 }}>{["L", "M", "M", "J", "V", "S", "D", "Sem."].map((d, i) => <div key={i} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 700, color: C.textMuted }}>{d}</div>)}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr) 1.15fr", gap: 4 }}>
+            {(() => { const cf = (d, i) => { const o = d && cal.per[d]; const v = o ? (useUsd ? o.u : o.r) : 0; const a = o ? 0.18 + 0.6 * Math.min(1, Math.abs(v) / cal.mx) : 0; const cc = v >= 0 ? C.teal : C.red;
               return <div key={i} style={{ height: o ? 42 : 30, alignSelf: "center", borderRadius: 9, background: o ? `color-mix(in srgb, ${cc} ${Math.round(a * 100)}%, transparent)` : d ? (C.inputBg || C.bg) : "transparent", border: d ? `1px solid ${o ? cc + "55" : C.border}` : "none", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minWidth: 0 }}>
                 {d && <span style={{ fontSize: o ? 10 : 10.5, fontWeight: 600, color: o ? C.text : C.textMuted, opacity: o ? 0.8 : 0.6 }}>{d}</span>}
                 {o && <span className="tnum" style={{ fontSize: 9.5, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>{useUsd ? (v >= 0 ? "+" : "−") + Math.abs(Math.round(v)) : (v > 0 ? "+" : "") + v.toFixed(1)}</span>}
-              </div>; })}
+              </div>; }; const out = []; for (let w = 0; w * 7 < cal.cells.length; w++) { const wk = Array.from({ length: 7 }, (_, j) => cal.cells[w * 7 + j] ?? null); wk.forEach((d, j) => out.push(cf(d, w * 7 + j))); const os = wk.filter((d) => d && cal.per[d]).map((d) => cal.per[d]); const v = os.reduce((a2, o) => a2 + (useUsd ? o.u : o.r), 0);
+              out.push(<div key={"w" + w} className="tnum" style={{ height: 42, alignSelf: "center", borderRadius: 9, border: `1px solid ${C.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, background: C.cardHover || "transparent" }}><span style={{ fontSize: 9.5, color: C.textMuted, fontWeight: 600 }}>S{w + 1}</span><span style={{ fontSize: 10.5, fontWeight: 800, color: !os.length ? C.textMuted : v >= 0 ? C.teal : C.red, whiteSpace: "nowrap" }}>{!os.length ? "—" : useUsd ? (v >= 0 ? "+" : "−") + Math.abs(Math.round(v)) : (v > 0 ? "+" : "") + v.toFixed(1)}</span></div>); } return out; })()}
           </div>
         </div>
       </div>
 
-      {/* Distribution des R */}
-      {T.n > 0 && <div style={card}>
-        <H>Répartition des résultats</H>
-        <div style={{ height: 130, padding: "0 8px 10px" }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={X.dist} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-              <XAxis dataKey="k" tick={{ fontSize: 10, fill: C.textMuted }} axisLine={false} tickLine={false} interval={0} />
-              <Tooltip cursor={{ fill: C.inputBg }} contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }} formatter={(v) => [v + " trades", ""]} />
-              <Bar dataKey="n" radius={[6, 6, 0, 0]}>{X.dist.map((d) => <Cell key={d.k} fill={d.k === "0" ? C.textMuted : d.neg ? C.red : C.teal} />)}</Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>}
-
-      {retenir.length > 0 && <div style={card}>
-        <H>À retenir</H>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8, padding: "0 14px 14px" }}>
-          {retenir.map(([l, x]) => <div key={l} style={{ padding: "11px 12px", borderRadius: 12, background: x.r > 0 ? C.tealDim : C.redDim, border: `1px solid ${col(x.r)}33` }}>
-            <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{l}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}><span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.k}</span><span className="tnum" style={{ fontSize: 14, fontWeight: 700, color: col(x.r) }}>{fmtR(x.r)}</span></div>
-          </div>)}
-        </div>
-      </div>}
-
-      <div style={card}>
-        <H>Par actif</H>
-        {cats.length > 1 && <div style={{ display: "flex", gap: 6, padding: "0 16px 10px", flexWrap: "wrap" }}>
-          {cats.map((c) => <button key={c} onClick={() => setCat(c)} style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `1px solid ${curCat === c ? C.purple : C.border}`, background: curCat === c ? C.purpleDim : "transparent", color: curCat === c ? C.purpleBright : C.textMuted, fontFamily: "inherit" }}>{c}</button>)}
-        </div>}
-        <Table rows={pairs.filter((p) => assetCat(p.k) === curCat)} logo />
-      </div>
-
-      <div style={card}><H>Par setup</H><Table rows={setups} empty="Ajoute tes setups dans le formulaire pour les voir ici." /></div>
-      {T.n > 0 && <div className="grid-2" style={{ gap: 14 }}>
-        <div style={card}><H>Par session</H><Bars rows={sessions} flag /></div>
-        <div style={card}><H>Par jour</H>{(() => { const W = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((k) => days.find((d) => d.k === k) || { k, r: 0, n: 0, wr: 0 }); const mx = Math.max(0.01, ...W.map((d) => Math.abs(d.r))); return (
+      {/* Par jour de la semaine */}
+      {T.n > 0 && <div style={card}><H>Par jour de la semaine</H>{(() => { const W = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((k) => days.find((d) => d.k === k) || { k, r: 0, n: 0, wr: 0 }); const mx = Math.max(0.01, ...W.map((d) => Math.abs(d.r))); return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, padding: "4px 14px 14px", alignItems: "end" }}>
             {W.map((d) => <div key={d.k} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0 }}>
               <span className="tnum" style={{ fontSize: 10, fontWeight: 700, color: d.n ? col(d.r) : C.textMuted, whiteSpace: "nowrap" }}>{d.n ? (d.r > 0 ? "+" : "") + d.r.toFixed(1) : "—"}</span>
@@ -6891,8 +6796,18 @@ function SimpleStats({ trades }) {
               <span style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary }}>{d.k.slice(0, 3)}</span>
               <span style={{ fontSize: 9.5, color: C.textMuted }}>{d.n ? d.wr.toFixed(0) + "%" : ""}</span>
             </div>)}
-          </div>); })()}</div>
-      </div>}
+          </div>); })()}</div>}
+
+      <div style={card}>
+        <H>Par actif</H>
+        {cats.length > 1 && <div style={{ display: "flex", gap: 6, padding: "0 16px 10px", flexWrap: "wrap" }}>
+          {cats.map((c) => <button key={c} onClick={() => setCat(c)} style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `1px solid ${curCat === c ? C.purple : C.border}`, background: curCat === c ? C.purpleDim : "transparent", color: curCat === c ? C.purpleBright : C.textMuted, fontFamily: "inherit" }}>{c}</button>)}
+        </div>}
+        <Table rows={pairs.filter((p) => assetCat(p.k) === curCat)} logo />
+      </div>
+
+      <div style={card}><H>Par setup</H><Table rows={setups} empty="Ajoute tes setups dans le formulaire pour les voir ici." /></div>
+      {T.n > 0 && <div style={card}><H>Par session</H><Bars rows={sessions} flag /></div>}
       {hours.some((h) => h.n) && <div style={card}><H>Par heure</H>
         <div style={{ height: 140, padding: "0 8px 10px" }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -7380,7 +7295,7 @@ function ChallengeHomeCard({ trades = [], account, onSettings, accounts = [], on
       {isCF(account) && <img src={CF_SHIELD} alt="" style={{ width: 30, height: 28 }} />}
       <div style={{ flex: 1, minWidth: 0 }}><b style={{ fontSize: 16 }}>{accTitle(account)}</b><div className="tnum" style={{ fontSize: 12.5, color: C.textMuted }}>Solde <b style={{ color: cum >= 0 ? C.teal : C.red }}>{fmtUsd0(size + cum)}</b>{two ? "" : " · 1 phase"}</div></div>
       <button onClick={onSettings} title="Règles" style={{ ...btn.ghost, height: 30, width: 30, padding: 0, justifyContent: "center" }}><Edit3 size={14} /></button></div>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 700, color: C.textMuted }}>OBJECTIF {tgtPct} %</span><span className="tnum" style={{ fontSize: 13, fontWeight: 700 }}>{((cum / size) * 100).toFixed(2)} %</span></div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 700, color: C.textMuted }}>OBJECTIF {tgtPct} %</span></div>
     {bar(prog, cum >= tgt ? C.teal : OR)}
     <div className="tnum" style={{ fontSize: 22, fontWeight: 800, marginTop: 10, color: cum >= tgt ? C.teal : C.text }}>{funded ? `Profit ${fmtUsd0(cum)}` : cum >= tgt ? "Objectif atteint ✓" : `Il te manque ${fmtUsd0(left)}`}</div>
     <div className="tnum" style={{ fontSize: 12.5, color: C.textMuted, marginBottom: 8 }}>{fmtUsd0(cum)} sur {fmtUsd0(tgt)}</div>
@@ -9015,6 +8930,32 @@ const CALC_ALL = [...CALC_FX, ...Object.keys(CALC_SPECIAL)];
 const specOf = (p) => CALC_SPECIAL[p] || { c: 100000, pip: p.includes("JPY") ? 0.01 : 0.0001, q: p.slice(3, 6) };
 const FX_FALLBACK = { USD: 1, EUR: 0.92, GBP: 0.79, AUD: 1.52, NZD: 1.66, CAD: 1.37, CHF: 0.88, JPY: 152 };
 const CALC_KEY = "calc_v2";
+/* valeur d'1 pip pour 1 lot ($), même logique que la calculatrice (courtier + valeurs vérifiées) */
+function calcPvOf(pr) { try { const sv = JSON.parse(localStorage.getItem(CALC_KEY) || "{}"); const broker = sv.broker || "standard"; const m = JSON.parse(localStorage.getItem(typeof CALC_PV_KEY !== "undefined" ? CALC_PV_KEY : "calc_pv") || "{}"); const e2 = m[broker + ":" + pr]; if (e2 && e2.v) return e2.v; const b2 = (CALC_BROKERS[broker] || CALC_BROKERS.standard).spec[pr]; const s2 = specOf(pr); return (b2 ? b2.c : s2.c) * s2.pip * (s2.q === "USD" ? 1 : 1 / (FX_FALLBACK[s2.q] || 1)); } catch (e) { const s2 = specOf(pr); return s2.c * s2.pip * (s2.q === "USD" ? 1 : 1 / (FX_FALLBACK[s2.q] || 1)); } }
+/* Sélecteur de setup : timeframe à part (H4 par défaut), PD arrays, puis « Ajouter BISI H4 » */
+function SetupPicker({ rows, setRows, tfList, setupNames, freq = {} }) {
+  const tfs = [...new Set(["M15", "M30", "H1", "H4", "D", "W", ...tfList])];
+  const [tf, setTf] = useState(tfs.includes("H4") ? "H4" : tfs[0]); const [sel, setSel] = useState([]); const [q, setQ] = useState(""); const [all, setAll] = useState(false);
+  const fav = setupNames.slice().sort((x, y) => (freq[y] || 0) - (freq[x] || 0)); const qq = q.trim().toLowerCase();
+  const shown = qq ? setupNames.filter((n) => n.toLowerCase().includes(qq)) : [...new Set([...sel, ...(all ? fav : fav.slice(0, 8))])];
+  const pill = (on, col = C.purpleBright) => ({ padding: "8px 12px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${on ? col : C.border}`, background: on ? col + "22" : "transparent", color: on ? col : C.text });
+  const add = () => { if (!sel.length) return; setRows((rs) => { const clean = rs.filter((r) => r.setups.length); const i = clean.findIndex((r) => r.tf === tf); if (i >= 0) return clean.map((r, j) => j === i ? { ...r, setups: [...new Set([...r.setups, ...sel])] } : r); return [...clean, { tf, setups: [...sel] }]; }); setSel([]); setQ(""); };
+  const added = rows.flatMap((r) => r.setups.map((s2) => [r.tf, s2]));
+  const lab2 = { fontSize: 11.5, fontWeight: 700, color: C.textMuted, margin: "0 0 6px" };
+  return <div>
+    {added.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>{added.map(([t, s2]) => <span key={t + s2} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 11px", borderRadius: 999, background: pdColor(s2) + "22", border: `1px solid ${pdColor(s2)}66`, color: pdColor(s2), fontSize: 13, fontWeight: 700 }}><b style={{ color: C.text }}>{t}</b>{s2}
+      <button type="button" onClick={() => setRows((rs) => rs.map((r) => r.tf === t ? { ...r, setups: r.setups.filter((x) => x !== s2) } : r).filter((r) => r.setups.length))} aria-label={"Retirer " + s2} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", padding: 0, display: "flex" }}><X size={13} /></button></span>)}</div>}
+    <div style={lab2}>Timeframe</div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{tfs.map((t) => <button key={t} type="button" onClick={() => setTf(t)} style={{ ...pill(tf === t), padding: "6px 12px", fontSize: 12.5 }}>{t}</button>)}</div>
+    <div style={{ ...lab2, marginTop: 12 }}>PD array</div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {shown.map((h) => { const on = sel.includes(h); return <button key={h} type="button" onClick={() => setSel(on ? sel.filter((x) => x !== h) : [...sel, h])} style={pill(on, pdColor(h))}>{h}</button>; })}
+      {!qq && fav.length > 8 && <button type="button" onClick={() => setAll(!all)} style={{ ...pill(false), borderStyle: "dashed", color: C.textMuted }}>{all ? "Moins" : `+ ${fav.length - 8}`}</button>}
+    </div>
+    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher un PD array…" aria-label="Rechercher un PD array" style={{ ...inputStyle, marginTop: 8, padding: "9px 12px", fontSize: 13 }} />
+    <button type="button" onClick={add} disabled={!sel.length} style={{ ...btn.primary, width: "100%", justifyContent: "center", marginTop: 10, padding: "11px", fontSize: 13.5, letterSpacing: 0.3, opacity: sel.length ? 1 : 0.45 }}><Plus size={15} /> {sel.length ? "AJOUTER " + sel.join(" + ").toUpperCase() + " " + tf : "Choisis un PD array"}</button>
+  </div>;
+}
 /* brokers : valeur d'1 point (pip) pour 1 lot, en devise de cotation. cf = vérifié sur un vrai trade */
 const CALC_BROKERS = {
   clickfunded: { lab: "ClickFunded · TradeLocker", spec: { NAS100: { c: 100, cf: 1, sp: 1.3 }, US30: { c: 100, cf: 1, sp: 0.9 }, XAGUSD: { c: 5000, cf: 1, sp: 4.1 }, USOIL: { c: 1000, cf: 1, sp: 2 }, BTCUSD: { c: 1, cf: 1, sp: 2 }, XAUUSD: { c: 100, cf: 1, sp: 1.5 }, SPX500: { c: 100 }, US500: { c: 100 }, FRA40: { c: 100 }, UKOIL: { c: 1000 }, GER40: { c: 100 }, UK100: { c: 100 } } },
@@ -9155,10 +9096,6 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
             : mode === "dist" ? <input type="text" inputMode="decimal" value={slD} onChange={(e) => { if (/^[\d\s.,]*$/.test(e.target.value)) setSlD(e.target.value); }} placeholder={"ex. " + slEx(pair).dist + " (écart de prix)"} style={inp} />
             : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}><input type="text" inputMode="decimal" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="Entrée" style={inp} /><input type="text" inputMode="decimal" value={slP} onChange={(e) => setSlP(e.target.value)} placeholder="Stop" style={inp} /></div>}
         </div>
-        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>
-          {pair} : <b style={{ color: C.textSecondary }}>1 pip = {sp.pip} de prix</b>{mode === "pips" ? <> · un SL réaliste : <b style={{ color: C.textSecondary }}>{slEx(pair).pips} pips</b> (= {slEx(pair).dist} de prix)</> : mode === "dist" ? <> · écart = ce que TradingView affiche dans « Stop » (ex. BTC 2883,74){r ? <> → <b style={{ color: C.textSecondary }}>{(+r.slPips.toFixed(2)).toString().replace(".", ",")} pips</b></> : null}</> : null}
-          {accLive && live ? <span style={{ color: C.teal }}> · solde en direct ✓</span> : null}
-        </div>
         <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
           {[["Montant risqué", r ? fmtUsd(r.realRisk) : "—", C.red], [isPt ? "Distance" : "Stop", r ? (+r.slPips.toFixed(2)).toString().replace(".", ",") + " " + unit : "—"], ["Lots", r ? lotsTxt + " lots" : "—", C.purpleBright, true]].map(([l, v, c, big]) => <div key={l} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: big ? "14px 16px" : "11px 16px", borderTop: l === "Montant risqué" ? "none" : `1px solid ${C.border}`, background: big ? C.purpleDim : "transparent" }}><span style={{ fontSize: 14, color: C.textSecondary }}>{l}</span><span className="tnum" style={{ fontSize: big ? 26 : 16, fontWeight: 700, color: c || C.text }}>{v}</span></div>)}
         </div>
@@ -9172,151 +9109,30 @@ function ForexCalculator({ balance, pairs: myPairs = [], onCreateTrade }) {
       </div>
 
       <details style={{ ...card, padding: "12px 16px" }}>
-        <summary style={{ fontSize: 13, fontWeight: 700, color: C.textSecondary, cursor: "pointer" }}>Options avancées (TP, niveaux, broker, calibrage, spread)</summary>
-        <div style={{ marginTop: 12 }}>
-      {/* Résultat en direct */}
-      <div style={{ ...card, background: `radial-gradient(120% 100% at 100% 0%, ${C.purpleDim}, transparent 60%), ${C.card}`, border: `1px solid ${overPlan ? C.amber + "88" : C.border}` }}>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10 }}>
+        <summary style={{ fontSize: 13, fontWeight: 700, color: C.textSecondary, cursor: "pointer" }}>Ressources</summary>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: C.textMuted }}>Taille de position</div>
-            <div className="tnum" style={{ fontSize: 42, fontWeight: 700, letterSpacing: -1, lineHeight: 1.05, color: r ? C.text : C.textMuted }}>{lotsTxt}<span style={{ fontSize: 16, color: C.textMuted, fontWeight: 600 }}> lots</span></div>
-            <div className="tnum" style={{ fontSize: 12.5, color: C.textMuted }}>{r ? `Calcul exact ${r.raw.toFixed(4)} → arrondi vers le bas à ${step} · comme TradeLocker` : "Entre ton stop pour calculer"}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 6 }}>Exemples de SL en pips</div>
+            <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+              <div className="tnum" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", fontSize: 11, fontWeight: 700, color: C.textMuted, padding: "7px 12px", borderBottom: `1px solid ${C.border}` }}><span>Paire</span><span>1 pip</span><span>SL type</span><span>= écart prix</span></div>
+              {["EURUSD", "GBPUSD", "USDCHF", "USDJPY", "GBPJPY", "XAUUSD", "NAS100", "SPX500", "US30", "USOIL", "BTCUSD"].map((pr) => { const x = slEx(pr); return <div key={pr} className="tnum" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", fontSize: 12.5, padding: "7px 12px", borderBottom: `1px solid ${C.border}`, alignItems: "center" }}><span style={{ display: "inline-flex", gap: 6, alignItems: "center", fontWeight: 700 }}><PairLogo pair={pr} size={15} />{pr}</span><span style={{ color: C.textSecondary }}>{String(specOf(pr).pip).replace(".", ",")}</span><span style={{ fontWeight: 700 }}>{x.pips} pips</span><span style={{ color: C.textSecondary }}>{String(x.dist).replace(".", ",")}</span></div>; })}
+            </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><PairLogo pair={pair} size={30} /><span style={{ fontSize: 15, fontWeight: 700 }}>{pair}</span></div>
-        </div>
-        {r && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 8, marginTop: 14 }}>
-          <Out l="Risque réel" v={"−" + fmtUsd(r.realRisk)} c={C.red} sub={r.pct != null ? r.pct.toFixed(2) + " % du compte" : ""} />
-          <Out l="Gain au TP" v={r.gain != null ? "+" + fmtUsd(r.gain) : "—"} c={C.teal} sub={r.rr ? "R:R 1:" + r.rr.toFixed(2) : "ajoute un TP"} />
-          <Out l={isPt ? "Valeur du point" : "Valeur du pip"} v={"$" + r.pipLot.toFixed(2)} sub={`$${pv.toFixed(2)} / lot${verified ? " ✓" : ""}`} />
-          <Out l="Stop" v={r.slPips.toFixed(1) + " " + unit} sub={r.tpPips ? "TP " + r.tpPips.toFixed(1) + " " + unit : r.dir ? (r.dir === "long" ? "Achat" : "Vente") : ""} />
-        </div>}
-        {r && r.lots === 0 && (() => { const st = n(step) || 0.01; const minRisk = st * (r.slEff * pv + (n(com) || 0)); const maxSl = (r.riskUsd / st - (n(com) || 0)) / pv - (r.spr || 0);
-          return <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: C.amberDim, fontSize: 12.5, color: C.amber, lineHeight: 1.6 }}><b>0 lot : ton SL est trop loin pour ce risque</b> (il faudrait {r.raw.toFixed(4)} lot, le minimum est {step}).<br />Rapproche le SL à <b>{Math.max(0, maxSl).toFixed(1)} {unit}</b> maximum{mode === "prix" && n(entry) != null && r.dir ? <> (SL à <b>{(r.dir === "long" ? n(entry) - Math.max(0, maxSl) * sp.pip : n(entry) + Math.max(0, maxSl) * sp.pip).toFixed(dec)}</b>)</> : null}, ou risque au moins <b>{fmtUsd(minRisk)}</b>.</div>; })()}
-        {r && r.realRisk < r.riskUsd - 1 && r.lots > 0 && <div style={{ marginTop: 10, fontSize: 11.5, color: C.textMuted }}>Arrondi au pas de {step} : tu risques {fmtUsd(r.realRisk)} au lieu de {fmtUsd(r.riskUsd)}.</div>}
-        {overPlan && <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 9, background: C.amberDim, fontSize: 12, color: C.amber, display: "flex", gap: 6, alignItems: "center" }}><AlertTriangle size={13} /> Au-dessus de ton plan : risque max {plan.maxRiskPct} % par trade.</div>}
-        {r && r.rr != null && r.rr < 1.5 && <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 9, background: C.redDim, fontSize: 12, color: C.red, display: "flex", gap: 6, alignItems: "center" }}><AlertCircle size={13} /> R:R faible (1:{r.rr.toFixed(2)}). Vérifie ton TP.</div>}
-        {r && r.bePips > 0 && <div style={{ marginTop: 8, fontSize: 11.5, color: C.textMuted }}>Avec la commission, il faut {r.bePips.toFixed(1)} pips pour être à zéro.</div>}
-        {r && <div className="tnum" style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, background: C.inputBg || C.bg, border: `1px solid ${C.border}`, fontSize: 12.5, lineHeight: 1.6, color: C.textSecondary }}>
-          <b style={{ color: C.text }}>Comment c'est calculé</b><br />
-          Perte au SL = lots × distance × valeur par lot<br />
-          {lotsTxt} × {r.spr ? `(${r.slPips.toFixed(1)} + ${r.spr} spread)` : r.slPips.toFixed(1)} {unit} × ${pv.toFixed(2)}{n(com) ? ` + ${n(com)} $ comm./lot` : ""} = <b style={{ color: C.red }}>{fmtUsd(r.realRisk)}</b>
-          {!verified && <div style={{ marginTop: 6, color: C.amber, display: "flex", gap: 6, alignItems: "center" }}><AlertTriangle size={13} />Valeur pas encore vérifiée pour {pair} chez {(CALC_BROKERS[broker] || {}).lab}. Calibre-la plus bas avec un vrai trade.</div>}
-        </div>}
-      </div>
-
-      {/* Échelle de prix */}
-      {r && r.dir && n(entry) != null && (() => { const e = n(entry); const tpk = r.tpPips ? r.tpPips / r.slPips : null; const top = Math.max(3, tpk || 0); const lv = [["Stop", -1, C.red], ["Entrée", 0, C.purpleBright], ["1R", 1, C.teal], ["2R", 2, C.teal], ["3R", 3, C.teal], ...(tpk && ![1, 2, 3].includes(Math.round(tpk * 100) / 100) ? [["TP", tpk, C.amber]] : [])].sort((x, y) => y[1] - x[1]);
-        const pos = (k) => ((top - k) / (top + 1)) * 100; const price = (k) => (r.dir === "long" ? e + r.slPips * sp.pip * k : e - r.slPips * sp.pip * k).toFixed(dec);
-        return <div style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><span style={{ fontSize: 13.5, fontWeight: 700 }}>Niveaux · {r.dir === "long" ? "Achat ▲" : "Vente ▼"}</span>{tpk && <span className="tnum" style={{ fontSize: 12, color: C.amber, fontWeight: 700 }}>TP = {tpk.toFixed(2)}R</span>}</div>
-          <div style={{ position: "relative", height: 230, marginLeft: 4 }}>
-            <div style={{ position: "absolute", left: 8, width: 6, top: `${pos(top)}%`, height: `${pos(0) - pos(top)}%`, borderRadius: 3, background: `linear-gradient(180deg, ${C.teal}, ${C.teal}33)` }} />
-            <div style={{ position: "absolute", left: 8, width: 6, top: `${pos(0)}%`, height: `${pos(-1) - pos(0)}%`, borderRadius: 3, background: `linear-gradient(180deg, ${C.red}33, ${C.red})` }} />
-            {lv.map(([l, k, c]) => <div key={l} style={{ position: "absolute", left: 0, right: 0, top: `${pos(k)}%`, transform: "translateY(-50%)", display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ width: 22, height: 22, borderRadius: 11, background: C.card, border: `3px solid ${c}`, boxSizing: "border-box", flexShrink: 0 }} />
-              <span style={{ width: 52, fontSize: 12.5, fontWeight: 700, color: c }}>{l}</span>
-              <span className="tnum" style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{k === 0 ? e.toFixed(dec) : price(k)}</span>
-              <span className="tnum" style={{ fontSize: 12.5, fontWeight: 600, color: k < 0 ? C.red : k > 0 ? C.teal : C.textMuted }}>{k === 0 ? "" : (k > 0 ? "+" : "−") + fmtUsd(Math.abs(k) * r.realRisk)}</span>
-            </div>)}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 6 }}>Lire l'étiquette de position TradingView</div>
+            <svg viewBox="0 0 545 250" style={{ width: "100%", maxWidth: 560, display: "block" }} fontFamily="inherit">
+              <rect x="150" y="20" width="220" height="62" rx="4" fill="#f23645" />
+              <text x="260" y="44" textAnchor="middle" fill="#fff" fontSize="14">Stop 0,0086 (0,641%) 86</text>
+              <text x="260" y="66" textAnchor="middle" fill="#fff" fontSize="14">Montant 750</text>
+              <rect x="150" y="96" width="220" height="62" rx="4" fill="#5d606b" />
+              <text x="260" y="120" textAnchor="middle" fill="#fff" fontSize="14">Ouverture P&amp;L 0,</text>
+              <text x="260" y="142" textAnchor="middle" fill="#fff" fontSize="14">Qté 29 069, RR 1</text>
+              <g stroke={C.purpleBright} strokeWidth="1.6" fill="none"><path d="M205 18 C200 0 120 6 98 22" /><path d="M342 18 C348 0 420 6 440 22" /><path d="M300 70 C330 92 400 96 430 100" /><path d="M300 150 C320 190 380 200 420 204" /></g>
+              <g fill={C.text} fontSize="12.5" fontWeight="700"><text x="6" y="38">Écart prix</text><text x="436" y="38">Pips</text><text x="436" y="104">$ risqués</text><text x="424" y="210">Unités (≠ lots)</text></g>
+              <g fill={C.textMuted} fontSize="11"><text x="6" y="54">→ mode « écart »</text><text x="436" y="54">→ mode « pips »</text><text x="436" y="120">0,641 % du compte</text><text x="424" y="226">29 069 = 0,29 lot</text></g>
+            </svg>
+            <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 4, lineHeight: 1.5 }}>Le 1er nombre après « Stop » est l'écart de prix, le dernier les pips. « Qté » est en unités : divise par 100 000 pour les lots (forex).</div>
           </div>
-        </div>; })()}
-
-      {/* Broker */}
-      <div style={card}>
-        <span style={lab}>Broker / prop firm</span>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{Object.entries(CALC_BROKERS).map(([k, b]) => <button key={k} onClick={() => setBroker(k)} style={chip(broker === k)}>{b.lab}</button>)}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 6, marginTop: 10 }}>{[...new Set(["NAS100", "US30", "XAUUSD", "XAGUSD", "USOIL", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", ...(myPairs || []).filter((x) => CALC_ALL.includes(x))])].map((pr) => { const ok = isVer(pr); return <button key={pr} onClick={() => setPair(pr)} style={{ ...chip(pair === pr), justifyContent: "space-between", width: "100%" }}><span>{pr}</span><span className="tnum" style={{ color: ok ? C.teal : C.amber, fontWeight: 700, fontSize: 11.5 }}>{ok ? <Check size={12} style={{ verticalAlign: "-2px" }} /> : <AlertTriangle size={12} style={{ verticalAlign: "-2px" }} />} ${pvOf(pr) < 1 ? pvOf(pr).toFixed(3) : pvOf(pr).toFixed(2)}</span></button>; })}</div>
-        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 8 }}>1 lot {pair} = ${pv.toFixed(2)} par {isPt ? "point" : "pip"} {verified ? <span style={{ color: C.teal, fontWeight: 700 }}>· vérifié</span> : <span style={{ color: C.amber, fontWeight: 700 }}>· à vérifier</span>}</div>
-      </div>
-
-      {/* Actif */}
-      <div style={card}>
-        <span style={lab}>Actif</span>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>{quick.map((p) => <button key={p} onClick={() => setPair(p)} style={chip(pair === p)}><PairLogo pair={p} size={16} />{p}</button>)}</div>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher un actif (GBPJPY, or, nasdaq…)" style={inp} />
-        {q && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>{list.slice(0, 16).map((p) => <button key={p} onClick={() => { setPair(p); setQ(""); }} style={chip(pair === p)}>{p}{CALC_SPECIAL[p] ? <span style={{ fontWeight: 500, color: C.textMuted }}> · {CALC_SPECIAL[p].lab}</span> : null}</button>)}{!list.length && <span style={{ fontSize: 12, color: C.textMuted }}>Aucun actif.</span>}</div>}
-      </div>
-
-      {/* Compte et risque */}
-      <div style={card}>
-        <div className="form-grid-2" style={{ gap: 10 }}>
-          <label><span style={lab}>Solde du compte ($)</span><input type="text" inputMode="decimal" value={acc} onChange={(e) => setAcc(e.target.value)} style={inp} /></label>
-          <label><span style={{ ...lab, display: "flex", justifyContent: "space-between", alignItems: "center" }}>Risque (% du compte)</span><input type="text" inputMode="decimal" step="0.1" value={risk} onChange={(e) => setRisk(e.target.value)} style={inp} /></label>
-        </div>
-        {riskMode === "pct" && <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>{["0.25", "0.5", "1", "1.5", "2"].map((v) => <button key={v} onClick={() => setRisk(v)} style={chip(risk === v)}>{v.replace(".", ",")} %</button>)}{Number(balance) > 0 && Math.round(Number(balance)) !== Number(acc) && <button onClick={() => setAcc(String(Math.round(Number(balance))))} style={{ ...chip(false), marginLeft: "auto" }}>Solde actuel {fmtUsd(balance)}</button>}</div>}
-      </div>
-
-      {/* Stop / TP */}
-      <div style={card}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><span style={{ ...lab, marginBottom: 0 }}>Stop et objectif</span>{seg(mode, setMode, [["prix", "Par prix"], ["pips", "En " + unit]])}</div>
-        {mode === "pips" ? (
-          <div className="form-grid-2" style={{ gap: 10 }}>
-            <label><span style={lab}>Stop loss ({unit})</span><input type="text" inputMode="decimal" step="0.01" value={sl} onChange={(e) => setSl(e.target.value)} placeholder="20" style={inp} /></label>
-            <label><span style={lab}>Take profit ({unit})</span><input type="text" inputMode="decimal" value={tp} onChange={(e) => setTp(e.target.value)} placeholder="optionnel" style={inp} /></label>
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8 }}>
-            <label><span style={lab}>Entrée</span><input type="text" inputMode="decimal" value={entry} onChange={(e) => setEntry(e.target.value)} style={inp} /></label>
-            <label><span style={{ ...lab, color: C.red }}>Stop</span><input type="text" inputMode="decimal" value={slP} onChange={(e) => setSlP(e.target.value)} style={inp} /></label>
-            <label><span style={{ ...lab, color: C.teal }}>TP</span><input type="text" inputMode="decimal" value={tpP} onChange={(e) => setTpP(e.target.value)} placeholder="opt." style={inp} /></label>
-          </div>
-        )}
-        <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}><span style={{ ...lab, marginBottom: 0, flex: 1 }}>Spread moyen ({unit}) · ajouté au stop pour ne jamais dépasser ton risque</span><input type="text" inputMode="decimal" value={spread} onChange={(e) => setPv(pair, { sp: e.target.value === "" ? null : Number(e.target.value) })} placeholder="0" style={{ ...inp, width: 90 }} /></label>
-        {mode === "pips" && n(sl) > 0 && <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.textMuted, alignSelf: "center" }}>TP à</span>{[1.5, 2, 3, 4].map((k) => <button key={k} onClick={() => setTp(String(Math.round(n(sl) * k * 10) / 10))} style={chip(n(tp) === Math.round(n(sl) * k * 10) / 10)}>{String(k).replace(".", ",")}R</button>)}</div>}
-      </div>
-
-      {/* Calibrer avec un vrai trade */}
-      <div style={card}>
-        <span style={lab}>Calibrer avec un vrai trade ({pair})</span>
-        <div style={{ marginBottom: 10 }}>{seg(calM, setCalM, [["tick", "Fiche du symbole (le plus précis)"], ["trade", "Avec un trade ouvert"]])}</div>
-        {calM === "tick" ? <>
-          <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10, lineHeight: 1.5 }}>Dans TradeLocker : clique sur {pair} → <b>Infos / Spécifications</b>. Recopie <b>Tick size</b> et <b>Tick value</b> (valeur d'un tick pour 1 lot).</div>
-          <div className="form-grid-2" style={{ gap: 10 }}>
-            <label><span style={lab}>Tick size</span><input type="text" inputMode="decimal" value={cal.ts} onChange={(e) => setCal({ ...cal, ts: e.target.value })} placeholder={String(sp.pip)} style={inp} /></label>
-            <label><span style={lab}>Tick value ($ / lot)</span><input type="text" inputMode="decimal" value={cal.tv} onChange={(e) => setCal({ ...cal, tv: e.target.value })} style={inp} /></label>
-          </div>
-          {(() => { const ts = n(cal.ts), tv = n(cal.tv); if (!ts || !tv) return null; const v = (tv * sp.pip) / ts;
-            return <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span className="tnum" style={{ fontSize: 13 }}><b>1 lot = ${v.toFixed(4)} / {isPt ? "point" : "pip"}</b> ({sp.pip} de prix)</span>
-              <button onClick={() => setPv(pair, { v: Math.round(v * 1e5) / 1e5, cf: 1 })} style={{ ...btn.primary, height: 34, padding: "0 12px" }}><Check size={14} />Utiliser cette valeur</button></div>; })()}
-        </> : <>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>Ouvre une position chez ton broker et recopie ce qu'il affiche. La calculatrice déduit la vraie valeur du {isPt ? "point" : "pip"} et la garde.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8 }}>
-          <label><span style={lab}>Lots</span><input type="text" inputMode="decimal" value={cal.lots} onChange={(e) => setCal({ ...cal, lots: e.target.value })} placeholder="0.03" style={inp} /></label>
-          <label><span style={lab}>Entrée</span><input type="text" inputMode="decimal" value={cal.e} onChange={(e) => setCal({ ...cal, e: e.target.value })} style={inp} /></label>
-          <label><span style={lab}>Stop</span><input type="text" inputMode="decimal" value={cal.s} onChange={(e) => setCal({ ...cal, s: e.target.value })} style={inp} /></label>
-          <label><span style={lab}>Perte au SL $</span><input type="text" inputMode="decimal" value={cal.loss} onChange={(e) => setCal({ ...cal, loss: e.target.value })} placeholder="1460" style={inp} /></label>
-        </div>
-        {(() => { const L = n(cal.lots), d = n(cal.e) != null && n(cal.s) != null ? Math.abs(n(cal.e) - n(cal.s)) / sp.pip : null, lo = Math.abs(n(cal.loss) || 0); if (!L || !d || !lo) return null; const v = lo / (L * d);
-          return <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span className="tnum" style={{ fontSize: 13 }}>{d.toFixed(1)} {unit} · <b>1 lot = ${v.toFixed(2)} / {isPt ? "point" : "pip"}</b></span>
-            <button onClick={() => setPv(pair, { v: Math.round(v * 1e5) / 1e5, cf: 1 })} style={{ ...btn.primary, height: 34, padding: "0 12px" }}><Check size={14} />Utiliser cette valeur</button></div>; })()}
-        </>}
-      </div>
-
-      {/* Écart TradingView / broker */}
-      <div style={card}>
-        <span style={lab}>Analyse sur TradingView, trade chez le broker ?</span>
-        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>Ex. NQ1! (future) n'est pas au même prix que NAS100 (cash). Entre le même instant sur les deux pour décaler tes niveaux.</div>
-        <div className="form-grid-2" style={{ gap: 10 }}>
-          <label><span style={lab}>Prix sur TradingView</span><input type="text" inputMode="decimal" value={tvOff.tv} onChange={(e) => setTvOff({ ...tvOff, tv: e.target.value })} placeholder="27703.75" style={inp} /></label>
-          <label><span style={lab}>Prix chez le broker</span><input type="text" inputMode="decimal" value={tvOff.br} onChange={(e) => setTvOff({ ...tvOff, br: e.target.value })} placeholder="27585.5" style={inp} /></label>
-        </div>
-        {(() => { const a = n(tvOff.tv), b = n(tvOff.br); if (a == null || b == null) return null; const off = b - a; const conv = (v) => (n(v) == null ? "—" : (n(v) + off).toFixed(dec));
-          return <div className="tnum" style={{ marginTop: 10, fontSize: 13, lineHeight: 1.7 }}>Écart : <b>{off > 0 ? "+" : ""}{off.toFixed(dec)}</b>{mode === "prix" && n(entry) != null && <><br />À mettre chez le broker : entrée <b>{conv(entry)}</b> · SL <b style={{ color: C.red }}>{conv(slP)}</b> · TP <b style={{ color: C.teal }}>{conv(tpP)}</b></>}</div>; })()}
-      </div>
-
-      {/* Réglages broker */}
-      <details style={{ ...card, padding: "12px 16px" }}>
-        <summary style={{ fontSize: 13, fontWeight: 700, color: C.textSecondary, cursor: "pointer" }}>Réglages broker (commission, pas de lot, valeur du pip)</summary>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginTop: 12 }}>
-          <label><span style={lab}>Commission $/lot</span><input type="text" inputMode="decimal" value={com} onChange={(e) => setCom(e.target.value)} placeholder="ex. 7" style={inp} /></label>
-          <label><span style={lab}>Pas de lot</span><select value={step} onChange={(e) => setStep(e.target.value)} style={inp}>{["0.01", "0.1", "1"].map((v) => <option key={v} value={v}>{v}</option>)}</select></label>
-          <label><span style={lab}>{isPt ? "Point" : "Pip"} / lot ($)</span><input type="text" inputMode="decimal" value={pvOver} onChange={(e) => setPvOver(e.target.value)} placeholder={pvAuto.toFixed(2)} style={inp} /></label>
-        </div>
-        <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 10, lineHeight: 1.5 }}>
-          1 lot {pair} = {sp.c.toLocaleString("fr-FR")} unités · 1 pip = {sp.pip}. {fx.live ? `Taux de change en direct (${new Date(fx.at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}).` : "Taux de change approximatifs (hors ligne)."} {CALC_SPECIAL[pair] && !/USD$/.test(pair) ? "" : ""}{CALC_SPECIAL[pair] && ["US30", "NAS100", "SPX500", "GER40", "UK100", "BTCUSD", "ETHUSD", "USOIL"].includes(pair) ? " Pour les indices, la crypto et le pétrole, la taille du contrat change selon le broker : vérifie la valeur du pip et corrige-la ici." : ""}
-        </div>
-      </details>
-
         </div>
       </details>
     </div>
@@ -9465,7 +9281,8 @@ function PhotoZoom() {
     </div>);
 }
 
-async function shrinkImage(file, maxW = 3200, q = 0.92) { /* photos nettes : jusqu'à 3200 px de large (résolution TradingView) */
+async function shrinkImage(file, maxW = 3200, q = 0.92) { /* photos nettes : original gardé tel quel jusqu'à 8 Mo, sinon 3200 px */
+  if (file && file.size && file.size < 8e6) return file;
   try {
     const url = URL.createObjectURL(file); const img = await new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = url; });
     const k = Math.min(1, maxW / img.naturalWidth); const cv = document.createElement("canvas"); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
@@ -10405,15 +10222,11 @@ function BacktestPage(props) {
     <div>
       <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
         <button onClick={() => setTab("chart")} style={tb(tab === "chart")}><TvLogoIcon size={16} />Graphique</button>
-        <button onClick={() => setTab("stats")} style={tb(tab === "stats")}><BarChart3 size={16} />Saisie & stats <span style={{ fontSize: 12, opacity: 0.8 }}>{n}</span></button>
-        <button onClick={() => setTab("bot")} style={tb(tab === "bot")}><Cpu size={16} />Bot</button>
-        <button onClick={() => setTab("coach")} style={tb(tab === "coach")}><Bot size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Coach</button>
+        <button onClick={() => setTab("stats")} style={tb(tab === "stats")}><BookOpen size={16} />Journal du backtest <span style={{ fontSize: 12, opacity: 0.8 }}>{n}</span></button>
 
       </div>
       <div style={{ display: tab === "chart" ? "block" : "none" }}><BacktestLabMemo key={symKey} {...stable} /></div>
       {tab === "stats" && <><BtWipe trades={props.trades} onDelete={props.onDelete} /><BacktestView {...props} /></>}
-      {tab === "bot" && <BacktestBot />}
-      {tab === "coach" && <TradeCoach trades={props.trades} />}
     </div>
   );
 }
@@ -11166,7 +10979,7 @@ export default function TradingJournalApp() {
             </div>
           ) : (
             <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-              {view === "dashboard" && <div className="dash-split" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 16, alignItems: "start" }}><div style={{ minWidth: 0 }}><Dashboard extra={<><ReviewCard trades={accountTrades} onOpen={() => setReviewOpen(true)} />{!cumulMode && activeAccount?.type === "challenge" && <ChallengeCard acc={activeAccount} trades={accountTrades} onDelete={(id) => { const rest = accounts.filter((a) => a.id !== id); saveAccounts(rest); if (rest[0]) switchAccount ? switchAccount(rest[0].id) : null; }} />}</>} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} /></div><div style={{ display: "flex", flexDirection: "column", gap: 16 }}><PlanBullets onEdit={() => setView("plan")} /><ChallengeHomeCard trades={trades} account={(accounts || []).find((a) => a.id === activeAccountId)} accounts={accounts} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} onSettings={() => setView("settings")} /></div></div>}
+              {view === "dashboard" && <div className="dash-split" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 16, alignItems: "start" }}><div style={{ minWidth: 0 }}><Dashboard extra={null} trades={accountTrades} onOpenTrade={openTradeDetail} setView={setView} onStatusChange={updateTradeStatus} initialBalance={initialBalance} /></div><div style={{ display: "flex", flexDirection: "column", gap: 16 }}><PlanBullets onEdit={() => setView("plan")} /><ChallengeHomeCard trades={trades} account={(accounts || []).find((a) => a.id === activeAccountId)} accounts={accounts} onSaveAccounts={saveAccounts} onSwitchAccount={switchAccount} onSettings={() => setView("settings")} /></div></div>}
               {view === "backtest" && <BacktestPage trades={trades} appSettings={appSettings} pairs={appSettings.pairs} showToast={showToast} onSave={saveBt} onDelete={deleteBt} />}
               {rpEditId && (() => { const t = trades.find((x) => x.id === rpEditId); return t ? <QuickTradeModal key={t.id} trade={t} appSettings={appSettings} onClose={() => setRpEditId(null)} onPatch={patchTrade} onOpenFull={(x) => { setRpEditId(null); openTradeDetail(x); }} /> : null; })()}
               {view === "trades" && <TradesList trades={accountTrades} appSettings={appSettings} onPatch={patchTrade} onOpen={openTradeDetail} onNew={openNewTrade} onStatusChange={updateTradeStatus} onHome={() => setView("dashboard")} />}
@@ -11178,8 +10991,7 @@ export default function TradingJournalApp() {
               )}
               <GroupTabs view={view} setView={setView} />
               {view === "stats" && <SimpleStats trades={accountTrades} />}
-              {view === "rejoues" && <div className="fade-in" style={{ maxWidth: 1000, margin: "0 auto" }}><PageHeader title="Trades rejoués" /><ReplayedCard trades={accountTrades} /><SimCard trades={accountTrades} /></div>}
-              {view === "discipline" && <DisciplinePage trades={accountTrades} onPatch={patchTrade} />}
+              {view === "rejoues" && <div className="fade-in" style={{ maxWidth: 1000, margin: "0 auto" }}><PageHeader title="Trades rejoués" /><ReplayedCard trades={accountTrades} /></div>}
               {view === "erreurs" && <ErrorReview trades={accountTrades} onPatch={patchTrade} />}
               {view === "playbooks" && <Playbooks trades={accountTrades} />}
               {view === "calculator" && <ForexCalculator balance={currentBalance} pairs={appSettings?.pairs || []} onCreateTrade={openDraftTrade} />}
