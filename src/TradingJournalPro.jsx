@@ -225,7 +225,6 @@ function KillzoneBanner({ part = "all", trades = [] }) {
       {part !== "news" && (() => { const Z = [{ n: "Asia", s: 20 * 60, e: 24 * 60, col: "#F59E0B" }, { n: "London", s: 2 * 60, e: 5 * 60, col: "#3B82F6" }, { n: "New York", s: 8 * 60 + 30, e: 11 * 60, col: "#EF4444", pm: [13 * 60 + 30, 16 * 60] }];
         const st = (z) => { if (isWeekend) return { k: "off" }; const rng = [[z.s, z.e], ...(z.pm ? [z.pm] : [])]; const on = rng.find(([a2, b2]) => ny.min >= a2 && ny.min < b2); if (on) return { k: "live", left: on[1] - ny.min, p: (ny.min - on[0]) / (on[1] - on[0]) }; const nx = rng.map(([a2]) => (a2 - ny.min + 1440) % 1440).sort((x, y) => x - y)[0]; return { k: "next", in: nx }; };
         return <div className="kz-head" style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, overflow: "hidden", padding: "0 10px" }}>
-          <span className="tnum kz-clock desktop-only" style={{ fontSize: 15, fontWeight: 700, color: C.text, marginRight: 4, minWidth: 74 }}>{now.toLocaleTimeString("fr-FR", { timeZone: APP_TZ, hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
           <div className="mobile-only" style={{ display: "flex", gap: 8, alignItems: "center" }}>{Z.map((z) => { const S = st(z); const live = S.k === "live"; return <button key={z.n} onClick={() => setPop(pop === z.n ? null : z.n)} aria-label={"Session " + z.n} style={{ position: "relative", background: "none", border: "none", padding: 2, cursor: "pointer", display: "flex", opacity: live || pop === z.n ? 1 : 0.55 }}><SessionFlag name={z.n} size={24} />{live && <span style={{ position: "absolute", right: 0, bottom: 0, width: 8, height: 8, borderRadius: 9, background: "#22C55E", border: `2px solid ${C.sidebar}` }} />}</button>; })}</div>
           {pop && (() => { const z = Z.find((x) => x.n === pop); const S = st(z); const city = { Asia: ["Tokyo", "Asia/Tokyo"], London: ["Londres", "Europe/London"], "New York": ["New York", "America/New_York"] }[z.n];
             const L = trades.filter((t) => t.status !== "open" && String(sessOfT(t)).startsWith(z.n === "New York" ? "New York" : z.n)); const w = L.filter((t) => (t.resultUsd || 0) > 0).length, lo = L.filter((t) => (t.resultUsd || 0) < 0).length, u = L.reduce((a2, t) => a2 + (t.resultUsd || 0), 0);
@@ -585,6 +584,7 @@ function GlobalStyle() {
       @keyframes popIn { from { transform: scale(0.4); } to { transform: scale(1); } }
       .tc-list { display: flex; flex-direction: column; background: ${C.card}; border: 1px solid ${C.border}; border-radius: 16px; overflow: hidden; }
       .tc-list > .tc-row:first-child { border-top: none !important; }
+      @supports not (height: 100dvh) { .qtm-box { max-height: calc(100vh - 140px) !important; } }
       @keyframes kzPulse { 0%,100% { box-shadow: 0 0 0 3px rgba(255,255,255,0.08); } 50% { box-shadow: 0 0 0 6px rgba(255,255,255,0); } }
       @media (max-width: 900px) { .kz-sub { display: none; } }
       @media (max-width: 600px) { .kz-head { justify-content: flex-start !important; padding: 0 4px !important; overflow: visible !important; } }
@@ -4334,7 +4334,7 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
             <div className="tnum" style={{ fontSize: 42, fontWeight: 700, letterSpacing: -1.2, color: C.text, lineHeight: 1.05, marginTop: 6 }}>{fmtUsd(stats.currentBalance)}</div>
             <div className="tnum" style={{ fontSize: 16, fontWeight: 700, marginTop: 6, color: stats.totalPnl >= 0 ? C.teal : C.red }}>{fmtUsdSigned(stats.totalPnl)}</div>
           </div>
-          {account && (() => { const funded = account.type === "funded" || account.challenge?.phase === "Financé"; const ph = account.challenge?.phase || 1; const st = funded ? "Compte financé" : account.type === "challenge" || isCF(account) ? `Challenge · Phase ${ph}` : account.type === "real" ? "Compte réel" : account.type === "demo" ? "Démo" : account.name;
+          {account && (() => { const funded = account.type === "funded" || account.challenge?.phase === "Financé"; const ph = account.challenge?.phase || 1; const st = funded ? "Compte financé" : account.type === "challenge" || isCF(account) ? `Challenge · Phase ${String(ph).replace(/^phase\s*/i, "")}` : account.type === "real" ? "Compte réel" : account.type === "demo" ? "Démo" : account.name;
             return <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 14, border: `1px solid ${C.border}`, background: C.inputBg }}>
               {isCF(account) ? <img src={CF_SHIELD} alt="" style={{ width: 38, height: 36 }} /> : <AccountLogo acc={account} size={36} />}
               <div>
@@ -4390,11 +4390,11 @@ function Dashboard({ trades, onOpenTrade, setView, onStatusChange, initialBalanc
         </ResponsiveContainer>
         )}
       </Card>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
         {[["Profit factor", pfTxt, pfV >= 1 ? C.teal : C.red],
           ["R moyen", fmtR(stats.avgRR), stats.avgRR >= 0 ? C.teal : C.red],
           ["Série en cours", streak.n ? `${streak.n} ${streak.w ? "W" : "L"}` : "—", streak.w ? C.teal : streak.n ? C.red : C.text]].map(([l, v, col]) => (
-          <div key={l} style={{ padding: "10px 18px", borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, display: "flex", alignItems: "baseline", gap: 10 }}>
+          <div key={l} style={{ padding: "10px 18px", borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, display: "flex", alignItems: "baseline", justifyContent: "center", gap: 10 }}>
             <span style={{ fontSize: 13, color: C.textSecondary, fontWeight: 700 }}>{l}</span>
             <span className="tnum" style={{ fontSize: 20, fontWeight: 700, color: col, letterSpacing: -0.4 }}>{v}</span>
           </div>
@@ -4716,7 +4716,7 @@ function TradesList({ trades, onOpen: onOpenFull, onNew, onStatusChange, onHome,
 }
 
 function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
-  useEscClose(onClose);
+  useEscClose(onClose); useEffect(() => { const b = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = b; }; }, []);
   const SESS = ["London Session", "New York Session", "Asia Session", "Hors session"];
   const [when, setWhen] = useState(toLocalInput(trade.entryTime));
   const userTags = useUserTags(); const [uTags, setUTags] = useState(() => (trade.tags || []).filter((g) => userTagsGet().includes(g))); const [newTag, setNewTag] = useState("");
@@ -4766,8 +4766,8 @@ function QuickTradeModal({ trade, onClose, onPatch, onOpenFull, appSettings }) {
   const big = (on, col) => ({ flex: 1, padding: "11px 6px", borderRadius: 12, border: `1.5px solid ${on ? col : C.border}`, background: on ? `${col}1A` : "transparent", color: on ? col : C.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer" });
   const inp = { ...inputStyle, padding: "10px 11px", fontSize: 15 };
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "92vh", overflowY: "auto", background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+    <div onClick={onClose} className="qtm-ov" style={{ position: "fixed", inset: 0, zIndex: 1500, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px))", overflow: "hidden", touchAction: "none" }}>
+      <div onClick={(e) => e.stopPropagation()} className="qtm-box" style={{ width: "100%", maxWidth: 560, maxHeight: "calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))", overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", paddingBottom: "calc(18px + env(safe-area-inset-bottom, 0px))", background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ flex: 1, fontSize: 30, fontWeight: 700, letterSpacing: -0.8, lineHeight: 1, display: "flex", alignItems: "center", gap: 10 }}><PairLogo pair={trade.pair} size={38} />{trade.pair}</div>
@@ -5003,7 +5003,8 @@ function BrokerTradeCard({ t, onOpen, isLast }) {
           <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.3, padding: "2px 6px", borderRadius: 5, color: SIDE_COL[t.direction] || SIDE_COL.long, background: (SIDE_COL[t.direction] || SIDE_COL.long) + "24" }}>{t.direction === "long" ? "LONG" : "SHORT"}</span>
         </div>
         <div className="tnum" style={{ fontSize: 12.5, color: C.textMuted, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          <span style={{ textTransform: "capitalize" }}>{d.toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "numeric" })}</span>{t.positionSize != null ? ` · ${fpx(Number(t.positionSize).toFixed(2))} lot` : ""} · {V.kz}
+          <span style={{ textTransform: "capitalize" }}>{d.toLocaleDateString("fr-FR", { timeZone: APP_TZ, weekday: "short", day: "numeric" })}</span>{t.positionSize != null && <> · <b style={{ color: C.text, fontWeight: 600 }}>{fpx(Number(t.positionSize).toFixed(2))} lot</b></>} · <span style={{ display: "inline-flex", alignItems: "center", gap: 5, verticalAlign: "-3px" }}><SessionFlag name={V.kz === "Hors killzone" ? "Hors session" : sessOfT(t)} size={14} />{V.kz}</span>
+          {V.pds.length > 0 && <span className="desktop-only" style={{ display: "inline-flex", gap: 5, marginLeft: 8, verticalAlign: "-2px" }}>{V.pds.slice(0, 4).map((x, i) => <PdChip key={i} tf={x.tf} name={x.name} />)}</span>}
         </div>
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -6778,7 +6779,7 @@ function SimpleStats({ trades: tradesAll }) {
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 40px 50px 74px", gap: 8, padding: "6px 16px", fontSize: 10.5, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.4, borderTop: `1px solid ${C.border}` }}><span /><span style={{ textAlign: "right" }}>Trades</span><span style={{ textAlign: "right" }}>Win</span><span style={{ textAlign: "right" }}>Total</span></div>
       {rows.map((r) => (
         <div key={r.k} onClick={onRow ? () => onRow(r.k) : undefined} style={{ cursor: onRow ? "pointer" : "default", background: sel === r.k ? C.purpleDim : "transparent", boxShadow: sel === r.k ? `inset 3px 0 0 ${C.purple}` : "none", position: "relative", display: "grid", gridTemplateColumns: "minmax(0,1fr) 40px 50px 74px", gap: 8, alignItems: "center", padding: "11px 16px", borderTop: `1px solid ${C.border}` }}>
-          <div className="grow-x" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(Math.abs(r.r) / mx) * 100}%`, background: `linear-gradient(90deg, ${col(r.r)}14, transparent)`, pointerEvents: "none" }} />
+          <div className="grow-x" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(Math.abs(r.r) / mx) * 100}%`, background: "rgba(255,255,255,0.035)", pointerEvents: "none" }} />
           <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, position: "relative" }}>{logo && <PairLogo pair={r.k} size={22} />}<span style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.k}</span></span>
           <span className="tnum" style={{ position: "relative", textAlign: "right", fontSize: 13, color: C.textSecondary }}>{r.n}</span>
           <span className="tnum" style={{ position: "relative", textAlign: "right", fontSize: 13, color: r.wr >= 50 ? C.teal : C.textSecondary }}>{r.wr.toFixed(0)}%</span>
@@ -6788,8 +6789,8 @@ function SimpleStats({ trades: tradesAll }) {
   const Bars = ({ rows, flag }) => { const mx = Math.max(0.01, ...rows.map((r) => Math.abs(r.r))); return (
     <div style={{ padding: "2px 16px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
       {rows.map((r) => <div key={r.k}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, marginBottom: 5 }}><span style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 7 }}>{flag && r.k !== "Hors session" && <SessionFlag name={r.k} size={16} />}<span style={{ color: r.k === "Hors session" ? C.textMuted : undefined }}>{r.k}</span>{r.k === "Hors session" && <span style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 500, border: `1px solid ${C.border}`, borderRadius: 5, padding: "1px 5px" }}>hors killzones</span>} <span style={{ color: C.textMuted, fontWeight: 500 }}>· {r.n} trade{r.n > 1 ? "s" : ""} · {r.wr.toFixed(0)}%</span></span><span className="tnum" style={{ fontWeight: 700, color: col(r.r) }}>{fmtR(r.r)}</span></div>
-        <div style={{ height: 7, borderRadius: 4, background: C.inputBg || C.bg, overflow: "hidden" }}><div className="grow-x" style={{ width: Math.abs(r.r) / mx * 100 + "%", height: "100%", background: r.k === "Hors session" ? C.textMuted : `linear-gradient(90deg, ${col(r.r)}AA, ${col(r.r)})`, borderRadius: 4 }} /></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, marginBottom: 5 }}><span style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 7 }}>{flag && <SessionFlag name={r.k} size={16} />}<span style={{ color: r.k === "Hors session" ? C.textMuted : undefined }}>{r.k}</span>{r.k === "Hors session" && <span style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 500, border: `1px solid ${C.border}`, borderRadius: 5, padding: "1px 5px" }}>hors killzones</span>} <span style={{ color: C.textMuted, fontWeight: 500 }}>· {r.n} trade{r.n > 1 ? "s" : ""} · {r.wr.toFixed(0)}%</span></span><span className="tnum" style={{ fontWeight: 700, color: col(r.r) }}>{fmtR(r.r)}</span></div>
+        <div style={{ height: 7, borderRadius: 4, background: C.inputBg || C.bg, overflow: "hidden" }}><div className="grow-x" style={{ width: Math.abs(r.r) / mx * 100 + "%", height: "100%", background: C.textMuted, opacity: 0.55, borderRadius: 4 }} /></div>
       </div>)}
       {rows.length === 0 && <div style={{ fontSize: 12.5, color: C.textMuted }}>Pas encore de trades.</div>}
     </div>); };
@@ -6850,7 +6851,7 @@ function SimpleStats({ trades: tradesAll }) {
       {T.n > 0 && <><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
         {[["Profit factor", T.pf != null ? T.pf.toFixed(2) : "—", "", T.pf == null ? C.teal : T.pf >= 1.5 ? C.teal : T.pf >= 1 ? C.amber : C.red],
           ["Espérance / trade", fmtR(T.avg), fmtUsdSigned(T.usd / T.n), col(T.avg)]].map(([l, v, sub, c]) => (
-          <div key={l} style={{ padding: "14px 15px", borderRadius: 16, background: `linear-gradient(160deg, ${c}1F, transparent 70%), ${C.card}`, border: `1px solid ${c}40` }}>
+          <div key={l} style={{ padding: "14px 15px", borderRadius: 16, background: C.card, border: `1px solid ${C.border}` }}>
             <div style={{ fontSize: 11.5, color: C.textMuted, fontWeight: 600 }}>{l}</div>
             <div className="tnum" style={{ fontSize: 28, fontWeight: 700, color: c, marginTop: 4, letterSpacing: -0.6 }}>{v}</div>
             <div style={{ fontSize: 11.5, color: C.textSecondary, marginTop: 1 }}>{sub}</div>
@@ -6868,11 +6869,11 @@ function SimpleStats({ trades: tradesAll }) {
       {/* Long / Short */}
       {(long || short) && <div style={{ ...card, padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
-          <span><span style={{ color: C.teal }}>▲ Long</span><br /><span className="tnum" style={{ fontWeight: 500, color: C.textSecondary }}>{long?.n || 0} · {long ? long.wr.toFixed(0) : 0}% · <b style={{ color: col(long?.r || 0) }}>{fmtR(long?.r || 0)}</b></span></span>
-          <span style={{ textAlign: "right" }}><span style={{ color: C.red }}>Short ▼</span><br /><span className="tnum" style={{ fontWeight: 500, color: C.textSecondary }}><b style={{ color: col(short?.r || 0) }}>{fmtR(short?.r || 0)}</b> · {short ? short.wr.toFixed(0) : 0}% · {short?.n || 0}</span></span>
+          <span><span style={{ color: SIDE_COL.long }}>▲ Long</span><br /><span className="tnum" style={{ fontWeight: 500, color: C.textSecondary }}>{long?.n || 0} · {long ? long.wr.toFixed(0) : 0}% · <b style={{ color: col(long?.r || 0) }}>{fmtR(long?.r || 0)}</b></span></span>
+          <span style={{ textAlign: "right" }}><span style={{ color: SIDE_COL.short }}>Short ▼</span><br /><span className="tnum" style={{ fontWeight: 500, color: C.textSecondary }}><b style={{ color: col(short?.r || 0) }}>{fmtR(short?.r || 0)}</b> · {short ? short.wr.toFixed(0) : 0}% · {short?.n || 0}</span></span>
         </div>
         <div style={{ display: "flex", height: 9, borderRadius: 5, overflow: "hidden", background: C.inputBg }}>
-          <div style={{ width: `${((long?.n || 0) / Math.max(1, T.n)) * 100}%`, background: C.teal }} /><div style={{ flex: 1, background: C.red, opacity: 0.85 }} />
+          <div style={{ width: `${((long?.n || 0) / Math.max(1, T.n)) * 100}%`, background: SIDE_COL.long }} /><div style={{ flex: 1, background: SIDE_COL.short, opacity: 0.85 }} />
         </div>
       </div>}
 
@@ -7805,6 +7806,7 @@ function SessionFlag({ name, size = 16 }) {
   const n = String(name || "").toLowerCase();
   const cur = n.includes("london") || n.includes("londres") ? "EUR" : n.includes("new york") || n.includes("ny") ? "USD" : n.includes("asia") || n.includes("tokyo") ? "JPY" : null;
   const id = (React.useId ? React.useId() : String(Math.random())).replace(/[:.]/g, "");
+  if (!cur && (n.includes("hors") || n.includes("killzone"))) return <svg width={size} height={size} viewBox="0 0 30 30" style={{ flexShrink: 0, display: "inline-block", verticalAlign: "middle" }} aria-hidden="true"><circle cx="15" cy="15" r="15" fill="#23262C" /><path d="M18.6 8.2a7.4 7.4 0 1 0 3.2 12.9 6 6 0 0 1-3.2-12.9z" fill="#C7CBD3" /><circle cx="21.5" cy="9.5" r="1.1" fill="#C7CBD3" /><circle cx="9" cy="10" r="0.8" fill="#8A909C" /></svg>;
   if (!cur) return null;
   return (<svg width={size} height={size} viewBox="0 0 30 30" style={{ flexShrink: 0, display: "inline-block", verticalAlign: "middle" }}>
     <defs><clipPath id={"sf" + id}><circle cx="15" cy="15" r="15" /></clipPath></defs>
@@ -7956,11 +7958,16 @@ function PrevPairIcon({ pair, fallback, color }) {
   return <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}15`, border: `1.5px solid ${color}40`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{fallback}</div>;
 }
 function SettingsSection({ title, children, icon: Icon, fit }) {
+  const key = "tjp_sec_" + title; const [open, setOpen] = useState(() => { try { return localStorage.getItem(key) !== "0"; } catch (e) { return true; } });
+  const tog = () => { const v = !open; setOpen(v); try { localStorage.setItem(key, v ? "1" : "0"); } catch (e) {} };
   return (
-    <Card style={{ padding: 20, marginBottom: 14, ...(fit ? { width: "fit-content", maxWidth: "100%", boxSizing: "border-box" } : {}) }}>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
-        {Icon && <span style={{ width: 28, height: 28, borderRadius: 8, background: C.purpleDim, color: C.purpleBright, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={15} strokeWidth={2.2} /></span>}{title}</div>
-      {children}
+    <Card style={{ padding: open ? 20 : "14px 20px", marginBottom: 14, ...(fit ? { width: "fit-content", maxWidth: "100%", boxSizing: "border-box" } : {}) }}>
+      <button type="button" onClick={tog} aria-expanded={open} style={{ width: "100%", fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: open ? 14 : 0, paddingBottom: open ? 12 : 0, border: "none", borderBottom: open ? `1px solid ${C.border}` : "none", background: "none", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left", padding: 0 }}>
+        {Icon && <span style={{ width: 28, height: 28, borderRadius: 8, background: C.purpleDim, color: C.purpleBright, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={15} strokeWidth={2.2} /></span>}
+        <span style={{ flex: 1 }}>{title}</span>
+        <ChevronDown size={17} color={C.textMuted} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+      </button>
+      {open && children}
     </Card>
   );
 }
@@ -8424,6 +8431,47 @@ function tlOrdersToMap(cols, rows) {
   const res = {}; for (const [k, m] of Object.entries(out)) { const last = m.fills[m.fills.length - 1];
     res[k] = { sl: m.sls[0] ?? null, slFinal: m.sls.length > 1 ? m.sls[m.sls.length - 1] : null, tp: m.tps[0] ?? null, exitT: m.fills.length > 1 && last ? last.tm : null }; }
   return res;
+}
+/* MetaTrader 5 en lecture seule via MetaApi (le navigateur ne peut pas parler directement au serveur MT5) */
+const MT5_KEY = "tjp_mt5";
+const MT5_LOGO = "data:image/webp;base64,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";
+function Mt5Logo({ size = 44 }) { return <img src={MT5_LOGO} alt="MetaTrader 5" width={size} height={size} style={{ flexShrink: 0, display: "block", borderRadius: size * 0.24 }} />; }
+function Mt5Sync() {
+  const g = () => { try { return JSON.parse(localStorage.getItem(MT5_KEY) || "{}"); } catch (e) { return {}; } };
+  const c0 = g(); const [open, setOpen] = useState(false); const [token, setToken] = useState(c0.token || ""); const [acc, setAcc] = useState(c0.acc || ""); const [region, setRegion] = useState(c0.region || "london");
+  const [info, setInfo] = useState(c0.info || null); const [busy, setBusy] = useState(false); const [st, setSt] = useState("");
+  const on = !!info;
+  const connect = async () => { setBusy(true); setSt(""); try {
+      const r = await fetch(`https://mt-client-api-v1.${region}.agiliumtrade.ai/users/current/accounts/${encodeURIComponent(acc.trim())}/account-information`, { headers: { "auth-token": token.trim() } });
+      if (!r.ok) throw new Error(r.status === 401 ? "jeton refusé" : r.status === 404 ? "compte introuvable" : "erreur " + r.status);
+      const j = await r.json(); const inf = { name: j.name, login: j.login, server: j.server, balance: j.balance, equity: j.equity, currency: j.currency, at: Date.now() };
+      localStorage.setItem(MT5_KEY, JSON.stringify({ token: token.trim(), acc: acc.trim(), region, info: inf })); setInfo(inf); setOpen(false); window.dispatchEvent(new Event("tjp-saved"));
+    } catch (e) { setSt(e instanceof TypeError ? "Connexion bloquée par le navigateur." : "Erreur : " + e.message); } setBusy(false); };
+  const lab = { fontSize: 12, fontWeight: 700, color: C.textSecondary, marginBottom: 5, display: "block" };
+  const fld = { width: "100%", boxSizing: "border-box", padding: "11px 12px", fontSize: 14, borderRadius: 10, border: `1px solid ${C.border}`, background: C.inputBg, color: C.text, fontFamily: "inherit" };
+  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <Mt5Logo size={44} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.2 }}>MetaTrader 5 <span style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, marginLeft: 4 }}>lecture seule</span></div>
+        {on ? <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700, color: "#22C55E", marginTop: 3 }}><span style={{ width: 15, height: 15, borderRadius: 99, border: "2px solid #22C55E", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><span style={{ width: 7, height: 7, borderRadius: 99, background: "#22C55E" }} /></span>Connecté · {info.login} · {info.server}</div>
+          : <div style={{ fontSize: 13, color: C.textMuted, marginTop: 3 }}>Non connecté</div>}
+      </div>
+      {!on && !open && <button onClick={() => setOpen(true)} style={{ ...btn.primary, padding: "10px 18px" }}>Connecter</button>}
+      {on && <button onClick={() => { localStorage.removeItem(MT5_KEY); setInfo(null); }} style={{ ...btn.ghost, padding: "9px 14px", color: C.textMuted }}>Déconnecter</button>}
+    </div>
+    {on && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>{[["Solde", info.balance], ["Équité", info.equity]].map(([l, v]) => <div key={l} style={{ padding: "10px 14px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.inputBg }}><div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>{l}</div><div className="tnum" style={{ fontSize: 17, fontWeight: 700, marginTop: 3 }}>{v != null ? Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " " + (info.currency || "") : "—"}</div></div>)}</div>}
+    {!on && open && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, padding: 14, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card }}>
+      <label><span style={lab}>Jeton MetaApi</span><input value={token} onChange={(e) => setToken(e.target.value)} type="password" autoComplete="off" style={fld} /></label>
+      <label><span style={lab}>ID du compte MetaApi</span><input value={acc} onChange={(e) => setAcc(e.target.value)} style={fld} /></label>
+      <label><span style={lab}>Région</span><select value={region} onChange={(e) => setRegion(e.target.value)} style={fld}>{["london", "new-york", "singapore", "vint-hill"].map((x) => <option key={x} value={x}>{x}</option>)}</select></label>
+      <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button onClick={() => setOpen(false)} style={{ ...btn.ghost, padding: "10px 16px" }}>Annuler</button>
+        <button disabled={busy || !token || !acc} onClick={connect} style={{ ...btn.primary, padding: "10px 20px", opacity: busy || !token || !acc ? 0.5 : 1 }}>{busy ? "Connexion…" : "Se connecter"}</button>
+      </div>
+    </div>}
+    {st && <div style={{ fontSize: 12.5, color: C.amber }}>{st}</div>}
+  </div>;
 }
 function TlLogo({ size = 40 }) { return <svg width={size} height={size} viewBox="0 0 447 447" style={{ flexShrink: 0, display: "block", borderRadius: size * 0.24 }} aria-label="TradeLocker"><rect width="447" height="447" fill="#000" /><path fill="#fff" d="M82 82h283v70h-42v-28H124v28H82zM82 295h42v28h199v-28h42v70H82z" /></svg>; }
 function TlApiSync({ trades }) {
@@ -8951,8 +8999,10 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
       <PageHeader title="Paramètres" />
 
 
-      <SettingsSection title="Connexion" icon={RefreshCw}>
+      <SettingsSection title="Connexion compte" icon={RefreshCw}>
         <TlApiSync trades={trades} />
+        <div style={{ height: 1, background: C.border, margin: "16px 0" }} />
+        <Mt5Sync />
         {onImport && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, marginTop: 16 }}>
           <div style={{ padding: 14, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card }}><div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}><TlLogo size={22} /><b style={{ fontSize: 14 }}>Importer une capture</b></div>
             <TlShotImport trades={trades} onImport={onImport} accountId={activeAccountId || accounts?.[0]?.id || null} balance={(accounts || []).find((a) => a.id === activeAccountId)?.balance} /></div>
@@ -8977,7 +9027,8 @@ function SettingsPage({ settings, setSettings, accounts, activeAccountId, onSave
 
       <SettingsSection title="Fuseau horaire" icon={Timer}>
         
-        <select value={APP_TZ} onChange={(e) => { try { localStorage.setItem("tjp_tz", e.target.value); } catch (er) {} location.reload(); }} aria-label="Fuseau horaire" style={{ ...inputStyle, fontWeight: 600 }}>{(() => { let L = []; try { L = Intl.supportedValuesOf("timeZone"); } catch (er) { L = ["Asia/Bangkok", "America/Toronto", "Europe/Paris", "Europe/London", "America/New_York"]; } if (!L.includes(APP_TZ)) L = [APP_TZ, ...L]; const off = (z) => { try { return new Intl.DateTimeFormat("en-US", { timeZone: z, timeZoneName: "shortOffset" }).formatToParts(new Date()).find((x) => x.type === "timeZoneName").value.replace("GMT", "UTC"); } catch (er) { return ""; } }; return L.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")} ({off(z) || "UTC"})</option>); })()}</select>
+        <select value={APP_TZ} onChange={(e) => { try { localStorage.setItem("tjp_tz", e.target.value); } catch (er) {} location.reload(); }} aria-label="Fuseau horaire" style={{ ...inputStyle, fontWeight: 600 }}>{(() => { let L = []; try { L = Intl.supportedValuesOf("timeZone"); } catch (er) { L = ["Asia/Bangkok", "America/Toronto", "Europe/Paris", "Europe/London", "America/New_York"]; } if (!L.includes(APP_TZ)) L = [APP_TZ, ...L]; const off = (z) => { try { return new Intl.DateTimeFormat("en-US", { timeZone: z, timeZoneName: "shortOffset" }).formatToParts(new Date()).find((x) => x.type === "timeZoneName").value.replace("GMT", "UTC"); } catch (er) { return ""; } }; const seen = new Map(); const pref = ["America/Toronto", "Asia/Bangkok", "Europe/Paris", "Europe/London", "America/New_York", "Asia/Tokyo", "Asia/Dubai", "Australia/Sydney"]; [APP_TZ, ...pref, ...L].forEach((z) => { const o = off(z) || "UTC"; if (!seen.has(o)) seen.set(o, z); }); const toMin = (o) => { const m = o.match(/UTC([+-])(\d+)(?::(\d+))?/); return m ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0)) : 0; };
+          return [...seen.entries()].sort((a2, b2) => toMin(a2[0]) - toMin(b2[0])).map(([o, z]) => <option key={z} value={z}>{o} · {z.split("/").pop().replace(/_/g, " ")}</option>); })()}</select>
       </SettingsSection>
 
 
@@ -10940,6 +10991,10 @@ export default function TradingJournalApp() {
     persist(merged);
   };
 
+  /* date mal lue (année 1900 ou absurde) : on garde jour, mois et heure, l'année devient celle de l'enregistrement */
+  useEffect(() => { (trades || []).forEach((t) => { const fix = (iso) => { if (!iso) return null; const d = new Date(iso); if (isNaN(d.getTime())) return null; const y = d.getUTCFullYear(); if (y >= 2015 && y <= new Date().getUTCFullYear() + 1) return null;
+        const ref = new Date(Number(t.updatedAt) || Number(t.createdAt) || Date.now()); let ny = ref.getUTCFullYear(); const nd = new Date(d); nd.setUTCFullYear(ny); if (nd.getTime() > Date.now() + 864e5) nd.setUTCFullYear(ny - 1); return nd.toISOString(); };
+      const e = fix(t.entryTime), x = fix(t.exitTime); if (e || x) patchTrade(t.id, { ...(e ? { entryTime: e } : {}), ...(x ? { exitTime: x } : {}) }); }); }, [trades.length]);
   // ── Import MT4/MT5 : ajoute les positions, sans doublon ──
   /* trades TradeLocker déjà importés avec un R irréaliste (SL final au lieu du SL de départ) : R recalculé sur 1 % du compte */
   useEffect(() => { (trades || []).forEach((t) => { if (!String(t.id).startsWith("tl_") || t.resultUsd == null || t.rules?.initialSL != null) return;
